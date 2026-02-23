@@ -22,8 +22,8 @@ Connect to your Meshtastic devices over Bluetooth, USB Serial, or WiFi — no py
 ### Mac
 
 ```bash
-git clone https://github.com/defidude/Elecstatic.git
-cd Elecstatic
+git clone https://github.com/Denver-Mesh/meshtastic-client
+cd meshtastic-client
 npm install
 npm start
 ```
@@ -33,8 +33,8 @@ You may need to allow Bluetooth access in **System Settings > Privacy & Security
 ### Linux
 
 ```bash
-git clone https://github.com/defidude/Elecstatic.git
-cd Elecstatic
+git clone https://github.com/Denver-Mesh/meshtastic-client
+cd meshtastic-client
 npm install
 npm start
 ```
@@ -44,8 +44,8 @@ BLE requires BlueZ installed. If Bluetooth doesn't work, try launching with `--e
 ### Windows
 
 ```bash
-git clone https://github.com/defidude/Elecstatic.git
-cd Elecstatic
+git clone https://github.com/Denver-Mesh/meshtastic-client
+cd meshtastic-client
 npm install
 npm start
 ```

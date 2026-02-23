@@ -142,7 +142,7 @@ export default function App() {
         <span>
           Inspired by{" "}
           <a
-            href="https://github.com/rinchen/meshtastic_mac_client"
+            href="https://github.com/Denver-Mesh/meshtastic_mac_client"
             className="text-green-500 hover:underline"
             target="_blank"
             rel="noopener noreferrer"
