@@ -45,7 +45,7 @@ export function useDevice() {
     []
   );
 
-  // Resolve a node number to a display name using the ref (no stale closure)
+  // Resolve a node number to a compact display name using the ref (no stale closure)
   // Prefers short_name (Meshtastic convention), then truncated long_name, then hex ID
   const getNodeName = useCallback((nodeNum: number): string => {
     const node = nodesRef.current.get(nodeNum);
@@ -55,6 +55,23 @@ export function useDevice() {
         ? node.long_name.slice(0, 7)
         : node.long_name;
     return `!${nodeNum.toString(16)}`;
+  }, []);
+
+  // Resolve a node number to a full label for prominent UI (no truncation)
+  // Prefers short_name (with _hex suffix), then long_name, then hex ID
+  const getFullNodeLabel = useCallback((nodeNum: number): string => {
+    const node = nodesRef.current.get(nodeNum);
+    const hex = nodeNum.toString(16);
+
+    if (node?.short_name) {
+      // Avoid double-appending if device already includes the suffix
+      if (node.short_name.endsWith(`_${hex}`)) {
+        return node.short_name;
+      }
+      return `${node.short_name}_${hex}`;
+    }
+    if (node?.long_name) return node.long_name;
+    return `!${hex}`;
   }, []);
 
   // ─── Helper: start polling for node updates ─────────────────────
@@ -538,6 +555,7 @@ export function useDevice() {
     requestPosition,
     requestRefresh,
     getNodeName,
+    getFullNodeLabel,
   };
 }
 

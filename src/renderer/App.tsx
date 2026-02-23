@@ -61,8 +61,8 @@ export default function App() {
               : ""}
           </span>
           {device.state.myNodeNum > 0 && (
-            <span className="text-xs text-gray-500 ml-2">
-              Node: !{device.state.myNodeNum.toString(16)}
+            <span className="text-xs text-gray-500 ml-2 whitespace-nowrap">
+              Node: {device.getFullNodeLabel(device.state.myNodeNum)}
             </span>
           )}
         </div>
