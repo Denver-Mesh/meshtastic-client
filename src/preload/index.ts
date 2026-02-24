@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       payload: string;
       channel: number;
       timestamp: number;
+      to?: number;
     }) => ipcRenderer.invoke("db:saveMessage", message),
 
     getMessages: (channel?: number, limit?: number) =>

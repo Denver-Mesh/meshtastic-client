@@ -1,7 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import type { MeshNode } from "../lib/types";
+import { getNodeStatus } from "../lib/nodeStatus";
 import RefreshButton from "./RefreshButton";
 
 // Fix for default markers not showing in bundled apps
@@ -17,8 +18,60 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
+// Create colored marker icons using SVG data URIs
+function createMarkerIcon(color: string, isSelf: boolean): L.Icon {
+  const size = isSelf ? 32 : 25;
+  const anchor = isSelf ? 16 : 12;
+
+  // Star marker for self
+  if (isSelf) {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="${color}" stroke="#000" stroke-width="0.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
+    return L.icon({
+      iconUrl: `data:image/svg+xml;base64,${btoa(svg)}`,
+      iconSize: [size, size],
+      iconAnchor: [anchor, anchor],
+      popupAnchor: [0, -anchor],
+    });
+  }
+
+  // Circle marker for others
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="${color}" stroke="#000" stroke-width="1" opacity="0.9"/><circle cx="12" cy="12" r="4" fill="#fff" opacity="0.8"/></svg>`;
+  return L.icon({
+    iconUrl: `data:image/svg+xml;base64,${btoa(svg)}`,
+    iconSize: [size, size],
+    iconAnchor: [anchor, anchor],
+    popupAnchor: [0, -anchor],
+  });
+}
+
+// Cached marker icons
+const MARKERS = {
+  selfOnline: createMarkerIcon("#22c55e", true),
+  selfStale: createMarkerIcon("#eab308", true),
+  selfOffline: createMarkerIcon("#6b7280", true),
+  online: createMarkerIcon("#22c55e", false),
+  stale: createMarkerIcon("#eab308", false),
+  offline: createMarkerIcon("#6b7280", false),
+};
+
+function getMarkerIcon(status: "online" | "stale" | "offline", isSelf: boolean): L.Icon {
+  if (isSelf) {
+    return status === "online"
+      ? MARKERS.selfOnline
+      : status === "stale"
+      ? MARKERS.selfStale
+      : MARKERS.selfOffline;
+  }
+  return status === "online"
+    ? MARKERS.online
+    : status === "stale"
+    ? MARKERS.stale
+    : MARKERS.offline;
+}
+
 interface Props {
   nodes: Map<number, MeshNode>;
+  myNodeNum: number;
   onRefresh: () => Promise<void>;
   isConnected: boolean;
 }
@@ -27,18 +80,33 @@ interface Props {
 const DEFAULT_CENTER: [number, number] = [40.1672, -105.1019];
 const DEFAULT_ZOOM = 12;
 
-// Fix 4: Re-center map when nodes change
-function MapUpdater({ center }: { center: [number, number] }) {
+// Auto-fit map to show all nodes
+function MapFitter({ positions }: { positions: [number, number][] }) {
   const map = useMap();
   useEffect(() => {
-    map.flyTo(center, map.getZoom());
-  }, [center[0], center[1], map]);
+    if (positions.length === 0) return;
+    if (positions.length === 1) {
+      map.flyTo(positions[0], map.getZoom());
+    } else {
+      const bounds = L.latLngBounds(positions.map(([lat, lng]) => L.latLng(lat, lng)));
+      map.flyToBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+    }
+  }, [positions.length, map]); // only re-fit when count changes
   return null;
 }
 
-export default function MapPanel({ nodes, onRefresh, isConnected }: Props) {
-  const nodesWithPosition = Array.from(nodes.values()).filter(
-    (n) => n.latitude !== 0 && n.longitude !== 0
+export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected }: Props) {
+  const nodesWithPosition = useMemo(
+    () =>
+      Array.from(nodes.values()).filter(
+        (n) => n.latitude !== 0 && n.longitude !== 0
+      ),
+    [nodes]
+  );
+
+  const positions = useMemo<[number, number][]>(
+    () => nodesWithPosition.map((n) => [n.latitude, n.longitude]),
+    [nodesWithPosition]
   );
 
   // Center on nodes if we have positions, otherwise default
@@ -52,11 +120,36 @@ export default function MapPanel({ nodes, onRefresh, isConnected }: Props) {
     return new Date(ts).toLocaleString();
   }
 
+  const statusCounts = useMemo(() => {
+    const counts = { online: 0, stale: 0, offline: 0 };
+    for (const n of nodesWithPosition) {
+      counts[getNodeStatus(n.last_heard)]++;
+    }
+    return counts;
+  }, [nodesWithPosition]);
+
   return (
     <div className="h-full min-h-[500px] rounded-lg overflow-hidden border border-gray-700 relative">
-      {/* Refresh button overlay */}
-      <div className="absolute top-3 right-3 z-[1000] bg-gray-900/70 rounded-full">
-        <RefreshButton onRefresh={onRefresh} disabled={!isConnected} />
+      {/* Controls overlay — top right */}
+      <div className="absolute top-3 right-3 z-[1000] flex items-center gap-2">
+        {/* Legend */}
+        <div className="bg-gray-900/80 backdrop-blur-sm rounded-lg px-3 py-1.5 flex items-center gap-3 text-xs border border-gray-700">
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+            {statusCounts.online}
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-yellow-500 inline-block" />
+            {statusCounts.stale}
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-gray-500 inline-block" />
+            {statusCounts.offline}
+          </span>
+        </div>
+        <div className="bg-gray-900/70 rounded-full">
+          <RefreshButton onRefresh={onRefresh} disabled={!isConnected} />
+        </div>
       </div>
 
       <MapContainer
@@ -64,36 +157,57 @@ export default function MapPanel({ nodes, onRefresh, isConnected }: Props) {
         zoom={DEFAULT_ZOOM}
         className="h-full w-full"
       >
-        <MapUpdater center={center} />
+        <MapFitter positions={positions} />
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         />
-        {nodesWithPosition.map((node) => (
-          <Marker
-            key={node.node_id}
-            position={[node.latitude, node.longitude]}
-          >
-            <Popup>
-              <div className="text-gray-900 text-sm space-y-1">
-                <div className="font-bold">
-                  {node.long_name || `!${node.node_id.toString(16)}`}
+        {nodesWithPosition.map((node) => {
+          const isSelf = node.node_id === myNodeNum;
+          const status = getNodeStatus(node.last_heard);
+          const icon = getMarkerIcon(status, isSelf);
+
+          return (
+            <Marker
+              key={node.node_id}
+              position={[node.latitude, node.longitude]}
+              icon={icon}
+              zIndexOffset={isSelf ? 1000 : 0}
+            >
+              <Popup>
+                <div className="text-gray-900 text-sm space-y-1">
+                  <div className="font-bold flex items-center gap-1.5">
+                    {isSelf && <span title="Your node">★</span>}
+                    {node.long_name || `!${node.node_id.toString(16)}`}
+                  </div>
+                  {node.short_name && (
+                    <div className="text-gray-600">{node.short_name}</div>
+                  )}
+                  <div className="flex items-center gap-1 text-xs">
+                    <span
+                      className={`inline-block w-2 h-2 rounded-full ${
+                        status === "online"
+                          ? "bg-green-500"
+                          : status === "stale"
+                          ? "bg-yellow-500"
+                          : "bg-gray-400"
+                      }`}
+                    />
+                    <span className="capitalize">{status}</span>
+                  </div>
+                  {node.battery > 0 && <div>Battery: {node.battery}%</div>}
+                  {node.snr !== 0 && (
+                    <div>SNR: {node.snr.toFixed(1)} dB</div>
+                  )}
+                  <div>Last heard: {formatTime(node.last_heard)}</div>
+                  <div className="text-xs text-gray-500">
+                    {node.latitude.toFixed(5)}, {node.longitude.toFixed(5)}
+                  </div>
                 </div>
-                {node.short_name && (
-                  <div className="text-gray-600">{node.short_name}</div>
-                )}
-                {node.battery > 0 && <div>Battery: {node.battery}%</div>}
-                {node.snr !== 0 && (
-                  <div>SNR: {node.snr.toFixed(1)} dB</div>
-                )}
-                <div>Last heard: {formatTime(node.last_heard)}</div>
-                <div className="text-xs text-gray-500">
-                  {node.latitude.toFixed(5)}, {node.longitude.toFixed(5)}
-                </div>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+              </Popup>
+            </Marker>
+          );
+        })}
       </MapContainer>
 
       {nodesWithPosition.length === 0 && (

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useDevice } from "./hooks/useDevice";
+import { ToastProvider } from "./components/Toast";
 import Tabs from "./components/Tabs";
 import ErrorBoundary from "./components/ErrorBoundary";
 import NodeDetailModal from "./components/NodeDetailModal";
@@ -24,151 +25,241 @@ const TAB_NAMES = [
 export default function App() {
   const [activeTab, setActiveTab] = useState(0);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const [pendingDmTarget, setPendingDmTarget] = useState<number | null>(null);
   const device = useDevice();
 
   const isConfigured = device.state.status === "configured";
+  const isOperational = isConfigured || device.state.status === "stale";
   const selectedNode = selectedNodeId
     ? device.nodes.get(selectedNodeId) ?? null
     : null;
+
+  // ─── Keyboard shortcuts: Cmd/Ctrl+1-7 for tabs ───────────────
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "7") {
+        e.preventDefault();
+        setActiveTab(parseInt(e.key) - 1);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Manual reconnect from banner
+  const handleReconnect = useCallback(() => {
+    const lastType = device.state.connectionType ?? "ble";
+    device.disconnect().then(() => {
+      // Small delay before reconnecting
+      setTimeout(() => {
+        device.connect(lastType).catch(() => {});
+      }, 500);
+    });
+  }, [device]);
+
+  const handleMessageNode = useCallback((nodeNum: number) => {
+    setPendingDmTarget(nodeNum);
+    setActiveTab(1); // Switch to Chat tab
+  }, []);
 
   const statusColor = {
     disconnected: "bg-red-500",
     connecting: "bg-yellow-500 animate-pulse",
     connected: "bg-blue-500",
     configured: "bg-green-500",
+    stale: "bg-yellow-500 animate-pulse",
+    reconnecting: "bg-orange-500 animate-pulse",
   }[device.state.status];
 
   return (
-    <div className="flex flex-col h-screen">
-      {/* Header */}
-      <header
-        className={`flex items-center justify-between px-4 py-2 bg-gray-800 border-b ${
-          isConfigured ? "border-green-500/20" : "border-gray-700"
-        }`}
-      >
-        <div className="flex items-center gap-3">
-          <h1 className="text-lg font-bold text-green-400 tracking-wide">
-            Electastic
-          </h1>
-          <span className="text-xs text-gray-500">Meshtastic Client</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className={`w-2.5 h-2.5 rounded-full ${statusColor}`} />
-          <span className="text-sm text-gray-400 capitalize">
-            {device.state.status}
-            {device.state.connectionType
-              ? ` (${device.state.connectionType.toUpperCase()})`
-              : ""}
-          </span>
-          {device.state.myNodeNum > 0 && (
-            <span className="text-xs text-gray-500 ml-2 whitespace-nowrap">
-              Node: {device.getFullNodeLabel(device.state.myNodeNum)}
+    <ToastProvider>
+      <div className="flex flex-col h-screen">
+        {/* Header */}
+        <header
+          className={`flex items-center justify-between px-4 py-2 bg-gray-800 border-b ${
+            isConfigured ? "border-green-500/20" : "border-gray-700"
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <h1 className="text-lg font-bold text-green-400 tracking-wide">
+              Electastic
+            </h1>
+            <span className="text-xs text-gray-500">Meshtastic Client</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className={`w-2.5 h-2.5 rounded-full ${statusColor}`} />
+            <span className="text-sm text-gray-400 capitalize">
+              {device.state.status}
+              {device.state.connectionType
+                ? ` (${device.state.connectionType.toUpperCase()})`
+                : ""}
             </span>
-          )}
-        </div>
-      </header>
+            {device.state.myNodeNum > 0 && (
+              <span className="text-xs text-gray-500 ml-2 whitespace-nowrap">
+                Node: {device.getFullNodeLabel(device.state.myNodeNum)}
+              </span>
+            )}
+          </div>
+        </header>
 
-      {/* Tabs */}
-      <Tabs tabs={TAB_NAMES} active={activeTab} onChange={setActiveTab} />
+        {/* Connection Status Banner */}
+        <ConnectionBanner
+          status={device.state.status}
+          reconnectAttempt={device.state.reconnectAttempt}
+          onReconnect={handleReconnect}
+        />
 
-      {/* Content */}
-      <main className="flex-1 overflow-auto p-4">
-        <ErrorBoundary>
-          {activeTab === 0 && (
-            <ConnectionPanel
-              state={device.state}
-              onConnect={device.connect}
-              onDisconnect={device.disconnect}
-            />
-          )}
-          {activeTab === 1 && (
-            <ChatPanel
-              messages={device.messages}
-              channels={device.channels}
-              myNodeNum={device.state.myNodeNum}
-              onSend={device.sendMessage}
-              onReact={device.sendReaction}
-              onNodeClick={setSelectedNodeId}
-              isConnected={isConfigured}
-            />
-          )}
-          {activeTab === 2 && (
-            <NodeListPanel
-              nodes={device.nodes}
-              onRequestPosition={device.requestPosition}
-              onTraceRoute={device.traceRoute}
-              onRefresh={device.requestRefresh}
-              onNodeClick={(node) => setSelectedNodeId(node.node_id)}
-              isConnected={isConfigured}
-            />
-          )}
-          {activeTab === 3 && (
-            <ConfigPanel
-              onSetConfig={device.setConfig}
-              onCommit={device.commitConfig}
-              onSetChannel={device.setDeviceChannel}
-              onClearChannel={device.clearChannel}
-              channelConfigs={device.channelConfigs}
-              isConnected={isConfigured}
-            />
-          )}
-          {activeTab === 4 && (
-            <MapPanel
-              nodes={device.nodes}
-              onRefresh={device.requestRefresh}
-              isConnected={isConfigured}
-            />
-          )}
-          {activeTab === 5 && (
-            <TelemetryPanel
-              telemetry={device.telemetry}
-              onRefresh={device.requestRefresh}
-              isConnected={isConfigured}
-            />
-          )}
-          {activeTab === 6 && (
-            <AdminPanel
-              nodes={device.nodes}
-              messageCount={device.messages.length}
-              onReboot={device.reboot}
-              onShutdown={device.shutdown}
-              onFactoryReset={device.factoryReset}
-              onResetNodeDb={device.resetNodeDb}
-              onTraceRoute={device.traceRoute}
-              onRemoveNode={device.removeNode}
-              isConnected={isConfigured}
-            />
-          )}
-        </ErrorBoundary>
-      </main>
+        {/* Tabs */}
+        <Tabs tabs={TAB_NAMES} active={activeTab} onChange={setActiveTab} />
 
-      {/* Footer */}
-      <footer className="px-4 py-1.5 bg-gray-800 border-t border-gray-700 text-xs text-gray-500 flex justify-between">
-        <span>
-          Inspired by{" "}
-          <a
-            href="https://github.com/Denver-Mesh/meshtastic_mac_client"
-            className="text-green-500 hover:underline"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Joey (NV0N)
-          </a>{" "}
-          &amp; Denver Mesh
-        </span>
-        <span>
-          {device.nodes.size} nodes | {device.messages.length} messages
-        </span>
-      </footer>
+        {/* Content */}
+        <main className="flex-1 overflow-auto p-4">
+          <ErrorBoundary>
+            {activeTab === 0 && (
+              <ConnectionPanel
+                state={device.state}
+                onConnect={device.connect}
+                onDisconnect={device.disconnect}
+              />
+            )}
+            <div className={activeTab === 1 ? "contents" : "hidden"}>
+              <ChatPanel
+                messages={device.messages}
+                channels={device.channels}
+                myNodeNum={device.state.myNodeNum}
+                onSend={device.sendMessage}
+                onReact={device.sendReaction}
+                onNodeClick={setSelectedNodeId}
+                isConnected={isOperational}
+                nodes={device.nodes}
+                initialDmTarget={pendingDmTarget}
+                onDmTargetConsumed={() => setPendingDmTarget(null)}
+              />
+            </div>
+            {activeTab === 2 && (
+              <NodeListPanel
+                nodes={device.nodes}
+                myNodeNum={device.state.myNodeNum}
+                onRequestPosition={device.requestPosition}
+                onTraceRoute={device.traceRoute}
+                onRefresh={device.requestRefresh}
+                onNodeClick={(node) => setSelectedNodeId(node.node_id)}
+                isConnected={isOperational}
+                onMessageNode={handleMessageNode}
+              />
+            )}
+            {activeTab === 3 && (
+              <ConfigPanel
+                onSetConfig={device.setConfig}
+                onCommit={device.commitConfig}
+                onSetChannel={device.setDeviceChannel}
+                onClearChannel={device.clearChannel}
+                channelConfigs={device.channelConfigs}
+                isConnected={isOperational}
+              />
+            )}
+            {activeTab === 4 && (
+              <MapPanel
+                nodes={device.nodes}
+                myNodeNum={device.state.myNodeNum}
+                onRefresh={device.requestRefresh}
+                isConnected={isOperational}
+              />
+            )}
+            {activeTab === 5 && (
+              <TelemetryPanel
+                telemetry={device.telemetry}
+                onRefresh={device.requestRefresh}
+                isConnected={isOperational}
+              />
+            )}
+            {activeTab === 6 && (
+              <AdminPanel
+                nodes={device.nodes}
+                messageCount={device.messages.length}
+                onReboot={device.reboot}
+                onShutdown={device.shutdown}
+                onFactoryReset={device.factoryReset}
+                onResetNodeDb={device.resetNodeDb}
+                onTraceRoute={device.traceRoute}
+                onRemoveNode={device.removeNode}
+                isConnected={isOperational}
+              />
+            )}
+          </ErrorBoundary>
+        </main>
 
-      {/* Node Detail Modal — rendered outside main for proper z-indexing */}
-      <NodeDetailModal
-        node={selectedNode}
-        onClose={() => setSelectedNodeId(null)}
-        onRequestPosition={device.requestPosition}
-        onTraceRoute={device.traceRoute}
-        isConnected={isConfigured}
-      />
-    </div>
+        {/* Footer */}
+        <footer className="px-4 py-1.5 bg-gray-800 border-t border-gray-700 text-xs text-gray-500 flex justify-between">
+          <span>
+            Inspired by{" "}
+            <a
+              href="https://github.com/Denver-Mesh/meshtastic_mac_client"
+              className="text-green-500 hover:underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Joey (NV0N)
+            </a>{" "}
+            &amp; Denver Mesh
+          </span>
+          <span>
+            {device.nodes.size} nodes | {device.messages.length} messages
+          </span>
+        </footer>
+
+        {/* Node Detail Modal — rendered outside main for proper z-indexing */}
+        <NodeDetailModal
+          node={selectedNode}
+          onClose={() => setSelectedNodeId(null)}
+          onRequestPosition={device.requestPosition}
+          onTraceRoute={device.traceRoute}
+          isConnected={isOperational}
+        />
+      </div>
+    </ToastProvider>
   );
+}
+
+// ─── Connection Status Banner ─────────────────────────────────────
+function ConnectionBanner({
+  status,
+  reconnectAttempt,
+  onReconnect,
+}: {
+  status: string;
+  reconnectAttempt?: number;
+  onReconnect: () => void;
+}) {
+  if (status === "stale") {
+    return (
+      <div className="bg-yellow-900/80 border-b border-yellow-700 px-4 py-2 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-yellow-400">⚠</span>
+          <span className="text-yellow-200 text-sm">
+            Connection may be lost — no data received recently
+          </span>
+        </div>
+        <button
+          onClick={onReconnect}
+          className="text-yellow-300 text-sm font-medium hover:text-yellow-100 underline"
+        >
+          Reconnect
+        </button>
+      </div>
+    );
+  }
+
+  if (status === "reconnecting") {
+    return (
+      <div className="bg-orange-900/80 border-b border-orange-700 px-4 py-2 flex items-center gap-2">
+        <span className="text-orange-400 animate-spin inline-block">⟳</span>
+        <span className="text-orange-200 text-sm animate-pulse">
+          Reconnecting... attempt {reconnectAttempt ?? 1}/5
+        </span>
+      </div>
+    );
+  }
+
+  return null;
 }

@@ -25,6 +25,20 @@ export async function createConnection(
   switch (type) {
     case "ble":
       transport = await TransportWebBluetooth.create();
+      // Capture the BluetoothDevice reference for GATT disconnection monitoring.
+      // TransportWebBluetooth.create() creates the BluetoothDevice as a local
+      // variable that is never stored, so we retrieve it via getDevices().
+      try {
+        const devices = await navigator.bluetooth.getDevices();
+        const connectedDevice = devices.find(
+          (d: any) => d.gatt?.connected
+        );
+        if (connectedDevice) {
+          (transport as any).__bluetoothDevice = connectedDevice;
+        }
+      } catch (err) {
+        console.warn("Could not capture BluetoothDevice reference:", err);
+      }
       break;
 
     case "serial":
@@ -59,6 +73,42 @@ export async function createConnection(
 }
 
 /**
+ * Attempt to reconnect to a previously-paired BLE device without
+ * requiring a new user gesture. Uses navigator.bluetooth.getDevices()
+ * to find the device that was previously granted permission.
+ */
+export async function reconnectBle(): Promise<MeshDevice> {
+  const devices = await navigator.bluetooth.getDevices();
+  // First try to find a disconnected device; fall back to any device with GATT
+  const target = devices.find((d: any) => d.gatt && !d.gatt.connected)
+    ?? devices.find((d: any) => d.gatt != null);
+  if (!target) {
+    throw new Error("No previously connected BLE device found for reconnection");
+  }
+
+  // Let the transport library handle GATT connection internally
+  // (both createFromDevice and prepareConnection call gatt.connect())
+  let transport: any;
+  if (typeof (TransportWebBluetooth as any).createFromDevice === "function") {
+    transport = await (TransportWebBluetooth as any).createFromDevice(target);
+  } else if (typeof (TransportWebBluetooth as any).prepareConnection === "function") {
+    transport = await (TransportWebBluetooth as any).prepareConnection(target);
+  } else {
+    throw new Error("TransportWebBluetooth has no method to create a transport from an existing device");
+  }
+
+  if (!transport) {
+    throw new Error("Failed to create BLE transport for reconnection");
+  }
+
+  // Stash the BluetoothDevice reference for GATT monitoring
+  (transport as any).__bluetoothDevice = target;
+
+  const device = new MeshDevice(transport as any);
+  return device;
+}
+
+/**
  * Safely disconnect from a device, handling transports that may not
  * have a disconnect() method (e.g. TransportWebBluetooth).
  */
@@ -72,7 +122,17 @@ export async function safeDisconnect(device: MeshDevice): Promise<void> {
       msg.includes("already been closed") ||
       msg.includes("locked")
     ) {
-      // Expected for BLE transport — swallow
+      // BLE and HTTP transports don't implement disconnect() —
+      // manually close the writable stream and GATT connection
+      try {
+        await device.transport.toDevice.close();
+      } catch { /* already closed */ }
+
+      // For BLE: disconnect the GATT server
+      const btDevice = (device.transport as any)?.__bluetoothDevice;
+      if (btDevice?.gatt?.connected) {
+        try { btDevice.gatt.disconnect(); } catch { /* ignore */ }
+      }
     } else {
       console.warn("Disconnect error:", err);
     }

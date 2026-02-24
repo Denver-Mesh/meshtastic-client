@@ -57,6 +57,11 @@ export function initDatabase(): void {
     `);
     db.pragma("user_version = 2");
   }
+
+  if (userVersion < 3) {
+    db.exec(`ALTER TABLE messages ADD COLUMN to_node INTEGER;`);
+    db.pragma("user_version = 3");
+  }
 }
 
 export function getDatabase(): Database.Database {

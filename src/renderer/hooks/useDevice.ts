@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { MeshDevice } from "@meshtastic/core";
-import { createConnection, safeDisconnect } from "../lib/connection";
+import { createConnection, reconnectBle, safeDisconnect } from "../lib/connection";
 import type {
   ConnectionType,
   DeviceState,
@@ -11,15 +11,39 @@ import type {
 
 const MAX_TELEMETRY_POINTS = 50;
 const POLL_INTERVAL_MS = 30_000; // 30 seconds
+const BROADCAST_ADDR = 0xffffffff;
+
+// ─── Connection watchdog thresholds (per transport) ────────────────
+const BLE_STALE_THRESHOLD_MS = 90_000;    // 90s — show warning
+const BLE_DEAD_THRESHOLD_MS = 180_000;    // 3min — trigger reconnect
+const SERIAL_STALE_THRESHOLD_MS = 120_000; // 2min
+const SERIAL_DEAD_THRESHOLD_MS = 300_000;  // 5min
+const HTTP_STALE_THRESHOLD_MS = 60_000;    // 1min
+const HTTP_DEAD_THRESHOLD_MS = 120_000;    // 2min
+const WATCHDOG_INTERVAL_MS = 15_000;       // Check every 15s
+const MAX_RECONNECT_ATTEMPTS = 5;
+const BLE_HEARTBEAT_INTERVAL_MS = 30_000;  // 30s heartbeat for BLE
 
 export function useDevice() {
   const deviceRef = useRef<MeshDevice | null>(null);
+  // Track own node number in a ref so event callbacks can access it
+  // without relying on the private device.myNodeInfo property
+  const myNodeNumRef = useRef<number>(0);
   // Use a ref for nodes so event callbacks always see the latest value
   const nodesRef = useRef<Map<number, MeshNode>>(new Map());
   // Track polling interval for node refresh
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Track event unsubscribe functions for cleanup
   const unsubscribesRef = useRef<Array<() => void>>([]);
+
+  // ─── Connection watchdog refs ─────────────────────────────────
+  const lastDataReceivedRef = useRef<number>(Date.now());
+  const watchdogRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const reconnectAttemptRef = useRef<number>(0);
+  const connectionParamsRef = useRef<{ type: ConnectionType; httpAddress?: string } | null>(null);
+  const isReconnectingRef = useRef<boolean>(false);
+  const reconnectGenerationRef = useRef<number>(0);
+  const bleHeartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [state, setState] = useState<DeviceState>({
     status: "disconnected",
@@ -74,6 +98,18 @@ export function useDevice() {
     return hexId;
   }, []);
 
+  // ─── Mark data as freshly received ────────────────────────────
+  const touchLastData = useCallback(() => {
+    lastDataReceivedRef.current = Date.now();
+    // If we were in "stale" state, recover to "configured"
+    setState((s) => {
+      if (s.status === "stale") {
+        return { ...s, status: "configured", lastDataReceived: Date.now() };
+      }
+      return s;
+    });
+  }, []);
+
   // ─── Helper: start polling for node updates ─────────────────────
   const startPolling = useCallback(() => {
     if (pollRef.current) return; // Already polling
@@ -98,6 +134,57 @@ export function useDevice() {
     unsubscribesRef.current = [];
   }, []);
 
+  // ─── Watchdog: get thresholds per transport type ──────────────
+  const getThresholds = useCallback(() => {
+    const type = connectionParamsRef.current?.type;
+    switch (type) {
+      case "ble": return { stale: BLE_STALE_THRESHOLD_MS, dead: BLE_DEAD_THRESHOLD_MS };
+      case "serial": return { stale: SERIAL_STALE_THRESHOLD_MS, dead: SERIAL_DEAD_THRESHOLD_MS };
+      case "http": return { stale: HTTP_STALE_THRESHOLD_MS, dead: HTTP_DEAD_THRESHOLD_MS };
+      default: return { stale: 90_000, dead: 180_000 };
+    }
+  }, []);
+
+  // ─── Watchdog: stop BLE heartbeat ─────────────────────────────
+  const stopBleHeartbeat = useCallback(() => {
+    if (bleHeartbeatRef.current) {
+      clearInterval(bleHeartbeatRef.current);
+      bleHeartbeatRef.current = null;
+    }
+  }, []);
+
+  // ─── Watchdog: stop watchdog ──────────────────────────────────
+  const stopWatchdog = useCallback(() => {
+    if (watchdogRef.current) {
+      clearInterval(watchdogRef.current);
+      watchdogRef.current = null;
+    }
+  }, []);
+
+  // ─── Forward declarations for mutual recursion ────────────────
+  const handleConnectionLostRef = useRef<() => void>(() => {});
+  const attemptReconnectRef = useRef<() => Promise<void>>(async () => {});
+
+  // ─── Watchdog: start monitoring data freshness ────────────────
+  const startWatchdog = useCallback(() => {
+    if (watchdogRef.current) return;
+    watchdogRef.current = setInterval(() => {
+      if (isReconnectingRef.current) return;
+      const elapsed = Date.now() - lastDataReceivedRef.current;
+      const { stale, dead } = getThresholds();
+      if (elapsed > dead) {
+        handleConnectionLostRef.current();
+      } else if (elapsed > stale) {
+        setState((s) => {
+          if (s.status === "configured" || s.status === "connected") {
+            return { ...s, status: "stale", lastDataReceived: lastDataReceivedRef.current };
+          }
+          return s;
+        });
+      }
+    }, WATCHDOG_INTERVAL_MS);
+  }, [getThresholds]);
+
   // Load saved data from DB on mount
   useEffect(() => {
     window.electronAPI.db.getMessages(undefined, 500).then((msgs) => {
@@ -113,52 +200,56 @@ export function useDevice() {
     });
   }, []);
 
-  const connect = useCallback(
-    async (type: ConnectionType, httpAddress?: string) => {
-      // Force-disconnect stale device before creating a new connection
-      if (deviceRef.current) {
-        cleanupSubscriptions();
-        stopPolling();
-        const oldDevice = deviceRef.current;
-        deviceRef.current = null;
-        safeDisconnect(oldDevice).catch(() => {});
+  // Cleanup on unmount — stop all intervals and subscriptions
+  useEffect(() => {
+    return () => {
+      cleanupSubscriptions();
+      stopPolling();
+      stopWatchdog();
+      stopBleHeartbeat();
+      isReconnectingRef.current = false;
+      const device = deviceRef.current;
+      deviceRef.current = null;
+      if (device) {
+        safeDisconnect(device).catch(() => {});
       }
+    };
+  }, [cleanupSubscriptions, stopPolling, stopWatchdog, stopBleHeartbeat]);
 
-      setState((s) => ({ ...s, status: "connecting", connectionType: type }));
+  // ─── Wire up all event subscriptions for a device ─────────────
+  const wireSubscriptions = useCallback(
+    (device: MeshDevice, type: ConnectionType) => {
+      // Track whether the device reached "configured" state.
+      let wasConfigured = false;
 
-      try {
-        const device = await createConnection(type, httpAddress);
-        deviceRef.current = device;
+      // ─── Device status ─────────────────────────────────────────
+      const unsub1 = device.events.onDeviceStatus.subscribe((status) => {
+        touchLastData();
+        const statusMap: Record<number, DeviceState["status"]> = {
+          1: "connecting",   // DeviceRestarting
+          2: "disconnected", // DeviceDisconnected
+          3: "connecting",   // DeviceConnecting
+          4: "connecting",   // DeviceReconnecting
+          5: "connected",    // DeviceConnected
+          6: "connecting",   // DeviceConfiguring
+          7: "configured",   // DeviceConfigured
+        };
+        const mapped = statusMap[status] ?? "connected";
+        setState((s) => ({ ...s, status: mapped }));
 
-        // Track whether the device reached "configured" state.
-        // During initial config the device may briefly report status 2
-        // (disconnected) before recovery — we only want to tear down
-        // subscriptions on a REAL disconnect (after being configured).
-        let wasConfigured = false;
+        // Start polling + watchdog when configured
+        if (status === 7) {
+          wasConfigured = true;
+          lastDataReceivedRef.current = Date.now();
+          startPolling();
+          startWatchdog();
+        }
 
-        // ─── Device status ─────────────────────────────────────────
-        const unsub1 = device.events.onDeviceStatus.subscribe((status) => {
-          const statusMap: Record<number, DeviceState["status"]> = {
-            1: "connecting",   // DeviceRestarting
-            2: "disconnected", // DeviceDisconnected
-            3: "connecting",   // DeviceConnecting
-            4: "connecting",   // DeviceReconnecting
-            5: "connected",    // DeviceConnected
-            6: "connecting",   // DeviceConfiguring
-            7: "configured",   // DeviceConfigured
-          };
-          const mapped = statusMap[status] ?? "connected";
-          setState((s) => ({ ...s, status: mapped }));
-
-          // Start polling when configured
-          if (status === 7) {
-            wasConfigured = true;
-            startPolling();
-          }
-
-          // Only tear down on a REAL disconnect (after the device was configured).
-          // During initial config, transient status-2 events are ignored.
-          if (status === 2 && wasConfigured) {
+        // Always clean up timers on disconnect, even before reaching configured
+        if (status === 2) {
+          stopBleHeartbeat();
+          stopWatchdog();
+          if (wasConfigured) {
             cleanupSubscriptions();
             stopPolling();
             deviceRef.current = null;
@@ -168,223 +259,223 @@ export function useDevice() {
               connectionType: null,
             }));
           }
-        });
-        unsubscribesRef.current.push(unsub1);
+        }
+      });
+      unsubscribesRef.current.push(unsub1);
 
-        // ─── My node info ──────────────────────────────────────────
-        const unsub2 = device.events.onMyNodeInfo.subscribe((info) => {
-          setState((s) => ({ ...s, myNodeNum: info.myNodeNum }));
-          // Ensure own node is in the map so getNodeName resolves (Fix 13)
-          updateNodes((prev) => {
-            if (prev.has(info.myNodeNum)) return prev;
-            const updated = new Map(prev);
-            updated.set(info.myNodeNum, emptyNode(info.myNodeNum));
-            return updated;
-          });
+      // ─── My node info ──────────────────────────────────────────
+      const unsub2 = device.events.onMyNodeInfo.subscribe((info) => {
+        touchLastData();
+        myNodeNumRef.current = info.myNodeNum;
+        setState((s) => ({ ...s, myNodeNum: info.myNodeNum }));
+        updateNodes((prev) => {
+          if (prev.has(info.myNodeNum)) return prev;
+          const updated = new Map(prev);
+          updated.set(info.myNodeNum, emptyNode(info.myNodeNum));
+          return updated;
         });
-        unsubscribesRef.current.push(unsub2);
+      });
+      unsubscribesRef.current.push(unsub2);
 
-        // ─── Text messages ─────────────────────────────────────────
-        const unsub3 = device.events.onMessagePacket.subscribe((packet) => {
-          const myNum = device.myNodeInfo?.myNodeNum;
-          const isEcho = packet.from === myNum;
-          // Check for emoji reaction (tapback) fields on the packet
-          const pkt = packet as typeof packet & { emoji?: number; replyId?: number };
-          const msg: ChatMessage = {
-            sender_id: packet.from,
-            sender_name: getNodeName(packet.from),
-            payload: packet.data as string,
-            channel: packet.channel ?? 0,
-            timestamp: packet.rxTime?.getTime() ?? Date.now(),
-            // All messages get packetId for reaction targeting; own echoes also get "sending" status
-            packetId: packet.id,
-            status: isEcho ? "sending" : undefined,
-            emoji: pkt.emoji || undefined,
-            replyId: pkt.replyId || undefined,
+      // ─── Text messages ─────────────────────────────────────────
+      const unsub3 = device.events.onMessagePacket.subscribe((packet) => {
+        touchLastData();
+        const isEcho = packet.from === myNodeNumRef.current;
+        const pkt = packet as typeof packet & { emoji?: number; replyId?: number; to?: number };
+        const msg: ChatMessage = {
+          sender_id: packet.from,
+          sender_name: getNodeName(packet.from),
+          payload: packet.data as string,
+          channel: packet.channel ?? 0,
+          timestamp: packet.rxTime?.getTime() ?? Date.now(),
+          packetId: packet.id,
+          status: isEcho ? "sending" : undefined,
+          emoji: pkt.emoji || undefined,
+          replyId: pkt.replyId || undefined,
+          to: pkt.to && pkt.to !== BROADCAST_ADDR ? pkt.to : undefined,
+        };
+        setMessages((prev) => [...prev, msg]);
+        window.electronAPI.db.saveMessage(msg);
+
+        // Desktop notification for incoming messages when app is not focused
+        if (!isEcho && !msg.emoji && document.hidden) {
+          try {
+            const title = msg.to
+              ? `DM from ${msg.sender_name}`
+              : `Message from ${msg.sender_name}`;
+            new Notification(title, {
+              body: msg.payload.slice(0, 100),
+              silent: false,
+            });
+          } catch { /* notifications may not be available */ }
+        }
+      });
+      unsubscribesRef.current.push(unsub3);
+
+      // ─── User info (node identity) ─────────────────────────────
+      const unsub4 = device.events.onUserPacket.subscribe((packet) => {
+        touchLastData();
+        const user = packet.data as {
+          id?: string;
+          longName?: string;
+          shortName?: string;
+          hwModel?: number;
+        };
+        updateNodes((prev) => {
+          const updated = new Map(prev);
+          const existing = updated.get(packet.from) || emptyNode(packet.from);
+          const node: MeshNode = {
+            ...existing,
+            node_id: packet.from,
+            long_name: user.longName ?? existing.long_name,
+            short_name: user.shortName ?? existing.short_name,
+            hw_model: String(user.hwModel ?? existing.hw_model),
+            last_heard: Date.now(),
           };
-          setMessages((prev) => [...prev, msg]);
-          window.electronAPI.db.saveMessage(msg);
+          updated.set(packet.from, node);
+          window.electronAPI.db.saveNode(node);
+          return updated;
         });
-        unsubscribesRef.current.push(unsub3);
+      });
+      unsubscribesRef.current.push(unsub4);
 
-        // ─── User info (node identity) ─────────────────────────────
-        const unsub4 = device.events.onUserPacket.subscribe((packet) => {
-          const user = packet.data as {
-            id?: string;
+      // ─── Node info packets ─────────────────────────────────────
+      const unsub5 = device.events.onNodeInfoPacket.subscribe((packet) => {
+        touchLastData();
+        const info = packet as {
+          num?: number;
+          user?: {
             longName?: string;
             shortName?: string;
             hwModel?: number;
           };
+          snr?: number;
+          position?: { latitudeI?: number; longitudeI?: number };
+          deviceMetrics?: { batteryLevel?: number };
+          lastHeard?: number;
+        };
+        if (!info.num) return;
+        const nodeNum = info.num;
+
+        updateNodes((prev) => {
+          const updated = new Map(prev);
+          const existing = updated.get(nodeNum) || emptyNode(nodeNum);
+          const node: MeshNode = {
+            ...existing,
+            node_id: nodeNum,
+            long_name: info.user?.longName ?? existing.long_name,
+            short_name: info.user?.shortName ?? existing.short_name,
+            hw_model: String(info.user?.hwModel ?? existing.hw_model),
+            snr: info.snr ?? existing.snr,
+            battery: info.deviceMetrics?.batteryLevel ?? existing.battery,
+            last_heard: (info.lastHeard ?? 0) > 0
+              ? info.lastHeard! * 1000
+              : existing.last_heard,
+            latitude:
+              info.position?.latitudeI != null
+                ? info.position.latitudeI / 1e7
+                : existing.latitude,
+            longitude:
+              info.position?.longitudeI != null
+                ? info.position.longitudeI / 1e7
+                : existing.longitude,
+          };
+          updated.set(nodeNum, node);
+          window.electronAPI.db.saveNode(node);
+          return updated;
+        });
+      });
+      unsubscribesRef.current.push(unsub5);
+
+      // ─── Position packets ──────────────────────────────────────
+      const unsub6 = device.events.onPositionPacket.subscribe((packet) => {
+        touchLastData();
+        const pos = packet.data as {
+          latitudeI?: number;
+          longitudeI?: number;
+        };
+        if (pos.latitudeI === undefined && pos.longitudeI === undefined) return;
+
+        updateNodes((prev) => {
+          const updated = new Map(prev);
+          const existing = updated.get(packet.from) || emptyNode(packet.from);
+
+          const node: MeshNode = {
+            ...existing,
+            latitude:
+              pos.latitudeI != null
+                ? pos.latitudeI / 1e7
+                : existing.latitude,
+            longitude:
+              pos.longitudeI != null
+                ? pos.longitudeI / 1e7
+                : existing.longitude,
+            last_heard: Date.now(),
+          };
+          updated.set(packet.from, node);
+          window.electronAPI.db.saveNode(node);
+          return updated;
+        });
+      });
+      unsubscribesRef.current.push(unsub6);
+
+      // ─── Telemetry ─────────────────────────────────────────────
+      const unsub7 = device.events.onTelemetryPacket.subscribe((packet) => {
+        touchLastData();
+        const tel = packet.data as {
+          deviceMetrics?: { batteryLevel?: number; voltage?: number };
+          variant?: {
+            case?: string;
+            value?: { batteryLevel?: number; voltage?: number };
+          };
+        };
+        const metrics = tel.deviceMetrics ?? tel.variant?.value;
+        if (!metrics) return;
+
+        const point: TelemetryPoint = {
+          timestamp: Date.now(),
+          batteryLevel: metrics.batteryLevel,
+          voltage: metrics.voltage,
+        };
+        setTelemetry((prev) =>
+          [...prev, point].slice(-MAX_TELEMETRY_POINTS)
+        );
+
+        // Update node battery if from a known node
+        if (metrics.batteryLevel && packet.from) {
           updateNodes((prev) => {
             const updated = new Map(prev);
-            const existing = updated.get(packet.from) || emptyNode(packet.from);
-            const node: MeshNode = {
-              ...existing,
-              node_id: packet.from,
-              long_name: user.longName ?? existing.long_name,
-              short_name: user.shortName ?? existing.short_name,
-              hw_model: String(user.hwModel ?? existing.hw_model),
-              last_heard: Date.now(),
-            };
-            updated.set(packet.from, node);
-            window.electronAPI.db.saveNode(node);
+            const existing = updated.get(packet.from);
+            if (existing) {
+              updated.set(packet.from, {
+                ...existing,
+                battery: metrics.batteryLevel!,
+                last_heard: Date.now(),
+              });
+            }
             return updated;
           });
-        });
-        unsubscribesRef.current.push(unsub4);
+        }
+      });
+      unsubscribesRef.current.push(unsub7);
 
-        // ─── Node info packets ─────────────────────────────────────
-        const unsub5 = device.events.onNodeInfoPacket.subscribe((packet) => {
-          const info = packet as {
-            num?: number;
-            user?: {
-              longName?: string;
-              shortName?: string;
-              hwModel?: number;
-            };
-            snr?: number;
-            position?: { latitudeI?: number; longitudeI?: number };
-            deviceMetrics?: { batteryLevel?: number };
-            lastHeard?: number;
-          };
-          if (!info.num) return;
-          const nodeNum = info.num;
+      // ─── Channel discovery ─────────────────────────────────────
+      const unsub8 = device.events.onChannelPacket.subscribe((channel) => {
+        touchLastData();
+        const ch = channel as {
+          index?: number;
+          settings?: { name?: string; psk?: Uint8Array };
+          role?: number;
+        };
+        if (ch.index === undefined) return;
 
-          updateNodes((prev) => {
-            const updated = new Map(prev);
-            const existing = updated.get(nodeNum) || emptyNode(nodeNum);
-            const node: MeshNode = {
-              ...existing,
-              node_id: nodeNum,
-              long_name: info.user?.longName ?? existing.long_name,
-              short_name: info.user?.shortName ?? existing.short_name,
-              hw_model: String(info.user?.hwModel ?? existing.hw_model),
-              snr: info.snr ?? existing.snr,
-              battery: info.deviceMetrics?.batteryLevel ?? existing.battery,
-              last_heard: (info.lastHeard ?? 0) * 1000 || Date.now(),
-              latitude:
-                info.position?.latitudeI != null
-                  ? info.position.latitudeI / 1e7
-                  : existing.latitude,
-              longitude:
-                info.position?.longitudeI != null
-                  ? info.position.longitudeI / 1e7
-                  : existing.longitude,
-            };
-            updated.set(nodeNum, node);
-            window.electronAPI.db.saveNode(node);
-            return updated;
-          });
-        });
-        unsubscribesRef.current.push(unsub5);
-
-        // ─── Position packets ──────────────────────────────────────
-        const unsub6 = device.events.onPositionPacket.subscribe((packet) => {
-          const pos = packet.data as {
-            latitudeI?: number;
-            longitudeI?: number;
-          };
-          // Fix 10: Use explicit undefined check instead of falsy check
-          if (pos.latitudeI === undefined && pos.longitudeI === undefined) return;
-
-          updateNodes((prev) => {
-            const updated = new Map(prev);
-            // Create placeholder if node isn't in map yet (position may
-            // arrive before onNodeInfoPacket for newly-discovered nodes)
-            const existing = updated.get(packet.from) || emptyNode(packet.from);
-
-            const node: MeshNode = {
-              ...existing,
-              latitude:
-                pos.latitudeI != null
-                  ? pos.latitudeI / 1e7
-                  : existing.latitude,
-              longitude:
-                pos.longitudeI != null
-                  ? pos.longitudeI / 1e7
-                  : existing.longitude,
-              last_heard: Date.now(),
-            };
-            updated.set(packet.from, node);
-            window.electronAPI.db.saveNode(node);
-            return updated;
-          });
-        });
-        unsubscribesRef.current.push(unsub6);
-
-        // ─── Telemetry ─────────────────────────────────────────────
-        const unsub7 = device.events.onTelemetryPacket.subscribe((packet) => {
-          const tel = packet.data as {
-            deviceMetrics?: { batteryLevel?: number; voltage?: number };
-            variant?: {
-              case?: string;
-              value?: { batteryLevel?: number; voltage?: number };
-            };
-          };
-          const metrics = tel.deviceMetrics ?? tel.variant?.value;
-          if (!metrics) return;
-
-          const point: TelemetryPoint = {
-            timestamp: Date.now(),
-            batteryLevel: metrics.batteryLevel,
-            voltage: metrics.voltage,
-          };
-          setTelemetry((prev) =>
-            [...prev, point].slice(-MAX_TELEMETRY_POINTS)
-          );
-
-          // Update node battery if from a known node
-          if (metrics.batteryLevel && packet.from) {
-            updateNodes((prev) => {
-              const updated = new Map(prev);
-              const existing = updated.get(packet.from);
-              if (existing) {
-                updated.set(packet.from, {
-                  ...existing,
-                  battery: metrics.batteryLevel!,
-                  last_heard: Date.now(),
-                });
-              }
-              return updated;
-            });
-          }
-        });
-        unsubscribesRef.current.push(unsub7);
-
-        // ─── Channel discovery ─────────────────────────────────────
-        const unsub8 = device.events.onChannelPacket.subscribe((channel) => {
-          const ch = channel as {
-            index?: number;
-            settings?: { name?: string; psk?: Uint8Array };
-            role?: number;
-          };
-          if (ch.index === undefined) return;
-
-          // Update simple channels list for chat pill selector (skip disabled)
-          if (ch.role !== 0) {
-            setChannels((prev) => {
-              const existing = prev.findIndex((c) => c.index === ch.index);
-              const entry = {
-                index: ch.index!,
-                name: ch.settings?.name || (ch.index === 0 ? "Primary" : `Channel ${ch.index}`),
-              };
-              if (existing >= 0) {
-                const updated = [...prev];
-                updated[existing] = entry;
-                return updated;
-              }
-              return [...prev, entry].sort((a, b) => a.index - b.index);
-            });
-          }
-
-          // Update full channel configs for config panel (includes disabled)
-          setChannelConfigs((prev) => {
+        // Update simple channels list for chat pill selector (skip disabled)
+        if (ch.role !== 0) {
+          setChannels((prev) => {
             const existing = prev.findIndex((c) => c.index === ch.index);
             const entry = {
               index: ch.index!,
-              name: ch.settings?.name || "",
-              role: ch.role ?? 0,
-              psk: ch.settings?.psk ?? new Uint8Array([1]),
+              name: ch.settings?.name || (ch.index === 0 ? "Primary" : `Channel ${ch.index}`),
             };
             if (existing >= 0) {
               const updated = [...prev];
@@ -393,61 +484,226 @@ export function useDevice() {
             }
             return [...prev, entry].sort((a, b) => a.index - b.index);
           });
-        });
-        unsubscribesRef.current.push(unsub8);
-
-        // ─── SNR/RSSI from mesh packets ────────────────────────────
-        const unsub9 = device.events.onMeshPacket.subscribe((packet) => {
-          const mp = packet as {
-            rxSnr?: number;
-            rxRssi?: number;
-            from?: number;
-          };
-          if (!mp.from) return;
-
-          if (mp.rxSnr) {
-            updateNodes((prev) => {
-              const updated = new Map(prev);
-              const existing = updated.get(mp.from!);
-              if (existing) {
-                updated.set(mp.from!, {
-                  ...existing,
-                  snr: mp.rxSnr!,
-                  last_heard: Date.now(),
-                });
-              }
-              return updated;
-            });
-          }
-
-          if (mp.rxSnr || mp.rxRssi) {
-            setTelemetry((prev) =>
-              [
-                ...prev,
-                {
-                  timestamp: Date.now(),
-                  snr: mp.rxSnr,
-                  rssi: mp.rxRssi,
-                },
-              ].slice(-MAX_TELEMETRY_POINTS)
-            );
-          }
-        });
-        unsubscribesRef.current.push(unsub9);
-
-        // ─── Heartbeat for serial connections ──────────────────────
-        if (type === "serial") {
-          device.setHeartbeatInterval(60_000);
         }
 
-        // ─── Start configuration AFTER all listeners are wired ────
-        // configure() triggers the node/channel/config dump from the
-        // device. Must happen after subscriptions so we don't miss packets.
+        // Update full channel configs for config panel (includes disabled)
+        setChannelConfigs((prev) => {
+          const existing = prev.findIndex((c) => c.index === ch.index);
+          const entry = {
+            index: ch.index!,
+            name: ch.settings?.name || "",
+            role: ch.role ?? 0,
+            psk: ch.settings?.psk ?? new Uint8Array([1]),
+          };
+          if (existing >= 0) {
+            const updated = [...prev];
+            updated[existing] = entry;
+            return updated;
+          }
+          return [...prev, entry].sort((a, b) => a.index - b.index);
+        });
+      });
+      unsubscribesRef.current.push(unsub8);
+
+      // ─── SNR/RSSI from mesh packets ────────────────────────────
+      const unsub9 = device.events.onMeshPacket.subscribe((packet) => {
+        touchLastData();
+        const mp = packet as {
+          rxSnr?: number;
+          rxRssi?: number;
+          from?: number;
+        };
+        if (!mp.from) return;
+
+        if (mp.rxSnr) {
+          updateNodes((prev) => {
+            const updated = new Map(prev);
+            const existing = updated.get(mp.from!);
+            if (existing) {
+              updated.set(mp.from!, {
+                ...existing,
+                snr: mp.rxSnr!,
+                last_heard: Date.now(),
+              });
+            }
+            return updated;
+          });
+        }
+
+        if (mp.rxSnr || mp.rxRssi) {
+          setTelemetry((prev) =>
+            [
+              ...prev,
+              {
+                timestamp: Date.now(),
+                snr: mp.rxSnr,
+                rssi: mp.rxRssi,
+              },
+            ].slice(-MAX_TELEMETRY_POINTS)
+          );
+        }
+      });
+      unsubscribesRef.current.push(unsub9);
+
+      // ─── Mesh heartbeat (built-in liveness signal) ─────────────
+      const unsub10 = device.events.onMeshHeartbeat.subscribe(() => {
+        touchLastData();
+      });
+      unsubscribesRef.current.push(unsub10);
+
+      // ─── BLE heartbeat with failure detection ──────────────────
+      if (type === "ble") {
+        bleHeartbeatRef.current = setInterval(async () => {
+          try {
+            await deviceRef.current?.heartbeat();
+            touchLastData();
+          } catch (err) {
+            console.warn("BLE heartbeat write failed:", err);
+            // A failed GATT characteristic write = connection is dead
+            handleConnectionLostRef.current();
+          }
+        }, BLE_HEARTBEAT_INTERVAL_MS);
+      }
+
+      // ─── Serial heartbeat (existing behavior, keeps device alive)
+      if (type === "serial") {
+        device.setHeartbeatInterval(60_000);
+      }
+
+      // ─── GATT disconnection event (Layer 3) ────────────────────
+      if (type === "ble") {
+        const btDevice = (device.transport as any)?.__bluetoothDevice;
+        if (btDevice) {
+          const onGattDisconnected = () => {
+            console.warn("GATT server disconnected event fired");
+            handleConnectionLostRef.current();
+          };
+          btDevice.addEventListener("gattserverdisconnected", onGattDisconnected);
+          unsubscribesRef.current.push(() => {
+            btDevice.removeEventListener("gattserverdisconnected", onGattDisconnected);
+          });
+        }
+      }
+    },
+    [touchLastData, getNodeName, updateNodes, startPolling, stopPolling,
+     startWatchdog, stopWatchdog, stopBleHeartbeat, cleanupSubscriptions]
+  );
+
+  // ─── Connection lost handler ──────────────────────────────────
+  const handleConnectionLost = useCallback(() => {
+    if (isReconnectingRef.current) return;
+    isReconnectingRef.current = true;
+
+    // Clean up existing connection
+    cleanupSubscriptions();
+    stopPolling();
+    stopWatchdog();
+    stopBleHeartbeat();
+    const oldDevice = deviceRef.current;
+    deviceRef.current = null;
+    if (oldDevice) safeDisconnect(oldDevice).catch(() => {});
+
+    // Begin reconnection
+    attemptReconnectRef.current();
+  }, [cleanupSubscriptions, stopPolling, stopWatchdog, stopBleHeartbeat]);
+
+  // Keep the ref in sync
+  handleConnectionLostRef.current = handleConnectionLost;
+
+  // ─── Reconnection with exponential backoff ────────────────────
+  const attemptReconnect = useCallback(async () => {
+    const params = connectionParamsRef.current;
+    if (!params) {
+      isReconnectingRef.current = false;
+      setState((s) => ({ ...s, status: "disconnected", connectionType: null }));
+      return;
+    }
+
+    if (reconnectAttemptRef.current >= MAX_RECONNECT_ATTEMPTS) {
+      isReconnectingRef.current = false;
+      reconnectAttemptRef.current = 0;
+      setState((s) => ({ ...s, status: "disconnected", connectionType: null }));
+      return;
+    }
+
+    // Capture the current generation so stale attempts can be detected
+    const generation = reconnectGenerationRef.current;
+
+    reconnectAttemptRef.current++;
+    setState((s) => ({
+      ...s,
+      status: "reconnecting",
+      reconnectAttempt: reconnectAttemptRef.current,
+    }));
+
+    const delay = Math.min(2000 * Math.pow(2, reconnectAttemptRef.current - 1), 32000);
+    await new Promise((r) => setTimeout(r, delay));
+
+    // Check if user manually disconnected or started a new connection during the wait
+    if (!isReconnectingRef.current || reconnectGenerationRef.current !== generation) return;
+
+    try {
+      let device: MeshDevice;
+      if (params.type === "ble") {
+        // Try BLE reconnection without user gesture
+        device = await reconnectBle();
+      } else {
+        device = await createConnection(params.type, params.httpAddress);
+      }
+      deviceRef.current = device;
+      wireSubscriptions(device, params.type);
+      device.configure();
+
+      // Success
+      reconnectAttemptRef.current = 0;
+      isReconnectingRef.current = false;
+    } catch (err) {
+      console.warn(`Reconnect attempt ${reconnectAttemptRef.current} failed:`, err);
+      // Retry
+      attemptReconnectRef.current();
+    }
+  }, [wireSubscriptions]);
+
+  // Keep the ref in sync
+  attemptReconnectRef.current = attemptReconnect;
+
+  // ─── Connect ──────────────────────────────────────────────────
+  const connect = useCallback(
+    async (type: ConnectionType, httpAddress?: string) => {
+      // Force-disconnect stale device before creating a new connection
+      if (deviceRef.current) {
+        cleanupSubscriptions();
+        stopPolling();
+        stopWatchdog();
+        stopBleHeartbeat();
+        const oldDevice = deviceRef.current;
+        deviceRef.current = null;
+        safeDisconnect(oldDevice).catch(() => {});
+      }
+
+      // Store connection params for reconnection
+      connectionParamsRef.current = { type, httpAddress };
+      reconnectAttemptRef.current = 0;
+      isReconnectingRef.current = false;
+      reconnectGenerationRef.current++;
+
+      setState((s) => ({ ...s, status: "connecting", connectionType: type }));
+
+      try {
+        const device = await createConnection(type, httpAddress);
+        deviceRef.current = device;
+
+        // Wire all event subscriptions
+        wireSubscriptions(device, type);
+
+        // Start configuration AFTER all listeners are wired
         device.configure();
       } catch (err) {
         console.error("Connection failed:", err);
         cleanupSubscriptions();
         stopPolling();
+        stopWatchdog();
+        stopBleHeartbeat();
         deviceRef.current = null;
         setState({
           status: "disconnected",
@@ -457,13 +713,19 @@ export function useDevice() {
         throw err;
       }
     },
-    [getNodeName, updateNodes, startPolling, stopPolling, cleanupSubscriptions]
+    [wireSubscriptions, cleanupSubscriptions, stopPolling, stopWatchdog, stopBleHeartbeat]
   );
 
   const disconnect = useCallback(async () => {
-    // Clean up subscriptions and polling first (Fix 12)
+    // Stop all monitoring and reconnection
     cleanupSubscriptions();
     stopPolling();
+    stopWatchdog();
+    stopBleHeartbeat();
+    isReconnectingRef.current = false;
+    reconnectAttemptRef.current = 0;
+    reconnectGenerationRef.current++;
+    connectionParamsRef.current = null;
 
     const device = deviceRef.current;
     deviceRef.current = null;
@@ -471,15 +733,15 @@ export function useDevice() {
       await safeDisconnect(device);
     }
     setState({ status: "disconnected", myNodeNum: 0, connectionType: null });
-  }, [cleanupSubscriptions, stopPolling]);
+  }, [cleanupSubscriptions, stopPolling, stopWatchdog, stopBleHeartbeat]);
 
-  const sendMessage = useCallback(async (text: string, channel = 0) => {
+  const sendMessage = useCallback(async (text: string, channel = 0, destination?: number) => {
     if (!deviceRef.current) throw new Error("Not connected");
     try {
-      // sendText resolves with packet ID on ACK, rejects on failure (60s timeout)
+      const dest: number | "broadcast" = destination ?? "broadcast";
       const packetId = await deviceRef.current.sendText(
         text,
-        "broadcast",
+        dest,
         true,
         channel
       );
@@ -503,13 +765,25 @@ export function useDevice() {
           )
         );
         window.electronAPI.db.updateMessageStatus(pe.id, "failed", errorName);
+      } else {
+        // Non-routing error (e.g., stream closed, disconnected) —
+        // mark the most recent "sending" message as failed
+        console.error("sendMessage failed without packet ID:", err);
+        setMessages((prev) => {
+          let idx = -1;
+          for (let i = prev.length - 1; i >= 0; i--) {
+            if (prev[i].status === "sending") { idx = i; break; }
+          }
+          if (idx < 0) return prev;
+          const updated = [...prev];
+          updated[idx] = { ...updated[idx], status: "failed", error: "Send failed" };
+          return updated;
+        });
       }
-      // Don't re-throw — the echo message is already displayed with failed status
     }
   }, []);
 
   // Send an emoji reaction (tapback) to a specific message
-  // sendText signature: (text, destination, wantAck, channel, replyId, emoji)
   const sendReaction = useCallback(
     async (emoji: number, replyId: number, channel = 0) => {
       if (!deviceRef.current) throw new Error("Not connected");
@@ -558,7 +832,7 @@ export function useDevice() {
     await deviceRef.current.requestPosition(destination);
   }, []);
 
-  // Broadcast position request to all nodes — triggers position + telemetry responses
+  // Broadcast position request to all nodes
   const requestRefresh = useCallback(async () => {
     if (!deviceRef.current) throw new Error("Not connected");
     await deviceRef.current.requestPosition(0xffffffff);
@@ -587,7 +861,6 @@ export function useDevice() {
   const removeNode = useCallback(async (nodeNum: number) => {
     if (!deviceRef.current) throw new Error("Not connected");
     await deviceRef.current.removeNodeByNum(nodeNum);
-    // Also remove from local state and DB
     updateNodes((prev) => {
       const updated = new Map(prev);
       updated.delete(nodeNum);
@@ -632,7 +905,7 @@ function emptyNode(nodeId: number): MeshNode {
     hw_model: "",
     snr: 0,
     battery: 0,
-    last_heard: Date.now(),
+    last_heard: 0,
     latitude: 0,
     longitude: 0,
   };
@@ -641,31 +914,18 @@ function emptyNode(nodeId: number): MeshNode {
 /** Map Meshtastic Routing_Error codes to human-readable names */
 function getRoutingErrorName(code?: number): string {
   switch (code) {
-    case 0:
-      return "Success";
-    case 1:
-      return "No Route";
-    case 2:
-      return "Got NAK";
-    case 3:
-      return "Timeout";
-    case 4:
-      return "No Interface";
-    case 5:
-      return "Max Retransmit";
-    case 6:
-      return "No Channel";
-    case 7:
-      return "Too Large";
-    case 8:
-      return "No Response";
-    case 32:
-      return "Duty Cycle Limit";
-    case 33:
-      return "Bad Request";
-    case 34:
-      return "Not Authorized";
-    default:
-      return code !== undefined ? `Error ${code}` : "Unknown Error";
+    case 0: return "Success";
+    case 1: return "No Route";
+    case 2: return "Got NAK";
+    case 3: return "Timeout";
+    case 4: return "No Interface";
+    case 5: return "Max Retransmit";
+    case 6: return "No Channel";
+    case 7: return "Too Large";
+    case 8: return "No Response";
+    case 32: return "Duty Cycle Limit";
+    case 33: return "Bad Request";
+    case 34: return "Not Authorized";
+    default: return code !== undefined ? `Error ${code}` : "Unknown Error";
   }
 }

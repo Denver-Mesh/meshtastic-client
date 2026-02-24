@@ -6,6 +6,27 @@ import type {
   SerialPortInfo,
 } from "../lib/types";
 
+// ─── Connection Profiles (localStorage) ───────────────────────────
+interface ConnectionProfile {
+  id: string;
+  name: string;
+  type: ConnectionType;
+  httpAddress?: string;
+}
+
+function loadProfiles(): ConnectionProfile[] {
+  try {
+    const raw = localStorage.getItem("electastic_profiles");
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveProfiles(profiles: ConnectionProfile[]) {
+  localStorage.setItem("electastic_profiles", JSON.stringify(profiles));
+}
+
 /** Inline SVG icon for each connection type */
 function ConnectionIcon({ type }: { type: ConnectionType }) {
   const cls = "w-5 h-5 shrink-0";
@@ -31,6 +52,31 @@ function ConnectionIcon({ type }: { type: ConnectionType }) {
   }
 }
 
+/** Animated spinner */
+function Spinner({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      className={`animate-spin ${className}`}
+      fill="none"
+      viewBox="0 0 24 24"
+    >
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="4"
+      />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+      />
+    </svg>
+  );
+}
+
 interface Props {
   state: DeviceState;
   onConnect: (type: ConnectionType, httpAddress?: string) => Promise<void>;
@@ -46,6 +92,7 @@ export default function ConnectionPanel({
   const [httpAddress, setHttpAddress] = useState("meshtastic.local");
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
+  const [connectionStage, setConnectionStage] = useState("");
 
   // ─── BLE device picker state ──────────────────────────────────
   const [bleDevices, setBleDevices] = useState<BluetoothDevice[]>([]);
@@ -55,12 +102,35 @@ export default function ConnectionPanel({
   const [serialPorts, setSerialPorts] = useState<SerialPortInfo[]>([]);
   const [showSerialPicker, setShowSerialPicker] = useState(false);
 
+  // ─── Connection profiles ──────────────────────────────────────
+  const [profiles, setProfiles] = useState<ConnectionProfile[]>(loadProfiles);
+  const [showProfileForm, setShowProfileForm] = useState(false);
+  const [profileName, setProfileName] = useState("");
+
+  // Update connection stage based on state transitions
+  useEffect(() => {
+    if (state.status === "connecting") {
+      if (showBlePicker) setConnectionStage("Select your device below");
+      else if (showSerialPicker) setConnectionStage("Select a serial port below");
+      else setConnectionStage("Scanning for devices...");
+    } else if (state.status === "connected") {
+      setConnectionStage("Configuring device...");
+    } else if (state.status === "configured") {
+      setConnectionStage("");
+      setConnecting(false);
+    } else if (state.status === "disconnected") {
+      setConnectionStage("");
+      setConnecting(false);
+    }
+  }, [state.status, showBlePicker, showSerialPicker]);
+
   // Listen for BLE devices discovered by main process
   useEffect(() => {
     const cleanup = window.electronAPI.onBluetoothDevicesDiscovered(
       (devices) => {
         setBleDevices(devices);
         setShowBlePicker(true);
+        setConnectionStage("Select your device below");
       }
     );
     return cleanup;
@@ -71,6 +141,7 @@ export default function ConnectionPanel({
     const cleanup = window.electronAPI.onSerialPortsDiscovered((ports) => {
       setSerialPorts(ports);
       setShowSerialPicker(true);
+      setConnectionStage("Select a serial port below");
     });
     return cleanup;
   }, []);
@@ -82,47 +153,295 @@ export default function ConnectionPanel({
     setSerialPorts([]);
     setShowBlePicker(false);
     setShowSerialPicker(false);
+    setConnectionStage("Scanning for devices...");
     try {
       await onConnect(connectionType, httpAddress);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Connection failed");
-    } finally {
       setConnecting(false);
-      setShowBlePicker(false);
-      setShowSerialPicker(false);
+      setConnectionStage("");
     }
   }, [connectionType, httpAddress, onConnect]);
+
+  const handleConnectProfile = useCallback(
+    async (profile: ConnectionProfile) => {
+      setConnectionType(profile.type);
+      if (profile.httpAddress) setHttpAddress(profile.httpAddress);
+      setError(null);
+      setConnecting(true);
+      setBleDevices([]);
+      setSerialPorts([]);
+      setShowBlePicker(false);
+      setShowSerialPicker(false);
+      setConnectionStage("Scanning for devices...");
+      try {
+        await onConnect(profile.type, profile.httpAddress);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Connection failed");
+        setConnecting(false);
+        setConnectionStage("");
+      }
+    },
+    [onConnect]
+  );
+
+  const handleCancelConnection = useCallback(async () => {
+    if (showBlePicker) {
+      window.electronAPI.cancelBluetoothSelection();
+    }
+    if (showSerialPicker) {
+      window.electronAPI.cancelSerialSelection();
+    }
+    setShowBlePicker(false);
+    setShowSerialPicker(false);
+    setConnecting(false);
+    setConnectionStage("");
+    // Ensure the underlying connection attempt is properly torn down
+    try {
+      await onDisconnect();
+    } catch {
+      // Best effort cleanup
+    }
+  }, [showBlePicker, showSerialPicker, onDisconnect]);
 
   const handleSelectBleDevice = useCallback((deviceId: string) => {
     window.electronAPI.selectBluetoothDevice(deviceId);
     setShowBlePicker(false);
-  }, []);
-
-  const handleCancelBle = useCallback(() => {
-    window.electronAPI.cancelBluetoothSelection();
-    setShowBlePicker(false);
-    setConnecting(false);
+    setConnectionStage("Connecting to device...");
   }, []);
 
   const handleSelectSerialPort = useCallback((portId: string) => {
     window.electronAPI.selectSerialPort(portId);
     setShowSerialPicker(false);
+    setConnectionStage("Connecting to device...");
   }, []);
 
-  const handleCancelSerial = useCallback(() => {
-    window.electronAPI.cancelSerialSelection();
-    setShowSerialPicker(false);
-    setConnecting(false);
-  }, []);
+  const handleSaveProfile = useCallback(() => {
+    if (!profileName.trim()) return;
+    const newProfile: ConnectionProfile = {
+      id: Date.now().toString(36),
+      name: profileName.trim(),
+      type: connectionType,
+      httpAddress: connectionType === "http" ? httpAddress : undefined,
+    };
+    const updated = [...profiles, newProfile];
+    setProfiles(updated);
+    saveProfiles(updated);
+    setProfileName("");
+    setShowProfileForm(false);
+  }, [profileName, connectionType, httpAddress, profiles]);
+
+  const handleDeleteProfile = useCallback(
+    (id: string) => {
+      const updated = profiles.filter((p) => p.id !== id);
+      setProfiles(updated);
+      saveProfiles(updated);
+    },
+    [profiles]
+  );
 
   const isConnected =
-    state.status === "connected" || state.status === "configured";
+    state.status === "connected" ||
+    state.status === "configured" ||
+    state.status === "stale";
 
+  // ─── Connecting Progress View ───────────────────────────────────
+  if (connecting && !isConnected) {
+    return (
+      <div className="max-w-lg mx-auto flex flex-col items-center justify-center py-16 space-y-6">
+        <Spinner className="w-12 h-12 text-green-400" />
+        <div className="text-center space-y-2">
+          <h2 className="text-xl font-semibold text-gray-200">Connecting...</h2>
+          <p className="text-sm text-gray-400">{connectionStage}</p>
+        </div>
+
+        {/* Embedded BLE Device Picker */}
+        {showBlePicker && (
+          <div className="w-full max-w-md bg-gray-800 rounded-lg border border-gray-600 overflow-hidden">
+            <div className="px-4 py-2.5 bg-gray-700 border-b border-gray-600 flex justify-between items-center">
+              <span className="text-sm font-medium text-gray-200">
+                Select Bluetooth Device
+              </span>
+              <span className="text-xs text-gray-400">
+                {bleDevices.length} found
+              </span>
+            </div>
+            <div className="max-h-60 overflow-y-auto">
+              {bleDevices.length === 0 ? (
+                <div className="px-4 py-6 text-center text-gray-500 text-sm">
+                  <Spinner className="w-5 h-5 text-gray-500 mx-auto mb-2" />
+                  Scanning for Meshtastic devices...
+                </div>
+              ) : (
+                bleDevices.map((device) => (
+                  <button
+                    key={device.deviceId}
+                    onClick={() => handleSelectBleDevice(device.deviceId)}
+                    className="w-full px-4 py-3 text-left hover:bg-gray-700 transition-colors border-b border-gray-700 last:border-b-0"
+                  >
+                    <div className="text-sm text-gray-200 flex items-center gap-2">
+                      <ConnectionIcon type="ble" />
+                      {device.deviceName}
+                    </div>
+                    <div className="text-xs text-gray-500 font-mono ml-7">
+                      {device.deviceId}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Embedded Serial Port Picker */}
+        {showSerialPicker && (
+          <div className="w-full max-w-md bg-gray-800 rounded-lg border border-gray-600 overflow-hidden">
+            <div className="px-4 py-2.5 bg-gray-700 border-b border-gray-600 flex justify-between items-center">
+              <span className="text-sm font-medium text-gray-200">
+                Select Serial Port
+              </span>
+              <span className="text-xs text-gray-400">
+                {serialPorts.length} found
+              </span>
+            </div>
+            <div className="max-h-60 overflow-y-auto">
+              {serialPorts.length === 0 ? (
+                <div className="px-4 py-6 text-center text-gray-500 text-sm">
+                  No serial ports found. Ensure your device is plugged in.
+                </div>
+              ) : (
+                serialPorts.map((port) => (
+                  <button
+                    key={port.portId}
+                    onClick={() => handleSelectSerialPort(port.portId)}
+                    className="w-full px-4 py-3 text-left hover:bg-gray-700 transition-colors border-b border-gray-700 last:border-b-0"
+                  >
+                    <div className="text-sm text-gray-200 flex items-center gap-2">
+                      <ConnectionIcon type="serial" />
+                      {port.displayName}
+                    </div>
+                    <div className="text-xs text-gray-500 font-mono ml-7">
+                      {port.portName}
+                      {port.vendorId && ` (VID: ${port.vendorId})`}
+                      {port.productId && ` PID: ${port.productId}`}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Error in progress view */}
+        {error && (
+          <div className="w-full max-w-md bg-red-900/50 border border-red-700 text-red-300 px-4 py-2 rounded-lg text-sm">
+            {error}
+          </div>
+        )}
+
+        <button
+          onClick={handleCancelConnection}
+          className="px-6 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  // ─── Connected View ────────────────────────────────────────────
+  if (isConnected) {
+    return (
+      <div className="max-w-lg mx-auto space-y-6">
+        <h2 className="text-xl font-semibold text-gray-200">
+          Device Connection
+        </h2>
+
+        <div className="bg-gray-800 rounded-lg p-5 space-y-3 border border-green-500/20">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
+            <span className="text-green-400 font-medium capitalize">
+              {state.status}
+            </span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-gray-400">Connection Type</span>
+            <span className="text-gray-200 uppercase flex items-center gap-2">
+              <ConnectionIcon type={state.connectionType!} />
+              {state.connectionType}
+            </span>
+          </div>
+          {state.myNodeNum > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-400">My Node</span>
+              <span className="text-gray-200 font-mono">
+                !{state.myNodeNum.toString(16)}
+              </span>
+            </div>
+          )}
+          {state.lastDataReceived && (
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-400">Last Data</span>
+              <span className="text-gray-300 text-xs">
+                {new Date(state.lastDataReceived).toLocaleTimeString()}
+              </span>
+            </div>
+          )}
+        </div>
+
+        <button
+          onClick={onDisconnect}
+          className="w-full px-6 py-3 bg-red-600 hover:bg-red-500 text-white font-medium rounded-lg transition-colors"
+        >
+          Disconnect
+        </button>
+      </div>
+    );
+  }
+
+  // ─── Disconnected View ─────────────────────────────────────────
   return (
     <div className="max-w-lg mx-auto space-y-6">
       <h2 className="text-xl font-semibold text-gray-200">
         Device Connection
       </h2>
+
+      {/* Saved Profiles */}
+      {profiles.length > 0 && (
+        <div className="space-y-2">
+          <label className="text-sm text-gray-400">Quick Connect</label>
+          <div className="space-y-1.5">
+            {profiles.map((profile) => (
+              <div
+                key={profile.id}
+                className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2.5 border border-gray-700 hover:border-gray-600 transition-colors"
+              >
+                <ConnectionIcon type={profile.type} />
+                <button
+                  onClick={() => handleConnectProfile(profile)}
+                  className="flex-1 text-left text-sm text-gray-200 hover:text-white transition-colors"
+                >
+                  <span className="font-medium">{profile.name}</span>
+                  <span className="text-gray-500 ml-2 text-xs uppercase">
+                    {profile.type}
+                    {profile.httpAddress && ` • ${profile.httpAddress}`}
+                  </span>
+                </button>
+                <button
+                  onClick={() => handleDeleteProfile(profile.id)}
+                  className="text-gray-600 hover:text-red-400 transition-colors p-1"
+                  title="Delete profile"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="border-t border-gray-700 pt-4 mt-4" />
+        </div>
+      )}
 
       {/* Connection type selector */}
       <div className="space-y-3">
@@ -132,12 +451,11 @@ export default function ConnectionPanel({
             <button
               key={type}
               onClick={() => setConnectionType(type)}
-              disabled={isConnected || connecting}
               className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
                 connectionType === type
                   ? "bg-green-600 text-white ring-2 ring-green-400"
                   : "bg-gray-700 text-gray-300 hover:bg-gray-600"
-              } disabled:opacity-50`}
+              }`}
             >
               <ConnectionIcon type={type} />
               {type === "ble" && "Bluetooth"}
@@ -156,7 +474,6 @@ export default function ConnectionPanel({
             type="text"
             value={httpAddress}
             onChange={(e) => setHttpAddress(e.target.value)}
-            disabled={isConnected || connecting}
             placeholder="meshtastic.local or 192.168.1.x"
             className="w-full px-3 py-2 bg-gray-700 rounded-lg text-gray-200 border border-gray-600 focus:border-green-500 focus:outline-none"
           />
@@ -197,96 +514,6 @@ export default function ConnectionPanel({
         )}
       </div>
 
-      {/* ─── BLE Device Picker ──────────────────────────────────── */}
-      {showBlePicker && (
-        <div className="bg-gray-800 rounded-lg border border-gray-600 overflow-hidden">
-          <div className="px-4 py-2 bg-gray-700 border-b border-gray-600 flex justify-between items-center">
-            <span className="text-sm font-medium text-gray-200">
-              Select Bluetooth Device
-            </span>
-            <span className="text-xs text-gray-400">
-              {bleDevices.length} found
-            </span>
-          </div>
-          <div className="max-h-60 overflow-y-auto">
-            {bleDevices.length === 0 ? (
-              <div className="px-4 py-6 text-center text-gray-500 text-sm animate-pulse">
-                Scanning for Meshtastic devices...
-              </div>
-            ) : (
-              bleDevices.map((device) => (
-                <button
-                  key={device.deviceId}
-                  onClick={() => handleSelectBleDevice(device.deviceId)}
-                  className="w-full px-4 py-3 text-left hover:bg-gray-700 transition-colors border-b border-gray-700 last:border-b-0"
-                >
-                  <div className="text-sm text-gray-200">
-                    {device.deviceName}
-                  </div>
-                  <div className="text-xs text-gray-500 font-mono">
-                    {device.deviceId}
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-          <div className="px-4 py-2 border-t border-gray-600">
-            <button
-              onClick={handleCancelBle}
-              className="w-full px-3 py-1.5 text-sm text-gray-400 hover:text-gray-200 bg-gray-700 hover:bg-gray-600 rounded transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Serial Port Picker ─────────────────────────────────── */}
-      {showSerialPicker && (
-        <div className="bg-gray-800 rounded-lg border border-gray-600 overflow-hidden">
-          <div className="px-4 py-2 bg-gray-700 border-b border-gray-600 flex justify-between items-center">
-            <span className="text-sm font-medium text-gray-200">
-              Select Serial Port
-            </span>
-            <span className="text-xs text-gray-400">
-              {serialPorts.length} found
-            </span>
-          </div>
-          <div className="max-h-60 overflow-y-auto">
-            {serialPorts.length === 0 ? (
-              <div className="px-4 py-6 text-center text-gray-500 text-sm">
-                No serial ports found. Ensure your device is plugged in.
-              </div>
-            ) : (
-              serialPorts.map((port) => (
-                <button
-                  key={port.portId}
-                  onClick={() => handleSelectSerialPort(port.portId)}
-                  className="w-full px-4 py-3 text-left hover:bg-gray-700 transition-colors border-b border-gray-700 last:border-b-0"
-                >
-                  <div className="text-sm text-gray-200">
-                    {port.displayName}
-                  </div>
-                  <div className="text-xs text-gray-500 font-mono">
-                    {port.portName}
-                    {port.vendorId && ` (VID: ${port.vendorId})`}
-                    {port.productId && ` PID: ${port.productId}`}
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
-          <div className="px-4 py-2 border-t border-gray-600">
-            <button
-              onClick={handleCancelSerial}
-              className="w-full px-3 py-1.5 text-sm text-gray-400 hover:text-gray-200 bg-gray-700 hover:bg-gray-600 rounded transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Error display */}
       {error && (
         <div className="bg-red-900/50 border border-red-700 text-red-300 px-4 py-2 rounded-lg text-sm">
@@ -294,51 +521,51 @@ export default function ConnectionPanel({
         </div>
       )}
 
-      {/* Connect / Disconnect button */}
-      <div className="flex gap-3">
-        {!isConnected ? (
-          <button
-            onClick={handleConnect}
-            disabled={connecting}
-            className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 text-white font-medium rounded-lg transition-colors"
-          >
-            {connecting
-              ? showBlePicker || showSerialPicker
-                ? "Select a device..."
-                : "Connecting..."
-              : "Connect"}
-          </button>
-        ) : (
-          <button
-            onClick={onDisconnect}
-            className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-500 text-white font-medium rounded-lg transition-colors"
-          >
-            Disconnect
-          </button>
-        )}
+      {/* Connect button + Save profile */}
+      <div className="flex gap-2">
+        <button
+          onClick={handleConnect}
+          className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-500 text-white font-medium rounded-lg transition-colors"
+        >
+          Connect
+        </button>
+        <button
+          onClick={() => setShowProfileForm(!showProfileForm)}
+          className="px-4 py-3 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg transition-colors"
+          title="Save as profile"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+          </svg>
+        </button>
       </div>
 
-      {/* Status details */}
-      {isConnected && (
-        <div className="bg-gray-800 rounded-lg p-4 space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-400">Status</span>
-            <span className="text-green-400 capitalize">{state.status}</span>
+      {/* Save Profile Form */}
+      {showProfileForm && (
+        <div className="bg-gray-800 rounded-lg border border-gray-600 p-4 space-y-3">
+          <label className="text-sm text-gray-400">Profile Name</label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={profileName}
+              onChange={(e) => setProfileName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSaveProfile()}
+              placeholder="e.g., Home Station, Hiking Radio"
+              className="flex-1 px-3 py-2 bg-gray-700 rounded-lg text-gray-200 border border-gray-600 focus:border-green-500 focus:outline-none text-sm"
+              autoFocus
+            />
+            <button
+              onClick={handleSaveProfile}
+              disabled={!profileName.trim()}
+              className="px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              Save
+            </button>
           </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-400">Connection</span>
-            <span className="text-gray-200 uppercase">
-              {state.connectionType}
-            </span>
-          </div>
-          {state.myNodeNum > 0 && (
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-400">My Node</span>
-              <span className="text-gray-200">
-                !{state.myNodeNum.toString(16)}
-              </span>
-            </div>
-          )}
+          <p className="text-xs text-gray-500">
+            Saves: {connectionType.toUpperCase()}
+            {connectionType === "http" ? ` • ${httpAddress}` : ""}
+          </p>
         </div>
       )}
     </div>

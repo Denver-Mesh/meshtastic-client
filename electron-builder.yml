@@ -12,11 +12,13 @@ asarUnpack:
   - "node_modules/better-sqlite3/**/*"
 mac:
   category: public.app-category.utilities
+  hardenedRuntime: true
   target:
     - dmg
     - zip
   icon: resources/icon.png
   entitlements: resources/entitlements.mac.plist
+  entitlementsInherit: resources/entitlements.mac.plist
   extendInfo:
     NSBluetoothAlwaysUsageDescription: "Electastic needs Bluetooth to communicate with Meshtastic devices."
 linux:

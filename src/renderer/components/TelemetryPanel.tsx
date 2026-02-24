@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from "react";
 import {
   LineChart,
   Line,
@@ -18,18 +19,22 @@ interface Props {
 }
 
 export default function TelemetryPanel({ telemetry, onRefresh, isConnected }: Props) {
-  const chartData = telemetry.map((t, i) => ({
-    index: i,
-    time: new Date(t.timestamp).toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    }),
-    battery: t.batteryLevel,
-    voltage: t.voltage,
-    snr: t.snr,
-    rssi: t.rssi,
-  }));
+  const chartData = useMemo(
+    () =>
+      telemetry.map((t, i) => ({
+        index: i,
+        time: new Date(t.timestamp).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        }),
+        battery: t.batteryLevel,
+        voltage: t.voltage,
+        snr: t.snr,
+        rssi: t.rssi,
+      })),
+    [telemetry]
+  );
 
   const hasBatteryData = chartData.some(
     (d) => d.battery !== undefined || d.voltage !== undefined
@@ -38,11 +43,53 @@ export default function TelemetryPanel({ telemetry, onRefresh, isConnected }: Pr
     (d) => d.snr !== undefined || d.rssi !== undefined
   );
 
+  const handleExportCsv = useCallback(() => {
+    if (telemetry.length === 0) return;
+
+    const headers = ["timestamp", "battery_level", "voltage", "snr", "rssi"];
+    const rows = telemetry.map((t) => [
+      new Date(t.timestamp).toISOString(),
+      t.batteryLevel ?? "",
+      t.voltage ?? "",
+      t.snr ?? "",
+      t.rssi ?? "",
+    ]);
+
+    const csv = [
+      headers.join(","),
+      ...rows.map((r) => r.join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `electastic-telemetry-${new Date()
+      .toISOString()
+      .slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [telemetry]);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold text-gray-200">Telemetry</h2>
-        <RefreshButton onRefresh={onRefresh} disabled={!isConnected} minimumAnimationMs={3000} />
+        <div className="flex items-center gap-2">
+          {telemetry.length > 0 && (
+            <button
+              onClick={handleExportCsv}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-medium rounded-lg transition-colors"
+              title="Export telemetry data as CSV"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Export CSV
+            </button>
+          )}
+          <RefreshButton onRefresh={onRefresh} disabled={!isConnected} minimumAnimationMs={3000} />
+        </div>
       </div>
 
       {telemetry.length === 0 ? (

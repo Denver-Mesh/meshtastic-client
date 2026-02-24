@@ -9,6 +9,21 @@ let pendingBluetoothCallback: ((deviceId: string) => void) | null = null;
 // Pending Serial callback (mirrors the BLE pattern)
 let pendingSerialCallback: ((portId: string) => void) | null = null;
 
+// ─── Global error handlers (prevent silent crashes in packaged app) ──
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught exception:", error);
+  try {
+    dialog.showErrorBox(
+      "Electastic — Unexpected Error",
+      `${error.message}\n\n${error.stack ?? ""}`
+    );
+  } catch { /* dialog may not be available during early startup */ }
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled rejection:", reason);
+});
+
 // Enable Web Bluetooth feature flag
 app.commandLine.appendSwitch("enable-features", "WebBluetooth");
 // Enable Web Serial (experimental)
@@ -24,7 +39,9 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     title: "Electastic",
-    icon: path.join(__dirname, "../../resources/icon.png"),
+    // In packaged mode, electron-builder sets the app icon via mac.icon config.
+    // Only set the icon manually during development.
+    icon: app.isPackaged ? undefined : path.join(__dirname, "../../resources/icon.png"),
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,
@@ -103,14 +120,28 @@ function createWindow() {
     }
   );
 
+  // ─── Renderer crash / load failure detection ──────────────────────
+  mainWindow.webContents.on("render-process-gone", (_event, details) => {
+    console.error("Renderer process gone:", details.reason, details.exitCode);
+  });
+
+  mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDesc, url) => {
+    console.error("Failed to load:", errorCode, errorDesc, url);
+  });
+
   // Load the app
   if (process.env.VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(
-      path.join(__dirname, "../../dist/renderer/index.html")
-    );
+    const indexPath = path.join(__dirname, "../../dist/renderer/index.html");
+    // Startup diagnostics for troubleshooting packaged app issues
+    console.log("[Startup] app.isPackaged:", app.isPackaged);
+    console.log("[Startup] __dirname:", __dirname);
+    console.log("[Startup] Renderer path:", indexPath);
+    console.log("[Startup] process.resourcesPath:", process.resourcesPath);
+    console.log("[Startup] userData:", app.getPath("userData"));
+    mainWindow.loadFile(indexPath);
   }
 
   mainWindow.on("closed", () => {
@@ -154,8 +185,8 @@ ipcMain.on("serial-port-cancelled", () => {
 ipcMain.handle("db:saveMessage", (_event, message) => {
   const db = getDatabase();
   const stmt = db.prepare(`
-    INSERT INTO messages (sender_id, sender_name, payload, channel, timestamp, packet_id, status, error, emoji, reply_id)
-    VALUES (@sender_id, @sender_name, @payload, @channel, @timestamp, @packet_id, @status, @error, @emoji, @reply_id)
+    INSERT INTO messages (sender_id, sender_name, payload, channel, timestamp, packet_id, status, error, emoji, reply_id, to_node)
+    VALUES (@sender_id, @sender_name, @payload, @channel, @timestamp, @packet_id, @status, @error, @emoji, @reply_id, @to_node)
   `);
   return stmt.run({
     sender_id: message.sender_id,
@@ -168,23 +199,31 @@ ipcMain.handle("db:saveMessage", (_event, message) => {
     error: message.error ?? null,
     emoji: message.emoji ?? null,
     reply_id: message.replyId ?? null,
+    to_node: message.to ?? null,
   });
 });
 
 ipcMain.handle("db:getMessages", (_event, channel?: number, limit = 200) => {
   const db = getDatabase();
   const columns = `id, sender_id, sender_name, payload, channel, timestamp,
-       packet_id AS packetId, status, error, emoji, reply_id AS replyId`;
+       packet_id AS packetId, status, error, emoji, reply_id AS replyId, to_node`;
+  let rows: any[];
   if (channel !== undefined && channel !== null) {
-    return db
+    rows = db
       .prepare(
         `SELECT ${columns} FROM messages WHERE channel = ? ORDER BY timestamp DESC LIMIT ?`
       )
       .all(channel, limit);
+  } else {
+    rows = db
+      .prepare(`SELECT ${columns} FROM messages ORDER BY timestamp DESC LIMIT ?`)
+      .all(limit);
   }
-  return db
-    .prepare(`SELECT ${columns} FROM messages ORDER BY timestamp DESC LIMIT ?`)
-    .all(limit);
+  // Map to_node back to `to` for the renderer
+  return rows.map((r: any) => {
+    const { to_node, ...rest } = r;
+    return { ...rest, to: to_node ?? undefined };
+  });
 });
 
 ipcMain.handle("db:saveNode", (_event, node) => {
@@ -275,12 +314,26 @@ ipcMain.handle("session:clearData", async () => {
 
 // ─── App lifecycle ─────────────────────────────────────────────────
 app.whenReady().then(() => {
-  initDatabase();
-  createWindow();
+  try {
+    initDatabase();
+    createWindow();
+  } catch (error) {
+    console.error("Fatal startup error:", error);
+    dialog.showErrorBox(
+      "Electastic — Startup Error",
+      `The application failed to start:\n\n${error instanceof Error ? error.message : String(error)}\n\nPlease report this issue.`
+    );
+    app.quit();
+    return;
+  }
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+      try {
+        createWindow();
+      } catch (error) {
+        console.error("Window creation error:", error);
+      }
     }
   });
 });

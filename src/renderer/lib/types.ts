@@ -26,6 +26,8 @@ export interface ChatMessage {
   // Emoji reactions / tapback
   emoji?: number;
   replyId?: number;
+  // Direct message destination (undefined = broadcast)
+  to?: number;
 }
 
 export interface TelemetryPoint {
@@ -37,9 +39,11 @@ export interface TelemetryPoint {
 }
 
 export interface DeviceState {
-  status: "disconnected" | "connecting" | "connected" | "configured";
+  status: "disconnected" | "connecting" | "connected" | "configured" | "stale" | "reconnecting";
   myNodeNum: number;
   connectionType: ConnectionType | null;
+  reconnectAttempt?: number;
+  lastDataReceived?: number;
 }
 
 export interface BluetoothDevice {
