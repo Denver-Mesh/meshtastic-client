@@ -147,6 +147,25 @@ function createWindow() {
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
+
+  // ─── Connection status tracking ──
+  let isConnected = false;
+
+  ipcMain.on('device-connected', () => {
+    isConnected = true;
+  });
+
+  ipcMain.on('device-disconnected', () => {
+    isConnected = false;
+  });
+
+  // Handle window close event
+  mainWindow.on('close', (event) => {
+    if (isConnected) {
+      event.preventDefault(); // Prevent window from closing
+      mainWindow.minimize();   // Minimize instead
+    }
+  });
 }
 
 // ─── IPC: Bluetooth device selected by user ────────────────────────
