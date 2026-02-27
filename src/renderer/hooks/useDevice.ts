@@ -696,6 +696,14 @@ export function useDevice() {
         // Wire all event subscriptions
         wireSubscriptions(device, type);
 
+        // For BLE, yield briefly before configure() so the transport's internal
+        // GATT read loop can initialize — calling configure() immediately causes
+        // "GATT operation already in progress" because both try to use the
+        // GATT server at the same time.
+        if (type === "ble") {
+          await new Promise((resolve) => setTimeout(resolve, 150));
+        }
+
         // Start configuration AFTER all listeners are wired
         device.configure();
       } catch (err) {
