@@ -112,6 +112,14 @@ function createWindow() {
     }
   );
 
+  // ─── Bluetooth Device Permission ───────────────────────────────────
+  // Required in Electron 20+ — without this, Chromium shows a blank/black
+  // permission overlay when navigator.bluetooth.requestDevice() is called.
+  mainWindow.webContents.session.setDevicePermissionHandler((details) => {
+    if (details.deviceType === "bluetooth") return true;
+    return false;
+  });
+
   // ─── Bluetooth Pairing ─────────────────────────────────────────────
   mainWindow.webContents.session.setBluetoothPairingHandler(
     (details, callback) => {

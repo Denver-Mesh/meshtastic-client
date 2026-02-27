@@ -788,6 +788,7 @@ export function useDevice() {
     connect,
     disconnect,
     sendMessage,
+    getFullNodeLabel,
   };
 }
 
