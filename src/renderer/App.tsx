@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useDevice } from "./hooks/useDevice";
 import { ToastProvider } from "./components/Toast";
 import Tabs from "./components/Tabs";
@@ -38,6 +38,17 @@ export default function App() {
   const selectedNode = selectedNodeId
     ? device.nodes.get(selectedNodeId) ?? null
     : null;
+
+  const traceRouteHops = useMemo(() => {
+    if (!selectedNode) return undefined;
+    const result = device.traceRouteResults.get(selectedNode.node_id);
+    if (!result) return undefined;
+    return [
+      device.getFullNodeLabel(device.state.myNodeNum) || "Me",
+      ...result.route.map((id) => device.getFullNodeLabel(id)),
+      device.getFullNodeLabel(result.from),
+    ];
+  }, [selectedNode, device.traceRouteResults, device.state.myNodeNum, device.getFullNodeLabel]);
 
   // ─── Startup node pruning based on persisted admin settings ─────
   useEffect(() => {
@@ -194,8 +205,6 @@ export default function App() {
               <NodeListPanel
                 nodes={device.nodes}
                 myNodeNum={device.state.myNodeNum}
-                onRequestPosition={device.requestPosition}
-                onTraceRoute={device.traceRoute}
                 onRefresh={device.requestRefresh}
                 onNodeClick={(node) => setSelectedNodeId(node.node_id)}
                 isConnected={isOperational}
@@ -298,6 +307,11 @@ export default function App() {
           onClose={() => setSelectedNodeId(null)}
           onRequestPosition={device.requestPosition}
           onTraceRoute={device.traceRoute}
+          traceRouteHops={traceRouteHops}
+          onDeleteNode={async (nodeNum) => {
+            await device.deleteNode(nodeNum);
+            setSelectedNodeId(null);
+          }}
           isConnected={isOperational}
         />
       </div>

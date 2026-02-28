@@ -25,8 +25,6 @@ type SortField =
 interface Props {
   nodes: Map<number, MeshNode>;
   myNodeNum: number;
-  onRequestPosition: (nodeNum: number) => Promise<void>;
-  onTraceRoute: (nodeNum: number) => Promise<void>;
   onRefresh: () => Promise<void>;
   onNodeClick: (node: MeshNode) => void;
   isConnected: boolean;
@@ -36,8 +34,6 @@ interface Props {
 export default function NodeListPanel({
   nodes,
   myNodeNum,
-  onRequestPosition,
-  onTraceRoute,
   onRefresh,
   onNodeClick,
   isConnected,
@@ -437,28 +433,6 @@ export default function NodeListPanel({
                     </td>
                     <td className="px-3 py-2 text-center">
                       <div className="flex gap-1 justify-center">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onRequestPosition(node.node_id);
-                          }}
-                          disabled={!isConnected}
-                          title="Request Position"
-                          className="px-2 py-1 text-xs bg-secondary-dark hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed rounded transition-colors"
-                        >
-                          Pos
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onTraceRoute(node.node_id);
-                          }}
-                          disabled={!isConnected}
-                          title="Trace Route"
-                          className="px-2 py-1 text-xs bg-secondary-dark hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed rounded transition-colors"
-                        >
-                          Route
-                        </button>
                         {onMessageNode && !isSelf && (
                           <button
                             onClick={(e) => {

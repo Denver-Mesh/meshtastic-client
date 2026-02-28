@@ -55,6 +55,9 @@ export function useDevice() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [nodes, setNodes] = useState<Map<number, MeshNode>>(new Map());
   const [telemetry, setTelemetry] = useState<TelemetryPoint[]>([]);
+  const [traceRouteResults, setTraceRouteResults] = useState<
+    Map<number, { route: number[]; from: number; timestamp: number }>
+  >(new Map());
   const [channels, setChannels] = useState<
     Array<{ index: number; name: string }>
   >([{ index: 0, name: "Primary" }]);
@@ -257,6 +260,7 @@ export function useDevice() {
         if (status === 2) {
           stopBleHeartbeat();
           stopWatchdog();
+          setTraceRouteResults(new Map());
           if (wasConfigured) {
             cleanupSubscriptions();
             stopPolling();
@@ -586,6 +590,20 @@ export function useDevice() {
       });
       unsubscribesRef.current.push(unsub10);
 
+      // ─── Trace route responses ──────────────────────────────────
+      const unsubTrace = device.events.onTraceRoutePacket.subscribe((packet) => {
+        setTraceRouteResults((prev) => {
+          const updated = new Map(prev);
+          updated.set(packet.from, {
+            route: (packet.data as { route: number[] }).route ?? [],
+            from: packet.from,
+            timestamp: Date.now(),
+          });
+          return updated;
+        });
+      });
+      unsubscribesRef.current.push(unsubTrace);
+
       // ─── BLE heartbeat with failure detection ──────────────────
       if (type === "ble") {
         bleHeartbeatRef.current = setInterval(async () => {
@@ -875,6 +893,15 @@ export function useDevice() {
     await deviceRef.current.traceRoute(nodeNum);
   }, []);
 
+  const deleteNode = useCallback(async (nodeId: number) => {
+    await window.electronAPI.db.deleteNode(nodeId);
+    updateNodes((prev) => {
+      const updated = new Map(prev);
+      updated.delete(nodeId);
+      return updated;
+    });
+  }, [updateNodes]);
+
   const requestRefresh = useCallback(async () => {
     if (!deviceRef.current) return;
     await deviceRef.current.configure();
@@ -905,6 +932,7 @@ export function useDevice() {
     telemetry,
     channels,
     channelConfigs,
+    traceRouteResults,
     connect,
     disconnect,
     sendMessage,
@@ -919,6 +947,7 @@ export function useDevice() {
     resetNodeDb,
     requestPosition,
     traceRoute,
+    deleteNode,
     requestRefresh,
     getFullNodeLabel,
   };
