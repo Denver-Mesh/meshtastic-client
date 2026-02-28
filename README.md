@@ -111,12 +111,15 @@ The distributable is output to the `release/` directory.
 - **WiFi/HTTP** — connect to network-enabled nodes
 - **Chat** — send/receive messages across channels with delivery indicators (ACK/NAK) and emoji reactions (tapback)
 - **Channel Management** — create and configure channels with custom names and PSK encryption
-- **Node List** — all discovered nodes with SNR, battery, GPS, last heard
+- **Node List** — all discovered nodes with SNR, RSSI signal strength, battery, GPS, last heard
+- **Signal Strength Indicators** — live RSSI bars on nodes and in chat, color-coded by signal quality
+- **Device Role Display** — visual icons and badges for each node's configured role (Router, Client, Repeater, etc.)
 - **Node Detail Modal** — click any node or sender name for full info
 - **Map** — interactive OpenStreetMap with node positions
 - **Telemetry** — battery voltage and signal quality charts
 - **Radio Config** — region, modem preset, device role, GPS, power, Bluetooth, display settings
-- **Admin** — reboot, shutdown, factory reset, trace route, node removal, DB export/import/clear
+- **Admin** — reboot, shutdown, factory reset, trace route, node removal, node retention controls, channel-scoped message deletion, DB export/import/clear
+- **System Tray** — tray icon with live unread message badge; app stays accessible when window is closed
 - **Persistent Storage** — messages and nodes saved locally via SQLite
 - **Dark UI** — custom scrollbar, tab icons, polished chat bubbles
 
