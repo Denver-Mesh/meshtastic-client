@@ -4,7 +4,7 @@ A cross-platform Meshtastic desktop client for **Mac**, **Linux**, and **Windows
 
 Connect to your Meshtastic devices over Bluetooth, USB Serial, or WiFi — no python, no phone required.
 
-> Originally ported from [Joey's (NV0N) Meshtastic Mac Client](https://github.com/rinchen/meshtastic_mac_client) and the Denver Mesh community. This is a full rewrite in Electron + React + TypeScript to support all platforms.
+> Created by **[Joey (NV0N)](https://github.com/rinchen)** & **[dude.eth](https://github.com/defidude)**. Based on the [original Mac client](https://github.com/Denver-Mesh/meshtastic_mac_client). Part of [**Denver Mesh**](https://github.com/Denver-Mesh/meshtastic-client).
 
 > [!WARNING]
 > This is an early release. A lot of things might be buggy. This may or may not be updated over the coming days/weeks. So far it has only been tested on a **Mac** with a **T-Deck** in Bluetooth Pairing Mode.
@@ -200,4 +200,4 @@ MIT — see [LICENSE](LICENSE)
 
 ## Credits
 
-See [CREDITS.md](CREDITS.md). Special thanks to **Joey (NV0N)** for the original Meshtastic Mac Client that inspired this project, and the Denver Mesh community.
+See [CREDITS.md](CREDITS.md). Created by **[Joey (NV0N)](https://github.com/rinchen)** & **[dude.eth](https://github.com/defidude)**. Based on the [original Mac client](https://github.com/Denver-Mesh/meshtastic_mac_client). Part of **[Denver Mesh](https://github.com/Denver-Mesh/meshtastic-client)**.

@@ -1,16 +1,10 @@
 # Credits
 
-## Original Author
+## Authors
 
-**Joey (NV0N)** created the original [Meshtastic Mac Client](https://github.com/rinchen/meshtastic_mac_client) — a Python/PyQt6 desktop application for macOS that connects to Meshtastic devices over Bluetooth Low Energy.
+**[Joey (NV0N)](https://github.com/rinchen)** created the original [Meshtastic Mac Client](https://github.com/Denver-Mesh/meshtastic_mac_client) — a Python/PyQt6 desktop app for macOS. Joey built it out of frustration with the lack of native BLE-capable Meshtastic clients for Mac and shared it with the Denver Meshtastic community.
 
-Joey built this out of frustration with the lack of native Bluetooth-capable Meshtastic clients for Mac, and shared it with the Denver Meshtastic community asking for help improving it.
-
-## Electastic
-
-**Electastic** is a cross-platform rewrite of Joey's original concept, built with Electron + React + TypeScript to run on Mac, Linux, and Windows. It uses the official Meshtastic JavaScript libraries and adds Serial and HTTP/WiFi connection support alongside the original BLE functionality.
-
-This project exists because of Joey's initiative and the Denver Mesh community's collaborative spirit.
+**[dude.eth](https://github.com/defidude)** ported the concept to Electron, enabling cross-platform support across Mac, Linux, and Windows. Both Joey and dude.eth are now actively co-developing this Electron version together.
 
 ## Denver Mesh
 

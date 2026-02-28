@@ -243,18 +243,49 @@ export default function App() {
         </main>
 
         {/* Footer */}
-        <footer className="px-4 py-1.5 bg-deep-black border-t border-gray-700 text-xs text-muted flex justify-between">
+        <footer className="px-4 py-1.5 bg-deep-black border-t border-gray-700 text-[11px] text-muted flex justify-between">
           <span>
-            Inspired by{" "}
+            Created by{" "}
             <a
-              href="https://github.com/Denver-Mesh/meshtastic_mac_client"
-              className="text-bright-green hover:underline"
+              href="https://github.com/rinchen"
+              title="Joey (NV0N) on GitHub"
+              className="hover:underline"
               target="_blank"
               rel="noopener noreferrer"
             >
               Joey (NV0N)
             </a>{" "}
-            &amp; Denver Mesh
+            &amp;{" "}
+            <a
+              href="https://github.com/defidude"
+              title="dude.eth on GitHub"
+              className="hover:underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              dude.eth
+            </a>
+            . Based on the{" "}
+            <a
+              href="https://github.com/Denver-Mesh/meshtastic_mac_client"
+              title="Original Mac Client"
+              className="hover:underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              original Mac client
+            </a>
+            . Part of{" "}
+            <a
+              href="https://github.com/Denver-Mesh/meshtastic-client"
+              title="Denver Mesh on GitHub"
+              className="font-bold hover:underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Denver Mesh
+            </a>
+            .
           </span>
           <span>
             {device.nodes.size} nodes | {device.messages.length} messages
