@@ -362,7 +362,7 @@ export default function NodeListPanel({
                     <td className="px-3 py-2 text-gray-300 text-xs">
                       {node.role ?? "-"}
                     </td>
-                    <td className="px-3 py-2 text-right text-gray-300 text-xs">
+                    <td className={`px-3 py-2 text-right text-xs ${node.hops_away === 0 ? "text-green-400" : "text-gray-300"}`}>
                       {node.hops_away !== undefined ? node.hops_away : "-"}
                     </td>
                     <td className="px-3 py-2 text-center text-gray-300 text-xs">
