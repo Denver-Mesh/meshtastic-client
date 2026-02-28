@@ -17,7 +17,7 @@ interface ConnectionProfile {
 
 function loadProfiles(): ConnectionProfile[] {
   try {
-    const raw = localStorage.getItem("electastic_profiles");
+    const raw = localStorage.getItem("mesh-client_profiles");
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -25,7 +25,7 @@ function loadProfiles(): ConnectionProfile[] {
 }
 
 function saveProfiles(profiles: ConnectionProfile[]) {
-  localStorage.setItem("electastic_profiles", JSON.stringify(profiles));
+  localStorage.setItem("mesh-client_profiles", JSON.stringify(profiles));
 }
 
 /** Inline SVG icon for each connection type */

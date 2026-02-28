@@ -5,7 +5,7 @@ import { app } from "electron";
 let db: Database.Database | null = null;
 
 export function initDatabase(): void {
-  const dbPath = path.join(app.getPath("userData"), "electastic.db");
+  const dbPath = path.join(app.getPath("userData"), "mesh-client.db");
   db = new Database(dbPath);
 
   // Enable WAL mode for better concurrent performance
@@ -91,7 +91,7 @@ export function getDatabase(): Database.Database {
 }
 
 export function getDatabasePath(): string {
-  return path.join(app.getPath("userData"), "electastic.db");
+  return path.join(app.getPath("userData"), "mesh-client.db");
 }
 
 export function exportDatabase(destPath: string): void {

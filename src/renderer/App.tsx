@@ -34,7 +34,7 @@ export default function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [locationFilter, setLocationFilter] = useState<LocationFilter>(() => {
     try {
-      const raw = localStorage.getItem("electastic:adminSettings");
+      const raw = localStorage.getItem("mesh-client:adminSettings");
       const s = raw ? JSON.parse(raw) : {};
       return {
         enabled: s.distanceFilterEnabled ?? false,
@@ -72,7 +72,7 @@ export default function App() {
   // ─── Startup node pruning based on persisted admin settings ─────
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("electastic:adminSettings");
+      const raw = localStorage.getItem("mesh-client:adminSettings");
       const s = raw ? JSON.parse(raw) : {};
       if (s.autoPruneEnabled) window.electronAPI.db.deleteNodesByAge(s.autoPruneDays ?? 30);
       if (s.nodeCapEnabled !== false) window.electronAPI.db.pruneNodesByCount(s.nodeCapCount ?? 10000);

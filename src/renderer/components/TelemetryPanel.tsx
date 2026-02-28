@@ -64,7 +64,7 @@ export default function TelemetryPanel({ telemetry, onRefresh, isConnected }: Pr
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `electastic-telemetry-${new Date()
+    link.download = `mesh-client-telemetry-${new Date()
       .toISOString()
       .slice(0, 10)}.csv`;
     link.click();

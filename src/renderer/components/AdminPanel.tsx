@@ -77,7 +77,7 @@ const DEFAULT_SETTINGS: AdminSettings = {
 
 function loadSettings(): AdminSettings {
   try {
-    const raw = localStorage.getItem("electastic:adminSettings");
+    const raw = localStorage.getItem("mesh-client:adminSettings");
     return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SETTINGS;
   } catch {
     return DEFAULT_SETTINGS;
@@ -126,7 +126,7 @@ export default function AdminPanel({
   const [deleteAgeDays, setDeleteAgeDays] = useState(90);
 
   useEffect(() => {
-    localStorage.setItem("electastic:adminSettings", JSON.stringify(settings));
+    localStorage.setItem("mesh-client:adminSettings", JSON.stringify(settings));
   }, [settings]);
 
   useEffect(() => {

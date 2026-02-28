@@ -11,17 +11,19 @@ files:
 asarUnpack:
   - "node_modules/better-sqlite3/**/*"
 mac:
-  identity: "_"
+  identity: "-"
   category: public.app-category.utilities
   hardenedRuntime: false
+  preAutoEntitlements: false
+  helperBundleId: com.mesh-client.app.helper
+  extendInfo:
+    NSBluetoothAlwaysUsageDescription: "Mesh-client needs Bluetooth to communicate with Meshtastic devices."
   target:
     - dmg
     - zip
   icon: resources/icon.png
   entitlements: resources/entitlements.mac.plist
-  entitlementsInherit: resources/entitlements.mac.plist
-  extendInfo:
-    NSBluetoothAlwaysUsageDescription: "Mesh-client needs Bluetooth to communicate with Meshtastic devices."
+  entitlementsInherit: resources/entitlements.mac.inherit.plist
 linux:
   target:
     - AppImage

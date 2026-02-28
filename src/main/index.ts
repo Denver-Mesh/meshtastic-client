@@ -15,7 +15,7 @@ process.on("uncaughtException", (error) => {
   console.error("Uncaught exception:", error);
   try {
     dialog.showErrorBox(
-      "Electastic — Unexpected Error",
+      "Mesh-Client — Unexpected Error",
       `${error.message}\n\n${error.stack ?? ""}`
     );
   } catch { /* dialog may not be available during early startup */ }
@@ -68,14 +68,14 @@ function buildTrayIcon(hasUnread: boolean): Electron.NativeImage {
 
 function setupTray(window: BrowserWindow) {
   tray = new Tray(buildTrayIcon(false));
-  tray.setToolTip("Electastic");
+  tray.setToolTip("Mesh-Client");
   tray.on("click", () => {
     window.show();
     window.focus();
   });
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: "Show Electastic", click: () => { window.show(); window.focus(); } },
+      { label: "Show Mesh-Client", click: () => { window.show(); window.focus(); } },
       { type: "separator" },
       { label: "Quit", click: () => app.quit() },
     ])
@@ -237,7 +237,7 @@ function createWindow() {
 // ─── Tray unread badge ──────────────────────────────────────────────
 ipcMain.on("set-tray-unread", (_event, count: number) => {
   tray?.setImage(buildTrayIcon(count > 0));
-  tray?.setToolTip(count > 0 ? `Electastic (${count} unread)` : "Electastic");
+  tray?.setToolTip(count > 0 ? `Mesh-Client (${count} unread)` : "Mesh-Client");
   if (process.platform === "darwin") {
     app.dock.setBadge(count > 0 ? String(count) : "");
   }
@@ -401,7 +401,7 @@ ipcMain.handle("db:export", async () => {
   if (!mainWindow) return null;
   const result = await dialog.showSaveDialog(mainWindow, {
     title: "Export Database",
-    defaultPath: `electastic-backup-${new Date().toISOString().slice(0, 10)}.db`,
+    defaultPath: `mesh-client-backup-${new Date().toISOString().slice(0, 10)}.db`,
     filters: [{ name: "SQLite Database", extensions: ["db"] }],
   });
   if (!result.canceled && result.filePath) {
@@ -450,7 +450,7 @@ app.whenReady().then(() => {
   } catch (error) {
     console.error("Fatal startup error:", error);
     dialog.showErrorBox(
-      "Electastic — Startup Error",
+      "Mesh-Client — Startup Error",
       `The application failed to start:\n\n${error instanceof Error ? error.message : String(error)}\n\nPlease report this issue.`
     );
     app.quit();
