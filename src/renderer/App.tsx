@@ -254,6 +254,7 @@ export default function App() {
             {activeTab === 5 && (
               <TelemetryPanel
                 telemetry={device.telemetry}
+                signalTelemetry={device.signalTelemetry}
                 onRefresh={device.requestRefresh}
                 isConnected={isOperational}
               />
