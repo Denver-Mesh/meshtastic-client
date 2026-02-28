@@ -55,7 +55,7 @@ function getMarkerIcon(
 ): L.Icon {
   const color =
     status === "online" ? "#9ae6b4" : status === "stale" ? "#c4a864" : "#6b7280";
-  const opacity = status === "stale" ? 0.35 : 1;
+  const opacity = status === "online" ? 1 : status === "stale" ? 0.45 : 0.25;
   return createMarkerIcon(color, isSelf, cu, opacity);
 }
 
