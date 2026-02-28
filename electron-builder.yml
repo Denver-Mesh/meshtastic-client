@@ -1,5 +1,5 @@
-appId: com.electastic.app
-productName: Electastic
+appId: com.mesh-client.app
+productName: Mesh-client
 directories:
   buildResources: resources
   output: release
@@ -20,7 +20,7 @@ mac:
   entitlements: resources/entitlements.mac.plist
   entitlementsInherit: resources/entitlements.mac.plist
   extendInfo:
-    NSBluetoothAlwaysUsageDescription: "Electastic needs Bluetooth to communicate with Meshtastic devices."
+    NSBluetoothAlwaysUsageDescription: "Mesh-client needs Bluetooth to communicate with Meshtastic devices."
 linux:
   target:
     - AppImage
