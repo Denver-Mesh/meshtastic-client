@@ -84,8 +84,6 @@ interface Props {
   onShutdown: (seconds: number) => Promise<void>;
   onFactoryReset: () => Promise<void>;
   onResetNodeDb: () => Promise<void>;
-  onTraceRoute: (destination: number) => Promise<void>;
-  onRemoveNode: (nodeNum: number) => Promise<void>;
   isConnected: boolean;
 }
 
@@ -106,11 +104,8 @@ export default function AdminPanel({
   onShutdown,
   onFactoryReset,
   onResetNodeDb,
-  onTraceRoute,
-  onRemoveNode,
   isConnected,
 }: Props) {
-  const [targetNode, setTargetNode] = useState("");
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const { addToast } = useToast();
 
@@ -159,14 +154,6 @@ export default function AdminPanel({
     }
   }, [pendingAction, addToast]);
 
-  const getTargetNodeNum = (): number => {
-    if (!targetNode) return 0;
-    const parsed = targetNode.startsWith("!")
-      ? parseInt(targetNode.slice(1), 16)
-      : parseInt(targetNode, 10);
-    return Number.isNaN(parsed) ? 0 : parsed;
-  };
-
   return (
     <div className="max-w-lg mx-auto space-y-6">
       <h2 className="text-xl font-semibold text-gray-200">Administration</h2>
@@ -176,21 +163,6 @@ export default function AdminPanel({
           Connect to a device to use admin commands.
         </div>
       )}
-
-      {/* Target Node */}
-      <div className="space-y-2">
-        <label className="text-sm text-muted">
-          Target Node (leave empty for self)
-        </label>
-        <input
-          type="text"
-          value={targetNode}
-          onChange={(e) => setTargetNode(e.target.value)}
-          disabled={!isConnected}
-          placeholder="!aabbccdd or node number"
-          className="w-full px-3 py-2 bg-secondary-dark rounded-lg text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none disabled:opacity-50"
-        />
-      </div>
 
       {/* Device Commands */}
       <div className="space-y-3">
@@ -247,57 +219,6 @@ export default function AdminPanel({
             Reset NodeDB
           </button>
 
-        </div>
-      </div>
-
-      {/* Trace Route */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium text-muted">
-          Network Diagnostics
-        </h3>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={() => {
-              const target = getTargetNodeNum();
-              if (target) {
-                onTraceRoute(target)
-                  .then(() => addToast("Trace route request sent.", "info"))
-                  .catch((err) =>
-                    addToast(
-                      `Trace route failed: ${err instanceof Error ? err.message : "Unknown error"}`,
-                      "error"
-                    )
-                  );
-              } else {
-                addToast("Enter a target node for trace route.", "warning");
-              }
-            }}
-            disabled={!isConnected || !targetNode}
-            className="px-4 py-3 bg-secondary-dark text-gray-300 hover:bg-gray-600 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
-          >
-            Trace Route
-          </button>
-
-          <button
-            onClick={() => {
-              const target = getTargetNodeNum();
-              if (target) {
-                executeWithConfirmation({
-                  name: "Remove Node",
-                  title: "Remove Node",
-                  message: `Remove node !${target.toString(16)} from the device's node database? The node may reappear if it broadcasts again.`,
-                  confirmLabel: "Remove",
-                  action: () => onRemoveNode(target),
-                });
-              } else {
-                addToast("Enter a target node to remove.", "warning");
-              }
-            }}
-            disabled={!isConnected || !targetNode}
-            className="px-4 py-3 bg-secondary-dark text-gray-300 hover:bg-gray-600 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
-          >
-            Remove Node
-          </button>
         </div>
       </div>
 

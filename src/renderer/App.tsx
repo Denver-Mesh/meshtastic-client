@@ -231,8 +231,6 @@ export default function App() {
                 onShutdown={device.shutdown}
                 onFactoryReset={device.factoryReset}
                 onResetNodeDb={device.resetNodeDb}
-                onTraceRoute={device.traceRoute}
-                onRemoveNode={device.removeNode}
                 isConnected={isOperational}
               />
             )}
