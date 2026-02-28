@@ -22,6 +22,7 @@ Connect to your Meshtastic devices over Bluetooth, USB Serial, or WiFi — no py
   - **Linux**: `sudo apt install build-essential python3` (Debian/Ubuntu)
   - **Windows**: [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the "Desktop development with C++" workload
 - A Meshtastic device (any hardware running Meshtastic firmware)
+- **For development**: [React DevTools](https://react.dev/link/react-devtools) browser extension
 
 ### Mac
 
@@ -73,6 +74,20 @@ Should work out of the box. If serial isn't detected, make sure you have the cor
 4. Select your connection type (Bluetooth / USB Serial / WiFi)
 5. Click **Connect** and select your device from the picker
 6. Wait for status to show **Configured** — you're connected!
+
+---
+
+## Development
+
+To run the app in development mode with hot reload:
+
+```bash
+npm run dev
+```
+
+This starts the Vite dev server, watches the main/preload processes for changes, and launches Electron automatically.
+
+For the best development experience, install [React DevTools](https://react.dev/link/react-devtools).
 
 ---
 
