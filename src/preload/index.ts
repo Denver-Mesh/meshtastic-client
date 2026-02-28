@@ -97,4 +97,5 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // ─── Connection status ─────────────────────────────────────────
   notifyDeviceConnected: () => ipcRenderer.send("device-connected"),
   notifyDeviceDisconnected: () => ipcRenderer.send("device-disconnected"),
+  setTrayUnread: (count: number) => ipcRenderer.send("set-tray-unread", count),
 });

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useDevice } from "./hooks/useDevice";
 import { ToastProvider } from "./components/Toast";
 import Tabs from "./components/Tabs";
@@ -26,6 +26,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useState(0);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [pendingDmTarget, setPendingDmTarget] = useState<number | null>(null);
+  const [chatUnread, setChatUnread] = useState(0);
+  const prevMsgCountRef = useRef(0);
+  const isInitialLoadRef = useRef(true);
   const device = useDevice();
 
   const isConfigured = device.state.status === "configured";
@@ -45,6 +48,37 @@ export default function App() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  // ─── Track messages arriving while Chat tab is inactive ──────────
+  useEffect(() => {
+    const count = device.messages.length;
+    if (isInitialLoadRef.current) {
+      prevMsgCountRef.current = count;
+      if (count > 0) isInitialLoadRef.current = false;
+      return;
+    }
+    if (count > prevMsgCountRef.current && activeTab !== 1) {
+      const newMsgs = device.messages.slice(prevMsgCountRef.current);
+      const realNew = newMsgs.filter(
+        (m) => m.sender_id !== device.state.myNodeNum && !m.emoji
+      );
+      if (realNew.length > 0) setChatUnread((prev) => prev + realNew.length);
+    }
+    prevMsgCountRef.current = count;
+  }, [device.messages.length]);
+
+  // ─── Clear unread when Chat tab becomes active ────────────────────
+  useEffect(() => {
+    if (activeTab === 1) {
+      setChatUnread(0);
+      window.electronAPI.setTrayUnread(0);
+    }
+  }, [activeTab]);
+
+  // ─── Sync non-zero unread count to tray ──────────────────────────
+  useEffect(() => {
+    if (chatUnread > 0) window.electronAPI.setTrayUnread(chatUnread);
+  }, [chatUnread]);
 
   // Manual reconnect from banner
   const handleReconnect = useCallback(() => {
@@ -120,6 +154,11 @@ export default function App() {
                 state={device.state}
                 onConnect={device.connect}
                 onDisconnect={device.disconnect}
+                myNodeLabel={
+                  device.state.myNodeNum > 0
+                    ? device.getFullNodeLabel(device.state.myNodeNum)
+                    : undefined
+                }
               />
             )}
             <div className={activeTab === 1 ? "contents" : "hidden"}>

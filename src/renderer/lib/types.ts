@@ -102,6 +102,7 @@ declare global {
       clearSessionData: () => Promise<void>;
       notifyDeviceConnected: () => void;
       notifyDeviceDisconnected: () => void;
+      setTrayUnread: (count: number) => void;
     };
   }
 }

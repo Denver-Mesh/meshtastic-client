@@ -1,8 +1,9 @@
-import { app, BrowserWindow, ipcMain, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage } from "electron";
 import path from "path";
 import { initDatabase, getDatabase, exportDatabase, mergeDatabase } from "./database";
 
 let mainWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
 
 // Pending Bluetooth callback from Chromium's Web Bluetooth API
 let pendingBluetoothCallback: ((deviceId: string) => void) | null = null;
@@ -31,6 +32,55 @@ app.commandLine.appendSwitch(
   "enable-blink-features",
   "Serial"
 );
+
+function buildTrayIcon(hasUnread: boolean): Electron.NativeImage {
+  const iconPath = app.isPackaged
+    ? path.join(process.resourcesPath, "icon.png")
+    : path.join(__dirname, "../../resources/icon.png");
+
+  const size = process.platform === "darwin" ? 16 : 22;
+  const base = nativeImage.createFromPath(iconPath).resize({ width: size, height: size });
+
+  if (!hasUnread) return base;
+
+  // Overlay a 4px red dot in the top-right corner
+  const bitmap = Buffer.from(base.toBitmap());
+  const dotR = 2;
+  const dotCx = size - dotR - 1;
+  const dotCy = dotR + 1;
+
+  for (let py = 0; py < size; py++) {
+    for (let px = 0; px < size; px++) {
+      const dx = px - dotCx;
+      const dy = py - dotCy;
+      if (dx * dx + dy * dy <= dotR * dotR) {
+        const idx = (py * size + px) * 4;
+        bitmap[idx]     = 239; // R
+        bitmap[idx + 1] = 68;  // G
+        bitmap[idx + 2] = 68;  // B
+        bitmap[idx + 3] = 255; // A
+      }
+    }
+  }
+
+  return nativeImage.createFromBitmap(bitmap, { width: size, height: size });
+}
+
+function setupTray(window: BrowserWindow) {
+  tray = new Tray(buildTrayIcon(false));
+  tray.setToolTip("Electastic");
+  tray.on("click", () => {
+    window.show();
+    window.focus();
+  });
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: "Show Electastic", click: () => { window.show(); window.focus(); } },
+      { type: "separator" },
+      { label: "Quit", click: () => app.quit() },
+    ])
+  );
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -180,7 +230,18 @@ function createWindow() {
       app.quit();
     }
   });
+
+  setupTray(mainWindow);
 }
+
+// ─── Tray unread badge ──────────────────────────────────────────────
+ipcMain.on("set-tray-unread", (_event, count: number) => {
+  tray?.setImage(buildTrayIcon(count > 0));
+  tray?.setToolTip(count > 0 ? `Electastic (${count} unread)` : "Electastic");
+  if (process.platform === "darwin") {
+    app.dock.setBadge(count > 0 ? String(count) : "");
+  }
+});
 
 // ─── IPC: Bluetooth device selected by user ────────────────────────
 ipcMain.on("bluetooth-device-selected", (_event, deviceId: string) => {
