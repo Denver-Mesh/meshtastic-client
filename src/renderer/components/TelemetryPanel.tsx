@@ -93,15 +93,15 @@ export default function TelemetryPanel({ telemetry, onRefresh, isConnected }: Pr
       </div>
 
       {telemetry.length === 0 ? (
-        <div className="text-center text-gray-500 py-12">
+        <div className="text-center text-muted py-12">
           No telemetry data yet. Connect to a device to see real-time metrics.
         </div>
       ) : (
         <>
           {/* Battery / Voltage Chart */}
           {hasBatteryData && (
-            <div className="bg-gray-800 rounded-lg p-4">
-              <h3 className="text-sm font-medium text-gray-400 mb-3">
+            <div className="bg-deep-black rounded-lg p-4">
+              <h3 className="text-sm font-medium text-muted mb-3">
                 Battery & Voltage
               </h3>
               <ResponsiveContainer width="100%" height={250}>
@@ -139,7 +139,7 @@ export default function TelemetryPanel({ telemetry, onRefresh, isConnected }: Pr
                   />
                   <Tooltip
                     contentStyle={{
-                      background: "#1f2937",
+                      background: "#1a202c",
                       border: "1px solid #374151",
                       borderRadius: "8px",
                     }}
@@ -172,8 +172,8 @@ export default function TelemetryPanel({ telemetry, onRefresh, isConnected }: Pr
 
           {/* Signal Quality Chart */}
           {hasSignalData && (
-            <div className="bg-gray-800 rounded-lg p-4">
-              <h3 className="text-sm font-medium text-gray-400 mb-3">
+            <div className="bg-deep-black rounded-lg p-4">
+              <h3 className="text-sm font-medium text-muted mb-3">
                 Signal Quality
               </h3>
               <ResponsiveContainer width="100%" height={250}>
@@ -209,7 +209,7 @@ export default function TelemetryPanel({ telemetry, onRefresh, isConnected }: Pr
                   />
                   <Tooltip
                     contentStyle={{
-                      background: "#1f2937",
+                      background: "#1a202c",
                       border: "1px solid #374151",
                       borderRadius: "8px",
                     }}

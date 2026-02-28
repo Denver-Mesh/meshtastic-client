@@ -46,10 +46,10 @@ function createMarkerIcon(color: string, isSelf: boolean): L.Icon {
 
 // Cached marker icons
 const MARKERS = {
-  selfOnline: createMarkerIcon("#22c55e", true),
+  selfOnline: createMarkerIcon("#9ae6b4", true),
   selfStale: createMarkerIcon("#eab308", true),
   selfOffline: createMarkerIcon("#6b7280", true),
-  online: createMarkerIcon("#22c55e", false),
+  online: createMarkerIcon("#9ae6b4", false),
   stale: createMarkerIcon("#eab308", false),
   offline: createMarkerIcon("#6b7280", false),
 };
@@ -133,9 +133,9 @@ export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected }: P
       {/* Controls overlay — top right */}
       <div className="absolute top-3 right-3 z-[1000] flex items-center gap-2">
         {/* Legend */}
-        <div className="bg-gray-900/80 backdrop-blur-sm rounded-lg px-3 py-1.5 flex items-center gap-3 text-xs border border-gray-700">
+        <div className="bg-deep-black/80 backdrop-blur-sm rounded-lg px-3 py-1.5 flex items-center gap-3 text-xs border border-gray-700">
           <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+            <span className="w-2 h-2 rounded-full bg-brand-green inline-block" />
             {statusCounts.online}
           </span>
           <span className="flex items-center gap-1">
@@ -147,7 +147,7 @@ export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected }: P
             {statusCounts.offline}
           </span>
         </div>
-        <div className="bg-gray-900/70 rounded-full">
+        <div className="bg-deep-black/70 rounded-full">
           <RefreshButton onRefresh={onRefresh} disabled={!isConnected} />
         </div>
       </div>
@@ -187,7 +187,7 @@ export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected }: P
                     <span
                       className={`inline-block w-2 h-2 rounded-full ${
                         status === "online"
-                          ? "bg-green-500"
+                          ? "bg-brand-green"
                           : status === "stale"
                           ? "bg-yellow-500"
                           : "bg-gray-400"
@@ -200,7 +200,7 @@ export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected }: P
                     <div>SNR: {node.snr.toFixed(1)} dB</div>
                   )}
                   <div>Last heard: {formatTime(node.last_heard)}</div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-muted">
                     {node.latitude.toFixed(5)}, {node.longitude.toFixed(5)}
                   </div>
                 </div>
@@ -212,7 +212,7 @@ export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected }: P
 
       {nodesWithPosition.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="bg-gray-900/80 px-4 py-2 rounded-lg text-gray-400 text-sm">
+          <div className="bg-deep-black/80 px-4 py-2 rounded-lg text-muted text-sm">
             No nodes with GPS positions yet
           </div>
         </div>

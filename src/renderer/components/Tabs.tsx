@@ -60,15 +60,15 @@ function TabIcon({ name }: { name: string }) {
 
 export default function Tabs({ tabs, active, onChange }: TabsProps) {
   return (
-    <nav className="flex bg-gray-800 border-b border-gray-700 px-2 gap-1">
+    <nav className="flex bg-deep-black border-b border-gray-700 px-2 gap-1">
       {tabs.map((name, i) => (
         <button
           key={name}
           onClick={() => onChange(i)}
           className={`flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors rounded-t-md ${
             active === i
-              ? "bg-gray-900 text-green-400 border-b-2 border-green-400"
-              : "text-gray-400 hover:text-gray-200 hover:bg-gray-700"
+              ? "bg-gray-900 text-bright-green border-b-2 border-bright-green"
+              : "text-muted hover:text-gray-200 hover:bg-secondary-dark"
           }`}
         >
           <TabIcon name={name} />

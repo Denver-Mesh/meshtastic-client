@@ -29,7 +29,7 @@ function InfoRow({
 }) {
   return (
     <div className="flex justify-between items-center py-2 border-b border-gray-700/50 last:border-b-0">
-      <span className="text-sm text-gray-400">{label}</span>
+      <span className="text-sm text-muted">{label}</span>
       <span className={`text-sm font-medium ${className || "text-gray-200"}`}>
         {value}
       </span>
@@ -68,21 +68,21 @@ export default function NodeDetailModal({
 
   const batteryColor =
     node.battery > 50
-      ? "text-green-400"
+      ? "text-bright-green"
       : node.battery > 20
       ? "text-yellow-400"
       : node.battery > 0
       ? "text-red-400"
-      : "text-gray-500";
+      : "text-muted";
 
   const snrColor =
     node.snr > 5
-      ? "text-green-400"
+      ? "text-bright-green"
       : node.snr > 0
       ? "text-yellow-400"
       : node.snr !== 0
       ? "text-red-400"
-      : "text-gray-500";
+      : "text-muted";
 
   const handleAction = async (
     name: string,
@@ -103,7 +103,7 @@ export default function NodeDetailModal({
       onClick={onClose}
     >
       <div
-        className="bg-gray-800 border border-gray-700 rounded-xl max-w-md w-full shadow-2xl"
+        className="bg-deep-black border border-gray-700 rounded-xl max-w-md w-full shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -113,9 +113,9 @@ export default function NodeDetailModal({
               {displayName}
             </h3>
             <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-xs text-gray-500 font-mono">{hexId}</span>
+              <span className="text-xs text-muted font-mono">{hexId}</span>
               {node.hw_model && node.hw_model !== "0" && (
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-muted">
                   {node.hw_model}
                 </span>
               )}
@@ -123,7 +123,7 @@ export default function NodeDetailModal({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-colors shrink-0"
+            className="p-1.5 rounded-lg hover:bg-secondary-dark text-muted hover:text-gray-200 transition-colors shrink-0"
           >
             <svg
               className="w-5 h-5"
@@ -160,14 +160,14 @@ export default function NodeDetailModal({
 
           {/* Battery */}
           <div className="flex justify-between items-center py-2 border-b border-gray-700/50">
-            <span className="text-sm text-gray-400">Battery</span>
+            <span className="text-sm text-muted">Battery</span>
             <div className="flex items-center gap-2">
               {node.battery > 0 && (
-                <div className="w-16 h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div className="w-16 h-2 bg-secondary-dark rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${
                       node.battery > 50
-                        ? "bg-green-500"
+                        ? "bg-brand-green"
                         : node.battery > 20
                         ? "bg-yellow-500"
                         : "bg-red-500"
@@ -204,7 +204,7 @@ export default function NodeDetailModal({
               )
             }
             disabled={!isConnected}
-            className="flex-1 px-3 py-2 text-sm font-medium bg-gray-700 hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-gray-200 rounded-lg transition-colors"
+            className="flex-1 px-3 py-2 text-sm font-medium bg-secondary-dark hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-gray-200 rounded-lg transition-colors"
           >
             Request Position
           </button>
@@ -215,13 +215,13 @@ export default function NodeDetailModal({
               )
             }
             disabled={!isConnected}
-            className="flex-1 px-3 py-2 text-sm font-medium bg-gray-700 hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-gray-200 rounded-lg transition-colors"
+            className="flex-1 px-3 py-2 text-sm font-medium bg-secondary-dark hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-gray-200 rounded-lg transition-colors"
           >
             Trace Route
           </button>
           <button
             onClick={onClose}
-            className="px-3 py-2 text-sm text-gray-400 hover:text-gray-200 rounded-lg transition-colors"
+            className="px-3 py-2 text-sm text-muted hover:text-gray-200 rounded-lg transition-colors"
           >
             Close
           </button>
@@ -230,7 +230,7 @@ export default function NodeDetailModal({
         {/* Action status */}
         {actionStatus && (
           <div className="px-5 pb-3">
-            <div className="text-xs text-gray-500 text-center">
+            <div className="text-xs text-muted text-center">
               {actionStatus}
             </div>
           </div>

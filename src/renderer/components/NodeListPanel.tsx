@@ -149,7 +149,7 @@ export default function NodeListPanel({
       );
     }
     return (
-      <svg className="w-3 h-3 text-green-400 ml-1 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <svg className="w-3 h-3 text-bright-green ml-1 inline" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -171,16 +171,16 @@ export default function NodeListPanel({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search nodes..."
-            className="flex-1 px-3 py-1.5 bg-gray-700/80 rounded-lg text-gray-200 text-sm border border-gray-600/50 focus:border-green-500/50 focus:outline-none"
+            className="flex-1 px-3 py-1.5 bg-secondary-dark/80 rounded-lg text-gray-200 text-sm border border-gray-600/50 focus:border-brand-green/50 focus:outline-none"
           />
         </div>
         <RefreshButton onRefresh={onRefresh} disabled={!isConnected} />
       </div>
 
       {/* Online / Stale / Offline summary */}
-      <div className="flex gap-3 text-xs text-gray-500">
+      <div className="flex gap-3 text-xs text-muted">
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+          <span className="w-2 h-2 rounded-full bg-brand-green inline-block" />
           {nodeList.filter((n) => getNodeStatus(n.last_heard) === "online").length} online
         </span>
         <span className="flex items-center gap-1">
@@ -196,7 +196,7 @@ export default function NodeListPanel({
       <div className="overflow-auto rounded-lg border border-gray-700">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-gray-800 text-gray-400 text-left sticky top-0 z-10">
+            <tr className="bg-deep-black text-muted text-left sticky top-0 z-10">
               <th className="px-3 py-2 w-8"></th>
               <th
                 className="px-3 py-2 cursor-pointer hover:text-gray-200 transition-colors select-none"
@@ -296,7 +296,7 @@ export default function NodeListPanel({
               <tr>
                 <td
                   colSpan={17}
-                  className="text-center text-gray-500 py-8"
+                  className="text-center text-muted py-8"
                 >
                   {searchQuery
                     ? "No nodes match your search."
@@ -318,9 +318,9 @@ export default function NodeListPanel({
                   <tr
                     key={node.node_id}
                     onClick={() => onNodeClick(node)}
-                    className={`cursor-pointer hover:bg-gray-700/50 transition-colors ${rowOpacity} ${
+                    className={`cursor-pointer hover:bg-secondary-dark/50 transition-colors ${rowOpacity} ${
                       isSelf
-                        ? "bg-green-900/10 border-l-2 border-l-green-500"
+                        ? "bg-brand-green/5 border-l-2 border-l-brand-green"
                         : ""
                     }`}
                   >
@@ -330,7 +330,7 @@ export default function NodeListPanel({
                         <span
                           className={`w-2 h-2 rounded-full ${
                             status === "online"
-                              ? "bg-green-500"
+                              ? "bg-brand-green"
                               : status === "stale"
                               ? "bg-yellow-500"
                               : "bg-gray-600"
@@ -338,40 +338,40 @@ export default function NodeListPanel({
                           title={status}
                         />
                         {isSelf && (
-                          <span className="text-[10px] text-green-500 font-bold" title="This is your node">
+                          <span className="text-[10px] text-bright-green font-bold" title="This is your node">
                             ★
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-2 font-mono text-xs text-gray-400">
+                    <td className="px-3 py-2 font-mono text-xs text-muted">
                       !{node.node_id.toString(16)}
                     </td>
-                    <td className={`px-3 py-2 ${isSelf ? "text-green-300 font-medium" : "text-gray-200"}`}>
+                    <td className={`px-3 py-2 ${isSelf ? "text-bright-green font-medium" : "text-gray-200"}`}>
                       {node.long_name || "-"}
                       {isSelf && (
-                        <span className="text-[10px] text-green-500/60 ml-1.5">(you)</span>
+                        <span className="text-[10px] text-bright-green/60 ml-1.5">(you)</span>
                       )}
                     </td>
                     <td className="px-3 py-2 text-gray-300">
                       {node.short_name || "-"}
                     </td>
-                    <td className="px-3 py-2 text-gray-400">
+                    <td className="px-3 py-2 text-muted">
                       {formatTime(node.last_heard)}
                     </td>
                     <td className="px-3 py-2 text-gray-300 text-xs">
                       {node.role ?? "-"}
                     </td>
-                    <td className={`px-3 py-2 text-right text-xs ${node.hops_away === 0 ? "text-green-400" : "text-gray-300"}`}>
+                    <td className={`px-3 py-2 text-right text-xs ${node.hops_away === 0 ? "text-bright-green" : "text-gray-300"}`}>
                       {node.hops_away !== undefined ? node.hops_away : "-"}
                     </td>
                     <td className="px-3 py-2 text-center text-gray-300 text-xs">
                       {node.via_mqtt ? "Yes" : "-"}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono text-xs text-gray-400">
+                    <td className="px-3 py-2 text-right font-mono text-xs text-muted">
                       {formatCoord(node.latitude)}
                     </td>
-                    <td className="px-3 py-2 text-right font-mono text-xs text-gray-400">
+                    <td className="px-3 py-2 text-right font-mono text-xs text-muted">
                       {formatCoord(node.longitude)}
                     </td>
                     <td className="px-3 py-2 text-right text-gray-300">
@@ -380,11 +380,11 @@ export default function NodeListPanel({
                     <td className="px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         {node.battery > 0 && (
-                          <div className="w-10 h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                          <div className="w-10 h-1.5 bg-secondary-dark rounded-full overflow-hidden">
                             <div
                               className={`h-full rounded-full ${
                                 node.battery > 50
-                                  ? "bg-green-500"
+                                  ? "bg-brand-green"
                                   : node.battery > 20
                                   ? "bg-yellow-500"
                                   : "bg-red-500"
@@ -398,12 +398,12 @@ export default function NodeListPanel({
                         <span
                           className={
                             node.battery > 50
-                              ? "text-green-400"
+                              ? "text-bright-green"
                               : node.battery > 20
                               ? "text-yellow-400"
                               : node.battery > 0
                               ? "text-red-400"
-                              : "text-gray-500"
+                              : "text-muted"
                           }
                         >
                           {node.battery > 0 ? `${node.battery}%` : "-"}
@@ -431,7 +431,7 @@ export default function NodeListPanel({
                           }}
                           disabled={!isConnected}
                           title="Request Position"
-                          className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed rounded transition-colors"
+                          className="px-2 py-1 text-xs bg-secondary-dark hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed rounded transition-colors"
                         >
                           Pos
                         </button>
@@ -442,7 +442,7 @@ export default function NodeListPanel({
                           }}
                           disabled={!isConnected}
                           title="Trace Route"
-                          className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed rounded transition-colors"
+                          className="px-2 py-1 text-xs bg-secondary-dark hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed rounded transition-colors"
                         >
                           Route
                         </button>

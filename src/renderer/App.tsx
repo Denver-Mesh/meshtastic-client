@@ -76,26 +76,26 @@ export default function App() {
       <div className="flex flex-col h-screen">
         {/* Header */}
         <header
-          className={`flex items-center justify-between px-4 py-2 bg-gray-800 border-b ${
-            isConfigured ? "border-green-500/20" : "border-gray-700"
+          className={`flex items-center justify-between px-4 py-2 bg-deep-black border-b ${
+            isConfigured ? "border-brand-green/20" : "border-gray-700"
           }`}
         >
           <div className="flex items-center gap-3">
-            <h1 className="text-lg font-bold text-green-400 tracking-wide">
+            <h1 className="text-lg font-bold text-bright-green tracking-wide">
               Denver Mesh
             </h1>
-            <span className="text-xs text-gray-500">Meshtastic Client</span>
+            <span className="text-xs text-muted">Meshtastic Client</span>
           </div>
           <div className="flex items-center gap-2">
             <div className={`w-2.5 h-2.5 rounded-full ${statusColor}`} />
-            <span className="text-sm text-gray-400 capitalize">
+            <span className="text-sm text-muted capitalize">
               {device.state.status}
               {device.state.connectionType
                 ? ` (${device.state.connectionType.toUpperCase()})`
                 : ""}
             </span>
             {device.state.myNodeNum > 0 && (
-              <span className="text-xs text-gray-500 ml-2 whitespace-nowrap">
+              <span className="text-xs text-muted ml-2 whitespace-nowrap">
                 Node: {device.getFullNodeLabel(device.state.myNodeNum)}
               </span>
             )}
@@ -190,12 +190,12 @@ export default function App() {
         </main>
 
         {/* Footer */}
-        <footer className="px-4 py-1.5 bg-gray-800 border-t border-gray-700 text-xs text-gray-500 flex justify-between">
+        <footer className="px-4 py-1.5 bg-deep-black border-t border-gray-700 text-xs text-muted flex justify-between">
           <span>
             Inspired by{" "}
             <a
               href="https://github.com/Denver-Mesh/meshtastic_mac_client"
-              className="text-green-500 hover:underline"
+              className="text-bright-green hover:underline"
               target="_blank"
               rel="noopener noreferrer"
             >

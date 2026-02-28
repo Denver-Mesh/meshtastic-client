@@ -249,27 +249,27 @@ export default function ConnectionPanel({
   if (connecting && !isConnected) {
     return (
       <div className="max-w-lg mx-auto flex flex-col items-center justify-center py-16 space-y-6">
-        <Spinner className="w-12 h-12 text-green-400" />
+        <Spinner className="w-12 h-12 text-bright-green" />
         <div className="text-center space-y-2">
           <h2 className="text-xl font-semibold text-gray-200">Connecting...</h2>
-          <p className="text-sm text-gray-400">{connectionStage}</p>
+          <p className="text-sm text-muted">{connectionStage}</p>
         </div>
 
         {/* Embedded BLE Device Picker */}
         {showBlePicker && (
-          <div className="w-full max-w-md bg-gray-800 rounded-lg border border-gray-600 overflow-hidden">
-            <div className="px-4 py-2.5 bg-gray-700 border-b border-gray-600 flex justify-between items-center">
+          <div className="w-full max-w-md bg-deep-black rounded-lg border border-gray-600 overflow-hidden">
+            <div className="px-4 py-2.5 bg-secondary-dark border-b border-gray-600 flex justify-between items-center">
               <span className="text-sm font-medium text-gray-200">
                 Select Bluetooth Device
               </span>
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-muted">
                 {bleDevices.length} found
               </span>
             </div>
             <div className="max-h-60 overflow-y-auto">
               {bleDevices.length === 0 ? (
-                <div className="px-4 py-6 text-center text-gray-500 text-sm">
-                  <Spinner className="w-5 h-5 text-gray-500 mx-auto mb-2" />
+                <div className="px-4 py-6 text-center text-muted text-sm">
+                  <Spinner className="w-5 h-5 text-muted mx-auto mb-2" />
                   Scanning for Meshtastic devices...
                 </div>
               ) : (
@@ -277,13 +277,13 @@ export default function ConnectionPanel({
                   <button
                     key={device.deviceId}
                     onClick={() => handleSelectBleDevice(device.deviceId)}
-                    className="w-full px-4 py-3 text-left hover:bg-gray-700 transition-colors border-b border-gray-700 last:border-b-0"
+                    className="w-full px-4 py-3 text-left hover:bg-secondary-dark transition-colors border-b border-gray-700 last:border-b-0"
                   >
                     <div className="text-sm text-gray-200 flex items-center gap-2">
                       <ConnectionIcon type="ble" />
                       {device.deviceName}
                     </div>
-                    <div className="text-xs text-gray-500 font-mono ml-7">
+                    <div className="text-xs text-muted font-mono ml-7">
                       {device.deviceId}
                     </div>
                   </button>
@@ -295,18 +295,18 @@ export default function ConnectionPanel({
 
         {/* Embedded Serial Port Picker */}
         {showSerialPicker && (
-          <div className="w-full max-w-md bg-gray-800 rounded-lg border border-gray-600 overflow-hidden">
-            <div className="px-4 py-2.5 bg-gray-700 border-b border-gray-600 flex justify-between items-center">
+          <div className="w-full max-w-md bg-deep-black rounded-lg border border-gray-600 overflow-hidden">
+            <div className="px-4 py-2.5 bg-secondary-dark border-b border-gray-600 flex justify-between items-center">
               <span className="text-sm font-medium text-gray-200">
                 Select Serial Port
               </span>
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-muted">
                 {serialPorts.length} found
               </span>
             </div>
             <div className="max-h-60 overflow-y-auto">
               {serialPorts.length === 0 ? (
-                <div className="px-4 py-6 text-center text-gray-500 text-sm">
+                <div className="px-4 py-6 text-center text-muted text-sm">
                   No serial ports found. Ensure your device is plugged in.
                 </div>
               ) : (
@@ -314,13 +314,13 @@ export default function ConnectionPanel({
                   <button
                     key={port.portId}
                     onClick={() => handleSelectSerialPort(port.portId)}
-                    className="w-full px-4 py-3 text-left hover:bg-gray-700 transition-colors border-b border-gray-700 last:border-b-0"
+                    className="w-full px-4 py-3 text-left hover:bg-secondary-dark transition-colors border-b border-gray-700 last:border-b-0"
                   >
                     <div className="text-sm text-gray-200 flex items-center gap-2">
                       <ConnectionIcon type="serial" />
                       {port.displayName}
                     </div>
-                    <div className="text-xs text-gray-500 font-mono ml-7">
+                    <div className="text-xs text-muted font-mono ml-7">
                       {port.portName}
                       {port.vendorId && ` (VID: ${port.vendorId})`}
                       {port.productId && ` PID: ${port.productId}`}
@@ -341,7 +341,7 @@ export default function ConnectionPanel({
 
         <button
           onClick={handleCancelConnection}
-          className="px-6 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition-colors"
+          className="px-6 py-2.5 bg-secondary-dark hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition-colors"
         >
           Cancel
         </button>
@@ -357,15 +357,15 @@ export default function ConnectionPanel({
           Device Connection
         </h2>
 
-        <div className="bg-gray-800 rounded-lg p-5 space-y-3 border border-green-500/20">
+        <div className="bg-deep-black rounded-lg p-5 space-y-3 border border-brand-green/20">
           <div className="flex items-center gap-3 mb-1">
-            <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-green-400 font-medium capitalize">
+            <div className="w-3 h-3 rounded-full bg-brand-green animate-pulse" />
+            <span className="text-bright-green font-medium capitalize">
               {state.status}
             </span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-gray-400">Connection Type</span>
+            <span className="text-muted">Connection Type</span>
             <span className="text-gray-200 uppercase flex items-center gap-2">
               <ConnectionIcon type={state.connectionType!} />
               {state.connectionType}
@@ -373,7 +373,7 @@ export default function ConnectionPanel({
           </div>
           {state.myNodeNum > 0 && (
             <div className="flex justify-between text-sm">
-              <span className="text-gray-400">My Node</span>
+              <span className="text-muted">My Node</span>
               <span className="text-gray-200 font-mono">
                 !{state.myNodeNum.toString(16)}
               </span>
@@ -381,7 +381,7 @@ export default function ConnectionPanel({
           )}
           {state.lastDataReceived && (
             <div className="flex justify-between text-sm">
-              <span className="text-gray-400">Last Data</span>
+              <span className="text-muted">Last Data</span>
               <span className="text-gray-300 text-xs">
                 {new Date(state.lastDataReceived).toLocaleTimeString()}
               </span>
@@ -409,12 +409,12 @@ export default function ConnectionPanel({
       {/* Saved Profiles */}
       {profiles.length > 0 && (
         <div className="space-y-2">
-          <label className="text-sm text-gray-400">Quick Connect</label>
+          <label className="text-sm text-muted">Quick Connect</label>
           <div className="space-y-1.5">
             {profiles.map((profile) => (
               <div
                 key={profile.id}
-                className="flex items-center gap-2 bg-gray-800 rounded-lg px-3 py-2.5 border border-gray-700 hover:border-gray-600 transition-colors"
+                className="flex items-center gap-2 bg-deep-black rounded-lg px-3 py-2.5 border border-gray-700 hover:border-gray-600 transition-colors"
               >
                 <ConnectionIcon type={profile.type} />
                 <button
@@ -422,7 +422,7 @@ export default function ConnectionPanel({
                   className="flex-1 text-left text-sm text-gray-200 hover:text-white transition-colors"
                 >
                   <span className="font-medium">{profile.name}</span>
-                  <span className="text-gray-500 ml-2 text-xs uppercase">
+                  <span className="text-muted ml-2 text-xs uppercase">
                     {profile.type}
                     {profile.httpAddress && ` • ${profile.httpAddress}`}
                   </span>
@@ -445,7 +445,7 @@ export default function ConnectionPanel({
 
       {/* Connection type selector */}
       <div className="space-y-3">
-        <label className="text-sm text-gray-400">Connection Type</label>
+        <label className="text-sm text-muted">Connection Type</label>
         <div className="grid grid-cols-3 gap-2">
           {(["ble", "serial", "http"] as const).map((type) => (
             <button
@@ -453,8 +453,8 @@ export default function ConnectionPanel({
               onClick={() => setConnectionType(type)}
               className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
                 connectionType === type
-                  ? "bg-green-600 text-white ring-2 ring-green-400"
-                  : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                  ? "bg-brand-green text-white ring-2 ring-bright-green"
+                  : "bg-secondary-dark text-gray-300 hover:bg-gray-600"
               }`}
             >
               <ConnectionIcon type={type} />
@@ -469,22 +469,22 @@ export default function ConnectionPanel({
       {/* HTTP address input */}
       {connectionType === "http" && (
         <div className="space-y-2">
-          <label className="text-sm text-gray-400">Device Address</label>
+          <label className="text-sm text-muted">Device Address</label>
           <input
             type="text"
             value={httpAddress}
             onChange={(e) => setHttpAddress(e.target.value)}
             placeholder="meshtastic.local or 192.168.1.x"
-            className="w-full px-3 py-2 bg-gray-700 rounded-lg text-gray-200 border border-gray-600 focus:border-green-500 focus:outline-none"
+            className="w-full px-3 py-2 bg-secondary-dark rounded-lg text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none"
           />
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted">
             Enter hostname or IP address (without http://)
           </p>
         </div>
       )}
 
       {/* Connection hints */}
-      <div className="text-sm text-gray-500 bg-gray-800 rounded-lg p-3 space-y-1">
+      <div className="text-sm text-muted bg-deep-black rounded-lg p-3 space-y-1">
         {connectionType === "ble" && (
           <>
             <p>
@@ -525,13 +525,13 @@ export default function ConnectionPanel({
       <div className="flex gap-2">
         <button
           onClick={handleConnect}
-          className="flex-1 px-6 py-3 bg-green-600 hover:bg-green-500 text-white font-medium rounded-lg transition-colors"
+          className="flex-1 px-6 py-3 bg-brand-green hover:bg-brand-green/90 text-white font-medium rounded-lg transition-colors"
         >
           Connect
         </button>
         <button
           onClick={() => setShowProfileForm(!showProfileForm)}
-          className="px-4 py-3 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg transition-colors"
+          className="px-4 py-3 bg-secondary-dark hover:bg-gray-600 text-gray-300 rounded-lg transition-colors"
           title="Save as profile"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -542,8 +542,8 @@ export default function ConnectionPanel({
 
       {/* Save Profile Form */}
       {showProfileForm && (
-        <div className="bg-gray-800 rounded-lg border border-gray-600 p-4 space-y-3">
-          <label className="text-sm text-gray-400">Profile Name</label>
+        <div className="bg-deep-black rounded-lg border border-gray-600 p-4 space-y-3">
+          <label className="text-sm text-muted">Profile Name</label>
           <div className="flex gap-2">
             <input
               type="text"
@@ -551,18 +551,18 @@ export default function ConnectionPanel({
               onChange={(e) => setProfileName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSaveProfile()}
               placeholder="e.g., Home Station, Hiking Radio"
-              className="flex-1 px-3 py-2 bg-gray-700 rounded-lg text-gray-200 border border-gray-600 focus:border-green-500 focus:outline-none text-sm"
+              className="flex-1 px-3 py-2 bg-secondary-dark rounded-lg text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
               autoFocus
             />
             <button
               onClick={handleSaveProfile}
               disabled={!profileName.trim()}
-              className="px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 text-white text-sm font-medium rounded-lg transition-colors"
+              className="px-4 py-2 bg-brand-green hover:bg-brand-green/90 disabled:bg-gray-600 text-white text-sm font-medium rounded-lg transition-colors"
             >
               Save
             </button>
           </div>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted">
             Saves: {connectionType.toUpperCase()}
             {connectionType === "http" ? ` • ${httpAddress}` : ""}
           </p>

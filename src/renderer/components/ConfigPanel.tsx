@@ -88,12 +88,12 @@ function ConfigSelect({
 }) {
   return (
     <div className="space-y-1">
-      <label className="text-sm text-gray-400">{label}</label>
+      <label className="text-sm text-muted">{label}</label>
       <select
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         disabled={disabled}
-        className="w-full px-3 py-2 bg-gray-700 rounded-lg text-gray-200 border border-gray-600 focus:border-green-500 focus:outline-none disabled:opacity-50"
+        className="w-full px-3 py-2 bg-secondary-dark rounded-lg text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none disabled:opacity-50"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -101,7 +101,7 @@ function ConfigSelect({
           </option>
         ))}
       </select>
-      {description && <p className="text-xs text-gray-500">{description}</p>}
+      {description && <p className="text-xs text-muted">{description}</p>}
     </div>
   );
 }
@@ -123,12 +123,12 @@ function ConfigToggle({
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <label className="text-sm text-gray-400">{label}</label>
+        <label className="text-sm text-muted">{label}</label>
         <button
           onClick={() => onChange(!checked)}
           disabled={disabled}
           className={`relative w-10 h-5 rounded-full transition-colors disabled:opacity-50 ${
-            checked ? "bg-green-600" : "bg-gray-600"
+            checked ? "bg-brand-green" : "bg-gray-600"
           }`}
         >
           <span
@@ -138,7 +138,7 @@ function ConfigToggle({
           />
         </button>
       </div>
-      {description && <p className="text-xs text-gray-500">{description}</p>}
+      {description && <p className="text-xs text-muted">{description}</p>}
     </div>
   );
 }
@@ -165,7 +165,7 @@ function ConfigNumber({
 }) {
   return (
     <div className="space-y-1">
-      <label className="text-sm text-gray-400">{label}</label>
+      <label className="text-sm text-muted">{label}</label>
       <div className="flex items-center gap-2">
         <input
           type="number"
@@ -174,11 +174,11 @@ function ConfigNumber({
           min={min}
           max={max}
           disabled={disabled}
-          className="w-28 px-3 py-2 bg-gray-700 rounded-lg text-gray-200 border border-gray-600 focus:border-green-500 focus:outline-none disabled:opacity-50"
+          className="w-28 px-3 py-2 bg-secondary-dark rounded-lg text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none disabled:opacity-50"
         />
-        {unit && <span className="text-sm text-gray-500">{unit}</span>}
+        {unit && <span className="text-sm text-muted">{unit}</span>}
       </div>
-      {description && <p className="text-xs text-gray-500">{description}</p>}
+      {description && <p className="text-xs text-muted">{description}</p>}
     </div>
   );
 }
@@ -198,11 +198,11 @@ function ConfigSection({
   disabled: boolean;
 }) {
   return (
-    <details className="group bg-gray-800/50 rounded-lg border border-gray-700">
+    <details className="group bg-deep-black/50 rounded-lg border border-gray-700">
       <summary className="px-4 py-3 cursor-pointer text-gray-200 font-medium flex items-center justify-between hover:bg-gray-800 rounded-lg transition-colors">
         <span>{title}</span>
         <svg
-          className="w-4 h-4 text-gray-500 group-open:rotate-180 transition-transform"
+          className="w-4 h-4 text-muted group-open:rotate-180 transition-transform"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -215,7 +215,7 @@ function ConfigSection({
         <button
           onClick={onApply}
           disabled={disabled || applying}
-          className="w-full px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:text-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
+          className="w-full px-4 py-2 bg-brand-green hover:bg-brand-green/90 disabled:bg-gray-600 disabled:text-muted text-white text-sm font-medium rounded-lg transition-colors"
         >
           {applying ? "Applying..." : `Apply ${title}`}
         </button>
@@ -352,7 +352,7 @@ export default function ConfigPanel({
           disabled={disabled || applyingSection !== null}
         />
         <div className="space-y-1">
-          <label className="text-sm text-gray-400">Hop Limit</label>
+          <label className="text-sm text-muted">Hop Limit</label>
           <div className="flex items-center gap-3">
             <input
               type="range"
@@ -367,7 +367,7 @@ export default function ConfigPanel({
               {hopLimit}
             </span>
           </div>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted">
             Number of times a message can be relayed (1–7). Higher = more
             reach, more airtime. Default: 3.
           </p>
@@ -531,8 +531,8 @@ export default function ConfigPanel({
             status.includes("Failed")
               ? "bg-red-900/50 border border-red-700 text-red-300"
               : status.includes("success")
-              ? "bg-green-900/50 border border-green-700 text-green-300"
-              : "bg-gray-800 text-gray-400"
+              ? "bg-brand-green/10 border border-brand-green text-bright-green"
+              : "bg-deep-black text-muted"
           }`}
         >
           {status}
@@ -540,7 +540,7 @@ export default function ConfigPanel({
       )}
 
       {/* Info */}
-      <div className="bg-gray-800 rounded-lg p-4 text-sm text-gray-500 space-y-1">
+      <div className="bg-deep-black rounded-lg p-4 text-sm text-muted space-y-1">
         <p>
           Changes are written to the device's flash memory and persist across
           reboots.
@@ -639,11 +639,11 @@ function ChannelSection({
   };
 
   return (
-    <details className="group bg-gray-800/50 rounded-lg border border-gray-700">
+    <details className="group bg-deep-black/50 rounded-lg border border-gray-700">
       <summary className="px-4 py-3 cursor-pointer text-gray-200 font-medium flex items-center justify-between hover:bg-gray-800 rounded-lg transition-colors">
         <span>Channels</span>
         <svg
-          className="w-4 h-4 text-gray-500 group-open:rotate-180 transition-transform"
+          className="w-4 h-4 text-muted group-open:rotate-180 transition-transform"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -657,7 +657,7 @@ function ChannelSection({
             key={slot.index}
             className={`p-3 rounded-lg border ${
               slot.role !== 0
-                ? "border-gray-600 bg-gray-800/50"
+                ? "border-gray-600 bg-deep-black/50"
                 : "border-gray-700/50 bg-gray-900/30 opacity-60"
             }`}
           >
@@ -668,10 +668,10 @@ function ChannelSection({
               <span
                 className={`text-xs px-2 py-0.5 rounded ${
                   slot.role === 1
-                    ? "bg-green-900/50 text-green-400"
+                    ? "bg-brand-green/10 text-bright-green"
                     : slot.role === 2
                     ? "bg-blue-900/50 text-blue-400"
-                    : "bg-gray-700 text-gray-500"
+                    : "bg-secondary-dark text-muted"
                 }`}
               >
                 {CHANNEL_ROLES.find((r) => r.value === slot.role)?.label ?? "Disabled"}
@@ -680,7 +680,7 @@ function ChannelSection({
 
             <div className="grid grid-cols-2 gap-2 mb-2">
               <div>
-                <label className="text-xs text-gray-500">Name</label>
+                <label className="text-xs text-muted">Name</label>
                 <input
                   type="text"
                   value={slot.name}
@@ -689,12 +689,12 @@ function ChannelSection({
                   }
                   disabled={disabled}
                   placeholder={slot.index === 0 ? "Primary" : "Channel name"}
-                  className="w-full px-2 py-1.5 bg-gray-700 rounded text-sm text-gray-200 border border-gray-600 focus:border-green-500 focus:outline-none disabled:opacity-50"
+                  className="w-full px-2 py-1.5 bg-secondary-dark rounded text-sm text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none disabled:opacity-50"
                 />
               </div>
               {slot.index !== 0 && (
                 <div>
-                  <label className="text-xs text-gray-500">Role</label>
+                  <label className="text-xs text-muted">Role</label>
                   <select
                     value={slot.role}
                     onChange={(e) =>
@@ -703,7 +703,7 @@ function ChannelSection({
                       })
                     }
                     disabled={disabled}
-                    className="w-full px-2 py-1.5 bg-gray-700 rounded text-sm text-gray-200 border border-gray-600 focus:border-green-500 focus:outline-none disabled:opacity-50"
+                    className="w-full px-2 py-1.5 bg-secondary-dark rounded text-sm text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none disabled:opacity-50"
                   >
                     <option value={0}>Disabled</option>
                     <option value={2}>Secondary</option>
@@ -714,7 +714,7 @@ function ChannelSection({
 
             {/* PSK */}
             <div className="mb-2">
-              <label className="text-xs text-gray-500">Pre-Shared Key</label>
+              <label className="text-xs text-muted">Pre-Shared Key</label>
               <div className="flex items-center gap-2">
                 <input
                   type="text"
@@ -726,14 +726,14 @@ function ChannelSection({
                   }
                   disabled={disabled}
                   placeholder="01"
-                  className="flex-1 px-2 py-1.5 bg-gray-700 rounded text-xs font-mono text-gray-200 border border-gray-600 focus:border-green-500 focus:outline-none disabled:opacity-50"
+                  className="flex-1 px-2 py-1.5 bg-secondary-dark rounded text-xs font-mono text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none disabled:opacity-50"
                 />
                 <button
                   onClick={() =>
                     updateSlot(slot.index, { pskHex: "01" })
                   }
                   disabled={disabled}
-                  className="px-2 py-1.5 text-xs bg-gray-700 text-gray-400 hover:text-gray-200 rounded disabled:opacity-50"
+                  className="px-2 py-1.5 text-xs bg-secondary-dark text-muted hover:text-gray-200 rounded disabled:opacity-50"
                   title="Default PSK"
                 >
                   Def
@@ -745,7 +745,7 @@ function ChannelSection({
                     })
                   }
                   disabled={disabled}
-                  className="px-2 py-1.5 text-xs bg-gray-700 text-gray-400 hover:text-gray-200 rounded disabled:opacity-50"
+                  className="px-2 py-1.5 text-xs bg-secondary-dark text-muted hover:text-gray-200 rounded disabled:opacity-50"
                   title="Generate random 256-bit PSK"
                 >
                   Rand
@@ -753,7 +753,7 @@ function ChannelSection({
                 <button
                   onClick={() => updateSlot(slot.index, { pskHex: "00" })}
                   disabled={disabled}
-                  className="px-2 py-1.5 text-xs bg-gray-700 text-gray-400 hover:text-gray-200 rounded disabled:opacity-50"
+                  className="px-2 py-1.5 text-xs bg-secondary-dark text-muted hover:text-gray-200 rounded disabled:opacity-50"
                   title="No encryption"
                 >
                   None
@@ -764,13 +764,13 @@ function ChannelSection({
             <button
               onClick={() => saveChannel(slot)}
               disabled={disabled || saving !== null}
-              className="w-full px-3 py-1.5 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:text-gray-400 text-white text-xs font-medium rounded transition-colors"
+              className="w-full px-3 py-1.5 bg-brand-green hover:bg-brand-green/90 disabled:bg-gray-600 disabled:text-muted text-white text-xs font-medium rounded transition-colors"
             >
               {saving === slot.index ? "Saving..." : "Save Channel"}
             </button>
           </div>
         ))}
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-muted">
           Changes are written to the device immediately. PSK "01" = default
           Meshtastic key. "00" = no encryption. Use "Rand" for a private
           channel.

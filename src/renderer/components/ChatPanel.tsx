@@ -379,15 +379,15 @@ export default function ChatPanel({
       <div
         className={`flex items-center gap-2 mb-1 ${viewMode === "dm" ? "opacity-50" : ""}`}
       >
-        <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mr-1">
+        <span className="text-[10px] text-muted font-medium uppercase tracking-wider mr-1">
           Channels
         </span>
         <button
           onClick={() => { setChannel(-1); setViewMode("channels"); }}
           className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
             viewMode === "channels" && channel === -1
-              ? "bg-green-600 text-white"
-              : "bg-gray-700 text-gray-400 hover:text-gray-200"
+              ? "bg-brand-green text-white"
+              : "bg-secondary-dark text-muted hover:text-gray-200"
           }`}
         >
           All
@@ -401,7 +401,7 @@ export default function ChatPanel({
               className={`relative px-3 py-1 text-xs font-medium rounded-full transition-colors ${
                 viewMode === "channels" && channel === ch.index
                   ? "bg-green-600 text-white"
-                  : "bg-gray-700 text-gray-400 hover:text-gray-200"
+                  : "bg-secondary-dark text-muted hover:text-gray-200"
               }`}
             >
               {ch.name}
@@ -421,8 +421,8 @@ export default function ChatPanel({
           onClick={() => setShowSearch(!showSearch)}
           className={`p-1.5 rounded-lg transition-colors ${
             showSearch
-              ? "bg-green-600/30 text-green-400"
-              : "text-gray-500 hover:text-gray-300"
+              ? "bg-brand-green/20 text-bright-green"
+              : "text-muted hover:text-gray-300"
           }`}
           title="Search messages (Cmd+F)"
         >
@@ -436,7 +436,7 @@ export default function ChatPanel({
       <div
         className={`flex items-center gap-2 mb-2 min-h-[28px] ${viewMode === "channels" ? "opacity-50" : ""}`}
       >
-        <span className="text-[10px] text-gray-500 font-medium uppercase tracking-wider mr-1">
+        <span className="text-[10px] text-muted font-medium uppercase tracking-wider mr-1">
           DMs
         </span>
         {openDmTabs.length === 0 ? (
@@ -450,14 +450,14 @@ export default function ChatPanel({
               className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full transition-colors cursor-pointer ${
                 viewMode === "dm" && activeDmNode === nodeNum
                   ? "bg-purple-600 text-white"
-                  : "bg-gray-700 text-gray-400 hover:text-gray-200"
+                  : "bg-secondary-dark text-muted hover:text-gray-200"
               }`}
               onClick={() => { setActiveDmNode(nodeNum); setViewMode("dm"); }}
             >
               <span>{getDmLabel(nodeNum)}</span>
               <button
                 onClick={(e) => { e.stopPropagation(); closeDmTab(nodeNum); }}
-                className="ml-0.5 text-gray-400 hover:text-white text-[10px] leading-none"
+                className="ml-0.5 text-muted hover:text-white text-[10px] leading-none"
                 title="Close DM"
               >
                 x
@@ -475,11 +475,11 @@ export default function ChatPanel({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search messages..."
-            className="w-full px-3 py-1.5 bg-gray-700/80 rounded-lg text-gray-200 text-sm border border-gray-600/50 focus:border-green-500/50 focus:outline-none"
+            className="w-full px-3 py-1.5 bg-secondary-dark/80 rounded-lg text-gray-200 text-sm border border-gray-600/50 focus:border-brand-green/50 focus:outline-none"
             autoFocus
           />
           {searchQuery && (
-            <div className="text-xs text-gray-500 mt-1">
+            <div className="text-xs text-muted mt-1">
               {filteredMessages.length} result{filteredMessages.length !== 1 ? "s" : ""}
             </div>
           )}
@@ -488,8 +488,8 @@ export default function ChatPanel({
 
       {/* Disconnected overlay */}
       {!isConnected && (
-        <div className="bg-gray-900/60 border border-gray-700 rounded-xl p-4 mb-2 text-center">
-          <p className="text-gray-400 text-sm">
+        <div className="bg-deep-black/60 border border-gray-700 rounded-xl p-4 mb-2 text-center">
+          <p className="text-muted text-sm">
             Not connected — messages are read-only
           </p>
         </div>
@@ -499,10 +499,10 @@ export default function ChatPanel({
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto bg-gray-800/50 rounded-xl p-3 space-y-1.5 min-h-0 relative"
+        className="flex-1 overflow-y-auto bg-deep-black/50 rounded-xl p-3 space-y-1.5 min-h-0 relative"
       >
         {filteredMessages.length === 0 ? (
-          <div className="text-center text-gray-500 py-12">
+          <div className="text-center text-muted py-12">
             {searchQuery
               ? "No messages match your search."
               : isDmMode
@@ -523,7 +523,7 @@ export default function ChatPanel({
             const daySeparator = daySeparatorIndices.has(i) ? (
               <div className="flex items-center gap-3 py-2">
                 <div className="flex-1 border-t border-gray-700" />
-                <span className="text-xs text-gray-500 font-medium shrink-0">
+                <span className="text-xs text-muted font-medium shrink-0">
                   {formatDayLabel(msg.timestamp)}
                 </span>
                 <div className="flex-1 border-t border-gray-700" />
@@ -553,7 +553,7 @@ export default function ChatPanel({
                             : "rounded-bl-sm bg-purple-700/20 border border-purple-600/30"
                           : isOwn
                           ? "rounded-br-sm bg-blue-600/20 border border-blue-500/30"
-                          : "rounded-bl-sm bg-gray-700/50 border border-gray-600/30"
+                          : "rounded-bl-sm bg-secondary-dark/50 border border-gray-600/30"
                       }`}
                     >
                       {/* Header: sender name (clickable) + DM indicator + time */}
@@ -565,7 +565,7 @@ export default function ChatPanel({
                               ? "text-purple-400"
                               : isOwn
                               ? "text-blue-400"
-                              : "text-green-400"
+                              : "text-bright-green"
                           }`}
                         >
                           {msg.sender_name}
@@ -575,7 +575,7 @@ export default function ChatPanel({
                             DM
                           </span>
                         )}
-                        <span className="text-[10px] text-gray-500/70">
+                        <span className="text-[10px] text-muted/70">
                           {formatTime(msg.timestamp)}
                         </span>
                         {channels.length > 1 && !isDm && (
@@ -595,7 +595,7 @@ export default function ChatPanel({
                         <div className="flex items-center justify-end gap-1 mt-0.5">
                           {msg.status === "sending" && (
                             <span
-                              className="text-[10px] text-gray-500"
+                              className="text-[10px] text-muted"
                               title="Sending..."
                             >
                               {"⏳"}
@@ -603,7 +603,7 @@ export default function ChatPanel({
                           )}
                           {msg.status === "acked" && (
                             <span
-                              className="text-[10px] text-green-500"
+                              className="text-[10px] text-bright-green"
                               title="Delivered"
                             >
                               {"✓"}
@@ -678,7 +678,7 @@ export default function ChatPanel({
                   {/* Emoji picker */}
                   {showPicker && (
                     <div
-                      className={`flex gap-1 bg-gray-700 border border-gray-600 rounded-xl px-2 py-1.5 mt-1 shadow-lg ${
+                      className={`flex gap-1 bg-secondary-dark border border-gray-600 rounded-xl px-2 py-1.5 mt-1 shadow-lg ${
                         isOwn ? "self-end" : "self-start"
                       }`}
                     >
@@ -711,12 +711,12 @@ export default function ChatPanel({
                       {reactions.map((r) => (
                         <span
                           key={r.emoji}
-                          className="inline-flex items-center gap-0.5 bg-gray-700/80 border border-gray-600/50 rounded-full px-1.5 py-0.5 text-xs cursor-default"
+                          className="inline-flex items-center gap-0.5 bg-secondary-dark/80 border border-gray-600/50 rounded-full px-1.5 py-0.5 text-xs cursor-default"
                           title={r.tooltip}
                         >
                           {emojiFromCode(r.emoji)}
                           {r.count > 1 && (
-                            <span className="text-gray-400 text-[10px]">
+                            <span className="text-muted text-[10px]">
                               {r.count}
                             </span>
                           )}
@@ -735,7 +735,7 @@ export default function ChatPanel({
         {showScrollButton && (
           <button
             onClick={scrollToBottom}
-            className="sticky bottom-2 left-1/2 -translate-x-1/2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-full px-3 py-1.5 text-xs font-medium shadow-lg border border-gray-600 transition-all flex items-center gap-1.5 z-10"
+            className="sticky bottom-2 left-1/2 -translate-x-1/2 bg-secondary-dark hover:bg-gray-600 text-gray-300 rounded-full px-3 py-1.5 text-xs font-medium shadow-lg border border-gray-600 transition-all flex items-center gap-1.5 z-10"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
@@ -763,7 +763,7 @@ export default function ChatPanel({
           className={`flex-1 px-4 py-2.5 rounded-xl text-gray-200 border focus:outline-none disabled:opacity-50 transition-colors ${
             isDmMode
               ? "bg-purple-900/20 border-purple-600/50 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30"
-              : "bg-gray-700/80 border-gray-600/50 focus:border-green-500/50 focus:ring-1 focus:ring-green-500/30"
+              : "bg-secondary-dark/80 border-gray-600/50 focus:border-brand-green/50 focus:ring-1 focus:ring-brand-green/30"
           }`}
           maxLength={228}
         />
@@ -772,8 +772,8 @@ export default function ChatPanel({
           disabled={!isConnected || !input.trim() || sending}
           className={`px-5 py-2.5 font-medium rounded-xl transition-colors ${
             isDmMode
-              ? "bg-purple-600 hover:bg-purple-500 disabled:bg-gray-600 disabled:text-gray-400 text-white"
-              : "bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:text-gray-400 text-white"
+              ? "bg-purple-600 hover:bg-purple-500 disabled:bg-gray-600 disabled:text-muted text-white"
+              : "bg-brand-green hover:bg-brand-green/90 disabled:bg-gray-600 disabled:text-muted text-white"
           }`}
         >
           {sending ? "..." : isDmMode ? "DM" : "Send"}
@@ -781,7 +781,7 @@ export default function ChatPanel({
       </div>
       {/* Character count — only show near limit */}
       {input.length > 180 && (
-        <div className="text-xs text-gray-500 mt-1 text-right">
+        <div className="text-xs text-muted mt-1 text-right">
           {input.length}/228
         </div>
       )}

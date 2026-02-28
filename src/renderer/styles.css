@@ -1,6 +1,14 @@
 @import "leaflet/dist/leaflet.css";
 @import "tailwindcss";
 
+@theme {
+  --color-brand-green: #9ae6b4;
+  --color-bright-green: #9ae6b4;
+  --color-deep-black: #1a202c;
+  --color-secondary-dark: #2d3748;
+  --color-muted: #a0aec0;
+}
+
 /* Leaflet container needs explicit height */
 .leaflet-container {
   width: 100%;
@@ -16,11 +24,11 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #4b5563;
+  background: #2d3748;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #6b7280;
+  background: #4a5568;
 }
 
 /* Font smoothing */
