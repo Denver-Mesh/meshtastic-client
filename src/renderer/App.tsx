@@ -249,7 +249,7 @@ export default function App() {
             <a
               href="https://github.com/rinchen"
               title="Joey (NV0N) on GitHub"
-              className="hover:underline"
+              className="text-bright-green underline hover:opacity-80"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -259,7 +259,7 @@ export default function App() {
             <a
               href="https://github.com/defidude"
               title="dude.eth on GitHub"
-              className="hover:underline"
+              className="text-bright-green underline hover:opacity-80"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -269,7 +269,7 @@ export default function App() {
             <a
               href="https://github.com/Denver-Mesh/meshtastic_mac_client"
               title="Original Mac Client"
-              className="hover:underline"
+              className="text-bright-green underline hover:opacity-80"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -279,7 +279,7 @@ export default function App() {
             <a
               href="https://github.com/Denver-Mesh/meshtastic-client"
               title="Denver Mesh on GitHub"
-              className="font-bold hover:underline"
+              className="text-bright-green underline font-bold hover:opacity-80"
               target="_blank"
               rel="noopener noreferrer"
             >
