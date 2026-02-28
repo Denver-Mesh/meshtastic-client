@@ -27,10 +27,18 @@ export function initDatabase(): void {
       short_name TEXT,
       hw_model TEXT,
       snr REAL,
+      rssi REAL,                    -- now safe to include
       battery INTEGER,
       last_heard INTEGER,
       latitude REAL,
-      longitude REAL
+      longitude REAL,
+      role TEXT,
+      hops_away INTEGER,
+      via_mqtt INTEGER,
+      voltage REAL,
+      channel_utilization REAL,
+      air_util_tx REAL,
+      altitude INTEGER
     );
 
     CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages(channel);
@@ -63,24 +71,39 @@ export function initDatabase(): void {
     db.pragma("user_version = 3");
   }
 
-  if (userVersion < 4) {
-    db.exec(
-      `ALTER TABLE nodes ADD COLUMN role TEXT;` +
-      `ALTER TABLE nodes ADD COLUMN hops_away INTEGER;` +
-      `ALTER TABLE nodes ADD COLUMN via_mqtt INTEGER;` +
-      `ALTER TABLE nodes ADD COLUMN voltage REAL;` +
-      `ALTER TABLE nodes ADD COLUMN channel_utilization REAL;` +
-      `ALTER TABLE nodes ADD COLUMN air_util_tx REAL;` +
-      `ALTER TABLE nodes ADD COLUMN altitude INTEGER;`
-    );
-    db.pragma("user_version = 4");
-  }
-
-  if (userVersion < 5) {
-    db.exec(`ALTER TABLE nodes ADD COLUMN rssi REAL;`);
-    db.pragma("user_version = 5");
-  }
-}
+    if (userVersion < 4) {
+      const nodeColumns = db.prepare(`
+        SELECT name FROM pragma_table_info('nodes')
+      `).all().map(row => row.name);
+    
+      const addIfMissing = (col: string, type: string) => {
+        if (!nodeColumns.includes(col)) {
+          db.exec(`ALTER TABLE nodes ADD COLUMN ${col} ${type};`);
+        }
+      };
+    
+      addIfMissing('role', 'TEXT');
+      addIfMissing('hops_away', 'INTEGER');
+      addIfMissing('via_mqtt', 'INTEGER');
+      addIfMissing('voltage', 'REAL');
+      addIfMissing('channel_utilization', 'REAL');
+      addIfMissing('air_util_tx', 'REAL');
+      addIfMissing('altitude', 'INTEGER');
+    
+      db.pragma("user_version = 4");
+    }
+    
+    if (userVersion < 5) {
+      const hasRssi = db.prepare(`
+        SELECT 1 FROM pragma_table_info('nodes') WHERE name = 'rssi'
+      `).get();
+    
+      if (!hasRssi) {
+        db.exec(`ALTER TABLE nodes ADD COLUMN rssi REAL;`);
+      }
+    
+      db.pragma("user_version = 5");
+    }
 
 export function getDatabase(): Database.Database {
   if (!db) {
