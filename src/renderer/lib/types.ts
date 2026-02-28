@@ -6,10 +6,18 @@ export interface MeshNode {
   short_name: string;
   hw_model: string;
   snr: number;
+  rssi?: number;
   battery: number;
   last_heard: number;
   latitude: number;
   longitude: number;
+  role?: number;
+  hops_away?: number;
+  via_mqtt?: boolean | number;
+  voltage?: number;
+  channel_utilization?: number;
+  air_util_tx?: number;
+  altitude?: number;
 }
 
 export interface ChatMessage {
@@ -81,6 +89,10 @@ declare global {
         ) => Promise<unknown>;
         exportDb: () => Promise<string | null>;
         importDb: () => Promise<{ nodesAdded: number; messagesAdded: number } | null>;
+        deleteNodesByAge: (days: number) => Promise<unknown>;
+        pruneNodesByCount: (maxCount: number) => Promise<unknown>;
+        clearMessagesByChannel: (channel: number) => Promise<unknown>;
+        getMessageChannels: () => Promise<{ channel: number }[]>;
       };
       onBluetoothDevicesDiscovered: (
         cb: (devices: BluetoothDevice[]) => void
@@ -95,6 +107,7 @@ declare global {
       clearSessionData: () => Promise<void>;
       notifyDeviceConnected: () => void;
       notifyDeviceDisconnected: () => void;
+      setTrayUnread: (count: number) => void;
     };
   }
 }

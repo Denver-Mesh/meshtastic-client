@@ -4,7 +4,7 @@ A cross-platform Meshtastic desktop client for **Mac**, **Linux**, and **Windows
 
 Connect to your Meshtastic devices over Bluetooth, USB Serial, or WiFi — no python, no phone required.
 
-> Originally ported from [Joey's (NV0N) Meshtastic Mac Client](https://github.com/rinchen/meshtastic_mac_client) and the Denver Mesh community. This is a full rewrite in Electron + React + TypeScript to support all platforms.
+> Created by **[Joey (NV0N)](https://github.com/rinchen)** & **[dude.eth](https://github.com/defidude)**. Based on the [original Mac client](https://github.com/Denver-Mesh/meshtastic_mac_client). Part of [**Denver Mesh**](https://github.com/Denver-Mesh/meshtastic-client).
 
 > [!WARNING]
 > This is an early release. A lot of things might be buggy. This may or may not be updated over the coming days/weeks. So far it has only been tested on a **Mac** with a **T-Deck** in Bluetooth Pairing Mode.
@@ -22,6 +22,7 @@ Connect to your Meshtastic devices over Bluetooth, USB Serial, or WiFi — no py
   - **Linux**: `sudo apt install build-essential python3` (Debian/Ubuntu)
   - **Windows**: [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the "Desktop development with C++" workload
 - A Meshtastic device (any hardware running Meshtastic firmware)
+- **For development**: [React DevTools](https://react.dev/link/react-devtools) browser extension
 
 ### Mac
 
@@ -76,6 +77,20 @@ Should work out of the box. If serial isn't detected, make sure you have the cor
 
 ---
 
+## Development
+
+To run the app in development mode with hot reload:
+
+```bash
+npm run dev
+```
+
+This starts the Vite dev server, watches the main/preload processes for changes, and launches Electron automatically.
+
+For the best development experience, install [React DevTools](https://react.dev/link/react-devtools).
+
+---
+
 ## Building the Distributable
 
 ```bash
@@ -96,12 +111,15 @@ The distributable is output to the `release/` directory.
 - **WiFi/HTTP** — connect to network-enabled nodes
 - **Chat** — send/receive messages across channels with delivery indicators (ACK/NAK) and emoji reactions (tapback)
 - **Channel Management** — create and configure channels with custom names and PSK encryption
-- **Node List** — all discovered nodes with SNR, battery, GPS, last heard
-- **Node Detail Modal** — click any node or sender name for full info
-- **Map** — interactive OpenStreetMap with node positions
+- **Node List** — all discovered nodes with SNR, RSSI signal strength, battery, GPS, last heard; distance filter hides nodes beyond a configurable range
+- **Signal Strength Indicators** — live RSSI bars on nodes and in chat, color-coded by signal quality
+- **Device Role Display** — visual icons and badges for each node's configured role (Router, Client, Repeater, etc.)
+- **Node Detail Modal** — click any node or sender name for full info; send a DM, run a trace route with hop-path display, or delete the node
+- **Map** — interactive OpenStreetMap with node positions; distance filter matches the node list
 - **Telemetry** — battery voltage and signal quality charts
 - **Radio Config** — region, modem preset, device role, GPS, power, Bluetooth, display settings
-- **Admin** — reboot, shutdown, factory reset, trace route, node removal, DB export/import/clear
+- **Admin** — reboot, shutdown, factory reset, node retention controls, channel-scoped message deletion, DB export/import/clear; map & node distance filter; prune nodes by location
+- **System Tray** — tray icon with live unread message badge; app stays accessible when window is closed
 - **Persistent Storage** — messages and nodes saved locally via SQLite
 - **Dark UI** — custom scrollbar, tab icons, polished chat bubbles
 
@@ -185,4 +203,4 @@ MIT — see [LICENSE](LICENSE)
 
 ## Credits
 
-See [CREDITS.md](CREDITS.md). Special thanks to **Joey (NV0N)** for the original Meshtastic Mac Client that inspired this project, and the Denver Mesh community.
+See [CREDITS.md](CREDITS.md). Created by **[Joey (NV0N)](https://github.com/rinchen)** & **[dude.eth](https://github.com/defidude)**. Based on the [original Mac client](https://github.com/Denver-Mesh/meshtastic_mac_client). Part of **[Denver Mesh](https://github.com/Denver-Mesh/meshtastic-client)**.

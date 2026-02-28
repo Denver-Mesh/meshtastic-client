@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useDevice } from "./hooks/useDevice";
 import { ToastProvider } from "./components/Toast";
 import Tabs from "./components/Tabs";
@@ -11,6 +11,7 @@ import ConfigPanel from "./components/ConfigPanel";
 import MapPanel from "./components/MapPanel";
 import TelemetryPanel from "./components/TelemetryPanel";
 import AdminPanel from "./components/AdminPanel";
+import { LinkIcon } from "./components/SignalBars";
 
 const TAB_NAMES = [
   "Connection",
@@ -22,17 +23,61 @@ const TAB_NAMES = [
   "Admin",
 ];
 
+export interface LocationFilter {
+  enabled: boolean;
+  maxDistance: number;
+  unit: "miles" | "km";
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState(0);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const [locationFilter, setLocationFilter] = useState<LocationFilter>(() => {
+    try {
+      const raw = localStorage.getItem("electastic:adminSettings");
+      const s = raw ? JSON.parse(raw) : {};
+      return {
+        enabled: s.distanceFilterEnabled ?? false,
+        maxDistance: s.distanceFilterMax ?? 500,
+        unit: s.distanceUnit ?? "miles",
+      };
+    } catch {
+      return { enabled: false, maxDistance: 500, unit: "miles" };
+    }
+  });
   const [pendingDmTarget, setPendingDmTarget] = useState<number | null>(null);
+  const [chatUnread, setChatUnread] = useState(0);
+  const prevMsgCountRef = useRef(0);
+  const isInitialLoadRef = useRef(true);
   const device = useDevice();
 
   const isConfigured = device.state.status === "configured";
   const isOperational = isConfigured || device.state.status === "stale";
+  const isConnectedOrOperational = isOperational || device.state.status === "connected";
   const selectedNode = selectedNodeId
     ? device.nodes.get(selectedNodeId) ?? null
     : null;
+
+  const traceRouteHops = useMemo(() => {
+    if (!selectedNode) return undefined;
+    const result = device.traceRouteResults.get(selectedNode.node_id);
+    if (!result) return undefined;
+    return [
+      device.getFullNodeLabel(device.state.myNodeNum) || "Me",
+      ...result.route.map((id) => device.getFullNodeLabel(id)),
+      device.getFullNodeLabel(result.from),
+    ];
+  }, [selectedNode, device.traceRouteResults, device.state.myNodeNum, device.getFullNodeLabel]);
+
+  // ─── Startup node pruning based on persisted admin settings ─────
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("electastic:adminSettings");
+      const s = raw ? JSON.parse(raw) : {};
+      if (s.autoPruneEnabled) window.electronAPI.db.deleteNodesByAge(s.autoPruneDays ?? 30);
+      if (s.nodeCapEnabled !== false) window.electronAPI.db.pruneNodesByCount(s.nodeCapCount ?? 10000);
+    } catch {}
+  }, []);
 
   // ─── Keyboard shortcuts: Cmd/Ctrl+1-7 for tabs ───────────────
   useEffect(() => {
@@ -45,6 +90,37 @@ export default function App() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  // ─── Track messages arriving while Chat tab is inactive ──────────
+  useEffect(() => {
+    const count = device.messages.length;
+    if (isInitialLoadRef.current) {
+      prevMsgCountRef.current = count;
+      if (count > 0) isInitialLoadRef.current = false;
+      return;
+    }
+    if (count > prevMsgCountRef.current && activeTab !== 1) {
+      const newMsgs = device.messages.slice(prevMsgCountRef.current);
+      const realNew = newMsgs.filter(
+        (m) => m.sender_id !== device.state.myNodeNum && !m.emoji
+      );
+      if (realNew.length > 0) setChatUnread((prev) => prev + realNew.length);
+    }
+    prevMsgCountRef.current = count;
+  }, [device.messages.length]);
+
+  // ─── Clear unread when Chat tab becomes active ────────────────────
+  useEffect(() => {
+    if (activeTab === 1) {
+      setChatUnread(0);
+      window.electronAPI.setTrayUnread(0);
+    }
+  }, [activeTab]);
+
+  // ─── Sync non-zero unread count to tray ──────────────────────────
+  useEffect(() => {
+    if (chatUnread > 0) window.electronAPI.setTrayUnread(chatUnread);
+  }, [chatUnread]);
 
   // Manual reconnect from banner
   const handleReconnect = useCallback(() => {
@@ -62,6 +138,8 @@ export default function App() {
     setActiveTab(1); // Switch to Chat tab
   }, []);
 
+  const handleLocationFilterChange = useCallback((f: LocationFilter) => setLocationFilter(f), []);
+
   const statusColor = {
     disconnected: "bg-red-500",
     connecting: "bg-yellow-500 animate-pulse",
@@ -76,26 +154,29 @@ export default function App() {
       <div className="flex flex-col h-screen">
         {/* Header */}
         <header
-          className={`flex items-center justify-between px-4 py-2 bg-gray-800 border-b ${
-            isConfigured ? "border-green-500/20" : "border-gray-700"
+          className={`flex items-center justify-between px-4 py-2 bg-deep-black border-b ${
+            isConfigured ? "border-brand-green/20" : "border-gray-700"
           }`}
         >
           <div className="flex items-center gap-3">
-            <h1 className="text-lg font-bold text-green-400 tracking-wide">
+            <h1 className="text-lg font-bold text-bright-green tracking-wide">
               Denver Mesh
             </h1>
-            <span className="text-xs text-gray-500">Meshtastic Client</span>
+            <span className="text-xs text-muted">Meshtastic Client</span>
           </div>
           <div className="flex items-center gap-2">
+            {isConnectedOrOperational && (
+              <LinkIcon className="w-4 h-4" />
+            )}
             <div className={`w-2.5 h-2.5 rounded-full ${statusColor}`} />
-            <span className="text-sm text-gray-400 capitalize">
+            <span className="text-sm text-muted capitalize">
               {device.state.status}
               {device.state.connectionType
                 ? ` (${device.state.connectionType.toUpperCase()})`
                 : ""}
             </span>
             {device.state.myNodeNum > 0 && (
-              <span className="text-xs text-gray-500 ml-2 whitespace-nowrap">
+              <span className="text-xs text-muted ml-2 whitespace-nowrap">
                 Node: {device.getFullNodeLabel(device.state.myNodeNum)}
               </span>
             )}
@@ -120,6 +201,11 @@ export default function App() {
                 state={device.state}
                 onConnect={device.connect}
                 onDisconnect={device.disconnect}
+                myNodeLabel={
+                  device.state.myNodeNum > 0
+                    ? device.getFullNodeLabel(device.state.myNodeNum)
+                    : undefined
+                }
               />
             )}
             <div className={activeTab === 1 ? "contents" : "hidden"}>
@@ -140,12 +226,10 @@ export default function App() {
               <NodeListPanel
                 nodes={device.nodes}
                 myNodeNum={device.state.myNodeNum}
-                onRequestPosition={device.requestPosition}
-                onTraceRoute={device.traceRoute}
                 onRefresh={device.requestRefresh}
                 onNodeClick={(node) => setSelectedNodeId(node.node_id)}
                 isConnected={isOperational}
-                onMessageNode={handleMessageNode}
+                locationFilter={locationFilter}
               />
             )}
             {activeTab === 3 && (
@@ -164,6 +248,7 @@ export default function App() {
                 myNodeNum={device.state.myNodeNum}
                 onRefresh={device.requestRefresh}
                 isConnected={isOperational}
+                locationFilter={locationFilter}
               />
             )}
             {activeTab === 5 && (
@@ -177,31 +262,63 @@ export default function App() {
               <AdminPanel
                 nodes={device.nodes}
                 messageCount={device.messages.length}
+                channels={device.channels}
                 onReboot={device.reboot}
                 onShutdown={device.shutdown}
                 onFactoryReset={device.factoryReset}
                 onResetNodeDb={device.resetNodeDb}
-                onTraceRoute={device.traceRoute}
-                onRemoveNode={device.removeNode}
                 isConnected={isOperational}
+                myNodeNum={device.state.myNodeNum}
+                onLocationFilterChange={handleLocationFilterChange}
               />
             )}
           </ErrorBoundary>
         </main>
 
         {/* Footer */}
-        <footer className="px-4 py-1.5 bg-gray-800 border-t border-gray-700 text-xs text-gray-500 flex justify-between">
+        <footer className="px-4 py-1.5 bg-deep-black border-t border-gray-700 text-[11px] text-muted flex justify-between">
           <span>
-            Inspired by{" "}
+            Created by{" "}
             <a
-              href="https://github.com/Denver-Mesh/meshtastic_mac_client"
-              className="text-green-500 hover:underline"
+              href="https://github.com/rinchen"
+              title="Joey (NV0N) on GitHub"
+              className="text-bright-green underline hover:opacity-80"
               target="_blank"
               rel="noopener noreferrer"
             >
               Joey (NV0N)
             </a>{" "}
-            &amp; Denver Mesh
+            &amp;{" "}
+            <a
+              href="https://github.com/defidude"
+              title="dude.eth on GitHub"
+              className="text-bright-green underline hover:opacity-80"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              dude.eth
+            </a>
+            . Based on the{" "}
+            <a
+              href="https://github.com/Denver-Mesh/meshtastic_mac_client"
+              title="Original Mac Client"
+              className="text-bright-green underline hover:opacity-80"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              original Mac client
+            </a>
+            . Part of{" "}
+            <a
+              href="https://github.com/Denver-Mesh/meshtastic-client"
+              title="Denver Mesh on GitHub"
+              className="text-bright-green underline font-bold hover:opacity-80"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Denver Mesh
+            </a>
+            .
           </span>
           <span>
             {device.nodes.size} nodes | {device.messages.length} messages
@@ -214,6 +331,16 @@ export default function App() {
           onClose={() => setSelectedNodeId(null)}
           onRequestPosition={device.requestPosition}
           onTraceRoute={device.traceRoute}
+          traceRouteHops={traceRouteHops}
+          onDeleteNode={async (nodeNum) => {
+            await device.deleteNode(nodeNum);
+            setSelectedNodeId(null);
+          }}
+          onMessageNode={
+            selectedNode?.node_id !== device.state.myNodeNum
+              ? handleMessageNode
+              : undefined
+          }
           isConnected={isOperational}
         />
       </div>

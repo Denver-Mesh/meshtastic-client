@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
       short_name: string;
       hw_model: string;
       snr: number;
+      rssi?: number;
       battery: number;
       last_heard: number;
       latitude: number;
@@ -48,6 +49,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("db:updateMessageStatus", packetId, status, error),
     exportDb: () => ipcRenderer.invoke("db:export"),
     importDb: () => ipcRenderer.invoke("db:import"),
+    deleteNodesByAge: (days: number) => ipcRenderer.invoke("db:deleteNodesByAge", days),
+    pruneNodesByCount: (maxCount: number) => ipcRenderer.invoke("db:pruneNodesByCount", maxCount),
+    deleteNodesBatch: (nodeIds: number[]) => ipcRenderer.invoke("db:deleteNodesBatch", nodeIds),
+    clearMessagesByChannel: (channel: number) => ipcRenderer.invoke("db:clearMessagesByChannel", channel),
+    getMessageChannels: () => ipcRenderer.invoke("db:getMessageChannels"),
   },
 
   // ─── Bluetooth device selection ─────────────────────────────────
@@ -97,4 +103,5 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // ─── Connection status ─────────────────────────────────────────
   notifyDeviceConnected: () => ipcRenderer.send("device-connected"),
   notifyDeviceDisconnected: () => ipcRenderer.send("device-disconnected"),
+  setTrayUnread: (count: number) => ipcRenderer.send("set-tray-unread", count),
 });

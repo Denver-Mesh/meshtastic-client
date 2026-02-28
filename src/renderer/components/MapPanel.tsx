@@ -1,22 +1,11 @@
+import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import type { MeshNode } from "../lib/types";
-import { getNodeStatus } from "../lib/nodeStatus";
+import { getNodeStatus, haversineDistanceKm } from "../lib/nodeStatus";
 import RefreshButton from "./RefreshButton";
-
-// Fix for default markers not showing in bundled apps
-import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
-
-// @ts-ignore
-delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-});
+import type { LocationFilter } from "../App";
 
 // Create colored marker icons using SVG data URIs
 function createMarkerIcon(color: string, isSelf: boolean): L.Icon {
@@ -46,10 +35,10 @@ function createMarkerIcon(color: string, isSelf: boolean): L.Icon {
 
 // Cached marker icons
 const MARKERS = {
-  selfOnline: createMarkerIcon("#22c55e", true),
+  selfOnline: createMarkerIcon("#9ae6b4", true),
   selfStale: createMarkerIcon("#eab308", true),
   selfOffline: createMarkerIcon("#6b7280", true),
-  online: createMarkerIcon("#22c55e", false),
+  online: createMarkerIcon("#9ae6b4", false),
   stale: createMarkerIcon("#eab308", false),
   offline: createMarkerIcon("#6b7280", false),
 };
@@ -74,6 +63,7 @@ interface Props {
   myNodeNum: number;
   onRefresh: () => Promise<void>;
   isConnected: boolean;
+  locationFilter: LocationFilter;
 }
 
 // Default center: Longmont, CO (same as Joey's original)
@@ -95,14 +85,25 @@ function MapFitter({ positions }: { positions: [number, number][] }) {
   return null;
 }
 
-export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected }: Props) {
-  const nodesWithPosition = useMemo(
-    () =>
-      Array.from(nodes.values()).filter(
-        (n) => n.latitude !== 0 && n.longitude !== 0
-      ),
-    [nodes]
-  );
+export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected, locationFilter }: Props) {
+  const nodesWithPosition = useMemo(() => {
+    const homeNode = myNodeNum ? nodes.get(myNodeNum) : undefined;
+    const homeHasLocation = homeNode &&
+      homeNode.latitude != null && homeNode.latitude !== 0 &&
+      homeNode.longitude != null && homeNode.longitude !== 0;
+    const maxKm = locationFilter.unit === "miles"
+      ? locationFilter.maxDistance * 1.60934
+      : locationFilter.maxDistance;
+
+    return Array.from(nodes.values()).filter((n) => {
+      if (!n.latitude || !n.longitude) return false;
+      if (locationFilter.enabled && homeHasLocation) {
+        const d = haversineDistanceKm(homeNode!.latitude, homeNode!.longitude, n.latitude, n.longitude);
+        if (d > maxKm) return false;
+      }
+      return true;
+    });
+  }, [nodes, myNodeNum, locationFilter]);
 
   const positions = useMemo<[number, number][]>(
     () => nodesWithPosition.map((n) => [n.latitude, n.longitude]),
@@ -133,9 +134,9 @@ export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected }: P
       {/* Controls overlay — top right */}
       <div className="absolute top-3 right-3 z-[1000] flex items-center gap-2">
         {/* Legend */}
-        <div className="bg-gray-900/80 backdrop-blur-sm rounded-lg px-3 py-1.5 flex items-center gap-3 text-xs border border-gray-700">
+        <div className="bg-deep-black/80 backdrop-blur-sm rounded-lg px-3 py-1.5 flex items-center gap-3 text-xs border border-gray-700">
           <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+            <span className="w-2 h-2 rounded-full bg-brand-green inline-block" />
             {statusCounts.online}
           </span>
           <span className="flex items-center gap-1">
@@ -147,7 +148,7 @@ export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected }: P
             {statusCounts.offline}
           </span>
         </div>
-        <div className="bg-gray-900/70 rounded-full">
+        <div className="bg-deep-black/70 rounded-full">
           <RefreshButton onRefresh={onRefresh} disabled={!isConnected} />
         </div>
       </div>
@@ -187,7 +188,7 @@ export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected }: P
                     <span
                       className={`inline-block w-2 h-2 rounded-full ${
                         status === "online"
-                          ? "bg-green-500"
+                          ? "bg-brand-green"
                           : status === "stale"
                           ? "bg-yellow-500"
                           : "bg-gray-400"
@@ -200,7 +201,7 @@ export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected }: P
                     <div>SNR: {node.snr.toFixed(1)} dB</div>
                   )}
                   <div>Last heard: {formatTime(node.last_heard)}</div>
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-muted">
                     {node.latitude.toFixed(5)}, {node.longitude.toFixed(5)}
                   </div>
                 </div>
@@ -212,7 +213,7 @@ export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected }: P
 
       {nodesWithPosition.length === 0 && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="bg-gray-900/80 px-4 py-2 rounded-lg text-gray-400 text-sm">
+          <div className="bg-deep-black/80 px-4 py-2 rounded-lg text-muted text-sm">
             No nodes with GPS positions yet
           </div>
         </div>

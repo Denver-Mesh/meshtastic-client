@@ -27,6 +27,7 @@ export function initDatabase(): void {
       short_name TEXT,
       hw_model TEXT,
       snr REAL,
+      rssi REAL,
       battery INTEGER,
       last_heard INTEGER,
       latitude REAL,
@@ -61,6 +62,24 @@ export function initDatabase(): void {
   if (userVersion < 3) {
     db.exec(`ALTER TABLE messages ADD COLUMN to_node INTEGER;`);
     db.pragma("user_version = 3");
+  }
+
+  if (userVersion < 4) {
+    db.exec(
+      `ALTER TABLE nodes ADD COLUMN role TEXT;` +
+      `ALTER TABLE nodes ADD COLUMN hops_away INTEGER;` +
+      `ALTER TABLE nodes ADD COLUMN via_mqtt INTEGER;` +
+      `ALTER TABLE nodes ADD COLUMN voltage REAL;` +
+      `ALTER TABLE nodes ADD COLUMN channel_utilization REAL;` +
+      `ALTER TABLE nodes ADD COLUMN air_util_tx REAL;` +
+      `ALTER TABLE nodes ADD COLUMN altitude INTEGER;`
+    );
+    db.pragma("user_version = 4");
+  }
+
+  if (userVersion < 5) {
+    db.exec(`ALTER TABLE nodes ADD COLUMN rssi REAL;`);
+    db.pragma("user_version = 5");
   }
 }
 

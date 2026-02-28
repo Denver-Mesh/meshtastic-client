@@ -83,10 +83,10 @@ function ToastItem({
   }[toast.type];
 
   const colors = {
-    success: "bg-green-900/90 border-green-600 text-green-200",
+    success: "bg-brand-green/15 border-brand-green text-bright-green",
     error: "bg-red-900/90 border-red-600 text-red-200",
     warning: "bg-yellow-900/90 border-yellow-600 text-yellow-200",
-    info: "bg-gray-800/90 border-gray-600 text-gray-200",
+    info: "bg-deep-black/90 border-gray-600 text-gray-200",
   }[toast.type];
 
   return (
@@ -103,7 +103,7 @@ function ToastItem({
           setVisible(false);
           dismissTimerRef.current = setTimeout(() => onDismiss(toast.id), 300);
         }}
-        className="text-gray-400 hover:text-gray-200 ml-2 shrink-0"
+        className="text-muted hover:text-gray-200 ml-2 shrink-0"
         aria-label="Dismiss notification"
       >
         ×

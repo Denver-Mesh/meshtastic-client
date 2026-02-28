@@ -1,6 +1,8 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { MeshNode } from "../lib/types";
 import { useToast } from "./Toast";
+import { haversineDistanceKm } from "../lib/nodeStatus";
+import type { LocationFilter } from "../App";
 
 // ─── Confirmation Modal ─────────────────────────────────────────
 function ConfirmModal({
@@ -26,13 +28,13 @@ function ConfirmModal({
         onClick={onCancel}
       />
       {/* Modal */}
-      <div className="relative bg-gray-800 border border-gray-600 rounded-xl shadow-2xl max-w-sm w-full mx-4 p-6 space-y-4">
+      <div className="relative bg-deep-black border border-gray-600 rounded-xl shadow-2xl max-w-sm w-full mx-4 p-6 space-y-4">
         <h3 className="text-lg font-semibold text-gray-200">{title}</h3>
-        <p className="text-sm text-gray-400 leading-relaxed">{message}</p>
+        <p className="text-sm text-muted leading-relaxed">{message}</p>
         <div className="flex gap-3 pt-2">
           <button
             onClick={onCancel}
-            className="flex-1 px-4 py-2.5 bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition-colors text-sm"
+            className="flex-1 px-4 py-2.5 bg-secondary-dark hover:bg-gray-600 text-gray-300 font-medium rounded-lg transition-colors text-sm"
           >
             Cancel
           </button>
@@ -52,16 +54,47 @@ function ConfirmModal({
   );
 }
 
+// ─── Admin Settings ─────────────────────────────────────────────
+interface AdminSettings {
+  autoPruneEnabled: boolean;
+  autoPruneDays: number;
+  nodeCapEnabled: boolean;
+  nodeCapCount: number;
+  distanceFilterEnabled: boolean;
+  distanceFilterMax: number;
+  distanceUnit: "miles" | "km";
+}
+
+const DEFAULT_SETTINGS: AdminSettings = {
+  autoPruneEnabled: false,
+  autoPruneDays: 30,
+  nodeCapEnabled: true,
+  nodeCapCount: 10000,
+  distanceFilterEnabled: false,
+  distanceFilterMax: 500,
+  distanceUnit: "miles",
+};
+
+function loadSettings(): AdminSettings {
+  try {
+    const raw = localStorage.getItem("electastic:adminSettings");
+    return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SETTINGS;
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
 interface Props {
   nodes: Map<number, MeshNode>;
   messageCount: number;
+  channels: Array<{ index: number; name: string }>;
   onReboot: (seconds: number) => Promise<void>;
   onShutdown: (seconds: number) => Promise<void>;
   onFactoryReset: () => Promise<void>;
   onResetNodeDb: () => Promise<void>;
-  onTraceRoute: (destination: number) => Promise<void>;
-  onRemoveNode: (nodeNum: number) => Promise<void>;
   isConnected: boolean;
+  myNodeNum: number | null;
+  onLocationFilterChange: (f: LocationFilter) => void;
 }
 
 interface PendingAction {
@@ -76,31 +109,63 @@ interface PendingAction {
 export default function AdminPanel({
   nodes,
   messageCount,
+  channels,
   onReboot,
   onShutdown,
   onFactoryReset,
   onResetNodeDb,
-  onTraceRoute,
-  onRemoveNode,
   isConnected,
+  myNodeNum,
+  onLocationFilterChange,
 }: Props) {
-  const [targetNode, setTargetNode] = useState("");
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const { addToast } = useToast();
 
-  const executeWithConfirmation = useCallback(
-    (action: PendingAction) => {
-      setPendingAction(action);
-    },
-    []
-  );
+  // ─── Node retention settings ────────────────────────────────
+  const [settings, setSettings] = useState<AdminSettings>(loadSettings);
+  const [deleteAgeDays, setDeleteAgeDays] = useState(90);
+
+  useEffect(() => {
+    localStorage.setItem("electastic:adminSettings", JSON.stringify(settings));
+  }, [settings]);
+
+  useEffect(() => {
+    onLocationFilterChange({
+      enabled: settings.distanceFilterEnabled,
+      maxDistance: settings.distanceFilterMax,
+      unit: settings.distanceUnit,
+    });
+  }, [settings.distanceFilterEnabled, settings.distanceFilterMax, settings.distanceUnit, onLocationFilterChange]);
+
+  const updateSetting = <K extends keyof AdminSettings>(key: K, value: AdminSettings[K]) =>
+    setSettings((prev) => ({ ...prev, [key]: value }));
+
+  // ─── Message channel selection ──────────────────────────────
+  const [msgChannels, setMsgChannels] = useState<number[]>([]);
+  const [clearChannelTarget, setClearChannelTarget] = useState<number>(-1);
+
+  useEffect(() => {
+    window.electronAPI.db.getMessageChannels().then((rows) => {
+      setMsgChannels(rows.map((r) => r.channel));
+    }).catch(() => {});
+  }, []);
+
+  const getChannelLabel = (ch: number) => {
+    const named = channels.find((c) => c.index === ch);
+    return named ? `Channel ${ch} — ${named.name}` : `Channel ${ch}`;
+  };
+
+  // ─── Confirmation flow ──────────────────────────────────────
+  const executeWithConfirmation = useCallback((action: PendingAction) => {
+    setPendingAction(action);
+  }, []);
 
   const handleConfirm = useCallback(async () => {
     if (!pendingAction) return;
     setPendingAction(null);
     try {
       await pendingAction.action();
-      addToast(`${pendingAction.name} command sent successfully.`, "success");
+      addToast(`${pendingAction.name} completed successfully.`, "success");
     } catch (err) {
       addToast(
         `Failed: ${err instanceof Error ? err.message : "Unknown error"}`,
@@ -108,14 +173,6 @@ export default function AdminPanel({
       );
     }
   }, [pendingAction, addToast]);
-
-  const getTargetNodeNum = (): number => {
-    if (!targetNode) return 0;
-    const parsed = targetNode.startsWith("!")
-      ? parseInt(targetNode.slice(1), 16)
-      : parseInt(targetNode, 10);
-    return Number.isNaN(parsed) ? 0 : parsed;
-  };
 
   return (
     <div className="max-w-lg mx-auto space-y-6">
@@ -127,24 +184,9 @@ export default function AdminPanel({
         </div>
       )}
 
-      {/* Target Node */}
-      <div className="space-y-2">
-        <label className="text-sm text-gray-400">
-          Target Node (leave empty for self)
-        </label>
-        <input
-          type="text"
-          value={targetNode}
-          onChange={(e) => setTargetNode(e.target.value)}
-          disabled={!isConnected}
-          placeholder="!aabbccdd or node number"
-          className="w-full px-3 py-2 bg-gray-700 rounded-lg text-gray-200 border border-gray-600 focus:border-green-500 focus:outline-none disabled:opacity-50"
-        />
-      </div>
-
       {/* Device Commands */}
       <div className="space-y-3">
-        <h3 className="text-sm font-medium text-gray-400">Device Commands (affects connected device)</h3>
+        <h3 className="text-sm font-medium text-muted">Device Commands (affects connected device)</h3>
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={() =>
@@ -158,7 +200,7 @@ export default function AdminPanel({
               })
             }
             disabled={!isConnected}
-            className="px-4 py-3 bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+            className="px-4 py-3 bg-secondary-dark text-gray-300 hover:bg-gray-600 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
           >
             Reboot
           </button>
@@ -175,7 +217,7 @@ export default function AdminPanel({
               })
             }
             disabled={!isConnected}
-            className="px-4 py-3 bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+            className="px-4 py-3 bg-secondary-dark text-gray-300 hover:bg-gray-600 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
           >
             Shutdown
           </button>
@@ -192,88 +234,242 @@ export default function AdminPanel({
               })
             }
             disabled={!isConnected}
-            className="px-4 py-3 bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+            className="px-4 py-3 bg-secondary-dark text-gray-300 hover:bg-gray-600 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
           >
             Reset NodeDB
           </button>
 
-          <button
-            onClick={() =>
-              executeWithConfirmation({
-                name: "Factory Reset",
-                title: "⚠ Factory Reset",
-                message:
-                  "This will erase ALL device settings and restore factory defaults. All channels, configuration, and stored data on the device will be permanently lost. This action CANNOT be undone.",
-                confirmLabel: "Factory Reset",
-                danger: true,
-                action: () => onFactoryReset(),
-              })
-            }
-            disabled={!isConnected}
-            className="px-4 py-3 bg-red-900/50 text-red-300 hover:bg-red-900/70 border border-red-800 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
-          >
-            Factory Reset
-          </button>
         </div>
       </div>
 
-      {/* Trace Route */}
+      {/* Map & Node Filtering */}
       <div className="space-y-3">
-        <h3 className="text-sm font-medium text-gray-400">
-          Network Diagnostics
-        </h3>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={() => {
-              const target = getTargetNodeNum();
-              if (target) {
-                onTraceRoute(target)
-                  .then(() => addToast("Trace route request sent.", "info"))
-                  .catch((err) =>
-                    addToast(
-                      `Trace route failed: ${err instanceof Error ? err.message : "Unknown error"}`,
-                      "error"
-                    )
-                  );
-              } else {
-                addToast("Enter a target node for trace route.", "warning");
-              }
-            }}
-            disabled={!isConnected || !targetNode}
-            className="px-4 py-3 bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
-          >
-            Trace Route
-          </button>
+        <h3 className="text-sm font-medium text-muted">Map &amp; Node Filtering</h3>
+        <div className="bg-secondary-dark rounded-lg p-4 space-y-4">
+          <p className="text-xs text-muted leading-relaxed">
+            Hides nodes beyond a set distance from your device. Filtering is display-only — nodes remain in the database.
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="distanceFilter"
+              checked={settings.distanceFilterEnabled}
+              onChange={(e) => updateSetting("distanceFilterEnabled", e.target.checked)}
+              className="accent-brand-green"
+            />
+            <label htmlFor="distanceFilter" className="text-sm text-gray-300 cursor-pointer">
+              Filter distant nodes from map and node list
+            </label>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-300">Max distance:</span>
+            <input
+              type="number"
+              min={1}
+              value={settings.distanceFilterMax}
+              onChange={(e) => updateSetting("distanceFilterMax", Math.max(1, parseInt(e.target.value) || 1))}
+              disabled={!settings.distanceFilterEnabled}
+              className="w-24 px-2 py-1 bg-deep-black border border-gray-600 rounded text-gray-200 text-sm text-right focus:border-brand-green focus:outline-none disabled:opacity-40"
+            />
+            <select
+              value={settings.distanceUnit}
+              onChange={(e) => updateSetting("distanceUnit", e.target.value as "miles" | "km")}
+              disabled={!settings.distanceFilterEnabled}
+              className="px-2 py-1 bg-deep-black border border-gray-600 rounded text-gray-200 text-sm focus:border-brand-green focus:outline-none disabled:opacity-40"
+            >
+              <option value="miles">miles</option>
+              <option value="km">km</option>
+            </select>
+          </div>
+          <p className="text-xs text-muted">Note: Requires your device to have a valid GPS fix.</p>
+        </div>
+      </div>
 
-          <button
-            onClick={() => {
-              const target = getTargetNodeNum();
-              if (target) {
+      {/* Node Retention */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-medium text-muted">Node Retention</h3>
+        <div className="bg-secondary-dark rounded-lg p-4 space-y-4">
+          {/* Manual age delete */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-300 flex-1">Delete nodes last heard more than</span>
+            <input
+              type="number"
+              min={1}
+              value={deleteAgeDays}
+              onChange={(e) => setDeleteAgeDays(Math.max(1, parseInt(e.target.value) || 1))}
+              className="w-20 px-2 py-1 bg-deep-black border border-gray-600 rounded text-gray-200 text-sm text-right focus:border-brand-green focus:outline-none"
+            />
+            <span className="text-sm text-gray-300">days ago</span>
+            <button
+              onClick={() =>
                 executeWithConfirmation({
-                  name: "Remove Node",
-                  title: "Remove Node",
-                  message: `Remove node !${target.toString(16)} from the device's node database? The node may reappear if it broadcasts again.`,
-                  confirmLabel: "Remove",
-                  action: () => onRemoveNode(target),
-                });
-              } else {
-                addToast("Enter a target node to remove.", "warning");
+                  name: "Delete Old Nodes",
+                  title: "Delete Old Nodes",
+                  message: `This will permanently delete all nodes that haven't been heard in the last ${deleteAgeDays} day${deleteAgeDays !== 1 ? "s" : ""}. They will be re-discovered when they broadcast again.`,
+                  confirmLabel: "Delete Old Nodes",
+                  danger: true,
+                  action: async () => {
+                    await window.electronAPI.db.deleteNodesByAge(deleteAgeDays);
+                  },
+                })
               }
-            }}
-            disabled={!isConnected || !targetNode}
-            className="px-4 py-3 bg-gray-700 text-gray-300 hover:bg-gray-600 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
-          >
-            Remove Node
-          </button>
+              className="px-3 py-1.5 bg-red-900/50 text-red-300 hover:bg-red-900/70 border border-red-800 rounded text-sm font-medium transition-colors whitespace-nowrap"
+            >
+              Delete Old Nodes
+            </button>
+          </div>
+
+          {/* Auto-prune on startup */}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="autoPrune"
+              checked={settings.autoPruneEnabled}
+              onChange={(e) => updateSetting("autoPruneEnabled", e.target.checked)}
+              className="accent-brand-green"
+            />
+            <label htmlFor="autoPrune" className="text-sm text-gray-300 flex-1 cursor-pointer">
+              Auto-prune on startup, older than
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={settings.autoPruneDays}
+              onChange={(e) => updateSetting("autoPruneDays", Math.max(1, parseInt(e.target.value) || 1))}
+              disabled={!settings.autoPruneEnabled}
+              className="w-20 px-2 py-1 bg-deep-black border border-gray-600 rounded text-gray-200 text-sm text-right focus:border-brand-green focus:outline-none disabled:opacity-40"
+            />
+            <span className="text-sm text-gray-300">days</span>
+          </div>
+
+          {/* Node cap */}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="nodeCap"
+              checked={settings.nodeCapEnabled}
+              onChange={(e) => updateSetting("nodeCapEnabled", e.target.checked)}
+              className="accent-brand-green"
+            />
+            <label htmlFor="nodeCap" className="text-sm text-gray-300 flex-1 cursor-pointer">
+              Cap total nodes, keep newest
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={settings.nodeCapCount}
+              onChange={(e) => updateSetting("nodeCapCount", Math.max(1, parseInt(e.target.value) || 1))}
+              disabled={!settings.nodeCapEnabled}
+              className="w-24 px-2 py-1 bg-deep-black border border-gray-600 rounded text-gray-200 text-sm text-right focus:border-brand-green focus:outline-none disabled:opacity-40"
+            />
+            <span className="text-sm text-gray-300">nodes</span>
+          </div>
+
+          {/* Clear all nodes */}
+          <div className="pt-1 border-t border-gray-700">
+            <button
+              onClick={() =>
+                executeWithConfirmation({
+                  name: "Clear Nodes",
+                  title: "Clear Nodes",
+                  message: `This will permanently delete all ${nodes.size} locally stored nodes. They will be re-discovered when connected.`,
+                  confirmLabel: `Clear ${nodes.size} Nodes`,
+                  danger: true,
+                  action: async () => {
+                    await window.electronAPI.db.clearNodes();
+                  },
+                })
+              }
+              className="w-full px-4 py-2.5 bg-secondary-dark text-gray-300 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors"
+            >
+              Clear All Nodes ({nodes.size})
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Prune by Location */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-medium text-muted">Prune by Location</h3>
+        <div className="bg-secondary-dark rounded-lg p-4 space-y-4">
+          <p className="text-xs text-muted leading-relaxed">
+            Permanently deletes nodes from the database. This cannot be undone.
+          </p>
+          <div className="space-y-2">
+            <button
+              onClick={() => {
+                const zeroIslandNodes = Array.from(nodes.values()).filter(
+                  (n) => Math.abs(n.latitude) < 0.5 && Math.abs(n.longitude) < 0.5
+                );
+                if (zeroIslandNodes.length === 0) {
+                  addToast("No zero/null island nodes found.", "success");
+                  return;
+                }
+                executeWithConfirmation({
+                  name: "Prune Zero Island Nodes",
+                  title: "Prune Zero/Null Island Nodes",
+                  message: `This will permanently delete ${zeroIslandNodes.length} node${zeroIslandNodes.length !== 1 ? "s" : ""} with coordinates at or near 0°N, 0°E (invalid GPS). This cannot be undone.`,
+                  confirmLabel: `Delete ${zeroIslandNodes.length} Node${zeroIslandNodes.length !== 1 ? "s" : ""}`,
+                  danger: true,
+                  action: async () => {
+                    await window.electronAPI.db.deleteNodesBatch(zeroIslandNodes.map((n) => n.node_id));
+                  },
+                });
+              }}
+              className="w-full px-4 py-2.5 bg-red-900/50 text-red-300 hover:bg-red-900/70 border border-red-800 rounded-lg text-sm font-medium transition-colors text-left"
+            >
+              <div className="font-medium">Prune Zero/Null Island Nodes</div>
+              <div className="text-xs text-red-400/70 mt-0.5">
+                Removes nodes with coordinates at or near 0°N, 0°E (invalid GPS).
+              </div>
+            </button>
+            <button
+              onClick={() => {
+                const homeNode = myNodeNum != null ? nodes.get(myNodeNum) : undefined;
+                if (!homeNode || !homeNode.latitude || !homeNode.longitude) {
+                  addToast("Your device has no GPS coordinates.", "error");
+                  return;
+                }
+                const maxKm = settings.distanceUnit === "miles"
+                  ? settings.distanceFilterMax * 1.60934
+                  : settings.distanceFilterMax;
+                const distantNodes = Array.from(nodes.values()).filter((n) => {
+                  if (n.node_id === myNodeNum) return false;
+                  const d = haversineDistanceKm(homeNode.latitude, homeNode.longitude, n.latitude, n.longitude);
+                  return d > maxKm;
+                });
+                if (distantNodes.length === 0) {
+                  addToast("No nodes found beyond the distance threshold.", "success");
+                  return;
+                }
+                executeWithConfirmation({
+                  name: "Prune Distant Nodes",
+                  title: "Prune Distant Nodes",
+                  message: `This will permanently delete ${distantNodes.length} node${distantNodes.length !== 1 ? "s" : ""} beyond ${settings.distanceFilterMax} ${settings.distanceUnit} from your device. This cannot be undone.`,
+                  confirmLabel: `Delete ${distantNodes.length} Node${distantNodes.length !== 1 ? "s" : ""}`,
+                  danger: true,
+                  action: async () => {
+                    await window.electronAPI.db.deleteNodesBatch(distantNodes.map((n) => n.node_id));
+                  },
+                });
+              }}
+              className="w-full px-4 py-2.5 bg-red-900/50 text-red-300 hover:bg-red-900/70 border border-red-800 rounded-lg text-sm font-medium transition-colors text-left"
+            >
+              <div className="font-medium">Prune Distant Nodes</div>
+              <div className="text-xs text-red-400/70 mt-0.5">
+                Removes nodes beyond the distance threshold above. Requires your device to have a valid GPS location.
+              </div>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Data Management */}
       <div className="space-y-3">
-        <h3 className="text-sm font-medium text-gray-400">
+        <h3 className="text-sm font-medium text-muted">
           Data Management
         </h3>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-muted">
           Export your local database (messages &amp; nodes) as a .db file, or
           import/merge another user's database into yours.
         </p>
@@ -294,7 +490,7 @@ export default function AdminPanel({
                 );
               }
             }}
-            className="px-4 py-3 bg-gray-700 text-gray-300 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors"
+            className="px-4 py-3 bg-secondary-dark text-gray-300 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors"
           >
             Export Database
           </button>
@@ -318,55 +514,72 @@ export default function AdminPanel({
                 );
               }
             }}
-            className="px-4 py-3 bg-gray-700 text-gray-300 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors"
+            className="px-4 py-3 bg-secondary-dark text-gray-300 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors"
           >
             Import &amp; Merge
           </button>
         </div>
       </div>
 
-      {/* Local Database Actions */}
+      {/* Message Management */}
       <div className="space-y-3">
-        <h3 className="text-sm font-medium text-gray-400">
-          Local Database
+        <h3 className="text-sm font-medium text-muted">
+          Message Management
         </h3>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={() =>
-              executeWithConfirmation({
-                name: "Clear Messages",
-                title: "Clear Messages",
-                message: `This will permanently delete all ${messageCount} locally stored messages. This cannot be undone.`,
-                confirmLabel: `Clear ${messageCount} Messages`,
-                danger: true,
-                action: async () => {
+
+        {/* Channel-scoped message deletion */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-400">Channel:</label>
+            <select
+              value={clearChannelTarget}
+              onChange={(e) => setClearChannelTarget(parseInt(e.target.value))}
+              className="flex-1 px-3 py-1.5 bg-secondary-dark border border-gray-600 rounded-lg text-gray-200 text-sm focus:border-brand-green focus:outline-none"
+            >
+              <option value={-1}>All Channels</option>
+              {msgChannels.map((ch) => (
+                <option key={ch} value={ch}>
+                  {getChannelLabel(ch)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <button
+          onClick={() => {
+            const isAll = clearChannelTarget === -1;
+            const channelName = isAll ? "" : getChannelLabel(clearChannelTarget);
+            executeWithConfirmation({
+              name: "Clear Messages",
+              title: "Clear Messages",
+              message: isAll
+                ? `This will permanently delete all ${messageCount} locally stored messages across all channels. This cannot be undone.`
+                : `This will permanently delete all messages from ${channelName}. This cannot be undone.`,
+              confirmLabel: isAll ? `Clear ${messageCount} Messages` : `Clear ${channelName}`,
+              danger: true,
+              action: async () => {
+                if (isAll) {
                   await window.electronAPI.db.clearMessages();
-                },
-              })
-            }
-            className="px-4 py-3 bg-gray-700 text-gray-300 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors"
-          >
-            Clear Messages ({messageCount})
-          </button>
+                } else {
+                  await window.electronAPI.db.clearMessagesByChannel(clearChannelTarget);
+                }
+              },
+            });
+          }}
+          className="w-full px-4 py-3 bg-secondary-dark text-gray-300 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors"
+        >
+          Clear Messages ({messageCount})
+        </button>
+      </div>
 
-          <button
-            onClick={() =>
-              executeWithConfirmation({
-                name: "Clear Nodes",
-                title: "Clear Nodes",
-                message: `This will permanently delete all ${nodes.size} locally stored nodes. They will be re-discovered when connected.`,
-                confirmLabel: `Clear ${nodes.size} Nodes`,
-                danger: true,
-                action: async () => {
-                  await window.electronAPI.db.clearNodes();
-                },
-              })
-            }
-            className="px-4 py-3 bg-gray-700 text-gray-300 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors"
-          >
-            Clear Nodes ({nodes.size})
-          </button>
-
+      {/* Danger Zone */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-medium text-red-400">Danger Zone</h3>
+        <div className="border border-red-900 rounded-lg p-4 space-y-2">
+          <p className="text-xs text-red-400/80">
+            These actions are permanent and cannot be undone.
+          </p>
           <button
             onClick={() =>
               executeWithConfirmation({
@@ -383,20 +596,28 @@ export default function AdminPanel({
                 },
               })
             }
-            className="col-span-2 px-4 py-3 bg-red-900/50 text-red-300 hover:bg-red-900/70 border border-red-800 rounded-lg text-sm font-medium transition-colors"
+            className="w-full px-4 py-3 bg-red-900/50 text-red-300 hover:bg-red-900/70 border border-red-800 rounded-lg text-sm font-medium transition-colors"
           >
             Clear All Local Data &amp; Cache
           </button>
+          <button
+            onClick={() =>
+              executeWithConfirmation({
+                name: "Factory Reset",
+                title: "⚠ Factory Reset",
+                message:
+                  "This will erase ALL device settings and restore factory defaults. All channels, configuration, and stored data on the device will be permanently lost. This action CANNOT be undone.",
+                confirmLabel: "Factory Reset",
+                danger: true,
+                action: () => onFactoryReset(),
+              })
+            }
+            disabled={!isConnected}
+            className="w-full px-4 py-3 bg-red-900/50 text-red-300 hover:bg-red-900/70 border border-red-800 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+          >
+            Factory Reset Device
+          </button>
         </div>
-      </div>
-
-      {/* Warning */}
-      <div className="bg-red-900/20 border border-red-900 rounded-lg p-4 text-sm text-red-400 space-y-1">
-        <p className="font-medium">Warning</p>
-        <p>
-          Factory Reset will erase all device settings and restore defaults.
-          This action cannot be undone.
-        </p>
       </div>
 
       {/* Confirmation Modal */}

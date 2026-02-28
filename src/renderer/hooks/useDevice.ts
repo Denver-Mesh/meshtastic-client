@@ -1,5 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { MeshDevice } from "@meshtastic/core";
+import { create } from "@bufbuild/protobuf";
+import { Channel as ProtobufChannel } from "@meshtastic/protobufs";
 import { createConnection, reconnectBle, safeDisconnect } from "../lib/connection";
 import type {
   ConnectionType,
@@ -53,12 +55,21 @@ export function useDevice() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [nodes, setNodes] = useState<Map<number, MeshNode>>(new Map());
   const [telemetry, setTelemetry] = useState<TelemetryPoint[]>([]);
+  const [traceRouteResults, setTraceRouteResults] = useState<
+    Map<number, { route: number[]; from: number; timestamp: number }>
+  >(new Map());
   const [channels, setChannels] = useState<
     Array<{ index: number; name: string }>
   >([{ index: 0, name: "Primary" }]);
-  const [channelConfigs, setChannelConfigs] = useState<
-    Array<{ index: number; name: string; role: number; psk: Uint8Array }>
-  >([]);
+  const [channelConfigs, setChannelConfigs] = useState<Array<{
+    index: number;
+    name: string;
+    role: number;
+    psk: Uint8Array;
+    uplinkEnabled: boolean;
+    downlinkEnabled: boolean;
+    positionPrecision: number;
+  }>>([]);
 
   // Keep nodesRef in sync with state
   const updateNodes = useCallback(
@@ -193,7 +204,7 @@ export function useDevice() {
     window.electronAPI.db.getNodes().then((savedNodes) => {
       const nodeMap = new Map<number, MeshNode>();
       for (const n of savedNodes) {
-        nodeMap.set(n.node_id, n);
+        nodeMap.set(n.node_id, { ...n, role: parseNodeRole(n.role) });
       }
       nodesRef.current = nodeMap;
       setNodes(nodeMap);
@@ -249,6 +260,7 @@ export function useDevice() {
         if (status === 2) {
           stopBleHeartbeat();
           stopWatchdog();
+          setTraceRouteResults(new Map());
           if (wasConfigured) {
             cleanupSubscriptions();
             stopPolling();
@@ -348,11 +360,19 @@ export function useDevice() {
             longName?: string;
             shortName?: string;
             hwModel?: number;
+            role?: number;
           };
           snr?: number;
-          position?: { latitudeI?: number; longitudeI?: number };
-          deviceMetrics?: { batteryLevel?: number };
+          position?: { latitudeI?: number; longitudeI?: number; altitude?: number };
+          deviceMetrics?: {
+            batteryLevel?: number;
+            voltage?: number;
+            channelUtilization?: number;
+            airUtilTx?: number;
+          };
           lastHeard?: number;
+          hopsAway?: number;
+          viaMqtt?: boolean;
         };
         if (!info.num) return;
         const nodeNum = info.num;
@@ -379,6 +399,13 @@ export function useDevice() {
               info.position?.longitudeI != null
                 ? info.position.longitudeI / 1e7
                 : existing.longitude,
+            role: info.user?.role ?? existing.role,
+            hops_away: info.hopsAway ?? existing.hops_away,
+            via_mqtt: info.viaMqtt ?? existing.via_mqtt,
+            voltage: info.deviceMetrics?.voltage ?? existing.voltage,
+            channel_utilization: info.deviceMetrics?.channelUtilization ?? existing.channel_utilization,
+            air_util_tx: info.deviceMetrics?.airUtilTx ?? existing.air_util_tx,
+            altitude: info.position?.altitude ?? existing.altitude,
           };
           updated.set(nodeNum, node);
           window.electronAPI.db.saveNode(node);
@@ -464,7 +491,13 @@ export function useDevice() {
         touchLastData();
         const ch = channel as {
           index?: number;
-          settings?: { name?: string; psk?: Uint8Array };
+          settings?: {
+            name?: string;
+            psk?: Uint8Array;
+            uplinkEnabled?: boolean;
+            downlinkEnabled?: boolean;
+            moduleSettings?: { positionPrecision?: number };
+          };
           role?: number;
         };
         if (ch.index === undefined) return;
@@ -494,6 +527,9 @@ export function useDevice() {
             name: ch.settings?.name || "",
             role: ch.role ?? 0,
             psk: ch.settings?.psk ?? new Uint8Array([1]),
+            uplinkEnabled: ch.settings?.uplinkEnabled ?? false,
+            downlinkEnabled: ch.settings?.downlinkEnabled ?? false,
+            positionPrecision: ch.settings?.moduleSettings?.positionPrecision ?? 0,
           };
           if (existing >= 0) {
             const updated = [...prev];
@@ -515,16 +551,19 @@ export function useDevice() {
         };
         if (!mp.from) return;
 
-        if (mp.rxSnr) {
+        if (mp.rxSnr || mp.rxRssi) {
           updateNodes((prev) => {
             const updated = new Map(prev);
             const existing = updated.get(mp.from!);
             if (existing) {
-              updated.set(mp.from!, {
+              const node: MeshNode = {
                 ...existing,
-                snr: mp.rxSnr!,
+                ...(mp.rxSnr ? { snr: mp.rxSnr } : {}),
+                ...(mp.rxRssi ? { rssi: mp.rxRssi } : {}),
                 last_heard: Date.now(),
-              });
+              };
+              updated.set(mp.from!, node);
+              window.electronAPI.db.saveNode(node);
             }
             return updated;
           });
@@ -550,6 +589,20 @@ export function useDevice() {
         touchLastData();
       });
       unsubscribesRef.current.push(unsub10);
+
+      // ─── Trace route responses ──────────────────────────────────
+      const unsubTrace = device.events.onTraceRoutePacket.subscribe((packet) => {
+        setTraceRouteResults((prev) => {
+          const updated = new Map(prev);
+          updated.set(packet.from, {
+            route: (packet.data as { route: number[] }).route ?? [],
+            from: packet.from,
+            timestamp: Date.now(),
+          });
+          return updated;
+        });
+      });
+      unsubscribesRef.current.push(unsubTrace);
 
       // ─── BLE heartbeat with failure detection ──────────────────
       if (type === "ble") {
@@ -696,14 +749,6 @@ export function useDevice() {
         // Wire all event subscriptions
         wireSubscriptions(device, type);
 
-        // For BLE, yield briefly before configure() so the transport's internal
-        // GATT read loop can initialize — calling configure() immediately causes
-        // "GATT operation already in progress" because both try to use the
-        // GATT server at the same time.
-        if (type === "ble") {
-          await new Promise((resolve) => setTimeout(resolve, 150));
-        }
-
         // Start configuration AFTER all listeners are wired
         device.configure();
       } catch (err) {
@@ -774,8 +819,102 @@ export function useDevice() {
     }
   }, []);
 
+  const setConfig = useCallback(async (config: unknown) => {
+    if (!deviceRef.current) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await deviceRef.current.setConfig(config as any);
+  }, []);
+
+  const commitConfig = useCallback(async () => {
+    if (!deviceRef.current) return;
+    await deviceRef.current.commitEditSettings();
+  }, []);
+
+  const setDeviceChannel = useCallback(async (args: {
+    index: number;
+    role: number;
+    settings: {
+      name: string;
+      psk: Uint8Array;
+      uplinkEnabled: boolean;
+      downlinkEnabled: boolean;
+      positionPrecision: number;
+    };
+  }) => {
+    if (!deviceRef.current) return;
+    const channel = create(ProtobufChannel.ChannelSchema, {
+      index: args.index,
+      role: args.role,
+      settings: create(ProtobufChannel.ChannelSettingsSchema, {
+        name: args.settings.name,
+        psk: args.settings.psk,
+        uplinkEnabled: args.settings.uplinkEnabled,
+        downlinkEnabled: args.settings.downlinkEnabled,
+        moduleSettings: create(ProtobufChannel.ModuleSettingsSchema, {
+          positionPrecision: args.settings.positionPrecision,
+        }),
+      }),
+    });
+    await deviceRef.current.setChannel(channel);
+  }, []);
+
+  const clearChannel = useCallback(async (index: number) => {
+    if (!deviceRef.current) return;
+    await deviceRef.current.clearChannel(index);
+  }, []);
+
+  const reboot = useCallback(async (delay: number) => {
+    if (!deviceRef.current) return;
+    await deviceRef.current.reboot(delay);
+  }, []);
+
+  const shutdown = useCallback(async (delay: number) => {
+    if (!deviceRef.current) return;
+    await deviceRef.current.shutdown(delay);
+  }, []);
+
+  const factoryReset = useCallback(async () => {
+    if (!deviceRef.current) return;
+    await deviceRef.current.factoryResetDevice();
+  }, []);
+
+  const resetNodeDb = useCallback(async () => {
+    if (!deviceRef.current) return;
+    await deviceRef.current.resetNodes();
+  }, []);
+
+  const requestPosition = useCallback(async (nodeNum: number) => {
+    if (!deviceRef.current) return;
+    await deviceRef.current.requestPosition(nodeNum);
+  }, []);
+
+  const traceRoute = useCallback(async (nodeNum: number) => {
+    if (!deviceRef.current) return;
+    await deviceRef.current.traceRoute(nodeNum);
+  }, []);
+
+  const deleteNode = useCallback(async (nodeId: number) => {
+    await window.electronAPI.db.deleteNode(nodeId);
+    updateNodes((prev) => {
+      const updated = new Map(prev);
+      updated.delete(nodeId);
+      return updated;
+    });
+  }, [updateNodes]);
+
+  const requestRefresh = useCallback(async () => {
+    if (!deviceRef.current) return;
+    await deviceRef.current.configure();
+  }, []);
+
+  const sendReaction = useCallback(async (emoji: number, replyId: number, channel: number) => {
+    if (!deviceRef.current) throw new Error("Not connected");
+    await deviceRef.current.sendText("", "broadcast", true, channel, replyId, emoji);
+  }, []);
+
   const sendStatusEvents = useCallback(() => {
-    if (state.status === 'connected') {
+    const activeStatuses = ['connected', 'configured', 'stale', 'reconnecting'];
+    if (activeStatuses.includes(state.status)) {
       window.electronAPI.notifyDeviceConnected();
     } else if (state.status === 'disconnected') {
       window.electronAPI.notifyDeviceDisconnected();
@@ -793,14 +932,46 @@ export function useDevice() {
     telemetry,
     channels,
     channelConfigs,
+    traceRouteResults,
     connect,
     disconnect,
     sendMessage,
+    sendReaction,
+    setConfig,
+    commitConfig,
+    setDeviceChannel,
+    clearChannel,
+    reboot,
+    shutdown,
+    factoryReset,
+    resetNodeDb,
+    requestPosition,
+    traceRoute,
+    deleteNode,
+    requestRefresh,
     getFullNodeLabel,
   };
 }
 
 // ─── Helper functions ──
+
+// Maps legacy string role labels (stored by older app versions) to numeric IDs
+const LEGACY_ROLE_STRINGS: Record<string, number> = {
+  "Client": 0, "Mute": 1, "Router": 2, "Rtr+Client": 3,
+  "Repeater": 4, "Tracker": 5, "Sensor": 6, "TAK": 7,
+  "Hidden": 8, "L&F": 9, "TAK Tracker": 10, "Rtr Late": 11, "Base": 12,
+};
+
+function parseNodeRole(val: unknown): number | undefined {
+  if (typeof val === "number") return val;
+  if (typeof val === "string") {
+    const n = parseInt(val, 10);
+    if (!isNaN(n)) return n;
+    return LEGACY_ROLE_STRINGS[val];
+  }
+  return undefined;
+}
+
 function emptyNode(nodeId: number): MeshNode {
   return {
     node_id: nodeId,

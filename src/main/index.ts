@@ -1,8 +1,9 @@
-import { app, BrowserWindow, ipcMain, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage } from "electron";
 import path from "path";
 import { initDatabase, getDatabase, exportDatabase, mergeDatabase } from "./database";
 
 let mainWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
 
 // Pending Bluetooth callback from Chromium's Web Bluetooth API
 let pendingBluetoothCallback: ((deviceId: string) => void) | null = null;
@@ -32,13 +33,62 @@ app.commandLine.appendSwitch(
   "Serial"
 );
 
+function buildTrayIcon(hasUnread: boolean): Electron.NativeImage {
+  const iconPath = app.isPackaged
+    ? path.join(process.resourcesPath, "icon.png")
+    : path.join(__dirname, "../../resources/icon.png");
+
+  const size = process.platform === "darwin" ? 16 : 22;
+  const base = nativeImage.createFromPath(iconPath).resize({ width: size, height: size });
+
+  if (!hasUnread) return base;
+
+  // Overlay a 4px red dot in the top-right corner
+  const bitmap = Buffer.from(base.toBitmap());
+  const dotR = 2;
+  const dotCx = size - dotR - 1;
+  const dotCy = dotR + 1;
+
+  for (let py = 0; py < size; py++) {
+    for (let px = 0; px < size; px++) {
+      const dx = px - dotCx;
+      const dy = py - dotCy;
+      if (dx * dx + dy * dy <= dotR * dotR) {
+        const idx = (py * size + px) * 4;
+        bitmap[idx]     = 239; // R
+        bitmap[idx + 1] = 68;  // G
+        bitmap[idx + 2] = 68;  // B
+        bitmap[idx + 3] = 255; // A
+      }
+    }
+  }
+
+  return nativeImage.createFromBitmap(bitmap, { width: size, height: size });
+}
+
+function setupTray(window: BrowserWindow) {
+  tray = new Tray(buildTrayIcon(false));
+  tray.setToolTip("Electastic");
+  tray.on("click", () => {
+    window.show();
+    window.focus();
+  });
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: "Show Electastic", click: () => { window.show(); window.focus(); } },
+      { type: "separator" },
+      { label: "Quit", click: () => app.quit() },
+    ])
+  );
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     minWidth: 900,
     minHeight: 600,
-    title: "Electastic",
+    title: "Meshtastic Client",
     // In packaged mode, electron-builder sets the app icon via mac.icon config.
     // Only set the icon manually during development.
     icon: app.isPackaged ? undefined : path.join(__dirname, "../../resources/icon.png"),
@@ -170,13 +220,28 @@ function createWindow() {
   // Handle window close event
   mainWindow.on('close', (event) => {
     if (isConnected) {
-      event.preventDefault(); // Prevent window from closing
-      mainWindow.hide();       // Hide while connection is active
+      event.preventDefault();
+      if (process.platform === 'darwin') {
+        mainWindow.hide();
+      } else {
+        mainWindow.minimize();
+      }
     } else {
-      app.quit();              // Truly quit when no connection
+      app.quit();
     }
   });
+
+  setupTray(mainWindow);
 }
+
+// ─── Tray unread badge ──────────────────────────────────────────────
+ipcMain.on("set-tray-unread", (_event, count: number) => {
+  tray?.setImage(buildTrayIcon(count > 0));
+  tray?.setToolTip(count > 0 ? `Electastic (${count} unread)` : "Electastic");
+  if (process.platform === "darwin") {
+    app.dock.setBadge(count > 0 ? String(count) : "");
+  }
+});
 
 // ─── IPC: Bluetooth device selected by user ────────────────────────
 ipcMain.on("bluetooth-device-selected", (_event, deviceId: string) => {
@@ -258,10 +323,20 @@ ipcMain.handle("db:getMessages", (_event, channel?: number, limit = 200) => {
 ipcMain.handle("db:saveNode", (_event, node) => {
   const db = getDatabase();
   const stmt = db.prepare(`
-    INSERT OR REPLACE INTO nodes (node_id, long_name, short_name, hw_model, snr, battery, last_heard, latitude, longitude)
-    VALUES (@node_id, @long_name, @short_name, @hw_model, @snr, @battery, @last_heard, @latitude, @longitude)
+    INSERT OR REPLACE INTO nodes (node_id, long_name, short_name, hw_model, snr, rssi, battery, last_heard, latitude, longitude, role, hops_away, via_mqtt, voltage, channel_utilization, air_util_tx, altitude)
+    VALUES (@node_id, @long_name, @short_name, @hw_model, @snr, @rssi, @battery, @last_heard, @latitude, @longitude, @role, @hops_away, @via_mqtt, @voltage, @channel_utilization, @air_util_tx, @altitude)
   `);
-  return stmt.run(node);
+  return stmt.run({
+    role: null,
+    hops_away: null,
+    rssi: null,
+    voltage: null,
+    channel_utilization: null,
+    air_util_tx: null,
+    altitude: null,
+    ...node,
+    via_mqtt: node.via_mqtt != null ? (node.via_mqtt ? 1 : 0) : null,
+  });
 });
 
 ipcMain.handle("db:getNodes", () => {
@@ -282,6 +357,32 @@ ipcMain.handle("db:clearNodes", () => {
 ipcMain.handle("db:deleteNode", (_event, nodeId: number) => {
   const db = getDatabase();
   return db.prepare("DELETE FROM nodes WHERE node_id = ?").run(nodeId);
+});
+
+ipcMain.handle("db:deleteNodesByAge", (_event, days: number) => {
+  const cutoff = Math.floor(Date.now() / 1000) - days * 86400;
+  return getDatabase().prepare("DELETE FROM nodes WHERE last_heard < ?").run(cutoff);
+});
+
+ipcMain.handle("db:pruneNodesByCount", (_event, maxCount: number) => {
+  return getDatabase().prepare(
+    "DELETE FROM nodes WHERE node_id NOT IN (SELECT node_id FROM nodes ORDER BY last_heard DESC LIMIT ?)"
+  ).run(maxCount);
+});
+
+ipcMain.handle("db:deleteNodesBatch", (_event, nodeIds: number[]) => {
+  if (!nodeIds.length) return 0;
+  const placeholders = nodeIds.map(() => "?").join(", ");
+  const result = getDatabase().prepare(`DELETE FROM nodes WHERE node_id IN (${placeholders})`).run(...nodeIds);
+  return result.changes;
+});
+
+ipcMain.handle("db:clearMessagesByChannel", (_event, channel: number) => {
+  return getDatabase().prepare("DELETE FROM messages WHERE channel = ?").run(channel);
+});
+
+ipcMain.handle("db:getMessageChannels", () => {
+  return getDatabase().prepare("SELECT DISTINCT channel FROM messages ORDER BY channel").all();
 });
 
 // ─── IPC: Update message delivery status ────────────────────────────

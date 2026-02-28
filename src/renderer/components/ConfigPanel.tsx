@@ -5,6 +5,9 @@ interface ChannelConfig {
   name: string;
   role: number;
   psk: Uint8Array;
+  uplinkEnabled: boolean;
+  downlinkEnabled: boolean;
+  positionPrecision: number;
 }
 
 interface Props {
@@ -13,7 +16,13 @@ interface Props {
   onSetChannel: (config: {
     index: number;
     role: number;
-    settings: { name: string; psk: Uint8Array };
+    settings: {
+      name: string;
+      psk: Uint8Array;
+      uplinkEnabled: boolean;
+      downlinkEnabled: boolean;
+      positionPrecision: number;
+    };
   }) => Promise<void>;
   onClearChannel: (index: number) => Promise<void>;
   channelConfigs: ChannelConfig[];
@@ -88,12 +97,12 @@ function ConfigSelect({
 }) {
   return (
     <div className="space-y-1">
-      <label className="text-sm text-gray-400">{label}</label>
+      <label className="text-sm text-muted">{label}</label>
       <select
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         disabled={disabled}
-        className="w-full px-3 py-2 bg-gray-700 rounded-lg text-gray-200 border border-gray-600 focus:border-green-500 focus:outline-none disabled:opacity-50"
+        className="w-full px-3 py-2 bg-secondary-dark rounded-lg text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none disabled:opacity-50"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -101,7 +110,7 @@ function ConfigSelect({
           </option>
         ))}
       </select>
-      {description && <p className="text-xs text-gray-500">{description}</p>}
+      {description && <p className="text-xs text-muted">{description}</p>}
     </div>
   );
 }
@@ -123,12 +132,12 @@ function ConfigToggle({
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <label className="text-sm text-gray-400">{label}</label>
+        <label className="text-sm text-muted">{label}</label>
         <button
           onClick={() => onChange(!checked)}
           disabled={disabled}
           className={`relative w-10 h-5 rounded-full transition-colors disabled:opacity-50 ${
-            checked ? "bg-green-600" : "bg-gray-600"
+            checked ? "bg-brand-green" : "bg-gray-600"
           }`}
         >
           <span
@@ -138,7 +147,7 @@ function ConfigToggle({
           />
         </button>
       </div>
-      {description && <p className="text-xs text-gray-500">{description}</p>}
+      {description && <p className="text-xs text-muted">{description}</p>}
     </div>
   );
 }
@@ -165,7 +174,7 @@ function ConfigNumber({
 }) {
   return (
     <div className="space-y-1">
-      <label className="text-sm text-gray-400">{label}</label>
+      <label className="text-sm text-muted">{label}</label>
       <div className="flex items-center gap-2">
         <input
           type="number"
@@ -174,11 +183,11 @@ function ConfigNumber({
           min={min}
           max={max}
           disabled={disabled}
-          className="w-28 px-3 py-2 bg-gray-700 rounded-lg text-gray-200 border border-gray-600 focus:border-green-500 focus:outline-none disabled:opacity-50"
+          className="w-28 px-3 py-2 bg-secondary-dark rounded-lg text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none disabled:opacity-50"
         />
-        {unit && <span className="text-sm text-gray-500">{unit}</span>}
+        {unit && <span className="text-sm text-muted">{unit}</span>}
       </div>
-      {description && <p className="text-xs text-gray-500">{description}</p>}
+      {description && <p className="text-xs text-muted">{description}</p>}
     </div>
   );
 }
@@ -198,11 +207,11 @@ function ConfigSection({
   disabled: boolean;
 }) {
   return (
-    <details className="group bg-gray-800/50 rounded-lg border border-gray-700">
+    <details className="group bg-deep-black/50 rounded-lg border border-gray-700">
       <summary className="px-4 py-3 cursor-pointer text-gray-200 font-medium flex items-center justify-between hover:bg-gray-800 rounded-lg transition-colors">
         <span>{title}</span>
         <svg
-          className="w-4 h-4 text-gray-500 group-open:rotate-180 transition-transform"
+          className="w-4 h-4 text-muted group-open:rotate-180 transition-transform"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -215,7 +224,7 @@ function ConfigSection({
         <button
           onClick={onApply}
           disabled={disabled || applying}
-          className="w-full px-4 py-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:text-gray-400 text-white text-sm font-medium rounded-lg transition-colors"
+          className="w-full px-4 py-2 bg-brand-green hover:bg-brand-green/90 disabled:bg-gray-600 disabled:text-muted text-white text-sm font-medium rounded-lg transition-colors"
         >
           {applying ? "Applying..." : `Apply ${title}`}
         </button>
@@ -224,21 +233,42 @@ function ConfigSection({
   );
 }
 
-function pskToHex(psk: Uint8Array): string {
-  return Array.from(psk)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+function pskToBase64(psk: Uint8Array): string {
+  return btoa(String.fromCharCode(...psk));
 }
 
-function hexToPsk(hex: string): Uint8Array {
-  const bytes = hex.match(/.{1,2}/g) || [];
-  return new Uint8Array(bytes.map((b) => parseInt(b, 16)));
+function base64ToPsk(b64: string): Uint8Array {
+  try {
+    const binary = atob(b64);
+    return Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  } catch {
+    return new Uint8Array([1]);
+  }
 }
 
-function generateRandomPsk(): Uint8Array {
-  const psk = new Uint8Array(32);
+function generateRandomPsk(length: 16 | 32 = 32): Uint8Array {
+  const psk = new Uint8Array(length);
   crypto.getRandomValues(psk);
   return psk;
+}
+
+type KeySize = "none" | "simple" | "aes128" | "aes256";
+
+function pskToKeySize(psk: Uint8Array): KeySize {
+  if (psk.length === 0 || (psk.length === 1 && psk[0] === 0)) return "none";
+  if (psk.length === 1) return "simple";
+  if (psk.length === 16) return "aes128";
+  if (psk.length === 32) return "aes256";
+  return "aes256";
+}
+
+function keySizeDefaultPsk(size: KeySize): Uint8Array {
+  switch (size) {
+    case "none":   return new Uint8Array([0x00]);
+    case "simple": return new Uint8Array([0x01]);
+    case "aes128": return generateRandomPsk(16);
+    case "aes256": return generateRandomPsk(32);
+  }
 }
 
 const CHANNEL_ROLES = [
@@ -352,7 +382,7 @@ export default function ConfigPanel({
           disabled={disabled || applyingSection !== null}
         />
         <div className="space-y-1">
-          <label className="text-sm text-gray-400">Hop Limit</label>
+          <label className="text-sm text-muted">Hop Limit</label>
           <div className="flex items-center gap-3">
             <input
               type="range"
@@ -367,7 +397,7 @@ export default function ConfigPanel({
               {hopLimit}
             </span>
           </div>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-muted">
             Number of times a message can be relayed (1–7). Higher = more
             reach, more airtime. Default: 3.
           </p>
@@ -531,8 +561,8 @@ export default function ConfigPanel({
             status.includes("Failed")
               ? "bg-red-900/50 border border-red-700 text-red-300"
               : status.includes("success")
-              ? "bg-green-900/50 border border-green-700 text-green-300"
-              : "bg-gray-800 text-gray-400"
+              ? "bg-brand-green/10 border border-brand-green text-bright-green"
+              : "bg-deep-black text-muted"
           }`}
         >
           {status}
@@ -540,7 +570,7 @@ export default function ConfigPanel({
       )}
 
       {/* Info */}
-      <div className="bg-gray-800 rounded-lg p-4 text-sm text-gray-500 space-y-1">
+      <div className="bg-deep-black rounded-lg p-4 text-sm text-muted space-y-1">
         <p>
           Changes are written to the device's flash memory and persist across
           reboots.
@@ -551,6 +581,50 @@ export default function ConfigPanel({
         </p>
       </div>
     </div>
+  );
+}
+
+// ─── Security level helpers ──────────────────────────────────────
+type SecurityLevel = "encrypted" | "open" | "open-location" | "open-location-uplink";
+
+function getSecurityLevel(cfg: ChannelConfig): SecurityLevel {
+  const secure = cfg.psk.length === 16 || cfg.psk.length === 32;
+  if (secure) return "encrypted";
+  if (cfg.positionPrecision > 0 && cfg.uplinkEnabled) return "open-location-uplink";
+  if (cfg.positionPrecision > 0) return "open-location";
+  return "open";
+}
+
+function SecurityIcon({ level }: { level: SecurityLevel }) {
+  if (level === "encrypted") {
+    return (
+      <span title="AES encrypted" className="text-green-400 flex items-center">
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+        </svg>
+      </span>
+    );
+  }
+  const tooltip =
+    level === "open-location-uplink"
+      ? "Unencrypted location sent to internet via MQTT"
+      : level === "open-location"
+      ? "Unencrypted + location data"
+      : "No encryption";
+  return (
+    <span title={tooltip} className="text-yellow-500 flex items-center gap-0.5">
+      <svg className={`w-3.5 h-3.5 ${level !== "open" ? "text-red-400" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+          d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+      </svg>
+      {level === "open-location-uplink" && (
+        <svg className="w-3.5 h-3.5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+      )}
+    </span>
   );
 }
 
@@ -570,80 +644,122 @@ function ChannelSection({
   disabled: boolean;
   setStatus: (s: string) => void;
 }) {
-  const [editChannels, setEditChannels] = useState<
-    Array<{ index: number; name: string; role: number; pskHex: string }>
-  >([]);
-  const [saving, setSaving] = useState<number | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editRole, setEditRole] = useState<number>(0);
+  const [editKeySize, setEditKeySize] = useState<KeySize>("simple");
+  const [editPskB64, setEditPskB64] = useState("AQ==");
+  const [editUplink, setEditUplink] = useState(false);
+  const [editDownlink, setEditDownlink] = useState(false);
+  const [editPosPrecision, setEditPosPrecision] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
-  // Initialize edit state from device channel configs
+  // Populate edit state when selection changes
   useEffect(() => {
-    if (channelConfigs.length === 0) return;
-    setEditChannels(
-      channelConfigs.map((ch) => ({
-        index: ch.index,
-        name: ch.name,
-        role: ch.role,
-        pskHex: pskToHex(ch.psk),
-      }))
-    );
-  }, [channelConfigs]);
+    if (selectedIndex === null) return;
+    const cfg = channelConfigs.find((c) => c.index === selectedIndex);
+    if (cfg) {
+      setEditName(cfg.name);
+      setEditRole(cfg.role);
+      setEditKeySize(pskToKeySize(cfg.psk));
+      setEditPskB64(pskToBase64(cfg.psk));
+      setEditUplink(cfg.uplinkEnabled);
+      setEditDownlink(cfg.downlinkEnabled);
+      setEditPosPrecision(cfg.positionPrecision);
+    } else {
+      setEditName("");
+      setEditRole(selectedIndex === 0 ? 1 : 0);
+      setEditKeySize("simple");
+      setEditPskB64("AQ==");
+      setEditUplink(false);
+      setEditDownlink(false);
+      setEditPosPrecision(0);
+    }
+    setValidationError(null);
+  }, [selectedIndex, channelConfigs]);
 
-  // Ensure we always show slots 0–7
-  const slots = Array.from({ length: 8 }, (_, i) => {
-    const existing = editChannels.find((ch) => ch.index === i);
-    return existing ?? { index: i, name: "", role: 0, pskHex: "01" };
-  });
-
-  const updateSlot = (
-    index: number,
-    update: Partial<{ name: string; role: number; pskHex: string }>
-  ) => {
-    setEditChannels((prev) => {
-      const idx = prev.findIndex((ch) => ch.index === index);
-      if (idx >= 0) {
-        const updated = [...prev];
-        updated[idx] = { ...updated[idx], ...update };
-        return updated;
-      }
-      return [
-        ...prev,
-        { index, name: "", role: 0, pskHex: "01", ...update },
-      ].sort((a, b) => a.index - b.index);
-    });
+  const handleKeySizeChange = (size: KeySize) => {
+    setEditKeySize(size);
+    setEditPskB64(pskToBase64(keySizeDefaultPsk(size)));
+    setValidationError(null);
   };
 
-  const saveChannel = async (slot: typeof slots[0]) => {
-    setSaving(slot.index);
+  const saveChannel = async () => {
+    if (selectedIndex === null || saving) return;
+    setValidationError(null);
+    const psk = base64ToPsk(editPskB64);
+    if (editKeySize === "aes128" && psk.length !== 16) {
+      setValidationError("AES-128 key must be exactly 16 bytes (24 base64 chars)");
+      return;
+    }
+    if (editKeySize === "aes256" && psk.length !== 32) {
+      setValidationError("AES-256 key must be exactly 32 bytes (44 base64 chars)");
+      return;
+    }
+    setSaving(true);
     try {
-      if (slot.role === 0 && slot.index !== 0) {
-        await onClearChannel(slot.index);
-      } else {
-        await onSetChannel({
-          index: slot.index,
-          role: slot.role,
-          settings: {
-            name: slot.name,
-            psk: hexToPsk(slot.pskHex),
-          },
-        });
-      }
+      await onSetChannel({
+        index: selectedIndex,
+        role: editRole,
+        settings: {
+          name: editName,
+          psk,
+          uplinkEnabled: editUplink,
+          downlinkEnabled: editDownlink,
+          positionPrecision: editPosPrecision,
+        },
+      });
       await onCommit();
-      setStatus(`Channel ${slot.index} saved successfully!`);
+      setStatus(`Channel ${selectedIndex} saved!`);
     } catch (err) {
-      setStatus(
-        `Failed: ${err instanceof Error ? err.message : "Unknown error"}`
-      );
+      setStatus(`Failed: ${err instanceof Error ? err.message : "Unknown"}`);
     } finally {
-      setSaving(null);
+      setSaving(false);
     }
   };
 
+  const resetChannel = async () => {
+    if (selectedIndex === null || saving) return;
+    setSaving(true);
+    try {
+      if (selectedIndex === 0) {
+        await onSetChannel({
+          index: 0,
+          role: 1,
+          settings: {
+            name: "",
+            psk: new Uint8Array([0x01]),
+            uplinkEnabled: false,
+            downlinkEnabled: false,
+            positionPrecision: 0,
+          },
+        });
+      } else {
+        await onClearChannel(selectedIndex);
+      }
+      await onCommit();
+      setStatus(`Channel ${selectedIndex} reset!`);
+    } catch (err) {
+      setStatus(`Failed: ${err instanceof Error ? err.message : "Unknown"}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Always show 8 slots
+  const slots = Array.from({ length: 8 }, (_, i) => {
+    return channelConfigs.find((ch) => ch.index === i) ?? null;
+  });
+
+  const isAesKey = editKeySize === "aes128" || editKeySize === "aes256";
+
   return (
-    <details className="group bg-gray-800/50 rounded-lg border border-gray-700">
+    <details className="group bg-deep-black/50 rounded-lg border border-gray-700">
       <summary className="px-4 py-3 cursor-pointer text-gray-200 font-medium flex items-center justify-between hover:bg-gray-800 rounded-lg transition-colors">
         <span>Channels</span>
         <svg
-          className="w-4 h-4 text-gray-500 group-open:rotate-180 transition-transform"
+          className="w-4 h-4 text-muted group-open:rotate-180 transition-transform"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -652,128 +768,192 @@ function ChannelSection({
         </svg>
       </summary>
       <div className="px-4 pb-4 space-y-3">
-        {slots.map((slot) => (
-          <div
-            key={slot.index}
-            className={`p-3 rounded-lg border ${
-              slot.role !== 0
-                ? "border-gray-600 bg-gray-800/50"
-                : "border-gray-700/50 bg-gray-900/30 opacity-60"
-            }`}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-300">
-                {slot.index === 0 ? "Primary" : `Channel ${slot.index}`}
-              </span>
-              <span
-                className={`text-xs px-2 py-0.5 rounded ${
-                  slot.role === 1
-                    ? "bg-green-900/50 text-green-400"
-                    : slot.role === 2
-                    ? "bg-blue-900/50 text-blue-400"
-                    : "bg-gray-700 text-gray-500"
+        {/* ── Channel List ── */}
+        <div className="space-y-1">
+          {slots.map((cfg, i) => {
+            const isSelected = selectedIndex === i;
+            const role = cfg?.role ?? 0;
+            const secLevel = cfg && role !== 0 ? getSecurityLevel(cfg) : null;
+            return (
+              <button
+                key={i}
+                onClick={() => setSelectedIndex(i)}
+                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-colors ${
+                  isSelected
+                    ? "bg-gray-700 border border-gray-500"
+                    : "bg-deep-black/60 border border-gray-700/50 hover:bg-gray-800"
                 }`}
               >
-                {CHANNEL_ROLES.find((r) => r.value === slot.role)?.label ?? "Disabled"}
-              </span>
-            </div>
+                {/* Index badge */}
+                <span className={`text-xs font-mono px-1.5 py-0.5 rounded font-bold ${
+                  i === 0 ? "bg-blue-900/60 text-blue-300" : "bg-gray-700 text-gray-400"
+                }`}>
+                  {i}
+                </span>
+                {/* Name */}
+                <span className={`flex-1 text-sm ${role !== 0 ? "text-gray-200" : "text-muted italic"}`}>
+                  {cfg?.name || (i === 0 ? "Primary" : role !== 0 ? `Channel ${i}` : "Disabled")}
+                </span>
+                {/* Role badge */}
+                <span className={`text-xs px-1.5 py-0.5 rounded ${
+                  role === 1
+                    ? "bg-brand-green/10 text-bright-green"
+                    : role === 2
+                    ? "bg-blue-900/50 text-blue-400"
+                    : "bg-gray-800 text-muted"
+                }`}>
+                  {CHANNEL_ROLES.find((r) => r.value === role)?.label ?? "Disabled"}
+                </span>
+                {/* Security indicator */}
+                {secLevel && <SecurityIcon level={secLevel} />}
+              </button>
+            );
+          })}
+        </div>
 
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <div>
-                <label className="text-xs text-gray-500">Name</label>
-                <input
-                  type="text"
-                  value={slot.name}
-                  onChange={(e) =>
-                    updateSlot(slot.index, { name: e.target.value })
-                  }
-                  disabled={disabled}
-                  placeholder={slot.index === 0 ? "Primary" : "Channel name"}
-                  className="w-full px-2 py-1.5 bg-gray-700 rounded text-sm text-gray-200 border border-gray-600 focus:border-green-500 focus:outline-none disabled:opacity-50"
-                />
+        {/* ── Edit Form ── */}
+        {selectedIndex !== null && (
+          <div className="mt-3 p-3 bg-deep-black/60 rounded-lg border border-gray-600 space-y-3">
+            <h4 className="text-sm font-medium text-gray-200">
+              Edit Channel {selectedIndex}
+            </h4>
+
+            {/* Name */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-xs text-muted">Name</label>
+                <span className="text-xs text-muted">{editName.length}/11</span>
               </div>
-              {slot.index !== 0 && (
-                <div>
-                  <label className="text-xs text-gray-500">Role</label>
-                  <select
-                    value={slot.role}
-                    onChange={(e) =>
-                      updateSlot(slot.index, {
-                        role: Number(e.target.value),
-                      })
-                    }
-                    disabled={disabled}
-                    className="w-full px-2 py-1.5 bg-gray-700 rounded text-sm text-gray-200 border border-gray-600 focus:border-green-500 focus:outline-none disabled:opacity-50"
-                  >
-                    <option value={0}>Disabled</option>
-                    <option value={2}>Secondary</option>
-                  </select>
-                </div>
-              )}
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                maxLength={11}
+                disabled={disabled}
+                placeholder={selectedIndex === 0 ? "Primary" : "Channel name"}
+                className="w-full px-2 py-1.5 bg-secondary-dark rounded text-sm text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none disabled:opacity-50"
+              />
             </div>
 
-            {/* PSK */}
-            <div className="mb-2">
-              <label className="text-xs text-gray-500">Pre-Shared Key</label>
+            {/* Role — locked for ch0 */}
+            {selectedIndex !== 0 && (
+              <div className="space-y-1">
+                <label className="text-xs text-muted">Role</label>
+                <select
+                  value={editRole}
+                  onChange={(e) => setEditRole(Number(e.target.value))}
+                  disabled={disabled}
+                  className="w-full px-2 py-1.5 bg-secondary-dark rounded text-sm text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none disabled:opacity-50"
+                >
+                  <option value={0}>Disabled</option>
+                  <option value={2}>Secondary</option>
+                </select>
+              </div>
+            )}
+
+            {/* Key Size */}
+            <div className="space-y-1">
+              <label className="text-xs text-muted">Key Size</label>
+              <select
+                value={editKeySize}
+                onChange={(e) => handleKeySizeChange(e.target.value as KeySize)}
+                disabled={disabled}
+                className="w-full px-2 py-1.5 bg-secondary-dark rounded text-sm text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none disabled:opacity-50"
+              >
+                <option value="none">None (no encryption)</option>
+                <option value="simple">Simple (default Meshtastic key)</option>
+                <option value="aes128">AES-128</option>
+                <option value="aes256">AES-256</option>
+              </select>
+            </div>
+
+            {/* Encryption Key */}
+            <div className="space-y-1">
+              <label className="text-xs text-muted">Encryption Key (base64)</label>
               <div className="flex items-center gap-2">
                 <input
                   type="text"
-                  value={slot.pskHex}
-                  onChange={(e) =>
-                    updateSlot(slot.index, {
-                      pskHex: e.target.value.replace(/[^0-9a-fA-F]/g, ""),
-                    })
-                  }
-                  disabled={disabled}
-                  placeholder="01"
-                  className="flex-1 px-2 py-1.5 bg-gray-700 rounded text-xs font-mono text-gray-200 border border-gray-600 focus:border-green-500 focus:outline-none disabled:opacity-50"
+                  value={editPskB64}
+                  onChange={(e) => {
+                    setEditPskB64(e.target.value);
+                    setValidationError(null);
+                  }}
+                  disabled={disabled || !isAesKey}
+                  readOnly={!isAesKey}
+                  placeholder="base64..."
+                  className="flex-1 px-2 py-1.5 bg-secondary-dark rounded text-xs font-mono text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none disabled:opacity-50 read-only:opacity-60"
                 />
-                <button
-                  onClick={() =>
-                    updateSlot(slot.index, { pskHex: "01" })
-                  }
-                  disabled={disabled}
-                  className="px-2 py-1.5 text-xs bg-gray-700 text-gray-400 hover:text-gray-200 rounded disabled:opacity-50"
-                  title="Default PSK"
-                >
-                  Def
-                </button>
-                <button
-                  onClick={() =>
-                    updateSlot(slot.index, {
-                      pskHex: pskToHex(generateRandomPsk()),
-                    })
-                  }
-                  disabled={disabled}
-                  className="px-2 py-1.5 text-xs bg-gray-700 text-gray-400 hover:text-gray-200 rounded disabled:opacity-50"
-                  title="Generate random 256-bit PSK"
-                >
-                  Rand
-                </button>
-                <button
-                  onClick={() => updateSlot(slot.index, { pskHex: "00" })}
-                  disabled={disabled}
-                  className="px-2 py-1.5 text-xs bg-gray-700 text-gray-400 hover:text-gray-200 rounded disabled:opacity-50"
-                  title="No encryption"
-                >
-                  None
-                </button>
+                {isAesKey && (
+                  <button
+                    onClick={() => setEditPskB64(pskToBase64(generateRandomPsk(editKeySize === "aes128" ? 16 : 32)))}
+                    disabled={disabled}
+                    className="px-2 py-1.5 text-xs bg-secondary-dark text-muted hover:text-gray-200 rounded border border-gray-600 disabled:opacity-50 whitespace-nowrap"
+                    title="Generate random key"
+                  >
+                    Regenerate
+                  </button>
+                )}
               </div>
+              {validationError && (
+                <p className="text-xs text-red-400">{validationError}</p>
+              )}
             </div>
 
-            <button
-              onClick={() => saveChannel(slot)}
-              disabled={disabled || saving !== null}
-              className="w-full px-3 py-1.5 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:text-gray-400 text-white text-xs font-medium rounded transition-colors"
-            >
-              {saving === slot.index ? "Saving..." : "Save Channel"}
-            </button>
+            {/* MQTT Uplink */}
+            <ConfigToggle
+              label="MQTT Uplink"
+              checked={editUplink}
+              onChange={setEditUplink}
+              disabled={disabled}
+              description="Forward received packets to MQTT broker"
+            />
+
+            {/* MQTT Downlink */}
+            <ConfigToggle
+              label="MQTT Downlink"
+              checked={editDownlink}
+              onChange={setEditDownlink}
+              disabled={disabled}
+              description="Subscribe to MQTT broker and re-broadcast packets"
+            />
+
+            {/* Position Precision */}
+            <div className="space-y-1">
+              <label className="text-xs text-muted">Position Precision (0 = no location)</label>
+              <input
+                type="number"
+                value={editPosPrecision}
+                onChange={(e) => setEditPosPrecision(Number(e.target.value))}
+                min={0}
+                max={32}
+                disabled={disabled}
+                className="w-28 px-2 py-1.5 bg-secondary-dark rounded text-sm text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none disabled:opacity-50"
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={saveChannel}
+                disabled={disabled || saving}
+                className="flex-1 px-3 py-1.5 bg-brand-green hover:bg-brand-green/90 disabled:bg-gray-600 disabled:text-muted text-white text-xs font-medium rounded transition-colors"
+              >
+                {saving ? "Saving..." : "Save Channel"}
+              </button>
+              <button
+                onClick={resetChannel}
+                disabled={disabled || saving}
+                className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-gray-300 text-xs font-medium rounded transition-colors"
+                title={selectedIndex === 0 ? "Reset to defaults" : "Disable channel"}
+              >
+                Reset
+              </button>
+            </div>
           </div>
-        ))}
-        <p className="text-xs text-gray-500">
-          Changes are written to the device immediately. PSK "01" = default
-          Meshtastic key. "00" = no encryption. Use "Rand" for a private
-          channel.
+        )}
+
+        <p className="text-xs text-muted">
+          Select a channel to edit. AES-128/256 keys are shown in base64 (Meshtastic convention).
         </p>
       </div>
     </details>
