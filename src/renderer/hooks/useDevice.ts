@@ -547,16 +547,19 @@ export function useDevice() {
         };
         if (!mp.from) return;
 
-        if (mp.rxSnr) {
+        if (mp.rxSnr || mp.rxRssi) {
           updateNodes((prev) => {
             const updated = new Map(prev);
             const existing = updated.get(mp.from!);
             if (existing) {
-              updated.set(mp.from!, {
+              const node: MeshNode = {
                 ...existing,
-                snr: mp.rxSnr!,
+                ...(mp.rxSnr ? { snr: mp.rxSnr } : {}),
+                ...(mp.rxRssi ? { rssi: mp.rxRssi } : {}),
                 last_heard: Date.now(),
-              });
+              };
+              updated.set(mp.from!, node);
+              window.electronAPI.db.saveNode(node);
             }
             return updated;
           });

@@ -2,12 +2,13 @@ import { useState, useMemo } from "react";
 import type { MeshNode } from "../lib/types";
 import { getNodeStatus } from "../lib/nodeStatus";
 import RefreshButton from "./RefreshButton";
+import SignalBars from "./SignalBars";
 
 type SortField =
   | "node_id"
   | "long_name"
   | "short_name"
-  | "snr"
+  | "rssi"
   | "battery"
   | "last_heard"
   | "latitude"
@@ -81,8 +82,8 @@ export default function NodeListPanel({
         case "short_name":
           cmp = (a.short_name || "").localeCompare(b.short_name || "");
           break;
-        case "snr":
-          cmp = (a.snr || -999) - (b.snr || -999);
+        case "rssi":
+          cmp = (a.rssi ?? -999) - (b.rssi ?? -999);
           break;
         case "battery":
           cmp = (a.battery || 0) - (b.battery || 0);
@@ -254,9 +255,15 @@ export default function NodeListPanel({
               </th>
               <th
                 className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
-                onClick={() => handleSort("snr")}
+                onClick={() => handleSort("rssi")}
               >
-                SNR <SortIcon field="snr" />
+                Signal <SortIcon field="rssi" />
+              </th>
+              <th
+                className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
+                onClick={() => handleSort("rssi")}
+              >
+                RSSI <SortIcon field="rssi" />
               </th>
               <th
                 className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
@@ -295,7 +302,7 @@ export default function NodeListPanel({
             {nodeList.length === 0 ? (
               <tr>
                 <td
-                  colSpan={17}
+                  colSpan={18}
                   className="text-center text-muted py-8"
                 >
                   {searchQuery
@@ -374,8 +381,13 @@ export default function NodeListPanel({
                     <td className="px-3 py-2 text-right font-mono text-xs text-muted">
                       {formatCoord(node.longitude)}
                     </td>
-                    <td className="px-3 py-2 text-right text-gray-300">
-                      {node.snr ? `${node.snr.toFixed(1)} dB` : "-"}
+                    <td className="px-3 py-2 text-right">
+                      <div className="flex justify-end">
+                        <SignalBars rssi={node.rssi} isSelf={isSelf} />
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono text-xs text-muted">
+                      {node.rssi != null ? `${node.rssi} dBm` : "-"}
                     </td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-1.5">

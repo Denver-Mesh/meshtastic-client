@@ -27,6 +27,7 @@ export function initDatabase(): void {
       short_name TEXT,
       hw_model TEXT,
       snr REAL,
+      rssi REAL,
       battery INTEGER,
       last_heard INTEGER,
       latitude REAL,
@@ -74,6 +75,11 @@ export function initDatabase(): void {
       `ALTER TABLE nodes ADD COLUMN altitude INTEGER;`
     );
     db.pragma("user_version = 4");
+  }
+
+  if (userVersion < 5) {
+    db.exec(`ALTER TABLE nodes ADD COLUMN rssi REAL;`);
+    db.pragma("user_version = 5");
   }
 }
 

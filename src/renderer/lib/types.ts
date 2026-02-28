@@ -6,6 +6,7 @@ export interface MeshNode {
   short_name: string;
   hw_model: string;
   snr: number;
+  rssi?: number;
   battery: number;
   last_heard: number;
   latitude: number;

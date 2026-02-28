@@ -5,6 +5,7 @@ import type {
   BluetoothDevice,
   SerialPortInfo,
 } from "../lib/types";
+import { LinkIcon } from "./SignalBars";
 
 // ─── Connection Profiles (localStorage) ───────────────────────────
 interface ConnectionProfile {
@@ -361,7 +362,7 @@ export default function ConnectionPanel({
 
         <div className="bg-deep-black rounded-lg p-5 space-y-3 border border-brand-green/20">
           <div className="flex items-center gap-3 mb-1">
-            <div className="w-3 h-3 rounded-full bg-brand-green animate-pulse" />
+            <LinkIcon className="w-5 h-5" />
             <span className="text-bright-green font-medium capitalize">
               {state.status}
             </span>

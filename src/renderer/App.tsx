@@ -11,6 +11,7 @@ import ConfigPanel from "./components/ConfigPanel";
 import MapPanel from "./components/MapPanel";
 import TelemetryPanel from "./components/TelemetryPanel";
 import AdminPanel from "./components/AdminPanel";
+import { LinkIcon } from "./components/SignalBars";
 
 const TAB_NAMES = [
   "Connection",
@@ -33,6 +34,7 @@ export default function App() {
 
   const isConfigured = device.state.status === "configured";
   const isOperational = isConfigured || device.state.status === "stale";
+  const isConnectedOrOperational = isOperational || device.state.status === "connected";
   const selectedNode = selectedNodeId
     ? device.nodes.get(selectedNodeId) ?? null
     : null;
@@ -131,6 +133,9 @@ export default function App() {
             <span className="text-xs text-muted">Meshtastic Client</span>
           </div>
           <div className="flex items-center gap-2">
+            {isConnectedOrOperational && (
+              <LinkIcon className="w-4 h-4" />
+            )}
             <div className={`w-2.5 h-2.5 rounded-full ${statusColor}`} />
             <span className="text-sm text-muted capitalize">
               {device.state.status}
