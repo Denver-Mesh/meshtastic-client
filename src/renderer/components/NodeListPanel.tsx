@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import type { MeshNode } from "../lib/types";
 import { getNodeStatus } from "../lib/nodeStatus";
+import { RoleDisplay } from "../lib/roleInfo";
 import RefreshButton from "./RefreshButton";
 import SignalBars from "./SignalBars";
 
@@ -51,7 +52,7 @@ export default function NodeListPanel({
       setSortAsc(!sortAsc);
     } else {
       setSortField(field);
-      setSortAsc(field === "long_name" || field === "short_name" || field === "role"); // text asc, numbers desc
+      setSortAsc(field === "long_name" || field === "short_name"); // text asc, numbers desc
     }
   };
 
@@ -98,7 +99,7 @@ export default function NodeListPanel({
           cmp = (a.longitude || 0) - (b.longitude || 0);
           break;
         case "role":
-          cmp = (a.role || "").localeCompare(b.role || "");
+          cmp = (a.role ?? 999) - (b.role ?? 999);
           break;
         case "hops_away":
           cmp = (a.hops_away ?? 999) - (b.hops_away ?? 999);
@@ -366,8 +367,8 @@ export default function NodeListPanel({
                     <td className="px-3 py-2 text-muted">
                       {formatTime(node.last_heard)}
                     </td>
-                    <td className="px-3 py-2 text-gray-300 text-xs">
-                      {node.role ?? "-"}
+                    <td className="px-3 py-2 text-xs">
+                      <RoleDisplay role={node.role} />
                     </td>
                     <td className={`px-3 py-2 text-right text-xs ${node.hops_away === 0 ? "text-bright-green" : "text-gray-300"}`}>
                       {node.hops_away !== undefined ? node.hops_away : "-"}

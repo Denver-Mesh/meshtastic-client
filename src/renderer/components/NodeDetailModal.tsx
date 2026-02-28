@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { MeshNode } from "../lib/types";
+import { RoleDisplay } from "../lib/roleInfo";
 
 interface NodeDetailModalProps {
   node: MeshNode | null;
@@ -150,6 +151,12 @@ export default function NodeDetailModal({
           {node.short_name && (
             <InfoRow label="Short Name" value={node.short_name} />
           )}
+
+          {/* Role */}
+          <div className="flex justify-between items-center py-2 border-b border-gray-700/50">
+            <span className="text-sm text-muted">Role</span>
+            <RoleDisplay role={node.role} />
+          </div>
 
           {/* Signal */}
           <InfoRow

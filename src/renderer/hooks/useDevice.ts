@@ -201,7 +201,7 @@ export function useDevice() {
     window.electronAPI.db.getNodes().then((savedNodes) => {
       const nodeMap = new Map<number, MeshNode>();
       for (const n of savedNodes) {
-        nodeMap.set(n.node_id, n);
+        nodeMap.set(n.node_id, { ...n, role: parseNodeRole(n.role) });
       }
       nodesRef.current = nodeMap;
       setNodes(nodeMap);
@@ -395,7 +395,7 @@ export function useDevice() {
               info.position?.longitudeI != null
                 ? info.position.longitudeI / 1e7
                 : existing.longitude,
-            role: info.user?.role !== undefined ? roleToString(info.user.role) : existing.role,
+            role: info.user?.role ?? existing.role,
             hops_away: info.hopsAway ?? existing.hops_away,
             via_mqtt: info.viaMqtt ?? existing.via_mqtt,
             voltage: info.deviceMetrics?.voltage ?? existing.voltage,
@@ -925,15 +925,22 @@ export function useDevice() {
 }
 
 // ─── Helper functions ──
-const ROLE_LABELS: Record<number, string> = {
-  0: "Client", 1: "Mute", 2: "Router", 3: "Rtr+Client",
-  4: "Repeater", 5: "Tracker", 6: "Sensor", 7: "TAK",
-  8: "Hidden", 9: "L&F", 10: "TAK Tracker",
-  11: "Rtr Late", 12: "Base",
+
+// Maps legacy string role labels (stored by older app versions) to numeric IDs
+const LEGACY_ROLE_STRINGS: Record<string, number> = {
+  "Client": 0, "Mute": 1, "Router": 2, "Rtr+Client": 3,
+  "Repeater": 4, "Tracker": 5, "Sensor": 6, "TAK": 7,
+  "Hidden": 8, "L&F": 9, "TAK Tracker": 10, "Rtr Late": 11, "Base": 12,
 };
 
-function roleToString(role: number): string {
-  return ROLE_LABELS[role] ?? `Role ${role}`;
+function parseNodeRole(val: unknown): number | undefined {
+  if (typeof val === "number") return val;
+  if (typeof val === "string") {
+    const n = parseInt(val, 10);
+    if (!isNaN(n)) return n;
+    return LEGACY_ROLE_STRINGS[val];
+  }
+  return undefined;
 }
 
 function emptyNode(nodeId: number): MeshNode {

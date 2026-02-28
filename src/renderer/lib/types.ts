@@ -11,7 +11,7 @@ export interface MeshNode {
   last_heard: number;
   latitude: number;
   longitude: number;
-  role?: string;
+  role?: number;
   hops_away?: number;
   via_mqtt?: boolean | number;
   voltage?: number;
