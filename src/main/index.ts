@@ -266,6 +266,12 @@ ipcMain.handle("db:saveNode", (_event, node) => {
     VALUES (@node_id, @long_name, @short_name, @hw_model, @snr, @battery, @last_heard, @latitude, @longitude, @role, @hops_away, @via_mqtt, @voltage, @channel_utilization, @air_util_tx, @altitude)
   `);
   return stmt.run({
+    role: null,
+    hops_away: null,
+    voltage: null,
+    channel_utilization: null,
+    air_util_tx: null,
+    altitude: null,
     ...node,
     via_mqtt: node.via_mqtt != null ? (node.via_mqtt ? 1 : 0) : null,
   });
