@@ -11,10 +11,11 @@
     "dev": "concurrently \"npm run build:main -- --watch\" \"npm run build:preload -- --watch\" \"vite\" \"wait-on http://localhost:5173 && VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
     "start": "npm run build && electron .",
     "postinstall": "electron-builder install-app-deps",
+    "predist": "npm dedupe",
     "dist": "npm run build && electron-builder",
-    "dist:mac": "npm run build && electron-builder --mac",
-    "dist:linux": "npm run build && electron-builder --linux",
-    "dist:win": "npm run build && electron-builder --win"
+    "dist:mac": "npm dedupe && npm run build && electron-builder --mac",
+    "dist:linux": "npm dedupe && npm run build && electron-builder --linux",
+    "dist:win": "npm dedupe && npm run build && electron-builder --win"
   },
   "author": "Mesh-client Contributors",
   "license": "MIT",
