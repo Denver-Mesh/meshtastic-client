@@ -813,6 +813,7 @@ const ROLE_LABELS: Record<number, string> = {
   0: "Client", 1: "Mute", 2: "Router", 3: "Rtr+Client",
   4: "Repeater", 5: "Tracker", 6: "Sensor", 7: "TAK",
   8: "Hidden", 9: "L&F", 10: "TAK Tracker",
+  11: "Rtr Late", 12: "Base",
 };
 
 function roleToString(role: number): string {
