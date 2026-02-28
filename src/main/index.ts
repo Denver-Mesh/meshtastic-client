@@ -370,6 +370,13 @@ ipcMain.handle("db:pruneNodesByCount", (_event, maxCount: number) => {
   ).run(maxCount);
 });
 
+ipcMain.handle("db:deleteNodesBatch", (_event, nodeIds: number[]) => {
+  if (!nodeIds.length) return 0;
+  const placeholders = nodeIds.map(() => "?").join(", ");
+  const result = getDatabase().prepare(`DELETE FROM nodes WHERE node_id IN (${placeholders})`).run(...nodeIds);
+  return result.changes;
+});
+
 ipcMain.handle("db:clearMessagesByChannel", (_event, channel: number) => {
   return getDatabase().prepare("DELETE FROM messages WHERE channel = ?").run(channel);
 });

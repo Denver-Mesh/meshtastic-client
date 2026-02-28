@@ -1,9 +1,10 @@
 import { useState, useMemo } from "react";
 import type { MeshNode } from "../lib/types";
-import { getNodeStatus } from "../lib/nodeStatus";
+import { getNodeStatus, haversineDistanceKm } from "../lib/nodeStatus";
 import { RoleDisplay } from "../lib/roleInfo";
 import RefreshButton from "./RefreshButton";
 import SignalBars from "./SignalBars";
+import type { LocationFilter } from "../App";
 
 type SortField =
   | "node_id"
@@ -28,6 +29,7 @@ interface Props {
   onRefresh: () => Promise<void>;
   onNodeClick: (node: MeshNode) => void;
   isConnected: boolean;
+  locationFilter: LocationFilter;
 }
 
 export default function NodeListPanel({
@@ -36,6 +38,7 @@ export default function NodeListPanel({
   onRefresh,
   onNodeClick,
   isConnected,
+  locationFilter,
 }: Props) {
   const [sortField, setSortField] = useState<SortField>("last_heard");
   const [sortAsc, setSortAsc] = useState(false);
@@ -62,6 +65,26 @@ export default function NodeListPanel({
           n.short_name.toLowerCase().includes(q) ||
           n.node_id.toString(16).includes(q)
       );
+    }
+
+    // Filter by distance
+    if (locationFilter.enabled) {
+      const homeNode = myNodeNum ? nodes.get(myNodeNum) : undefined;
+      const homeHasLocation = homeNode &&
+        homeNode.latitude != null && homeNode.latitude !== 0 &&
+        homeNode.longitude != null && homeNode.longitude !== 0;
+      if (homeHasLocation) {
+        const maxKm = locationFilter.unit === "miles"
+          ? locationFilter.maxDistance * 1.60934
+          : locationFilter.maxDistance;
+        list = list.filter((n) => {
+          if (n.node_id === myNodeNum) return true;
+          // Nodes without GPS can't be distance-filtered — keep them visible
+          if (!n.latitude || !n.longitude) return true;
+          const d = haversineDistanceKm(homeNode!.latitude, homeNode!.longitude, n.latitude, n.longitude);
+          return d <= maxKm;
+        });
+      }
     }
 
     // Sort
@@ -121,7 +144,7 @@ export default function NodeListPanel({
     });
 
     return list;
-  }, [nodes, sortField, sortAsc, searchQuery, myNodeNum]);
+  }, [nodes, sortField, sortAsc, searchQuery, myNodeNum, locationFilter]);
 
   function formatTime(ts: number): string {
     if (!ts) return "Never";

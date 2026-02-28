@@ -3,8 +3,9 @@ import { useEffect, useMemo } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import type { MeshNode } from "../lib/types";
-import { getNodeStatus } from "../lib/nodeStatus";
+import { getNodeStatus, haversineDistanceKm } from "../lib/nodeStatus";
 import RefreshButton from "./RefreshButton";
+import type { LocationFilter } from "../App";
 
 // Create colored marker icons using SVG data URIs
 function createMarkerIcon(color: string, isSelf: boolean): L.Icon {
@@ -62,6 +63,7 @@ interface Props {
   myNodeNum: number;
   onRefresh: () => Promise<void>;
   isConnected: boolean;
+  locationFilter: LocationFilter;
 }
 
 // Default center: Longmont, CO (same as Joey's original)
@@ -83,14 +85,25 @@ function MapFitter({ positions }: { positions: [number, number][] }) {
   return null;
 }
 
-export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected }: Props) {
-  const nodesWithPosition = useMemo(
-    () =>
-      Array.from(nodes.values()).filter(
-        (n) => n.latitude !== 0 && n.longitude !== 0
-      ),
-    [nodes]
-  );
+export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected, locationFilter }: Props) {
+  const nodesWithPosition = useMemo(() => {
+    const homeNode = myNodeNum ? nodes.get(myNodeNum) : undefined;
+    const homeHasLocation = homeNode &&
+      homeNode.latitude != null && homeNode.latitude !== 0 &&
+      homeNode.longitude != null && homeNode.longitude !== 0;
+    const maxKm = locationFilter.unit === "miles"
+      ? locationFilter.maxDistance * 1.60934
+      : locationFilter.maxDistance;
+
+    return Array.from(nodes.values()).filter((n) => {
+      if (!n.latitude || !n.longitude) return false;
+      if (locationFilter.enabled && homeHasLocation) {
+        const d = haversineDistanceKm(homeNode!.latitude, homeNode!.longitude, n.latitude, n.longitude);
+        if (d > maxKm) return false;
+      }
+      return true;
+    });
+  }, [nodes, myNodeNum, locationFilter]);
 
   const positions = useMemo<[number, number][]>(
     () => nodesWithPosition.map((n) => [n.latitude, n.longitude]),

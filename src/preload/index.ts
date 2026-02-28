@@ -51,6 +51,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     importDb: () => ipcRenderer.invoke("db:import"),
     deleteNodesByAge: (days: number) => ipcRenderer.invoke("db:deleteNodesByAge", days),
     pruneNodesByCount: (maxCount: number) => ipcRenderer.invoke("db:pruneNodesByCount", maxCount),
+    deleteNodesBatch: (nodeIds: number[]) => ipcRenderer.invoke("db:deleteNodesBatch", nodeIds),
     clearMessagesByChannel: (channel: number) => ipcRenderer.invoke("db:clearMessagesByChannel", channel),
     getMessageChannels: () => ipcRenderer.invoke("db:getMessageChannels"),
   },

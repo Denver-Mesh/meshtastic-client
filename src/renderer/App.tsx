@@ -23,9 +23,28 @@ const TAB_NAMES = [
   "Admin",
 ];
 
+export interface LocationFilter {
+  enabled: boolean;
+  maxDistance: number;
+  unit: "miles" | "km";
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState(0);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const [locationFilter, setLocationFilter] = useState<LocationFilter>(() => {
+    try {
+      const raw = localStorage.getItem("electastic:adminSettings");
+      const s = raw ? JSON.parse(raw) : {};
+      return {
+        enabled: s.distanceFilterEnabled ?? false,
+        maxDistance: s.distanceFilterMax ?? 500,
+        unit: s.distanceUnit ?? "miles",
+      };
+    } catch {
+      return { enabled: false, maxDistance: 500, unit: "miles" };
+    }
+  });
   const [pendingDmTarget, setPendingDmTarget] = useState<number | null>(null);
   const [chatUnread, setChatUnread] = useState(0);
   const prevMsgCountRef = useRef(0);
@@ -119,6 +138,8 @@ export default function App() {
     setActiveTab(1); // Switch to Chat tab
   }, []);
 
+  const handleLocationFilterChange = useCallback((f: LocationFilter) => setLocationFilter(f), []);
+
   const statusColor = {
     disconnected: "bg-red-500",
     connecting: "bg-yellow-500 animate-pulse",
@@ -208,6 +229,7 @@ export default function App() {
                 onRefresh={device.requestRefresh}
                 onNodeClick={(node) => setSelectedNodeId(node.node_id)}
                 isConnected={isOperational}
+                locationFilter={locationFilter}
               />
             )}
             {activeTab === 3 && (
@@ -226,6 +248,7 @@ export default function App() {
                 myNodeNum={device.state.myNodeNum}
                 onRefresh={device.requestRefresh}
                 isConnected={isOperational}
+                locationFilter={locationFilter}
               />
             )}
             {activeTab === 5 && (
@@ -245,6 +268,8 @@ export default function App() {
                 onFactoryReset={device.factoryReset}
                 onResetNodeDb={device.resetNodeDb}
                 isConnected={isOperational}
+                myNodeNum={device.state.myNodeNum}
+                onLocationFilterChange={handleLocationFilterChange}
               />
             )}
           </ErrorBoundary>

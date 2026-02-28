@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect } from "react";
 import type { MeshNode } from "../lib/types";
 import { useToast } from "./Toast";
+import { haversineDistanceKm } from "../lib/nodeStatus";
+import type { LocationFilter } from "../App";
 
 // ─── Confirmation Modal ─────────────────────────────────────────
 function ConfirmModal({
@@ -58,6 +60,9 @@ interface AdminSettings {
   autoPruneDays: number;
   nodeCapEnabled: boolean;
   nodeCapCount: number;
+  distanceFilterEnabled: boolean;
+  distanceFilterMax: number;
+  distanceUnit: "miles" | "km";
 }
 
 const DEFAULT_SETTINGS: AdminSettings = {
@@ -65,6 +70,9 @@ const DEFAULT_SETTINGS: AdminSettings = {
   autoPruneDays: 30,
   nodeCapEnabled: true,
   nodeCapCount: 10000,
+  distanceFilterEnabled: false,
+  distanceFilterMax: 500,
+  distanceUnit: "miles",
 };
 
 function loadSettings(): AdminSettings {
@@ -85,6 +93,8 @@ interface Props {
   onFactoryReset: () => Promise<void>;
   onResetNodeDb: () => Promise<void>;
   isConnected: boolean;
+  myNodeNum: number | null;
+  onLocationFilterChange: (f: LocationFilter) => void;
 }
 
 interface PendingAction {
@@ -105,6 +115,8 @@ export default function AdminPanel({
   onFactoryReset,
   onResetNodeDb,
   isConnected,
+  myNodeNum,
+  onLocationFilterChange,
 }: Props) {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const { addToast } = useToast();
@@ -116,6 +128,14 @@ export default function AdminPanel({
   useEffect(() => {
     localStorage.setItem("electastic:adminSettings", JSON.stringify(settings));
   }, [settings]);
+
+  useEffect(() => {
+    onLocationFilterChange({
+      enabled: settings.distanceFilterEnabled,
+      maxDistance: settings.distanceFilterMax,
+      unit: settings.distanceUnit,
+    });
+  }, [settings.distanceFilterEnabled, settings.distanceFilterMax, settings.distanceUnit, onLocationFilterChange]);
 
   const updateSetting = <K extends keyof AdminSettings>(key: K, value: AdminSettings[K]) =>
     setSettings((prev) => ({ ...prev, [key]: value }));
@@ -222,6 +242,49 @@ export default function AdminPanel({
         </div>
       </div>
 
+      {/* Map & Node Filtering */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-medium text-muted">Map &amp; Node Filtering</h3>
+        <div className="bg-secondary-dark rounded-lg p-4 space-y-4">
+          <p className="text-xs text-muted leading-relaxed">
+            Hides nodes beyond a set distance from your device. Filtering is display-only — nodes remain in the database.
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="distanceFilter"
+              checked={settings.distanceFilterEnabled}
+              onChange={(e) => updateSetting("distanceFilterEnabled", e.target.checked)}
+              className="accent-brand-green"
+            />
+            <label htmlFor="distanceFilter" className="text-sm text-gray-300 cursor-pointer">
+              Filter distant nodes from map and node list
+            </label>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-300">Max distance:</span>
+            <input
+              type="number"
+              min={1}
+              value={settings.distanceFilterMax}
+              onChange={(e) => updateSetting("distanceFilterMax", Math.max(1, parseInt(e.target.value) || 1))}
+              disabled={!settings.distanceFilterEnabled}
+              className="w-24 px-2 py-1 bg-deep-black border border-gray-600 rounded text-gray-200 text-sm text-right focus:border-brand-green focus:outline-none disabled:opacity-40"
+            />
+            <select
+              value={settings.distanceUnit}
+              onChange={(e) => updateSetting("distanceUnit", e.target.value as "miles" | "km")}
+              disabled={!settings.distanceFilterEnabled}
+              className="px-2 py-1 bg-deep-black border border-gray-600 rounded text-gray-200 text-sm focus:border-brand-green focus:outline-none disabled:opacity-40"
+            >
+              <option value="miles">miles</option>
+              <option value="km">km</option>
+            </select>
+          </div>
+          <p className="text-xs text-muted">Note: Requires your device to have a valid GPS fix.</p>
+        </div>
+      </div>
+
       {/* Node Retention */}
       <div className="space-y-3">
         <h3 className="text-sm font-medium text-muted">Node Retention</h3>
@@ -320,6 +383,82 @@ export default function AdminPanel({
               className="w-full px-4 py-2.5 bg-secondary-dark text-gray-300 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors"
             >
               Clear All Nodes ({nodes.size})
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Prune by Location */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-medium text-muted">Prune by Location</h3>
+        <div className="bg-secondary-dark rounded-lg p-4 space-y-4">
+          <p className="text-xs text-muted leading-relaxed">
+            Permanently deletes nodes from the database. This cannot be undone.
+          </p>
+          <div className="space-y-2">
+            <button
+              onClick={() => {
+                const zeroIslandNodes = Array.from(nodes.values()).filter(
+                  (n) => Math.abs(n.latitude) < 0.5 && Math.abs(n.longitude) < 0.5
+                );
+                if (zeroIslandNodes.length === 0) {
+                  addToast("No zero/null island nodes found.", "success");
+                  return;
+                }
+                executeWithConfirmation({
+                  name: "Prune Zero Island Nodes",
+                  title: "Prune Zero/Null Island Nodes",
+                  message: `This will permanently delete ${zeroIslandNodes.length} node${zeroIslandNodes.length !== 1 ? "s" : ""} with coordinates at or near 0°N, 0°E (invalid GPS). This cannot be undone.`,
+                  confirmLabel: `Delete ${zeroIslandNodes.length} Node${zeroIslandNodes.length !== 1 ? "s" : ""}`,
+                  danger: true,
+                  action: async () => {
+                    await window.electronAPI.db.deleteNodesBatch(zeroIslandNodes.map((n) => n.node_id));
+                  },
+                });
+              }}
+              className="w-full px-4 py-2.5 bg-red-900/50 text-red-300 hover:bg-red-900/70 border border-red-800 rounded-lg text-sm font-medium transition-colors text-left"
+            >
+              <div className="font-medium">Prune Zero/Null Island Nodes</div>
+              <div className="text-xs text-red-400/70 mt-0.5">
+                Removes nodes with coordinates at or near 0°N, 0°E (invalid GPS).
+              </div>
+            </button>
+            <button
+              onClick={() => {
+                const homeNode = myNodeNum != null ? nodes.get(myNodeNum) : undefined;
+                if (!homeNode || !homeNode.latitude || !homeNode.longitude) {
+                  addToast("Your device has no GPS coordinates.", "error");
+                  return;
+                }
+                const maxKm = settings.distanceUnit === "miles"
+                  ? settings.distanceFilterMax * 1.60934
+                  : settings.distanceFilterMax;
+                const distantNodes = Array.from(nodes.values()).filter((n) => {
+                  if (n.node_id === myNodeNum) return false;
+                  const d = haversineDistanceKm(homeNode.latitude, homeNode.longitude, n.latitude, n.longitude);
+                  return d > maxKm;
+                });
+                if (distantNodes.length === 0) {
+                  addToast("No nodes found beyond the distance threshold.", "success");
+                  return;
+                }
+                executeWithConfirmation({
+                  name: "Prune Distant Nodes",
+                  title: "Prune Distant Nodes",
+                  message: `This will permanently delete ${distantNodes.length} node${distantNodes.length !== 1 ? "s" : ""} beyond ${settings.distanceFilterMax} ${settings.distanceUnit} from your device. This cannot be undone.`,
+                  confirmLabel: `Delete ${distantNodes.length} Node${distantNodes.length !== 1 ? "s" : ""}`,
+                  danger: true,
+                  action: async () => {
+                    await window.electronAPI.db.deleteNodesBatch(distantNodes.map((n) => n.node_id));
+                  },
+                });
+              }}
+              className="w-full px-4 py-2.5 bg-red-900/50 text-red-300 hover:bg-red-900/70 border border-red-800 rounded-lg text-sm font-medium transition-colors text-left"
+            >
+              <div className="font-medium">Prune Distant Nodes</div>
+              <div className="text-xs text-red-400/70 mt-0.5">
+                Removes nodes beyond the distance threshold above. Requires your device to have a valid GPS location.
+              </div>
             </button>
           </div>
         </div>
