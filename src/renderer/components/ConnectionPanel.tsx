@@ -81,12 +81,14 @@ interface Props {
   state: DeviceState;
   onConnect: (type: ConnectionType, httpAddress?: string) => Promise<void>;
   onDisconnect: () => Promise<void>;
+  myNodeLabel?: string;
 }
 
 export default function ConnectionPanel({
   state,
   onConnect,
   onDisconnect,
+  myNodeLabel,
 }: Props) {
   const [connectionType, setConnectionType] = useState<ConnectionType>("ble");
   const [httpAddress, setHttpAddress] = useState("meshtastic.local");
@@ -375,7 +377,7 @@ export default function ConnectionPanel({
             <div className="flex justify-between text-sm">
               <span className="text-muted">My Node</span>
               <span className="text-gray-200 font-mono">
-                !{state.myNodeNum.toString(16)}
+                {myNodeLabel ?? `!${state.myNodeNum.toString(16)}`}
               </span>
             </div>
           )}
