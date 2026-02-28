@@ -11,8 +11,9 @@ files:
 asarUnpack:
   - "node_modules/better-sqlite3/**/*"
 mac:
+  identity: null
   category: public.app-category.utilities
-  hardenedRuntime: true
+  hardenedRuntime: false
   target:
     - dmg
     - zip
