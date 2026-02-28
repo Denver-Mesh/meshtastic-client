@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage } from "electron";
 import path from "path";
-import { initDatabase, getDatabase, exportDatabase, mergeDatabase } from "./database";
+import { initDatabase, getDatabase, exportDatabase, mergeDatabase, closeDatabase } from "./database";
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -468,6 +468,10 @@ app.whenReady().then(() => {
       mainWindow?.show(); // Restore hidden window on dock click
     }
   });
+});
+
+app.on("before-quit", () => {
+  closeDatabase();
 });
 
 app.on("window-all-closed", () => {
