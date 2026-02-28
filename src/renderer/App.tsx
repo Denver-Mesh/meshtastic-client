@@ -37,6 +37,16 @@ export default function App() {
     ? device.nodes.get(selectedNodeId) ?? null
     : null;
 
+  // ─── Startup node pruning based on persisted admin settings ─────
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("electastic:adminSettings");
+      const s = raw ? JSON.parse(raw) : {};
+      if (s.autoPruneEnabled) window.electronAPI.db.deleteNodesByAge(s.autoPruneDays ?? 30);
+      if (s.nodeCapEnabled !== false) window.electronAPI.db.pruneNodesByCount(s.nodeCapCount ?? 10000);
+    } catch {}
+  }, []);
+
   // ─── Keyboard shortcuts: Cmd/Ctrl+1-7 for tabs ───────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -216,6 +226,7 @@ export default function App() {
               <AdminPanel
                 nodes={device.nodes}
                 messageCount={device.messages.length}
+                channels={device.channels}
                 onReboot={device.reboot}
                 onShutdown={device.shutdown}
                 onFactoryReset={device.factoryReset}

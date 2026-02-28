@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { MeshNode } from "../lib/types";
 import { useToast } from "./Toast";
 
@@ -52,9 +52,34 @@ function ConfirmModal({
   );
 }
 
+// ─── Admin Settings ─────────────────────────────────────────────
+interface AdminSettings {
+  autoPruneEnabled: boolean;
+  autoPruneDays: number;
+  nodeCapEnabled: boolean;
+  nodeCapCount: number;
+}
+
+const DEFAULT_SETTINGS: AdminSettings = {
+  autoPruneEnabled: false,
+  autoPruneDays: 30,
+  nodeCapEnabled: true,
+  nodeCapCount: 10000,
+};
+
+function loadSettings(): AdminSettings {
+  try {
+    const raw = localStorage.getItem("electastic:adminSettings");
+    return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SETTINGS;
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
 interface Props {
   nodes: Map<number, MeshNode>;
   messageCount: number;
+  channels: Array<{ index: number; name: string }>;
   onReboot: (seconds: number) => Promise<void>;
   onShutdown: (seconds: number) => Promise<void>;
   onFactoryReset: () => Promise<void>;
@@ -76,6 +101,7 @@ interface PendingAction {
 export default function AdminPanel({
   nodes,
   messageCount,
+  channels,
   onReboot,
   onShutdown,
   onFactoryReset,
@@ -88,19 +114,43 @@ export default function AdminPanel({
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const { addToast } = useToast();
 
-  const executeWithConfirmation = useCallback(
-    (action: PendingAction) => {
-      setPendingAction(action);
-    },
-    []
-  );
+  // ─── Node retention settings ────────────────────────────────
+  const [settings, setSettings] = useState<AdminSettings>(loadSettings);
+  const [deleteAgeDays, setDeleteAgeDays] = useState(90);
+
+  useEffect(() => {
+    localStorage.setItem("electastic:adminSettings", JSON.stringify(settings));
+  }, [settings]);
+
+  const updateSetting = <K extends keyof AdminSettings>(key: K, value: AdminSettings[K]) =>
+    setSettings((prev) => ({ ...prev, [key]: value }));
+
+  // ─── Message channel selection ──────────────────────────────
+  const [msgChannels, setMsgChannels] = useState<number[]>([]);
+  const [clearChannelTarget, setClearChannelTarget] = useState<number>(-1);
+
+  useEffect(() => {
+    window.electronAPI.db.getMessageChannels().then((rows) => {
+      setMsgChannels(rows.map((r) => r.channel));
+    }).catch(() => {});
+  }, []);
+
+  const getChannelLabel = (ch: number) => {
+    const named = channels.find((c) => c.index === ch);
+    return named ? `Channel ${ch} — ${named.name}` : `Channel ${ch}`;
+  };
+
+  // ─── Confirmation flow ──────────────────────────────────────
+  const executeWithConfirmation = useCallback((action: PendingAction) => {
+    setPendingAction(action);
+  }, []);
 
   const handleConfirm = useCallback(async () => {
     if (!pendingAction) return;
     setPendingAction(null);
     try {
       await pendingAction.action();
-      addToast(`${pendingAction.name} command sent successfully.`, "success");
+      addToast(`${pendingAction.name} completed successfully.`, "success");
     } catch (err) {
       addToast(
         `Failed: ${err instanceof Error ? err.message : "Unknown error"}`,
@@ -197,23 +247,6 @@ export default function AdminPanel({
             Reset NodeDB
           </button>
 
-          <button
-            onClick={() =>
-              executeWithConfirmation({
-                name: "Factory Reset",
-                title: "⚠ Factory Reset",
-                message:
-                  "This will erase ALL device settings and restore factory defaults. All channels, configuration, and stored data on the device will be permanently lost. This action CANNOT be undone.",
-                confirmLabel: "Factory Reset",
-                danger: true,
-                action: () => onFactoryReset(),
-              })
-            }
-            disabled={!isConnected}
-            className="px-4 py-3 bg-red-900/50 text-red-300 hover:bg-red-900/70 border border-red-800 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
-          >
-            Factory Reset
-          </button>
         </div>
       </div>
 
@@ -265,6 +298,109 @@ export default function AdminPanel({
           >
             Remove Node
           </button>
+        </div>
+      </div>
+
+      {/* Node Retention */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-medium text-muted">Node Retention</h3>
+        <div className="bg-secondary-dark rounded-lg p-4 space-y-4">
+          {/* Manual age delete */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-300 flex-1">Delete nodes last heard more than</span>
+            <input
+              type="number"
+              min={1}
+              value={deleteAgeDays}
+              onChange={(e) => setDeleteAgeDays(Math.max(1, parseInt(e.target.value) || 1))}
+              className="w-20 px-2 py-1 bg-deep-black border border-gray-600 rounded text-gray-200 text-sm text-right focus:border-brand-green focus:outline-none"
+            />
+            <span className="text-sm text-gray-300">days ago</span>
+            <button
+              onClick={() =>
+                executeWithConfirmation({
+                  name: "Delete Old Nodes",
+                  title: "Delete Old Nodes",
+                  message: `This will permanently delete all nodes that haven't been heard in the last ${deleteAgeDays} day${deleteAgeDays !== 1 ? "s" : ""}. They will be re-discovered when they broadcast again.`,
+                  confirmLabel: "Delete Old Nodes",
+                  danger: true,
+                  action: async () => {
+                    await window.electronAPI.db.deleteNodesByAge(deleteAgeDays);
+                  },
+                })
+              }
+              className="px-3 py-1.5 bg-red-900/50 text-red-300 hover:bg-red-900/70 border border-red-800 rounded text-sm font-medium transition-colors whitespace-nowrap"
+            >
+              Delete Old Nodes
+            </button>
+          </div>
+
+          {/* Auto-prune on startup */}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="autoPrune"
+              checked={settings.autoPruneEnabled}
+              onChange={(e) => updateSetting("autoPruneEnabled", e.target.checked)}
+              className="accent-brand-green"
+            />
+            <label htmlFor="autoPrune" className="text-sm text-gray-300 flex-1 cursor-pointer">
+              Auto-prune on startup, older than
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={settings.autoPruneDays}
+              onChange={(e) => updateSetting("autoPruneDays", Math.max(1, parseInt(e.target.value) || 1))}
+              disabled={!settings.autoPruneEnabled}
+              className="w-20 px-2 py-1 bg-deep-black border border-gray-600 rounded text-gray-200 text-sm text-right focus:border-brand-green focus:outline-none disabled:opacity-40"
+            />
+            <span className="text-sm text-gray-300">days</span>
+          </div>
+
+          {/* Node cap */}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="nodeCap"
+              checked={settings.nodeCapEnabled}
+              onChange={(e) => updateSetting("nodeCapEnabled", e.target.checked)}
+              className="accent-brand-green"
+            />
+            <label htmlFor="nodeCap" className="text-sm text-gray-300 flex-1 cursor-pointer">
+              Cap total nodes, keep newest
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={settings.nodeCapCount}
+              onChange={(e) => updateSetting("nodeCapCount", Math.max(1, parseInt(e.target.value) || 1))}
+              disabled={!settings.nodeCapEnabled}
+              className="w-24 px-2 py-1 bg-deep-black border border-gray-600 rounded text-gray-200 text-sm text-right focus:border-brand-green focus:outline-none disabled:opacity-40"
+            />
+            <span className="text-sm text-gray-300">nodes</span>
+          </div>
+
+          {/* Clear all nodes */}
+          <div className="pt-1 border-t border-gray-700">
+            <button
+              onClick={() =>
+                executeWithConfirmation({
+                  name: "Clear Nodes",
+                  title: "Clear Nodes",
+                  message: `This will permanently delete all ${nodes.size} locally stored nodes. They will be re-discovered when connected.`,
+                  confirmLabel: `Clear ${nodes.size} Nodes`,
+                  danger: true,
+                  action: async () => {
+                    await window.electronAPI.db.clearNodes();
+                  },
+                })
+              }
+              className="w-full px-4 py-2.5 bg-secondary-dark text-gray-300 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors"
+            >
+              Clear All Nodes ({nodes.size})
+            </button>
+          </div>
         </div>
       </div>
 
@@ -325,48 +461,65 @@ export default function AdminPanel({
         </div>
       </div>
 
-      {/* Local Database Actions */}
+      {/* Message Management */}
       <div className="space-y-3">
         <h3 className="text-sm font-medium text-muted">
-          Local Database
+          Message Management
         </h3>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={() =>
-              executeWithConfirmation({
-                name: "Clear Messages",
-                title: "Clear Messages",
-                message: `This will permanently delete all ${messageCount} locally stored messages. This cannot be undone.`,
-                confirmLabel: `Clear ${messageCount} Messages`,
-                danger: true,
-                action: async () => {
+
+        {/* Channel-scoped message deletion */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-400">Channel:</label>
+            <select
+              value={clearChannelTarget}
+              onChange={(e) => setClearChannelTarget(parseInt(e.target.value))}
+              className="flex-1 px-3 py-1.5 bg-secondary-dark border border-gray-600 rounded-lg text-gray-200 text-sm focus:border-brand-green focus:outline-none"
+            >
+              <option value={-1}>All Channels</option>
+              {msgChannels.map((ch) => (
+                <option key={ch} value={ch}>
+                  {getChannelLabel(ch)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <button
+          onClick={() => {
+            const isAll = clearChannelTarget === -1;
+            const channelName = isAll ? "" : getChannelLabel(clearChannelTarget);
+            executeWithConfirmation({
+              name: "Clear Messages",
+              title: "Clear Messages",
+              message: isAll
+                ? `This will permanently delete all ${messageCount} locally stored messages across all channels. This cannot be undone.`
+                : `This will permanently delete all messages from ${channelName}. This cannot be undone.`,
+              confirmLabel: isAll ? `Clear ${messageCount} Messages` : `Clear ${channelName}`,
+              danger: true,
+              action: async () => {
+                if (isAll) {
                   await window.electronAPI.db.clearMessages();
-                },
-              })
-            }
-            className="px-4 py-3 bg-secondary-dark text-gray-300 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors"
-          >
-            Clear Messages ({messageCount})
-          </button>
+                } else {
+                  await window.electronAPI.db.clearMessagesByChannel(clearChannelTarget);
+                }
+              },
+            });
+          }}
+          className="w-full px-4 py-3 bg-secondary-dark text-gray-300 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors"
+        >
+          Clear Messages ({messageCount})
+        </button>
+      </div>
 
-          <button
-            onClick={() =>
-              executeWithConfirmation({
-                name: "Clear Nodes",
-                title: "Clear Nodes",
-                message: `This will permanently delete all ${nodes.size} locally stored nodes. They will be re-discovered when connected.`,
-                confirmLabel: `Clear ${nodes.size} Nodes`,
-                danger: true,
-                action: async () => {
-                  await window.electronAPI.db.clearNodes();
-                },
-              })
-            }
-            className="px-4 py-3 bg-secondary-dark text-gray-300 hover:bg-gray-600 rounded-lg text-sm font-medium transition-colors"
-          >
-            Clear Nodes ({nodes.size})
-          </button>
-
+      {/* Danger Zone */}
+      <div className="space-y-3">
+        <h3 className="text-sm font-medium text-red-400">Danger Zone</h3>
+        <div className="border border-red-900 rounded-lg p-4 space-y-2">
+          <p className="text-xs text-red-400/80">
+            These actions are permanent and cannot be undone.
+          </p>
           <button
             onClick={() =>
               executeWithConfirmation({
@@ -383,20 +536,28 @@ export default function AdminPanel({
                 },
               })
             }
-            className="col-span-2 px-4 py-3 bg-red-900/50 text-red-300 hover:bg-red-900/70 border border-red-800 rounded-lg text-sm font-medium transition-colors"
+            className="w-full px-4 py-3 bg-red-900/50 text-red-300 hover:bg-red-900/70 border border-red-800 rounded-lg text-sm font-medium transition-colors"
           >
             Clear All Local Data &amp; Cache
           </button>
+          <button
+            onClick={() =>
+              executeWithConfirmation({
+                name: "Factory Reset",
+                title: "⚠ Factory Reset",
+                message:
+                  "This will erase ALL device settings and restore factory defaults. All channels, configuration, and stored data on the device will be permanently lost. This action CANNOT be undone.",
+                confirmLabel: "Factory Reset",
+                danger: true,
+                action: () => onFactoryReset(),
+              })
+            }
+            disabled={!isConnected}
+            className="w-full px-4 py-3 bg-red-900/50 text-red-300 hover:bg-red-900/70 border border-red-800 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+          >
+            Factory Reset Device
+          </button>
         </div>
-      </div>
-
-      {/* Warning */}
-      <div className="bg-red-900/20 border border-red-900 rounded-lg p-4 text-sm text-red-400 space-y-1">
-        <p className="font-medium">Warning</p>
-        <p>
-          Factory Reset will erase all device settings and restore defaults.
-          This action cannot be undone.
-        </p>
       </div>
 
       {/* Confirmation Modal */}

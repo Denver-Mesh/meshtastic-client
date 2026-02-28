@@ -358,6 +358,25 @@ ipcMain.handle("db:deleteNode", (_event, nodeId: number) => {
   return db.prepare("DELETE FROM nodes WHERE node_id = ?").run(nodeId);
 });
 
+ipcMain.handle("db:deleteNodesByAge", (_event, days: number) => {
+  const cutoff = Math.floor(Date.now() / 1000) - days * 86400;
+  return getDatabase().prepare("DELETE FROM nodes WHERE last_heard < ?").run(cutoff);
+});
+
+ipcMain.handle("db:pruneNodesByCount", (_event, maxCount: number) => {
+  return getDatabase().prepare(
+    "DELETE FROM nodes WHERE node_id NOT IN (SELECT node_id FROM nodes ORDER BY last_heard DESC LIMIT ?)"
+  ).run(maxCount);
+});
+
+ipcMain.handle("db:clearMessagesByChannel", (_event, channel: number) => {
+  return getDatabase().prepare("DELETE FROM messages WHERE channel = ?").run(channel);
+});
+
+ipcMain.handle("db:getMessageChannels", () => {
+  return getDatabase().prepare("SELECT DISTINCT channel FROM messages ORDER BY channel").all();
+});
+
 // ─── IPC: Update message delivery status ────────────────────────────
 ipcMain.handle(
   "db:updateMessageStatus",

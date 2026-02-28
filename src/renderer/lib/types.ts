@@ -88,6 +88,10 @@ declare global {
         ) => Promise<unknown>;
         exportDb: () => Promise<string | null>;
         importDb: () => Promise<{ nodesAdded: number; messagesAdded: number } | null>;
+        deleteNodesByAge: (days: number) => Promise<unknown>;
+        pruneNodesByCount: (maxCount: number) => Promise<unknown>;
+        clearMessagesByChannel: (channel: number) => Promise<unknown>;
+        getMessageChannels: () => Promise<{ channel: number }[]>;
       };
       onBluetoothDevicesDiscovered: (
         cb: (devices: BluetoothDevice[]) => void

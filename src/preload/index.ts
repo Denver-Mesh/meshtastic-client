@@ -48,6 +48,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke("db:updateMessageStatus", packetId, status, error),
     exportDb: () => ipcRenderer.invoke("db:export"),
     importDb: () => ipcRenderer.invoke("db:import"),
+    deleteNodesByAge: (days: number) => ipcRenderer.invoke("db:deleteNodesByAge", days),
+    pruneNodesByCount: (maxCount: number) => ipcRenderer.invoke("db:pruneNodesByCount", maxCount),
+    clearMessagesByChannel: (channel: number) => ipcRenderer.invoke("db:clearMessagesByChannel", channel),
+    getMessageChannels: () => ipcRenderer.invoke("db:getMessageChannels"),
   },
 
   // ─── Bluetooth device selection ─────────────────────────────────
