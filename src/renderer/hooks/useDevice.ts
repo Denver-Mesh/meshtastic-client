@@ -1,5 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { MeshDevice } from "@meshtastic/core";
+import { create } from "@bufbuild/protobuf";
+import { Channel as ProtobufChannel } from "@meshtastic/protobufs";
 import { createConnection, reconnectBle, safeDisconnect } from "../lib/connection";
 import type {
   ConnectionType,
@@ -56,9 +58,15 @@ export function useDevice() {
   const [channels, setChannels] = useState<
     Array<{ index: number; name: string }>
   >([{ index: 0, name: "Primary" }]);
-  const [channelConfigs, setChannelConfigs] = useState<
-    Array<{ index: number; name: string; role: number; psk: Uint8Array }>
-  >([]);
+  const [channelConfigs, setChannelConfigs] = useState<Array<{
+    index: number;
+    name: string;
+    role: number;
+    psk: Uint8Array;
+    uplinkEnabled: boolean;
+    downlinkEnabled: boolean;
+    positionPrecision: number;
+  }>>([]);
 
   // Keep nodesRef in sync with state
   const updateNodes = useCallback(
@@ -479,7 +487,13 @@ export function useDevice() {
         touchLastData();
         const ch = channel as {
           index?: number;
-          settings?: { name?: string; psk?: Uint8Array };
+          settings?: {
+            name?: string;
+            psk?: Uint8Array;
+            uplinkEnabled?: boolean;
+            downlinkEnabled?: boolean;
+            moduleSettings?: { positionPrecision?: number };
+          };
           role?: number;
         };
         if (ch.index === undefined) return;
@@ -509,6 +523,9 @@ export function useDevice() {
             name: ch.settings?.name || "",
             role: ch.role ?? 0,
             psk: ch.settings?.psk ?? new Uint8Array([1]),
+            uplinkEnabled: ch.settings?.uplinkEnabled ?? false,
+            downlinkEnabled: ch.settings?.downlinkEnabled ?? false,
+            positionPrecision: ch.settings?.moduleSettings?.positionPrecision ?? 0,
           };
           if (existing >= 0) {
             const updated = [...prev];
@@ -781,6 +798,90 @@ export function useDevice() {
     }
   }, []);
 
+  const setConfig = useCallback(async (config: unknown) => {
+    if (!deviceRef.current) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await deviceRef.current.setConfig(config as any);
+  }, []);
+
+  const commitConfig = useCallback(async () => {
+    if (!deviceRef.current) return;
+    await deviceRef.current.commitEditSettings();
+  }, []);
+
+  const setDeviceChannel = useCallback(async (args: {
+    index: number;
+    role: number;
+    settings: {
+      name: string;
+      psk: Uint8Array;
+      uplinkEnabled: boolean;
+      downlinkEnabled: boolean;
+      positionPrecision: number;
+    };
+  }) => {
+    if (!deviceRef.current) return;
+    const channel = create(ProtobufChannel.ChannelSchema, {
+      index: args.index,
+      role: args.role,
+      settings: create(ProtobufChannel.ChannelSettingsSchema, {
+        name: args.settings.name,
+        psk: args.settings.psk,
+        uplinkEnabled: args.settings.uplinkEnabled,
+        downlinkEnabled: args.settings.downlinkEnabled,
+        moduleSettings: create(ProtobufChannel.ModuleSettingsSchema, {
+          positionPrecision: args.settings.positionPrecision,
+        }),
+      }),
+    });
+    await deviceRef.current.setChannel(channel);
+  }, []);
+
+  const clearChannel = useCallback(async (index: number) => {
+    if (!deviceRef.current) return;
+    await deviceRef.current.clearChannel(index);
+  }, []);
+
+  const reboot = useCallback(async (delay: number) => {
+    if (!deviceRef.current) return;
+    await deviceRef.current.reboot(delay);
+  }, []);
+
+  const shutdown = useCallback(async (delay: number) => {
+    if (!deviceRef.current) return;
+    await deviceRef.current.shutdown(delay);
+  }, []);
+
+  const factoryReset = useCallback(async () => {
+    if (!deviceRef.current) return;
+    await deviceRef.current.factoryResetDevice();
+  }, []);
+
+  const resetNodeDb = useCallback(async () => {
+    if (!deviceRef.current) return;
+    await deviceRef.current.resetNodes();
+  }, []);
+
+  const requestPosition = useCallback(async (nodeNum: number) => {
+    if (!deviceRef.current) return;
+    await deviceRef.current.requestPosition(nodeNum);
+  }, []);
+
+  const traceRoute = useCallback(async (nodeNum: number) => {
+    if (!deviceRef.current) return;
+    await deviceRef.current.traceRoute(nodeNum);
+  }, []);
+
+  const requestRefresh = useCallback(async () => {
+    if (!deviceRef.current) return;
+    await deviceRef.current.configure();
+  }, []);
+
+  const sendReaction = useCallback(async (emoji: number, replyId: number, channel: number) => {
+    if (!deviceRef.current) throw new Error("Not connected");
+    await deviceRef.current.sendText("", "broadcast", true, channel, replyId, emoji);
+  }, []);
+
   const sendStatusEvents = useCallback(() => {
     const activeStatuses = ['connected', 'configured', 'stale', 'reconnecting'];
     if (activeStatuses.includes(state.status)) {
@@ -804,6 +905,18 @@ export function useDevice() {
     connect,
     disconnect,
     sendMessage,
+    sendReaction,
+    setConfig,
+    commitConfig,
+    setDeviceChannel,
+    clearChannel,
+    reboot,
+    shutdown,
+    factoryReset,
+    resetNodeDb,
+    requestPosition,
+    traceRoute,
+    requestRefresh,
     getFullNodeLabel,
   };
 }
