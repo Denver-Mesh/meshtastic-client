@@ -6,19 +6,19 @@ interface RoleInfo {
 }
 
 const ROLE_INFO: Record<number, RoleInfo> = {
-  0:  { label: "Client",           colorClass: "text-gray-400",   isBadge: false },
-  1:  { label: "Client Mute",      colorClass: "text-gray-400",   isBadge: false },
-  2:  { label: "Router",           colorClass: "text-blue-400",   isBadge: true,  badgeClass: "bg-blue-900/60 text-blue-300 border border-blue-700/40" },
-  3:  { label: "Router Client",    colorClass: "text-blue-300",   isBadge: false },
-  4:  { label: "Repeater",         colorClass: "text-orange-400", isBadge: true,  badgeClass: "bg-orange-900/60 text-orange-300 border border-orange-700/40" },
-  5:  { label: "Tracker",          colorClass: "text-green-400",  isBadge: false },
-  6:  { label: "Sensor",           colorClass: "text-teal-400",   isBadge: false },
-  7:  { label: "TAK Tracker",      colorClass: "text-red-400",    isBadge: true,  badgeClass: "bg-red-900/60 text-red-300 border border-red-700/40" },
-  8:  { label: "Power Stress",     colorClass: "text-yellow-400", isBadge: false },
-  9:  { label: "Non-Routing",      colorClass: "text-gray-400",   isBadge: false },
-  10: { label: "Repeater Stealth", colorClass: "text-purple-400", isBadge: false },
-  11: { label: "Lost and Found",   colorClass: "text-pink-400",   isBadge: true,  badgeClass: "bg-pink-900/60 text-pink-300 border border-pink-700/40" },
-  12: { label: "TAK Relay",        colorClass: "text-red-300",    isBadge: true,  badgeClass: "bg-red-950/70 text-red-200 border border-red-800/50" },
+  0:  { label: "Client",        colorClass: "text-gray-400",   isBadge: false },
+  1:  { label: "Client Mute",   colorClass: "text-gray-500",   isBadge: false },
+  2:  { label: "Router",        colorClass: "text-blue-300",   isBadge: true,  badgeClass: "bg-blue-900/60 text-blue-300 border border-blue-700/40" },
+  3:  { label: "Router Client", colorClass: "text-blue-400",   isBadge: false },
+  4:  { label: "Repeater",      colorClass: "text-orange-400", isBadge: true,  badgeClass: "bg-orange-900/60 text-orange-300 border border-orange-700/40" },
+  5:  { label: "Tracker",       colorClass: "text-green-400",  isBadge: false },
+  6:  { label: "Sensor",        colorClass: "text-teal-400",   isBadge: false },
+  7:  { label: "TAK",           colorClass: "text-red-400",    isBadge: true,  badgeClass: "bg-red-900/60 text-red-300 border border-red-700/40" },
+  8:  { label: "Client Hidden", colorClass: "text-purple-400", isBadge: false },
+  9:  { label: "Lost & Found",  colorClass: "text-pink-300",   isBadge: true,  badgeClass: "bg-pink-900/60 text-pink-300 border border-pink-700/40" },
+  10: { label: "TAK Tracker",   colorClass: "text-red-300",    isBadge: true,  badgeClass: "bg-red-950/70 text-red-200 border border-red-800/50" },
+  11: { label: "Router Late",   colorClass: "text-sky-300",    isBadge: true,  badgeClass: "bg-sky-900/60 text-sky-300 border border-sky-700/40" },
+  12: { label: "Client Base",   colorClass: "text-yellow-300", isBadge: true,  badgeClass: "bg-indigo-900/60 text-yellow-300 border border-indigo-700/40" },
 };
 
 export function getRoleInfo(role: number | undefined): RoleInfo {
@@ -41,22 +41,23 @@ export function RoleIcon({ role }: { role: number | undefined }) {
     strokeLinejoin: "round" as const,
   };
   switch (role) {
-    case 0: // Client — person silhouette
+    case 0: // Client — User
       return (
         <svg {...p}>
           <circle cx="12" cy="8" r="4" />
           <path d="M4 20c0-4 3.58-7 8-7s8 3 8 7" />
         </svg>
       );
-    case 1: // Client Mute — person + diagonal slash
+    case 1: // Client Mute — UserX
       return (
         <svg {...p}>
-          <circle cx="12" cy="8" r="4" />
-          <path d="M4 20c0-4 3.58-7 8-7s8 3 8 7" />
-          <line x1="2" y1="2" x2="22" y2="22" />
+          <circle cx="10" cy="7" r="4" />
+          <path d="M10.3 15H6a4 4 0 0 0-4 4v2" />
+          <line x1="15" y1="11" x2="21" y2="17" />
+          <line x1="21" y1="11" x2="15" y2="17" />
         </svg>
       );
-    case 2: // Router — radio tower
+    case 2: // Router — TowerControl (broadcast tower)
       return (
         <svg {...p}>
           <path d="M5 12.55a11 11 0 0 1 14.08 0" />
@@ -65,16 +66,16 @@ export function RoleIcon({ role }: { role: number | undefined }) {
           <line x1="12" y1="20" x2="12" y2="12" />
         </svg>
       );
-    case 3: // Router Client — server stack
+    case 3: // Router Client — UserCog
       return (
         <svg {...p}>
-          <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
-          <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
-          <line x1="6" y1="6" x2="6.01" y2="6" />
-          <line x1="6" y1="18" x2="6.01" y2="18" />
+          <circle cx="10" cy="7" r="4" />
+          <path d="M10.3 15H6a4 4 0 0 0-4 4v2" />
+          <circle cx="18" cy="16" r="2" />
+          <path d="M18 12v1m0 6v1m-3 .46.87-.5m4.26 2.5.87-.5m-4.26-8 .87.5m4.26-2.5.87.5" />
         </svg>
       );
-    case 4: // Repeater — circular arrows
+    case 4: // Repeater — Repeat (circular arrows)
       return (
         <svg {...p}>
           <polyline points="17 1 21 5 17 9" />
@@ -83,20 +84,20 @@ export function RoleIcon({ role }: { role: number | undefined }) {
           <path d="M21 13v2a4 4 0 0 1-4 4H3" />
         </svg>
       );
-    case 5: // Tracker — map pin
+    case 5: // Tracker — MapPin
       return (
         <svg {...p}>
           <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
           <circle cx="12" cy="10" r="3" />
         </svg>
       );
-    case 6: // Sensor — pulse/activity wave
+    case 6: // Sensor — Activity (pulse wave)
       return (
         <svg {...p}>
           <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
         </svg>
       );
-    case 7: // TAK Tracker — crosshair
+    case 7: // TAK — Crosshair
       return (
         <svg {...p}>
           <circle cx="12" cy="12" r="10" />
@@ -106,31 +107,13 @@ export function RoleIcon({ role }: { role: number | undefined }) {
           <line x1="12" y1="22" x2="12" y2="18" />
         </svg>
       );
-    case 8: // Power Stress — warning triangle
+    case 8: // Client Hidden — Ghost
       return (
         <svg {...p}>
-          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-          <line x1="12" y1="9" x2="12" y2="13" />
-          <line x1="12" y1="17" x2="12.01" y2="17" />
+          <path d="M9 10h.01M15 10h.01M12 2a8 8 0 0 0-8 8v12l3-3 2.5 2.5L12 19l2.5 2.5L17 19l3 3V10a8 8 0 0 0-8-8z" />
         </svg>
       );
-    case 9: // Non-Routing — user with X
-      return (
-        <svg {...p}>
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-          <circle cx="9" cy="7" r="4" />
-          <line x1="17" y1="11" x2="23" y2="17" />
-          <line x1="23" y1="11" x2="17" y2="17" />
-        </svg>
-      );
-    case 10: // Repeater Stealth — eye with slash
-      return (
-        <svg {...p}>
-          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-          <line x1="1" y1="1" x2="23" y2="23" />
-        </svg>
-      );
-    case 11: // Lost and Found — life ring
+    case 9: // Lost & Found — LifeBuoy
       return (
         <svg {...p}>
           <circle cx="12" cy="12" r="10" />
@@ -141,10 +124,26 @@ export function RoleIcon({ role }: { role: number | undefined }) {
           <line x1="4.93" y1="19.07" x2="9.17" y2="14.83" />
         </svg>
       );
-    case 12: // TAK Relay — shield
+    case 10: // TAK Tracker — Target (bullseye)
       return (
         <svg {...p}>
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          <circle cx="12" cy="12" r="10" />
+          <circle cx="12" cy="12" r="6" />
+          <circle cx="12" cy="12" r="2" />
+        </svg>
+      );
+    case 11: // Router Late — Clock
+      return (
+        <svg {...p}>
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
+        </svg>
+      );
+    case 12: // Client Base — Home
+      return (
+        <svg {...p}>
+          <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+          <polyline points="9 22 9 12 15 12 15 22" />
         </svg>
       );
     default: // Unknown — question mark in circle
