@@ -33,7 +33,7 @@ npm install
 npm start
 ```
 
-> **Note:** `npm install` automatically compiles the native SQLite module for Electron via `electron-rebuild`. If it fails, make sure Xcode Command Line Tools are installed.
+> **Note:** `npm install` automatically compiles the native SQLite module for Electron. If it fails, make sure Xcode Command Line Tools are installed.
 
 On first Bluetooth connection, macOS will show a system popup requesting Bluetooth permission — you must accept. If you accidentally denied it, go to **System Settings > Privacy & Security > Bluetooth** and toggle Mesh-Client on.
 
@@ -166,7 +166,7 @@ src/
 
 ## Troubleshooting
 
-### `npm install` fails during electron-rebuild
+### `npm install` fails on native module compilation
 
 You're missing build tools for compiling the native SQLite module:
 - **Mac**: `xcode-select --install`
