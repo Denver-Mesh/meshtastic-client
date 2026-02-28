@@ -184,12 +184,20 @@ export default function ChatPanel({
   useEffect(() => {
     if (viewMode === "channels") {
       const now = Date.now();
-      lastReadRef.current.set(channel, now);
-      setUnreadCounts((prev) => {
-        const next = new Map(prev);
-        next.delete(channel);
-        return next;
-      });
+      if (channel === -1) {
+        // "All" view: mark every channel as read
+        for (const ch of channels) {
+          lastReadRef.current.set(ch.index, now);
+        }
+        setUnreadCounts(new Map());
+      } else {
+        lastReadRef.current.set(channel, now);
+        setUnreadCounts((prev) => {
+          const next = new Map(prev);
+          next.delete(channel);
+          return next;
+        });
+      }
     }
   }, [channel, regularMessages.length, viewMode]);
 
