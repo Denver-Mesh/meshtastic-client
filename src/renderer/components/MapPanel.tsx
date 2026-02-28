@@ -1,22 +1,10 @@
+import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import type { MeshNode } from "../lib/types";
 import { getNodeStatus } from "../lib/nodeStatus";
 import RefreshButton from "./RefreshButton";
-
-// Fix for default markers not showing in bundled apps
-import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
-
-// @ts-ignore
-delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-});
 
 // Create colored marker icons using SVG data URIs
 function createMarkerIcon(color: string, isSelf: boolean): L.Icon {
