@@ -93,6 +93,8 @@ declare global {
       selectSerialPort: (portId: string) => void;
       cancelSerialSelection: () => void;
       clearSessionData: () => Promise<void>;
+      notifyDeviceConnected: () => void;
+      notifyDeviceDisconnected: () => void;
     };
   }
 }

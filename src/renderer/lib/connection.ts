@@ -4,6 +4,11 @@ import { TransportWebSerial } from "@meshtastic/transport-web-serial";
 import { TransportHTTP } from "@meshtastic/transport-http";
 import type { ConnectionType } from "./types";
 
+// Cached BluetoothDevice from the most recent successful BLE connection.
+// navigator.bluetooth.getDevices() is not available in all Electron builds,
+// so we capture the reference by intercepting requestDevice() instead.
+let capturedBleDevice: BluetoothDevice | null = null;
+
 /**
  * Create a connection to a Meshtastic device.
  *
@@ -23,23 +28,26 @@ export async function createConnection(
   let transport: { toDevice: WritableStream; fromDevice: ReadableStream; disconnect?: () => Promise<void> };
 
   switch (type) {
-    case "ble":
-      transport = await TransportWebBluetooth.create();
-      // Capture the BluetoothDevice reference for GATT disconnection monitoring.
-      // TransportWebBluetooth.create() creates the BluetoothDevice as a local
-      // variable that is never stored, so we retrieve it via getDevices().
+    case "ble": {
+      // Intercept requestDevice to capture the BluetoothDevice reference
+      // before the transport library discards it. This is more reliable than
+      // navigator.bluetooth.getDevices() which isn't available in all builds.
+      const origRequestDevice = navigator.bluetooth.requestDevice.bind(navigator.bluetooth);
+      navigator.bluetooth.requestDevice = async (options?: RequestDeviceOptions) => {
+        const device = await origRequestDevice(options);
+        capturedBleDevice = device;
+        return device;
+      };
       try {
-        const devices = await navigator.bluetooth.getDevices();
-        const connectedDevice = devices.find(
-          (d: any) => d.gatt?.connected
-        );
-        if (connectedDevice) {
-          (transport as any).__bluetoothDevice = connectedDevice;
-        }
-      } catch (err) {
-        console.warn("Could not capture BluetoothDevice reference:", err);
+        transport = await TransportWebBluetooth.create();
+      } finally {
+        navigator.bluetooth.requestDevice = origRequestDevice;
+      }
+      if (capturedBleDevice) {
+        (transport as any).__bluetoothDevice = capturedBleDevice;
       }
       break;
+    }
 
     case "serial":
       transport = await TransportWebSerial.create(115200);
@@ -78,10 +86,17 @@ export async function createConnection(
  * to find the device that was previously granted permission.
  */
 export async function reconnectBle(): Promise<MeshDevice> {
-  const devices = await navigator.bluetooth.getDevices();
-  // First try to find a disconnected device; fall back to any device with GATT
-  const target = devices.find((d: any) => d.gatt && !d.gatt.connected)
-    ?? devices.find((d: any) => d.gatt != null);
+  let target: BluetoothDevice | undefined;
+
+  if (typeof navigator.bluetooth.getDevices === "function") {
+    const devices = await navigator.bluetooth.getDevices();
+    target = devices.find((d: any) => d.gatt && !d.gatt.connected)
+      ?? devices.find((d: any) => d.gatt != null);
+  } else {
+    // getDevices() unavailable — fall back to the device captured at connect time
+    target = capturedBleDevice ?? undefined;
+  }
+
   if (!target) {
     throw new Error("No previously connected BLE device found for reconnection");
   }

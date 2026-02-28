@@ -30,6 +30,7 @@
     "url": "https://github.com/defidude/Elecstatic"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
     "@tailwindcss/postcss": "^4.2.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/leaflet": "^1.9.21",
@@ -39,8 +40,8 @@
     "concurrently": "^9.2.1",
     "electron": "^40.6.0",
     "electron-builder": "^26.8.1",
-    "@electron/rebuild": "^4.0.3",
     "esbuild": "^0.25.12",
+    "patch-package": "^8.0.1",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.2.0",
     "typescript": "^5.9.3",
@@ -48,14 +49,7 @@
     "wait-on": "^9.0.4"
   },
   "overrides": {
-    "@electron/universal": {
-      "minimatch": "10.2.2"
-    },
-    "cacache": {
-      "glob": {
-        "minimatch": "10.2.2"
-      }
-    }
+    "minimatch": "10.2.4"
   },
   "dependencies": {
     "@meshtastic/core": "npm:@jsr/meshtastic__core@^2.6.6",

@@ -696,6 +696,14 @@ export function useDevice() {
         // Wire all event subscriptions
         wireSubscriptions(device, type);
 
+        // For BLE, yield briefly before configure() so the transport's internal
+        // GATT read loop can initialize — calling configure() immediately causes
+        // "GATT operation already in progress" because both try to use the
+        // GATT server at the same time.
+        if (type === "ble") {
+          await new Promise((resolve) => setTimeout(resolve, 150));
+        }
+
         // Start configuration AFTER all listeners are wired
         device.configure();
       } catch (err) {
@@ -754,120 +762,29 @@ export function useDevice() {
       window.electronAPI.db.updateMessageStatus(packetId, "acked");
     } catch (err) {
       // NAK or timeout — extract packet ID and error from rejection
-      const pe = err as { id?: number; error?: number };
-      const errorName = getRoutingErrorName(pe.error);
-      if (pe.id) {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.packetId === pe.id
-              ? { ...m, status: "failed" as const, error: errorName }
-              : m
-          )
-        );
-        window.electronAPI.db.updateMessageStatus(pe.id, "failed", errorName);
-      } else {
-        // Non-routing error (e.g., stream closed, disconnected) —
-        // mark the most recent "sending" message as failed
-        console.error("sendMessage failed without packet ID:", err);
-        setMessages((prev) => {
-          let idx = -1;
-          for (let i = prev.length - 1; i >= 0; i--) {
-            if (prev[i].status === "sending") { idx = i; break; }
-          }
-          if (idx < 0) return prev;
-          const updated = [...prev];
-          updated[idx] = { ...updated[idx], status: "failed", error: "Send failed" };
-          return updated;
-        });
-      }
+      const pe = err as any;
+      const packetId = pe.packetId;
+      const error = pe.error;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.packetId === packetId ? { ...m, status: "failed", error } : m
+        )
+      );
+      window.electronAPI.db.updateMessageStatus(packetId, "failed", error);
     }
   }, []);
 
-  // Send an emoji reaction (tapback) to a specific message
-  const sendReaction = useCallback(
-    async (emoji: number, replyId: number, channel = 0) => {
-      if (!deviceRef.current) throw new Error("Not connected");
-      await deviceRef.current.sendText("", "broadcast", true, channel, replyId, emoji);
-    },
-    []
-  );
+  const sendStatusEvents = useCallback(() => {
+    if (state.status === 'connected') {
+      window.electronAPI.notifyDeviceConnected();
+    } else if (state.status === 'disconnected') {
+      window.electronAPI.notifyDeviceDisconnected();
+    }
+  }, [state.status]);
 
-  const setConfig = useCallback(async (config: unknown) => {
-    if (!deviceRef.current) throw new Error("Not connected");
-    await deviceRef.current.setConfig(config as never);
-  }, []);
-
-  const commitConfig = useCallback(async () => {
-    if (!deviceRef.current) throw new Error("Not connected");
-    await deviceRef.current.commitEditSettings();
-  }, []);
-
-  const reboot = useCallback(async (seconds = 2) => {
-    if (!deviceRef.current) throw new Error("Not connected");
-    await deviceRef.current.reboot(seconds);
-  }, []);
-
-  const shutdown = useCallback(async (seconds = 2) => {
-    if (!deviceRef.current) throw new Error("Not connected");
-    await deviceRef.current.shutdown(seconds);
-  }, []);
-
-  const factoryReset = useCallback(async () => {
-    if (!deviceRef.current) throw new Error("Not connected");
-    await deviceRef.current.factoryResetDevice();
-  }, []);
-
-  const resetNodeDb = useCallback(async () => {
-    if (!deviceRef.current) throw new Error("Not connected");
-    await deviceRef.current.resetNodes();
-  }, []);
-
-  const traceRoute = useCallback(async (destination: number) => {
-    if (!deviceRef.current) throw new Error("Not connected");
-    await deviceRef.current.traceRoute(destination);
-  }, []);
-
-  const requestPosition = useCallback(async (destination: number) => {
-    if (!deviceRef.current) throw new Error("Not connected");
-    await deviceRef.current.requestPosition(destination);
-  }, []);
-
-  // Broadcast position request to all nodes
-  const requestRefresh = useCallback(async () => {
-    if (!deviceRef.current) throw new Error("Not connected");
-    await deviceRef.current.requestPosition(0xffffffff);
-  }, []);
-
-  // ─── Channel management ──────────────────────────────────────
-  const setDeviceChannel = useCallback(async (channelConfig: {
-    index: number;
-    role: number;
-    settings: { name: string; psk: Uint8Array };
-  }) => {
-    if (!deviceRef.current) throw new Error("Not connected");
-    await deviceRef.current.setChannel({
-      index: channelConfig.index,
-      role: channelConfig.role,
-      settings: channelConfig.settings,
-    } as never);
-  }, []);
-
-  const clearChannel = useCallback(async (index: number) => {
-    if (!deviceRef.current) throw new Error("Not connected");
-    await deviceRef.current.clearChannel(index);
-  }, []);
-
-  // ─── Node management ────────────────────────────────────────
-  const removeNode = useCallback(async (nodeNum: number) => {
-    if (!deviceRef.current) throw new Error("Not connected");
-    await deviceRef.current.removeNodeByNum(nodeNum);
-    updateNodes((prev) => {
-      const updated = new Map(prev);
-      updated.delete(nodeNum);
-      return updated;
-    });
-    await window.electronAPI.db.deleteNode(nodeNum);
-  }, [updateNodes]);
+  useEffect(() => {
+    sendStatusEvents();
+  }, [sendStatusEvents]);
 
   return {
     state,
@@ -879,29 +796,16 @@ export function useDevice() {
     connect,
     disconnect,
     sendMessage,
-    sendReaction,
-    setConfig,
-    commitConfig,
-    setDeviceChannel,
-    clearChannel,
-    removeNode,
-    reboot,
-    shutdown,
-    factoryReset,
-    resetNodeDb,
-    traceRoute,
-    requestPosition,
-    requestRefresh,
-    getNodeName,
     getFullNodeLabel,
   };
 }
 
+// ─── Helper functions ──
 function emptyNode(nodeId: number): MeshNode {
   return {
     node_id: nodeId,
-    long_name: "",
     short_name: "",
+    long_name: "",
     hw_model: "",
     snr: 0,
     battery: 0,
@@ -909,23 +813,4 @@ function emptyNode(nodeId: number): MeshNode {
     latitude: 0,
     longitude: 0,
   };
-}
-
-/** Map Meshtastic Routing_Error codes to human-readable names */
-function getRoutingErrorName(code?: number): string {
-  switch (code) {
-    case 0: return "Success";
-    case 1: return "No Route";
-    case 2: return "Got NAK";
-    case 3: return "Timeout";
-    case 4: return "No Interface";
-    case 5: return "Max Retransmit";
-    case 6: return "No Channel";
-    case 7: return "Too Large";
-    case 8: return "No Response";
-    case 32: return "Duty Cycle Limit";
-    case 33: return "Bad Request";
-    case 34: return "Not Authorized";
-    default: return code !== undefined ? `Error ${code}` : "Unknown Error";
-  }
 }

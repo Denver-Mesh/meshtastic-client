@@ -112,6 +112,14 @@ function createWindow() {
     }
   );
 
+  // ─── Bluetooth Device Permission ───────────────────────────────────
+  // Required in Electron 20+ — without this, Chromium shows a blank/black
+  // permission overlay when navigator.bluetooth.requestDevice() is called.
+  mainWindow.webContents.session.setDevicePermissionHandler((details) => {
+    if (details.deviceType === "bluetooth") return true;
+    return false;
+  });
+
   // ─── Bluetooth Pairing ─────────────────────────────────────────────
   mainWindow.webContents.session.setBluetoothPairingHandler(
     (details, callback) => {
@@ -146,6 +154,27 @@ function createWindow() {
 
   mainWindow.on("closed", () => {
     mainWindow = null;
+  });
+
+  // ─── Connection status tracking ──
+  let isConnected = false;
+
+  ipcMain.on('device-connected', () => {
+    isConnected = true;
+  });
+
+  ipcMain.on('device-disconnected', () => {
+    isConnected = false;
+  });
+
+  // Handle window close event
+  mainWindow.on('close', (event) => {
+    if (isConnected) {
+      event.preventDefault(); // Prevent window from closing
+      mainWindow.hide();       // Hide while connection is active
+    } else {
+      app.quit();              // Truly quit when no connection
+    }
   });
 }
 
@@ -334,6 +363,8 @@ app.whenReady().then(() => {
       } catch (error) {
         console.error("Window creation error:", error);
       }
+    } else {
+      mainWindow?.show(); // Restore hidden window on dock click
     }
   });
 });

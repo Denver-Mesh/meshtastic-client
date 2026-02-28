@@ -93,4 +93,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // ─── Session management ────────────────────────────────────────
   clearSessionData: () => ipcRenderer.invoke("session:clearData"),
+
+  // ─── Connection status ─────────────────────────────────────────
+  notifyDeviceConnected: () => ipcRenderer.send("device-connected"),
+  notifyDeviceDisconnected: () => ipcRenderer.send("device-disconnected"),
 });
