@@ -10,6 +10,13 @@ export interface MeshNode {
   last_heard: number;
   latitude: number;
   longitude: number;
+  role?: string;
+  hops_away?: number;
+  via_mqtt?: boolean | number;
+  voltage?: number;
+  channel_utilization?: number;
+  air_util_tx?: number;
+  altitude?: number;
 }
 
 export interface ChatMessage {

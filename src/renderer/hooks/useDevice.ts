@@ -348,11 +348,19 @@ export function useDevice() {
             longName?: string;
             shortName?: string;
             hwModel?: number;
+            role?: number;
           };
           snr?: number;
-          position?: { latitudeI?: number; longitudeI?: number };
-          deviceMetrics?: { batteryLevel?: number };
+          position?: { latitudeI?: number; longitudeI?: number; altitude?: number };
+          deviceMetrics?: {
+            batteryLevel?: number;
+            voltage?: number;
+            channelUtilization?: number;
+            airUtilTx?: number;
+          };
           lastHeard?: number;
+          hopsAway?: number;
+          viaMqtt?: boolean;
         };
         if (!info.num) return;
         const nodeNum = info.num;
@@ -379,6 +387,13 @@ export function useDevice() {
               info.position?.longitudeI != null
                 ? info.position.longitudeI / 1e7
                 : existing.longitude,
+            role: info.user?.role !== undefined ? roleToString(info.user.role) : existing.role,
+            hops_away: info.hopsAway ?? existing.hops_away,
+            via_mqtt: info.viaMqtt ?? existing.via_mqtt,
+            voltage: info.deviceMetrics?.voltage ?? existing.voltage,
+            channel_utilization: info.deviceMetrics?.channelUtilization ?? existing.channel_utilization,
+            air_util_tx: info.deviceMetrics?.airUtilTx ?? existing.air_util_tx,
+            altitude: info.position?.altitude ?? existing.altitude,
           };
           updated.set(nodeNum, node);
           window.electronAPI.db.saveNode(node);
@@ -793,6 +808,16 @@ export function useDevice() {
 }
 
 // ─── Helper functions ──
+const ROLE_LABELS: Record<number, string> = {
+  0: "Client", 1: "Mute", 2: "Router", 3: "Rtr+Client",
+  4: "Repeater", 5: "Tracker", 6: "Sensor", 7: "TAK",
+  8: "Hidden", 9: "L&F", 10: "TAK Tracker",
+};
+
+function roleToString(role: number): string {
+  return ROLE_LABELS[role] ?? `Role ${role}`;
+}
+
 function emptyNode(nodeId: number): MeshNode {
   return {
     node_id: nodeId,

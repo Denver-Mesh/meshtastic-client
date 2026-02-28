@@ -11,7 +11,14 @@ type SortField =
   | "battery"
   | "last_heard"
   | "latitude"
-  | "longitude";
+  | "longitude"
+  | "role"
+  | "hops_away"
+  | "via_mqtt"
+  | "voltage"
+  | "channel_utilization"
+  | "air_util_tx"
+  | "altitude";
 
 interface Props {
   nodes: Map<number, MeshNode>;
@@ -43,7 +50,7 @@ export default function NodeListPanel({
       setSortAsc(!sortAsc);
     } else {
       setSortField(field);
-      setSortAsc(field === "long_name" || field === "short_name"); // text asc, numbers desc
+      setSortAsc(field === "long_name" || field === "short_name" || field === "role"); // text asc, numbers desc
     }
   };
 
@@ -88,6 +95,27 @@ export default function NodeListPanel({
           break;
         case "longitude":
           cmp = (a.longitude || 0) - (b.longitude || 0);
+          break;
+        case "role":
+          cmp = (a.role || "").localeCompare(b.role || "");
+          break;
+        case "hops_away":
+          cmp = (a.hops_away ?? 999) - (b.hops_away ?? 999);
+          break;
+        case "via_mqtt":
+          cmp = (a.via_mqtt ? 1 : 0) - (b.via_mqtt ? 1 : 0);
+          break;
+        case "voltage":
+          cmp = (a.voltage ?? 0) - (b.voltage ?? 0);
+          break;
+        case "channel_utilization":
+          cmp = (a.channel_utilization ?? 0) - (b.channel_utilization ?? 0);
+          break;
+        case "air_util_tx":
+          cmp = (a.air_util_tx ?? 0) - (b.air_util_tx ?? 0);
+          break;
+        case "altitude":
+          cmp = (a.altitude ?? 0) - (b.altitude ?? 0);
           break;
       }
       // Self-node always first
@@ -218,6 +246,48 @@ export default function NodeListPanel({
               >
                 Lon <SortIcon field="longitude" />
               </th>
+              <th
+                className="px-3 py-2 cursor-pointer hover:text-gray-200 transition-colors select-none"
+                onClick={() => handleSort("role")}
+              >
+                Role <SortIcon field="role" />
+              </th>
+              <th
+                className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
+                onClick={() => handleSort("hops_away")}
+              >
+                Hops <SortIcon field="hops_away" />
+              </th>
+              <th
+                className="px-3 py-2 text-center cursor-pointer hover:text-gray-200 transition-colors select-none"
+                onClick={() => handleSort("via_mqtt")}
+              >
+                MQTT <SortIcon field="via_mqtt" />
+              </th>
+              <th
+                className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
+                onClick={() => handleSort("voltage")}
+              >
+                Voltage <SortIcon field="voltage" />
+              </th>
+              <th
+                className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
+                onClick={() => handleSort("channel_utilization")}
+              >
+                Ch.Util <SortIcon field="channel_utilization" />
+              </th>
+              <th
+                className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
+                onClick={() => handleSort("air_util_tx")}
+              >
+                Air Tx <SortIcon field="air_util_tx" />
+              </th>
+              <th
+                className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
+                onClick={() => handleSort("altitude")}
+              >
+                Alt <SortIcon field="altitude" />
+              </th>
               <th className="px-3 py-2 text-center">Actions</th>
             </tr>
           </thead>
@@ -225,7 +295,7 @@ export default function NodeListPanel({
             {nodeList.length === 0 ? (
               <tr>
                 <td
-                  colSpan={10}
+                  colSpan={17}
                   className="text-center text-gray-500 py-8"
                 >
                   {searchQuery
@@ -330,6 +400,27 @@ export default function NodeListPanel({
                     </td>
                     <td className="px-3 py-2 text-right font-mono text-xs text-gray-400">
                       {formatCoord(node.longitude)}
+                    </td>
+                    <td className="px-3 py-2 text-gray-300 text-xs">
+                      {node.role ?? "-"}
+                    </td>
+                    <td className="px-3 py-2 text-right text-gray-300 text-xs">
+                      {node.hops_away !== undefined ? node.hops_away : "-"}
+                    </td>
+                    <td className="px-3 py-2 text-center text-gray-300 text-xs">
+                      {node.via_mqtt ? "Yes" : "-"}
+                    </td>
+                    <td className="px-3 py-2 text-right text-gray-300 text-xs">
+                      {node.voltage != null ? `${node.voltage.toFixed(2)} V` : "-"}
+                    </td>
+                    <td className="px-3 py-2 text-right text-gray-300 text-xs">
+                      {node.channel_utilization != null ? `${node.channel_utilization.toFixed(1)}%` : "-"}
+                    </td>
+                    <td className="px-3 py-2 text-right text-gray-300 text-xs">
+                      {node.air_util_tx != null ? `${node.air_util_tx.toFixed(1)}%` : "-"}
+                    </td>
+                    <td className="px-3 py-2 text-right text-gray-300 text-xs">
+                      {node.altitude != null && node.altitude !== 0 ? `${node.altitude} m` : "-"}
                     </td>
                     <td className="px-3 py-2 text-center">
                       <div className="flex gap-1 justify-center">

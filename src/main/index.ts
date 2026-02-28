@@ -258,10 +258,13 @@ ipcMain.handle("db:getMessages", (_event, channel?: number, limit = 200) => {
 ipcMain.handle("db:saveNode", (_event, node) => {
   const db = getDatabase();
   const stmt = db.prepare(`
-    INSERT OR REPLACE INTO nodes (node_id, long_name, short_name, hw_model, snr, battery, last_heard, latitude, longitude)
-    VALUES (@node_id, @long_name, @short_name, @hw_model, @snr, @battery, @last_heard, @latitude, @longitude)
+    INSERT OR REPLACE INTO nodes (node_id, long_name, short_name, hw_model, snr, battery, last_heard, latitude, longitude, role, hops_away, via_mqtt, voltage, channel_utilization, air_util_tx, altitude)
+    VALUES (@node_id, @long_name, @short_name, @hw_model, @snr, @battery, @last_heard, @latitude, @longitude, @role, @hops_away, @via_mqtt, @voltage, @channel_utilization, @air_util_tx, @altitude)
   `);
-  return stmt.run(node);
+  return stmt.run({
+    ...node,
+    via_mqtt: node.via_mqtt != null ? (node.via_mqtt ? 1 : 0) : null,
+  });
 });
 
 ipcMain.handle("db:getNodes", () => {
