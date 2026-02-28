@@ -27,7 +27,6 @@ export function initDatabase(): void {
       short_name TEXT,
       hw_model TEXT,
       snr REAL,
-      rssi REAL,
       battery INTEGER,
       last_heard INTEGER,
       latitude REAL,
