@@ -217,34 +217,10 @@ export default function NodeListPanel({
                 Short <SortIcon field="short_name" />
               </th>
               <th
-                className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
-                onClick={() => handleSort("snr")}
-              >
-                SNR <SortIcon field="snr" />
-              </th>
-              <th
-                className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
-                onClick={() => handleSort("battery")}
-              >
-                Battery <SortIcon field="battery" />
-              </th>
-              <th
                 className="px-3 py-2 cursor-pointer hover:text-gray-200 transition-colors select-none"
                 onClick={() => handleSort("last_heard")}
               >
                 Last Heard <SortIcon field="last_heard" />
-              </th>
-              <th
-                className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
-                onClick={() => handleSort("latitude")}
-              >
-                Lat <SortIcon field="latitude" />
-              </th>
-              <th
-                className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
-                onClick={() => handleSort("longitude")}
-              >
-                Lon <SortIcon field="longitude" />
               </th>
               <th
                 className="px-3 py-2 cursor-pointer hover:text-gray-200 transition-colors select-none"
@@ -263,6 +239,30 @@ export default function NodeListPanel({
                 onClick={() => handleSort("via_mqtt")}
               >
                 MQTT <SortIcon field="via_mqtt" />
+              </th>
+              <th
+                className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
+                onClick={() => handleSort("latitude")}
+              >
+                Lat <SortIcon field="latitude" />
+              </th>
+              <th
+                className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
+                onClick={() => handleSort("longitude")}
+              >
+                Lon <SortIcon field="longitude" />
+              </th>
+              <th
+                className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
+                onClick={() => handleSort("snr")}
+              >
+                SNR <SortIcon field="snr" />
+              </th>
+              <th
+                className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
+                onClick={() => handleSort("battery")}
+              >
+                Battery <SortIcon field="battery" />
               </th>
               <th
                 className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
@@ -356,6 +356,24 @@ export default function NodeListPanel({
                     <td className="px-3 py-2 text-gray-300">
                       {node.short_name || "-"}
                     </td>
+                    <td className="px-3 py-2 text-gray-400">
+                      {formatTime(node.last_heard)}
+                    </td>
+                    <td className="px-3 py-2 text-gray-300 text-xs">
+                      {node.role ?? "-"}
+                    </td>
+                    <td className="px-3 py-2 text-right text-gray-300 text-xs">
+                      {node.hops_away !== undefined ? node.hops_away : "-"}
+                    </td>
+                    <td className="px-3 py-2 text-center text-gray-300 text-xs">
+                      {node.via_mqtt ? "Yes" : "-"}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono text-xs text-gray-400">
+                      {formatCoord(node.latitude)}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono text-xs text-gray-400">
+                      {formatCoord(node.longitude)}
+                    </td>
                     <td className="px-3 py-2 text-right text-gray-300">
                       {node.snr ? `${node.snr.toFixed(1)} dB` : "-"}
                     </td>
@@ -391,24 +409,6 @@ export default function NodeListPanel({
                           {node.battery > 0 ? `${node.battery}%` : "-"}
                         </span>
                       </div>
-                    </td>
-                    <td className="px-3 py-2 text-gray-400">
-                      {formatTime(node.last_heard)}
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono text-xs text-gray-400">
-                      {formatCoord(node.latitude)}
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono text-xs text-gray-400">
-                      {formatCoord(node.longitude)}
-                    </td>
-                    <td className="px-3 py-2 text-gray-300 text-xs">
-                      {node.role ?? "-"}
-                    </td>
-                    <td className="px-3 py-2 text-right text-gray-300 text-xs">
-                      {node.hops_away !== undefined ? node.hops_away : "-"}
-                    </td>
-                    <td className="px-3 py-2 text-center text-gray-300 text-xs">
-                      {node.via_mqtt ? "Yes" : "-"}
                     </td>
                     <td className="px-3 py-2 text-right text-gray-300 text-xs">
                       {node.voltage != null ? `${node.voltage.toFixed(2)} V` : "-"}
