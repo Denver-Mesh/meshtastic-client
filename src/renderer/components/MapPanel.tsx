@@ -15,7 +15,7 @@ function getCUColor(cu: number): string {
 }
 
 // Create colored marker icons using SVG data URIs, with optional CU halo
-function createMarkerIcon(color: string, isSelf: boolean, cu: number = 0): L.Icon {
+function createMarkerIcon(color: string, isSelf: boolean, cu: number = 0, markerOpacity: number = 1): L.Icon {
   const haloPx = cu <= 0 ? 0 : Math.round((cu / 100) * 28);
   const haloColor = getCUColor(cu);
   const halo = (c: number) =>
@@ -27,7 +27,7 @@ function createMarkerIcon(color: string, isSelf: boolean, cu: number = 0): L.Ico
   if (isSelf) {
     const total = 32 + 2 * haloPx;
     const c = total / 2;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${total}">${halo(c)}<g transform="translate(${haloPx},${haloPx}) scale(${32 / 24})"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="${color}" stroke="#000" stroke-width="0.5"/></g></svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${total}" opacity="${markerOpacity}">${halo(c)}<g transform="translate(${haloPx},${haloPx}) scale(${32 / 24})"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="${color}" stroke="#000" stroke-width="0.5"/></g></svg>`;
     return L.icon({
       iconUrl: `data:image/svg+xml;base64,${btoa(svg)}`,
       iconSize: [total, total],
@@ -39,7 +39,7 @@ function createMarkerIcon(color: string, isSelf: boolean, cu: number = 0): L.Ico
   // Circle marker for others
   const total = 25 + 2 * haloPx;
   const c = total / 2;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${total}">${halo(c)}<circle cx="${c}" cy="${c}" r="10.4" fill="${color}" stroke="#000" stroke-width="1" opacity="0.9"/><circle cx="${c}" cy="${c}" r="4.2" fill="#fff" opacity="0.8"/></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${total}" opacity="${markerOpacity}">${halo(c)}<circle cx="${c}" cy="${c}" r="10.4" fill="${color}" stroke="#000" stroke-width="1" opacity="0.9"/><circle cx="${c}" cy="${c}" r="4.2" fill="#fff" opacity="0.8"/></svg>`;
   return L.icon({
     iconUrl: `data:image/svg+xml;base64,${btoa(svg)}`,
     iconSize: [total, total],
@@ -54,8 +54,9 @@ function getMarkerIcon(
   cu: number
 ): L.Icon {
   const color =
-    status === "online" ? "#9ae6b4" : status === "stale" ? "#f59e0b" : "#6b7280";
-  return createMarkerIcon(color, isSelf, cu);
+    status === "online" ? "#9ae6b4" : status === "stale" ? "#c4a864" : "#6b7280";
+  const opacity = status === "stale" ? 0.35 : 1;
+  return createMarkerIcon(color, isSelf, cu, opacity);
 }
 
 interface Props {
@@ -140,7 +141,7 @@ export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected, loc
             {statusCounts.online}
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" />
+            <span className="w-2 h-2 rounded-full bg-amber-500 inline-block opacity-40" />
             {statusCounts.stale}
           </span>
           <span className="flex items-center gap-1">
