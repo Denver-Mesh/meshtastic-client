@@ -28,7 +28,6 @@ interface Props {
   onRefresh: () => Promise<void>;
   onNodeClick: (node: MeshNode) => void;
   isConnected: boolean;
-  onMessageNode?: (nodeNum: number) => void;
 }
 
 export default function NodeListPanel({
@@ -37,7 +36,6 @@ export default function NodeListPanel({
   onRefresh,
   onNodeClick,
   isConnected,
-  onMessageNode,
 }: Props) {
   const [sortField, setSortField] = useState<SortField>("last_heard");
   const [sortAsc, setSortAsc] = useState(false);
@@ -292,14 +290,13 @@ export default function NodeListPanel({
               >
                 Alt <SortIcon field="altitude" />
               </th>
-              <th className="px-3 py-2 text-center">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-700/50">
             {nodeList.length === 0 ? (
               <tr>
                 <td
-                  colSpan={18}
+                  colSpan={17}
                   className="text-center text-muted py-8"
                 >
                   {searchQuery
@@ -430,23 +427,6 @@ export default function NodeListPanel({
                     </td>
                     <td className="px-3 py-2 text-right text-gray-300 text-xs">
                       {node.altitude != null && node.altitude !== 0 ? `${node.altitude} m` : "-"}
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <div className="flex gap-1 justify-center">
-                        {onMessageNode && !isSelf && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onMessageNode(node.node_id);
-                            }}
-                            disabled={!isConnected}
-                            title="Direct Message"
-                            className="px-2 py-1 text-xs bg-purple-700/50 hover:bg-purple-600/50 text-purple-300 disabled:opacity-40 disabled:cursor-not-allowed rounded transition-colors"
-                          >
-                            Msg
-                          </button>
-                        )}
-                      </div>
                     </td>
                   </tr>
                 );

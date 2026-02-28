@@ -9,6 +9,7 @@ interface NodeDetailModalProps {
   onTraceRoute: (nodeNum: number) => Promise<void>;
   traceRouteHops?: string[];
   onDeleteNode: (nodeNum: number) => Promise<void>;
+  onMessageNode?: (nodeNum: number) => void;
   isConnected: boolean;
 }
 
@@ -47,6 +48,7 @@ export default function NodeDetailModal({
   onTraceRoute,
   traceRouteHops,
   onDeleteNode,
+  onMessageNode,
   isConnected,
 }: NodeDetailModalProps) {
   const [actionStatus, setActionStatus] = useState<string | null>(null);
@@ -292,6 +294,15 @@ export default function NodeDetailModal({
           >
             🛤 Trace Route
           </button>
+          {onMessageNode && (
+            <button
+              onClick={() => { onMessageNode(node.node_id); onClose(); }}
+              disabled={!isConnected}
+              className="flex-1 px-3 py-2 text-sm font-medium bg-purple-700/50 hover:bg-purple-600/50 disabled:opacity-40 disabled:cursor-not-allowed text-purple-300 rounded-lg transition-colors"
+            >
+              💬 Message
+            </button>
+          )}
         </div>
 
         {/* Action status */}

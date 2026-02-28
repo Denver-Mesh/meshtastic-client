@@ -208,7 +208,6 @@ export default function App() {
                 onRefresh={device.requestRefresh}
                 onNodeClick={(node) => setSelectedNodeId(node.node_id)}
                 isConnected={isOperational}
-                onMessageNode={handleMessageNode}
               />
             )}
             {activeTab === 3 && (
@@ -312,6 +311,11 @@ export default function App() {
             await device.deleteNode(nodeNum);
             setSelectedNodeId(null);
           }}
+          onMessageNode={
+            selectedNode?.node_id !== device.state.myNodeNum
+              ? handleMessageNode
+              : undefined
+          }
           isConnected={isOperational}
         />
       </div>
