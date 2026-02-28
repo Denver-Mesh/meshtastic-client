@@ -170,10 +170,14 @@ function createWindow() {
   // Handle window close event
   mainWindow.on('close', (event) => {
     if (isConnected) {
-      event.preventDefault(); // Prevent window from closing
-      mainWindow.hide();       // Hide while connection is active
+      event.preventDefault();
+      if (process.platform === 'darwin') {
+        mainWindow.hide();
+      } else {
+        mainWindow.minimize();
+      }
     } else {
-      app.quit();              // Truly quit when no connection
+      app.quit();
     }
   });
 }

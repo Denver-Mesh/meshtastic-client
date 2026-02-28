@@ -782,7 +782,8 @@ export function useDevice() {
   }, []);
 
   const sendStatusEvents = useCallback(() => {
-    if (state.status === 'connected') {
+    const activeStatuses = ['connected', 'configured', 'stale', 'reconnecting'];
+    if (activeStatuses.includes(state.status)) {
       window.electronAPI.notifyDeviceConnected();
     } else if (state.status === 'disconnected') {
       window.electronAPI.notifyDeviceDisconnected();
