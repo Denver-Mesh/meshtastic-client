@@ -393,11 +393,11 @@ export function useDevice() {
               ? info.lastHeard! * 1000
               : existing.last_heard,
             latitude:
-              info.position?.latitudeI != null
+              info.position?.latitudeI
                 ? info.position.latitudeI / 1e7
                 : existing.latitude,
             longitude:
-              info.position?.longitudeI != null
+              info.position?.longitudeI
                 ? info.position.longitudeI / 1e7
                 : existing.longitude,
             role: info.user?.role ?? existing.role,
@@ -422,7 +422,7 @@ export function useDevice() {
           latitudeI?: number;
           longitudeI?: number;
         };
-        if (pos.latitudeI === undefined && pos.longitudeI === undefined) return;
+        if (!pos.latitudeI && !pos.longitudeI) return;
 
         updateNodes((prev) => {
           const updated = new Map(prev);
@@ -431,11 +431,11 @@ export function useDevice() {
           const node: MeshNode = {
             ...existing,
             latitude:
-              pos.latitudeI != null
+              pos.latitudeI
                 ? pos.latitudeI / 1e7
                 : existing.latitude,
             longitude:
-              pos.longitudeI != null
+              pos.longitudeI
                 ? pos.longitudeI / 1e7
                 : existing.longitude,
             last_heard: Date.now(),
