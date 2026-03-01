@@ -109,17 +109,17 @@ The distributable is output to the `release/` directory.
 - **USB Serial** — plug in via USB cable
 - **WiFi/HTTP** — connect to network-enabled nodes
 - **MQTT** — subscribe to a Meshtastic MQTT broker to receive mesh traffic over the internet; send messages via MQTT even when no hardware device is connected; AES-128-CTR encryption/decryption, automatic deduplication with RF, and exponential-backoff reconnect
-- **Chat** — send/receive messages across channels with delivery indicators (ACK/NAK), emoji reactions (11 emojis with compose picker), and an unread message divider that persists across restarts and scrolls you to where you left off
+- **Chat** — send/receive messages across channels with delivery indicators (ACK/NAK), emoji reactions (11 emojis with compose picker), reply-to-message (hover to reply; quoted preview shown in bubble), and an unread message divider that persists across restarts and scrolls you to where you left off
 - **Channel Management** — create and configure channels with custom names and PSK encryption
 - **Node List** — all discovered nodes with SNR, RSSI signal strength, battery, GPS, last heard; distance filter hides nodes beyond a configurable range; favorite/pin nodes for quick access
 - **Signal Strength Indicators** — live RSSI bars on nodes and in chat, color-coded by signal quality
-- **Congestion Halos** — optional visual halo on map markers to indicate RF congestion
 - **Device Role Display** — visual icons and badges for each node's configured role (Router, Client, Repeater, etc.)
-- **Node Detail Modal** — click any node or sender name for full info; send a DM, run a trace route with hop-path display, or delete the node; GPS warning banner shown when a node has reported invalid coordinates
+- **Node Detail Modal** — click any node or sender name for full info; send a DM, run a trace route with hop-path display, or delete the node; GPS warning banner shown when a node has reported invalid coordinates; Routing Health section with active anomaly description and 24-hour hop-count sparkline
+- **Diagnostics** — tab 8 (Cmd/Ctrl+8): network health score badge (0–100), searchable anomaly table with per-node trace-route action, and remediation suggestions (antenna mismatch, RF noise, MQTT ghost, config issues); anomaly badges (⚠) shown inline in the node list; status aura circles on the map; congestion halos toggle; Ignore MQTT checkbox filters MQTT-only nodes from routing analysis and dims them in the node list
 - **Map** — interactive OpenStreetMap with node positions; distance filter matches the node list
 - **Telemetry** — battery voltage and signal quality charts
 - **Radio** — region, modem preset, device role, GPS, power, Bluetooth, display settings
-- **App** — reboot, shutdown, factory reset, node retention controls, channel-scoped message deletion, DB export/import/clear; map & node distance filter; prune nodes by location; congestion halos toggle
+- **App** — reboot, shutdown, factory reset, node retention controls, channel-scoped message deletion, DB export/import/clear; map & node distance filter; prune nodes by location
 - **System Tray** — tray icon with live unread message badge; app stays accessible when window is closed
 - **Persistent Storage** — messages and nodes saved locally via SQLite
 - **Dark UI** — custom scrollbar, tab icons, polished chat bubbles
@@ -158,9 +158,10 @@ src/
 ├── main/           # Electron main process (window, BLE handler, SQLite, MQTT manager)
 ├── preload/        # Context bridge (IPC)
 └── renderer/       # React app
-    ├── components/ # All UI panels (Chat, Nodes, Map, Radio, App, etc.)
+    ├── components/ # All UI panels (Chat, Nodes, Map, Radio, App, Diagnostics, etc.)
     ├── hooks/      # useDevice — Meshtastic device state management
-    └── lib/        # Transport setup, TypeScript types
+    ├── stores/     # Zustand stores (diagnostics state)
+    └── lib/        # Transport setup, TypeScript types, diagnostics engines
 ```
 
 ---
