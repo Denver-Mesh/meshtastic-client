@@ -457,9 +457,10 @@ export default function ConnectionPanel({
               onClick={() => setConnectionType(type)}
               className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
                 connectionType === type
-                  ? "bg-brand-green text-white ring-2 ring-bright-green"
+                  ? "text-white ring-2 ring-bright-green"
                   : "bg-secondary-dark text-gray-300 hover:bg-gray-600"
               }`}
+              style={connectionType === type ? { backgroundColor: "#4CAF50" } : undefined}
             >
               <ConnectionIcon type={type} />
               {type === "ble" && "Bluetooth"}
@@ -529,7 +530,8 @@ export default function ConnectionPanel({
       <div className="flex gap-2">
         <button
           onClick={handleConnect}
-          className="flex-1 px-6 py-3 bg-brand-green hover:bg-brand-green/90 text-white font-medium rounded-lg transition-colors"
+          className="flex-1 px-6 py-3 text-white font-medium rounded-lg transition-colors"
+          style={{ backgroundColor: "#4CAF50" }}
         >
           Connect
         </button>
@@ -561,7 +563,8 @@ export default function ConnectionPanel({
             <button
               onClick={handleSaveProfile}
               disabled={!profileName.trim()}
-              className="px-4 py-2 bg-brand-green hover:bg-brand-green/90 disabled:bg-gray-600 text-white text-sm font-medium rounded-lg transition-colors"
+              className="px-4 py-2 disabled:bg-gray-600 text-white text-sm font-medium rounded-lg transition-colors"
+              style={{ backgroundColor: "#4CAF50" }}
             >
               Save
             </button>
