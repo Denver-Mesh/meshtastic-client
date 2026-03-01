@@ -154,19 +154,13 @@ function createWindow() {
     }
   );
 
-  // Allow all serial port connections (needed for the permission check)
-  mainWindow.webContents.session.setPermissionCheckHandler(
-    (_webContents, permission) => {
-      if (permission === "serial") return true;
-      return true;
-    }
-  );
-
-  // ─── Bluetooth Device Permission ───────────────────────────────────
+  // ─── Device Permission: Serial & Bluetooth ───────────────────────────────────
   // Required in Electron 20+ — without this, Chromium shows a blank/black
   // permission overlay when navigator.bluetooth.requestDevice() is called.
   mainWindow.webContents.session.setDevicePermissionHandler((details) => {
-    if (details.deviceType === "bluetooth") return true;
+    if (details.deviceType === "bluetooth" || details.deviceType === "serial") {
+      return true;
+    }
     return false;
   });
 
