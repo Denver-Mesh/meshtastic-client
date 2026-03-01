@@ -279,45 +279,35 @@ export default function App() {
         {/* Footer */}
         <footer className="px-4 py-1.5 bg-deep-black border-t border-gray-700 text-[11px] text-muted flex justify-between">
           <span>
-            Created by{" "}
+            A Project by{" "}
             <a
-              href="https://github.com/rinchen"
-              title="Joey (NV0N) on GitHub"
+              href="https://denvermesh.org/"
+              title="Denver Mesh"
               className="text-bright-green underline hover:opacity-80"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Joey (NV0N)
-            </a>{" "}
-            &amp;{" "}
-            <a
-              href="https://github.com/defidude"
-              title="dude.eth on GitHub"
-              className="text-bright-green underline hover:opacity-80"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              dude.eth
-            </a>
-            . Based on the{" "}
-            <a
-              href="https://github.com/Denver-Mesh/meshtastic_mac_client"
-              title="Original Mac Client"
-              className="text-bright-green underline hover:opacity-80"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              original Mac client
-            </a>
-            . Part of{" "}
-            <a
-              href="https://github.com/Denver-Mesh/meshtastic-client"
-              title="Denver Mesh on GitHub"
-              className="text-bright-green underline font-bold hover:opacity-80"
               target="_blank"
               rel="noopener noreferrer"
             >
               Denver Mesh
+            </a>
+            . Join us on{" "}
+            <a
+              href="https://discord.com/invite/McChKR5NpS"
+              title="Denver Mesh Discord"
+              className="text-bright-green underline hover:opacity-80"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Discord
+            </a>
+            . Code on{" "}
+            <a
+              href="https://github.com/Denver-Mesh/meshtastic-client"
+              title="Denver Mesh on GitHub"
+              className="text-bright-green underline hover:opacity-80"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              GitHub
             </a>
             .
           </span>
