@@ -55,6 +55,7 @@ export function useDevice() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [nodes, setNodes] = useState<Map<number, MeshNode>>(new Map());
   const [telemetry, setTelemetry] = useState<TelemetryPoint[]>([]);
+  const [signalTelemetry, setSignalTelemetry] = useState<TelemetryPoint[]>([]);
   const [traceRouteResults, setTraceRouteResults] = useState<
     Map<number, { route: number[]; from: number; timestamp: number }>
   >(new Map());
@@ -570,7 +571,7 @@ export function useDevice() {
         }
 
         if (mp.rxSnr || mp.rxRssi) {
-          setTelemetry((prev) =>
+          setSignalTelemetry((prev) =>
             [
               ...prev,
               {
@@ -930,6 +931,7 @@ export function useDevice() {
     messages,
     nodes,
     telemetry,
+    signalTelemetry,
     channels,
     channelConfigs,
     traceRouteResults,

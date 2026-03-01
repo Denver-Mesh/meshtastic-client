@@ -1,4 +1,4 @@
-# Electastic
+# Mesh-Client
 
 A cross-platform Meshtastic desktop client for **Mac**, **Linux**, and **Windows**.
 
@@ -33,9 +33,9 @@ npm install
 npm start
 ```
 
-> **Note:** `npm install` automatically compiles the native SQLite module for Electron via `electron-rebuild`. If it fails, make sure Xcode Command Line Tools are installed.
+> **Note:** `npm install` automatically compiles the native SQLite module for Electron. If it fails, make sure Xcode Command Line Tools are installed.
 
-On first Bluetooth connection, macOS will show a system popup requesting Bluetooth permission — you must accept. If you accidentally denied it, go to **System Settings > Privacy & Security > Bluetooth** and toggle Electastic on.
+On first Bluetooth connection, macOS will show a system popup requesting Bluetooth permission — you must accept. If you accidentally denied it, go to **System Settings > Privacy & Security > Bluetooth** and toggle Mesh-Client on.
 
 ### Linux
 
@@ -70,7 +70,7 @@ Should work out of the box. If serial isn't detected, make sure you have the cor
 
 1. **Power on** your Meshtastic device
 2. **Put it in Bluetooth pairing mode** (if connecting via BLE)
-3. Open Electastic and go to the **Connection** tab
+3. Open Mesh-Client and go to the **Connection** tab
 4. Select your connection type (Bluetooth / USB Serial / WiFi)
 5. Click **Connect** and select your device from the picker
 6. Wait for status to show **Configured** — you're connected!
@@ -166,7 +166,7 @@ src/
 
 ## Troubleshooting
 
-### `npm install` fails during electron-rebuild
+### `npm install` fails on native module compilation
 
 You're missing build tools for compiling the native SQLite module:
 - **Mac**: `xcode-select --install`

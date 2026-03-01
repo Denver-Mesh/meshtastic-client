@@ -24,7 +24,7 @@ export default defineConfig({
     },
   },
   css: {
-    postcss: path.resolve(__dirname, "postcss.config.mjs"),
+    postcss: path.resolve(__dirname, "postcss.config.cjs"),
   },
   server: {
     port: 5173,

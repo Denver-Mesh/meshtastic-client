@@ -14,11 +14,12 @@ import RefreshButton from "./RefreshButton";
 
 interface Props {
   telemetry: TelemetryPoint[];
+  signalTelemetry: TelemetryPoint[];
   onRefresh: () => Promise<void>;
   isConnected: boolean;
 }
 
-export default function TelemetryPanel({ telemetry, onRefresh, isConnected }: Props) {
+export default function TelemetryPanel({ telemetry, signalTelemetry, onRefresh, isConnected }: Props) {
   const chartData = useMemo(
     () =>
       telemetry.map((t, i) => ({
@@ -30,30 +31,55 @@ export default function TelemetryPanel({ telemetry, onRefresh, isConnected }: Pr
         }),
         battery: t.batteryLevel,
         voltage: t.voltage,
+      })),
+    [telemetry]
+  );
+
+  const signalChartData = useMemo(
+    () =>
+      signalTelemetry.map((t, i) => ({
+        index: i,
+        time: new Date(t.timestamp).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        }),
         snr: t.snr,
         rssi: t.rssi,
       })),
-    [telemetry]
+    [signalTelemetry]
   );
 
   const hasBatteryData = chartData.some(
     (d) => d.battery !== undefined || d.voltage !== undefined
   );
-  const hasSignalData = chartData.some(
+  const hasSignalData = signalChartData.some(
     (d) => d.snr !== undefined || d.rssi !== undefined
   );
 
   const handleExportCsv = useCallback(() => {
-    if (telemetry.length === 0) return;
+    if (telemetry.length === 0 && signalTelemetry.length === 0) return;
 
-    const headers = ["timestamp", "battery_level", "voltage", "snr", "rssi"];
-    const rows = telemetry.map((t) => [
+    const headers = ["timestamp", "type", "battery_level", "voltage", "snr", "rssi"];
+    const batteryRows = telemetry.map((t) => [
       new Date(t.timestamp).toISOString(),
+      "battery",
       t.batteryLevel ?? "",
       t.voltage ?? "",
+      "",
+      "",
+    ]);
+    const signalRows = signalTelemetry.map((t) => [
+      new Date(t.timestamp).toISOString(),
+      "signal",
+      "",
+      "",
       t.snr ?? "",
       t.rssi ?? "",
     ]);
+    const rows = [...batteryRows, ...signalRows].sort((a, b) =>
+      a[0].localeCompare(b[0])
+    );
 
     const csv = [
       headers.join(","),
@@ -64,19 +90,19 @@ export default function TelemetryPanel({ telemetry, onRefresh, isConnected }: Pr
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `electastic-telemetry-${new Date()
+    link.download = `mesh-client-telemetry-${new Date()
       .toISOString()
       .slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
-  }, [telemetry]);
+  }, [telemetry, signalTelemetry]);
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold text-gray-200">Telemetry</h2>
         <div className="flex items-center gap-2">
-          {telemetry.length > 0 && (
+          {(telemetry.length > 0 || signalTelemetry.length > 0) && (
             <button
               onClick={handleExportCsv}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-medium rounded-lg transition-colors"
@@ -92,7 +118,7 @@ export default function TelemetryPanel({ telemetry, onRefresh, isConnected }: Pr
         </div>
       </div>
 
-      {telemetry.length === 0 ? (
+      {telemetry.length === 0 && signalTelemetry.length === 0 ? (
         <div className="text-center text-muted py-12">
           No telemetry data yet. Connect to a device to see real-time metrics.
         </div>
@@ -177,7 +203,7 @@ export default function TelemetryPanel({ telemetry, onRefresh, isConnected }: Pr
                 Signal Quality
               </h3>
               <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={chartData}>
+                <LineChart data={signalChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                   <XAxis
                     dataKey="time"
@@ -241,7 +267,7 @@ export default function TelemetryPanel({ telemetry, onRefresh, isConnected }: Pr
           )}
 
           <div className="text-xs text-gray-600 text-center">
-            Showing last {telemetry.length} data points (max 50)
+            Battery: {telemetry.length} pts &nbsp;·&nbsp; Signal: {signalTelemetry.length} pts (max 50 each)
           </div>
         </>
       )}

@@ -7,55 +7,56 @@ import { getNodeStatus, haversineDistanceKm } from "../lib/nodeStatus";
 import RefreshButton from "./RefreshButton";
 import type { LocationFilter } from "../App";
 
-// Create colored marker icons using SVG data URIs
-function createMarkerIcon(color: string, isSelf: boolean): L.Icon {
-  const size = isSelf ? 32 : 25;
-  const anchor = isSelf ? 16 : 12;
+function getCUColor(cu: number): string {
+  if (cu < 15) return "#22c55e";
+  if (cu < 31) return "#eab308";
+  if (cu < 51) return "#f97316";
+  return "#ef4444";
+}
+
+// Create colored marker icons using SVG data URIs, with optional CU halo
+function createMarkerIcon(color: string, isSelf: boolean, cu: number = 0, markerOpacity: number = 1): L.Icon {
+  const haloPx = cu <= 0 ? 0 : Math.round((cu / 100) * 14);
+  const haloColor = getCUColor(cu);
+  const halo = (c: number) =>
+    haloPx > 0
+      ? `<circle cx="${c}" cy="${c}" r="${c - 0.5}" fill="${haloColor}" opacity="0.4"/>`
+      : "";
 
   // Star marker for self
   if (isSelf) {
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" fill="${color}" stroke="#000" stroke-width="0.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
+    const total = 32 + 2 * haloPx;
+    const c = total / 2;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${total}" opacity="${markerOpacity}">${halo(c)}<g transform="translate(${haloPx},${haloPx}) scale(${32 / 24})"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="${color}" stroke="#000" stroke-width="0.5"/></g></svg>`;
     return L.icon({
       iconUrl: `data:image/svg+xml;base64,${btoa(svg)}`,
-      iconSize: [size, size],
-      iconAnchor: [anchor, anchor],
-      popupAnchor: [0, -anchor],
+      iconSize: [total, total],
+      iconAnchor: [c, c],
+      popupAnchor: [0, -c],
     });
   }
 
   // Circle marker for others
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="${color}" stroke="#000" stroke-width="1" opacity="0.9"/><circle cx="12" cy="12" r="4" fill="#fff" opacity="0.8"/></svg>`;
+  const total = 25 + 2 * haloPx;
+  const c = total / 2;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${total}" opacity="${markerOpacity}">${halo(c)}<circle cx="${c}" cy="${c}" r="10.4" fill="${color}" stroke="#000" stroke-width="1" opacity="0.9"/><circle cx="${c}" cy="${c}" r="4.2" fill="#fff" opacity="0.8"/></svg>`;
   return L.icon({
     iconUrl: `data:image/svg+xml;base64,${btoa(svg)}`,
-    iconSize: [size, size],
-    iconAnchor: [anchor, anchor],
-    popupAnchor: [0, -anchor],
+    iconSize: [total, total],
+    iconAnchor: [c, c],
+    popupAnchor: [0, -c],
   });
 }
 
-// Cached marker icons
-const MARKERS = {
-  selfOnline: createMarkerIcon("#9ae6b4", true),
-  selfStale: createMarkerIcon("#eab308", true),
-  selfOffline: createMarkerIcon("#6b7280", true),
-  online: createMarkerIcon("#9ae6b4", false),
-  stale: createMarkerIcon("#eab308", false),
-  offline: createMarkerIcon("#6b7280", false),
-};
-
-function getMarkerIcon(status: "online" | "stale" | "offline", isSelf: boolean): L.Icon {
-  if (isSelf) {
-    return status === "online"
-      ? MARKERS.selfOnline
-      : status === "stale"
-      ? MARKERS.selfStale
-      : MARKERS.selfOffline;
-  }
-  return status === "online"
-    ? MARKERS.online
-    : status === "stale"
-    ? MARKERS.stale
-    : MARKERS.offline;
+function getMarkerIcon(
+  status: "online" | "stale" | "offline",
+  isSelf: boolean,
+  cu: number
+): L.Icon {
+  const color =
+    status === "online" ? "#9ae6b4" : status === "stale" ? "#c4a864" : "#6b7280";
+  const opacity = status === "online" ? 1 : status === "stale" ? 0.65 : 0.45;
+  return createMarkerIcon(color, isSelf, cu, opacity);
 }
 
 interface Props {
@@ -140,7 +141,7 @@ export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected, loc
             {statusCounts.online}
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-yellow-500 inline-block" />
+            <span className="w-2 h-2 rounded-full bg-amber-500 inline-block opacity-60" />
             {statusCounts.stale}
           </span>
           <span className="flex items-center gap-1">
@@ -166,7 +167,8 @@ export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected, loc
         {nodesWithPosition.map((node) => {
           const isSelf = node.node_id === myNodeNum;
           const status = getNodeStatus(node.last_heard);
-          const icon = getMarkerIcon(status, isSelf);
+          const cu = node.channel_utilization ?? 0;
+          const icon = getMarkerIcon(status, isSelf, cu);
 
           return (
             <Marker
@@ -190,7 +192,7 @@ export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected, loc
                         status === "online"
                           ? "bg-brand-green"
                           : status === "stale"
-                          ? "bg-yellow-500"
+                          ? "bg-amber-500"
                           : "bg-gray-400"
                       }`}
                     />
@@ -199,6 +201,9 @@ export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected, loc
                   {node.battery > 0 && <div>Battery: {node.battery}%</div>}
                   {node.snr !== 0 && (
                     <div>SNR: {node.snr.toFixed(1)} dB</div>
+                  )}
+                  {node.channel_utilization != null && (
+                    <div>Ch. Util: {node.channel_utilization.toFixed(1)}%</div>
                   )}
                   <div>Last heard: {formatTime(node.last_heard)}</div>
                   <div className="text-xs text-muted">

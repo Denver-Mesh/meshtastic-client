@@ -1,5 +1,5 @@
-appId: com.electastic.app
-productName: Electastic
+appId: com.mesh-client.app
+productName: Mesh-client
 directories:
   buildResources: resources
   output: release
@@ -11,16 +11,19 @@ files:
 asarUnpack:
   - "node_modules/better-sqlite3/**/*"
 mac:
+  identity: "-"
   category: public.app-category.utilities
-  hardenedRuntime: true
+  hardenedRuntime: false
+  preAutoEntitlements: false
+  helperBundleId: com.mesh-client.app.helper
+  extendInfo:
+    NSBluetoothAlwaysUsageDescription: "Mesh-client needs Bluetooth to communicate with Meshtastic devices."
   target:
     - dmg
     - zip
   icon: resources/icon.png
   entitlements: resources/entitlements.mac.plist
-  entitlementsInherit: resources/entitlements.mac.plist
-  extendInfo:
-    NSBluetoothAlwaysUsageDescription: "Electastic needs Bluetooth to communicate with Meshtastic devices."
+  entitlementsInherit: resources/entitlements.mac.inherit.plist
 linux:
   target:
     - AppImage

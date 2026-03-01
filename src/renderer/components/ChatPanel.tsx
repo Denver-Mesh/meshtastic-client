@@ -108,7 +108,7 @@ export default function ChatPanel({
   const [viewMode, setViewMode] = useState<"channels" | "dm">("channels");
   const [openDmTabs, setOpenDmTabs] = useState<number[]>(() => {
     try {
-      const saved = localStorage.getItem("electastic:openDmTabs");
+      const saved = localStorage.getItem("mesh-client:openDmTabs");
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.every((n: unknown) => typeof n === "number")) {
@@ -122,7 +122,7 @@ export default function ChatPanel({
 
   // Persist openDmTabs to localStorage whenever it changes
   useEffect(() => {
-    localStorage.setItem("electastic:openDmTabs", JSON.stringify(openDmTabs));
+    localStorage.setItem("mesh-client:openDmTabs", JSON.stringify(openDmTabs));
   }, [openDmTabs]);
 
   // Track unread counts per channel

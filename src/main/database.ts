@@ -1,166 +1,229 @@
-import Database from "better-sqlite3";
-import path from "path";
 import { app } from "electron";
+import path from "path";
+import fs from "fs";
+import Database from "better-sqlite3";
 
 let db: Database.Database | null = null;
 
+export function getDatabasePath(): string {
+  return path.join(app.getPath("userData"), "mesh-client.db");
+}
+
 export function initDatabase(): void {
-  const dbPath = path.join(app.getPath("userData"), "electastic.db");
-  db = new Database(dbPath);
+  if (db) return;
+  const dbPath = getDatabasePath();
 
-  // Enable WAL mode for better concurrent performance
-  db.pragma("journal_mode = WAL");
-
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS messages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      sender_id INTEGER,
-      sender_name TEXT,
-      payload TEXT NOT NULL,
-      channel INTEGER DEFAULT 0,
-      timestamp INTEGER NOT NULL
+  const dbDir = path.dirname(dbPath);
+  try {
+    fs.accessSync(dbDir, fs.constants.W_OK);
+  } catch {
+    throw new Error(
+      `Database directory is not writable: ${dbDir}\n` +
+      `Check folder permissions for your OS user account.`
     );
-
-    CREATE TABLE IF NOT EXISTS nodes (
-      node_id INTEGER PRIMARY KEY,
-      long_name TEXT,
-      short_name TEXT,
-      hw_model TEXT,
-      snr REAL,
-      rssi REAL,
-      battery INTEGER,
-      last_heard INTEGER,
-      latitude REAL,
-      longitude REAL
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages(channel);
-    CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
-    CREATE INDEX IF NOT EXISTS idx_nodes_last_heard ON nodes(last_heard);
-  `);
-
-  // ─── Schema migrations ────────────────────────────────────────────
-  const userVersion = db.pragma("user_version", { simple: true }) as number;
-
-  if (userVersion < 1) {
-    db.exec(`
-      ALTER TABLE messages ADD COLUMN packet_id INTEGER;
-      ALTER TABLE messages ADD COLUMN status TEXT DEFAULT 'acked';
-      ALTER TABLE messages ADD COLUMN error TEXT;
-    `);
-    db.pragma("user_version = 1");
   }
 
-  if (userVersion < 2) {
-    db.exec(`
-      ALTER TABLE messages ADD COLUMN emoji INTEGER;
-      ALTER TABLE messages ADD COLUMN reply_id INTEGER;
-    `);
-    db.pragma("user_version = 2");
-  }
+  try {
+    db = new Database(dbPath, { timeout: 5000 });
+    db.pragma("journal_mode = WAL");
+    db.pragma("synchronous = NORMAL");
 
-  if (userVersion < 3) {
-    db.exec(`ALTER TABLE messages ADD COLUMN to_node INTEGER;`);
-    db.pragma("user_version = 3");
-  }
+    // Detect fresh DB before running setup (user_version = 0, no tables yet)
+    const isFreshDb =
+      (db.pragma("user_version", { simple: true }) as number) === 0 &&
+      !db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='messages'").get();
 
-  if (userVersion < 4) {
-    db.exec(
-      `ALTER TABLE nodes ADD COLUMN role TEXT;` +
-      `ALTER TABLE nodes ADD COLUMN hops_away INTEGER;` +
-      `ALTER TABLE nodes ADD COLUMN via_mqtt INTEGER;` +
-      `ALTER TABLE nodes ADD COLUMN voltage REAL;` +
-      `ALTER TABLE nodes ADD COLUMN channel_utilization REAL;` +
-      `ALTER TABLE nodes ADD COLUMN air_util_tx REAL;` +
-      `ALTER TABLE nodes ADD COLUMN altitude INTEGER;`
-    );
-    db.pragma("user_version = 4");
-  }
+    const setup = db.transaction(() => {
+      createBaseTables();
+      if (isFreshDb) {
+        // Base DDL already includes all columns; stamp current schema version
+        db!.pragma("user_version = 3");
+      } else {
+        runMigrations();
+      }
+    });
+    setup();
 
-  if (userVersion < 5) {
-    db.exec(`ALTER TABLE nodes ADD COLUMN rssi REAL;`);
-    db.pragma("user_version = 5");
+    const version = db.pragma("user_version", { simple: true });
+    console.log(`Database initialized at ${dbPath} (user_version = ${version})`);
+  } catch (error) {
+    console.error("Database init failed:", error);
+    throw error;
   }
 }
 
 export function getDatabase(): Database.Database {
-  if (!db) {
-    throw new Error("Database not initialized. Call initDatabase() first.");
-  }
-  return db;
+  if (!db) initDatabase();
+  return db!;
 }
 
-export function getDatabasePath(): string {
-  return path.join(app.getPath("userData"), "electastic.db");
+function createBaseTables(): void {
+  try {
+    db!.exec(`
+      CREATE TABLE IF NOT EXISTS messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sender_id INTEGER,
+        sender_name TEXT,
+        payload TEXT NOT NULL,
+        channel INTEGER DEFAULT 0,
+        timestamp INTEGER NOT NULL,
+        packet_id INTEGER,
+        status TEXT DEFAULT 'acked',
+        error TEXT,
+        emoji INTEGER,
+        reply_id INTEGER,
+        to_node INTEGER
+      );
+
+      CREATE TABLE IF NOT EXISTS nodes (
+        node_id INTEGER PRIMARY KEY,
+        long_name TEXT,
+        short_name TEXT,
+        hw_model TEXT,
+        snr REAL,
+        rssi REAL,
+        battery INTEGER,
+        last_heard INTEGER,
+        latitude REAL,
+        longitude REAL,
+        role TEXT,
+        hops_away INTEGER,
+        via_mqtt INTEGER,
+        voltage REAL,
+        channel_utilization REAL,
+        air_util_tx REAL,
+        altitude INTEGER
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_nodes_last_heard ON nodes(last_heard);
+    `);
+  } catch (error) {
+    throw new Error(
+      `Failed to create base tables: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
+function runMigrations(): void {
+  let userVersion = db!.pragma("user_version", { simple: true }) as number;
+
+  if (userVersion < 1) {
+    try {
+      db!.exec("ALTER TABLE messages ADD COLUMN packet_id INTEGER");
+      db!.exec("ALTER TABLE messages ADD COLUMN status TEXT DEFAULT 'acked'");
+      db!.exec("ALTER TABLE messages ADD COLUMN error TEXT");
+      db!.pragma("user_version = 1");
+      userVersion = 1;
+    } catch (e) {
+      throw new Error(
+        `Migration v1 failed: ${e instanceof Error ? e.message : String(e)}`
+      );
+    }
+  }
+
+  if (userVersion < 2) {
+    try {
+      db!.exec("ALTER TABLE messages ADD COLUMN emoji INTEGER");
+      db!.exec("ALTER TABLE messages ADD COLUMN reply_id INTEGER");
+      db!.pragma("user_version = 2");
+      userVersion = 2;
+    } catch (e) {
+      throw new Error(
+        `Migration v2 failed: ${e instanceof Error ? e.message : String(e)}`
+      );
+    }
+  }
+
+  if (userVersion < 3) {
+    try {
+      db!.exec("ALTER TABLE messages ADD COLUMN to_node INTEGER");
+      db!.pragma("user_version = 3");
+    } catch (e) {
+      throw new Error(
+        `Migration v3 failed: ${e instanceof Error ? e.message : String(e)}`
+      );
+    }
+  }
 }
 
 export function exportDatabase(destPath: string): void {
   const database = getDatabase();
-  database.backup(destPath);
+  database.backup(destPath)
+    .then(() => console.log("Backup complete"))
+    .catch((err: unknown) => console.error("Backup failed", err));
 }
 
-export function mergeDatabase(
-  sourcePath: string
-): { nodesAdded: number; messagesAdded: number } {
-  const database = getDatabase();
-  const sourceDb = new Database(sourcePath, { readonly: true });
+export function mergeDatabase(sourcePath: string) {
+  const targetDb = getDatabase();
+  let sourceDb: Database.Database | undefined;
 
-  const nodesBefore = (
-    database.prepare("SELECT COUNT(*) as c FROM nodes").get() as {
-      c: number;
-    }
-  ).c;
-  const msgsBefore = (
-    database.prepare("SELECT COUNT(*) as c FROM messages").get() as {
-      c: number;
-    }
-  ).c;
+  try {
+    sourceDb = new Database(sourcePath, { readonly: true });
 
-  // Merge nodes (dedup by node_id primary key)
-  const sourceNodes = sourceDb.prepare("SELECT * FROM nodes").all();
-  const insertNode = database.prepare(`
-    INSERT OR IGNORE INTO nodes (node_id, long_name, short_name, hw_model, snr, battery, last_heard, latitude, longitude)
-    VALUES (@node_id, @long_name, @short_name, @hw_model, @snr, @battery, @last_heard, @latitude, @longitude)
-  `);
-  const mergeNodesTransaction = database.transaction(() => {
-    for (const node of sourceNodes) {
-      insertNode.run(node);
-    }
-  });
-  mergeNodesTransaction();
+    const sourceNodes = sourceDb.prepare("SELECT * FROM nodes").all() as any[];
+    const sourceMessages = sourceDb.prepare("SELECT * FROM messages").all() as any[];
 
-  // Merge messages (dedup by sender_id + timestamp + payload)
-  const sourceMessages = sourceDb.prepare("SELECT * FROM messages").all();
-  const insertMsg = database.prepare(`
-    INSERT INTO messages (sender_id, sender_name, payload, channel, timestamp)
-    SELECT @sender_id, @sender_name, @payload, @channel, @timestamp
-    WHERE NOT EXISTS (
-      SELECT 1 FROM messages
-      WHERE sender_id = @sender_id AND timestamp = @timestamp AND payload = @payload
-    )
-  `);
-  const mergeMsgsTransaction = database.transaction(() => {
-    for (const msg of sourceMessages) {
-      insertMsg.run(msg);
-    }
-  });
-  mergeMsgsTransaction();
+    const result = targetDb.transaction(() => {
+      let nodesAdded = 0;
+      let messagesAdded = 0;
 
-  sourceDb.close();
+      const insertNode = targetDb.prepare(`
+        INSERT OR IGNORE INTO nodes (
+          node_id, long_name, short_name, hw_model, snr, rssi, battery,
+          last_heard, latitude, longitude, role, hops_away, via_mqtt,
+          voltage, channel_utilization, air_util_tx, altitude
+        ) VALUES (
+          @node_id, @long_name, @short_name, @hw_model, @snr, @rssi, @battery,
+          @last_heard, @latitude, @longitude, @role, @hops_away, @via_mqtt,
+          @voltage, @channel_utilization, @air_util_tx, @altitude
+        )
+      `);
 
-  const nodesAfter = (
-    database.prepare("SELECT COUNT(*) as c FROM nodes").get() as {
-      c: number;
-    }
-  ).c;
-  const msgsAfter = (
-    database.prepare("SELECT COUNT(*) as c FROM messages").get() as {
-      c: number;
-    }
-  ).c;
+      const checkMessage = targetDb.prepare(
+        "SELECT 1 FROM messages WHERE sender_id = ? AND timestamp = ? AND payload = ? LIMIT 1"
+      );
+      const insertMessage = targetDb.prepare(`
+        INSERT INTO messages (
+          sender_id, sender_name, payload, channel, timestamp,
+          packet_id, status, error, emoji, reply_id, to_node
+        ) VALUES (
+          @sender_id, @sender_name, @payload, @channel, @timestamp,
+          @packet_id, @status, @error, @emoji, @reply_id, @to_node
+        )
+      `);
 
-  return {
-    nodesAdded: nodesAfter - nodesBefore,
-    messagesAdded: msgsAfter - msgsBefore,
-  };
+      for (const node of sourceNodes) {
+        if (insertNode.run(node).changes > 0) nodesAdded++;
+      }
+
+      for (const msg of sourceMessages) {
+        if (!checkMessage.get(msg.sender_id, msg.timestamp, msg.payload)) {
+          insertMessage.run(msg);
+          messagesAdded++;
+        }
+      }
+
+      return { nodesAdded, messagesAdded };
+    })();
+
+    return result;
+  } catch (err) {
+    console.error("Merge failed:", err);
+    throw err;
+  } finally {
+    if (sourceDb) sourceDb.close();
+  }
+}
+
+export function closeDatabase(): void {
+  if (db) {
+    try {
+      db.close();
+    } catch (err) {
+      console.error("Error closing database:", err);
+    } finally {
+      db = null;
+    }
+  }
 }

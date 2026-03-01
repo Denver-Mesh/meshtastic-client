@@ -17,7 +17,7 @@ interface ConnectionProfile {
 
 function loadProfiles(): ConnectionProfile[] {
   try {
-    const raw = localStorage.getItem("electastic_profiles");
+    const raw = localStorage.getItem("mesh-client_profiles");
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -25,7 +25,7 @@ function loadProfiles(): ConnectionProfile[] {
 }
 
 function saveProfiles(profiles: ConnectionProfile[]) {
-  localStorage.setItem("electastic_profiles", JSON.stringify(profiles));
+  localStorage.setItem("mesh-client_profiles", JSON.stringify(profiles));
 }
 
 /** Inline SVG icon for each connection type */
@@ -246,7 +246,8 @@ export default function ConnectionPanel({
   const isConnected =
     state.status === "connected" ||
     state.status === "configured" ||
-    state.status === "stale";
+    state.status === "stale" ||
+    state.status === "reconnecting";
 
   // ─── Connecting Progress View ───────────────────────────────────
   if (connecting && !isConnected) {
@@ -363,7 +364,7 @@ export default function ConnectionPanel({
         <div className="bg-deep-black rounded-lg p-5 space-y-3 border border-brand-green/20">
           <div className="flex items-center gap-3 mb-1">
             <LinkIcon className="w-5 h-5" />
-            <span className="text-bright-green font-medium capitalize">
+            <span className={`font-medium capitalize ${state.status === "reconnecting" ? "text-orange-400" : "text-bright-green"}`}>
               {state.status}
             </span>
           </div>

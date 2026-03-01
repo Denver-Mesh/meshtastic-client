@@ -333,9 +333,9 @@ export default function NodeListPanel({
                 const status = getNodeStatus(node.last_heard);
                 const rowOpacity =
                   status === "offline"
-                    ? "opacity-40"
+                    ? "opacity-20"
                     : status === "stale"
-                    ? "opacity-70"
+                    ? "opacity-35"
                     : "";
 
                 return (
