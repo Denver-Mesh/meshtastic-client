@@ -1,32 +1,60 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useDevice } from "./hooks/useDevice";
 import { ToastProvider } from "./components/Toast";
+import type { MQTTSettings } from "./lib/types";
 import Tabs from "./components/Tabs";
 import ErrorBoundary from "./components/ErrorBoundary";
 import NodeDetailModal from "./components/NodeDetailModal";
 import ConnectionPanel from "./components/ConnectionPanel";
 import ChatPanel from "./components/ChatPanel";
 import NodeListPanel from "./components/NodeListPanel";
-import ConfigPanel from "./components/ConfigPanel";
+import RadioPanel from "./components/RadioPanel";
 import MapPanel from "./components/MapPanel";
 import TelemetryPanel from "./components/TelemetryPanel";
-import AdminPanel from "./components/AdminPanel";
+import AppPanel from "./components/AppPanel";
 import { LinkIcon } from "./components/SignalBars";
+
+const STATUS_COLOR: Record<string, string> = {
+  disconnected: "bg-red-500",
+  connecting: "bg-yellow-500 animate-pulse",
+  connected: "bg-blue-500",
+  configured: "bg-green-500",
+  stale: "bg-yellow-500 animate-pulse",
+  reconnecting: "bg-orange-500 animate-pulse",
+};
 
 const TAB_NAMES = [
   "Connection",
   "Chat",
   "Nodes",
-  "Config",
   "Map",
   "Telemetry",
-  "Admin",
+  "Radio",
+  "App",
 ];
 
 export interface LocationFilter {
   enabled: boolean;
   maxDistance: number;
   unit: "miles" | "km";
+  congestionHalosEnabled: boolean;
+  hideMqttOnly: boolean;
+}
+
+function MqttGlobeIcon({ connected }: { connected: boolean }) {
+  return (
+    <svg
+      className={`w-4 h-4 ${connected ? "text-brand-green" : "text-gray-400"}`}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.5}
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20M2 12h20" />
+      <path d="M2 7h20M2 17h20" />
+    </svg>
+  );
 }
 
 export default function App() {
@@ -40,9 +68,11 @@ export default function App() {
         enabled: s.distanceFilterEnabled ?? false,
         maxDistance: s.distanceFilterMax ?? 500,
         unit: s.distanceUnit ?? "miles",
+        congestionHalosEnabled: s.congestionHalosEnabled ?? false,
+        hideMqttOnly: s.filterMqttOnly ?? false,
       };
     } catch {
-      return { enabled: false, maxDistance: 500, unit: "miles" };
+      return { enabled: false, maxDistance: 500, unit: "miles", congestionHalosEnabled: false, hideMqttOnly: false };
     }
   });
   const [pendingDmTarget, setPendingDmTarget] = useState<number | null>(null);
@@ -76,6 +106,17 @@ export default function App() {
       const s = raw ? JSON.parse(raw) : {};
       if (s.autoPruneEnabled) window.electronAPI.db.deleteNodesByAge(s.autoPruneDays ?? 30);
       if (s.nodeCapEnabled !== false) window.electronAPI.db.pruneNodesByCount(s.nodeCapCount ?? 10000);
+    } catch {}
+  }, []);
+
+  // ─── MQTT auto-launch on startup ─────────────────────────────────
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("mesh-client:mqttSettings");
+      if (raw) {
+        const settings = JSON.parse(raw) as MQTTSettings;
+        if (settings.autoLaunch) window.electronAPI.mqtt.connect(settings);
+      }
     } catch {}
   }, []);
 
@@ -140,14 +181,7 @@ export default function App() {
 
   const handleLocationFilterChange = useCallback((f: LocationFilter) => setLocationFilter(f), []);
 
-  const statusColor = {
-    disconnected: "bg-red-500",
-    connecting: "bg-yellow-500 animate-pulse",
-    connected: "bg-blue-500",
-    configured: "bg-green-500",
-    stale: "bg-yellow-500 animate-pulse",
-    reconnecting: "bg-orange-500 animate-pulse",
-  }[device.state.status];
+  const statusColor = STATUS_COLOR[device.state.status] ?? "bg-gray-500";
 
   return (
     <ToastProvider>
@@ -165,6 +199,13 @@ export default function App() {
             <span className="text-xs text-muted">Meshtastic Client</span>
           </div>
           <div className="flex items-center gap-2">
+            {/* MQTT status globe */}
+            <div className="flex items-center gap-1.5 mr-3 pr-3 border-r border-gray-700">
+              <MqttGlobeIcon connected={device.mqttStatus === "connected"} />
+              <span className={`text-xs ${device.mqttStatus === "connected" ? "text-brand-green" : "text-gray-500"}`}>
+                MQTT
+              </span>
+            </div>
             {isConnectedOrOperational && (
               <LinkIcon className="w-4 h-4" />
             )}
@@ -201,6 +242,7 @@ export default function App() {
                 state={device.state}
                 onConnect={device.connect}
                 onDisconnect={device.disconnect}
+                mqttStatus={device.mqttStatus}
                 myNodeLabel={
                   device.state.myNodeNum > 0
                     ? device.getFullNodeLabel(device.state.myNodeNum)
@@ -230,19 +272,10 @@ export default function App() {
                 onNodeClick={(node) => setSelectedNodeId(node.node_id)}
                 isConnected={isOperational}
                 locationFilter={locationFilter}
+                onToggleFavorite={device.setNodeFavorited}
               />
             )}
             {activeTab === 3 && (
-              <ConfigPanel
-                onSetConfig={device.setConfig}
-                onCommit={device.commitConfig}
-                onSetChannel={device.setDeviceChannel}
-                onClearChannel={device.clearChannel}
-                channelConfigs={device.channelConfigs}
-                isConnected={isOperational}
-              />
-            )}
-            {activeTab === 4 && (
               <MapPanel
                 nodes={device.nodes}
                 myNodeNum={device.state.myNodeNum}
@@ -251,7 +284,7 @@ export default function App() {
                 locationFilter={locationFilter}
               />
             )}
-            {activeTab === 5 && (
+            {activeTab === 4 && (
               <TelemetryPanel
                 telemetry={device.telemetry}
                 signalTelemetry={device.signalTelemetry}
@@ -259,16 +292,25 @@ export default function App() {
                 isConnected={isOperational}
               />
             )}
-            {activeTab === 6 && (
-              <AdminPanel
-                nodes={device.nodes}
-                messageCount={device.messages.length}
-                channels={device.channels}
+            {activeTab === 5 && (
+              <RadioPanel
+                onSetConfig={device.setConfig}
+                onCommit={device.commitConfig}
+                onSetChannel={device.setDeviceChannel}
+                onClearChannel={device.clearChannel}
+                channelConfigs={device.channelConfigs}
+                isConnected={isOperational}
                 onReboot={device.reboot}
                 onShutdown={device.shutdown}
                 onFactoryReset={device.factoryReset}
                 onResetNodeDb={device.resetNodeDb}
-                isConnected={isOperational}
+              />
+            )}
+            {activeTab === 6 && (
+              <AppPanel
+                nodes={device.nodes}
+                messageCount={device.messages.length}
+                channels={device.channels}
                 myNodeNum={device.state.myNodeNum}
                 onLocationFilterChange={handleLocationFilterChange}
               />
@@ -279,45 +321,35 @@ export default function App() {
         {/* Footer */}
         <footer className="px-4 py-1.5 bg-deep-black border-t border-gray-700 text-[11px] text-muted flex justify-between">
           <span>
-            Created by{" "}
+            A Project by{" "}
             <a
-              href="https://github.com/rinchen"
-              title="Joey (NV0N) on GitHub"
+              href="https://denvermesh.org/"
+              title="Denver Mesh"
               className="text-bright-green underline hover:opacity-80"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Joey (NV0N)
-            </a>{" "}
-            &amp;{" "}
-            <a
-              href="https://github.com/defidude"
-              title="dude.eth on GitHub"
-              className="text-bright-green underline hover:opacity-80"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              dude.eth
-            </a>
-            . Based on the{" "}
-            <a
-              href="https://github.com/Denver-Mesh/meshtastic_mac_client"
-              title="Original Mac Client"
-              className="text-bright-green underline hover:opacity-80"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              original Mac client
-            </a>
-            . Part of{" "}
-            <a
-              href="https://github.com/Denver-Mesh/meshtastic-client"
-              title="Denver Mesh on GitHub"
-              className="text-bright-green underline font-bold hover:opacity-80"
               target="_blank"
               rel="noopener noreferrer"
             >
               Denver Mesh
+            </a>
+            . Join us on{" "}
+            <a
+              href="https://discord.com/invite/McChKR5NpS"
+              title="Denver Mesh Discord"
+              className="text-bright-green underline hover:opacity-80"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Discord
+            </a>
+            . Code on{" "}
+            <a
+              href="https://github.com/Denver-Mesh/meshtastic-client"
+              title="Denver Mesh on GitHub"
+              className="text-bright-green underline hover:opacity-80"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              GitHub
             </a>
             .
           </span>
@@ -342,6 +374,7 @@ export default function App() {
               ? handleMessageNode
               : undefined
           }
+          onToggleFavorite={device.setNodeFavorited}
           isConnected={isOperational}
         />
       </div>
