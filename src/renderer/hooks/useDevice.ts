@@ -28,6 +28,18 @@ const WATCHDOG_INTERVAL_MS = 15_000;       // Check every 15s
 const MAX_RECONNECT_ATTEMPTS = 5;
 const BLE_HEARTBEAT_INTERVAL_MS = 30_000;  // 30s heartbeat for BLE
 
+function getOrCreateVirtualNodeId(): number {
+  const key = "mesh-client:mqttVirtualNodeId";
+  const existing = localStorage.getItem(key);
+  if (existing) {
+    const n = parseInt(existing, 10);
+    if (n > 0 && n < 0xffffffff) return n;
+  }
+  const id = ((Math.random() * 0x0FFFFFFF) >>> 0) + 1;
+  localStorage.setItem(key, String(id));
+  return id;
+}
+
 export function useDevice() {
   const deviceRef = useRef<MeshDevice | null>(null);
   // Track own node number in a ref so event callbacks can access it
@@ -50,6 +62,8 @@ export function useDevice() {
   const bleHeartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ─── MQTT session tracking ────────────────────────────────────
+  // Tracks current MQTT connection status in a ref for use in callbacks
+  const mqttStatusRef = useRef<MQTTStatus>("disconnected");
   // Nodes heard via RF this session — prevents MQTT-only flag from being set
   const rfHeardNodeIds = useRef<Set<number>>(new Set());
   // Dedup map shared between RF and MQTT handlers
@@ -242,6 +256,7 @@ export function useDevice() {
   // ─── MQTT event subscriptions (independent of RF device) ──────
   useEffect(() => {
     const unsubStatus = window.electronAPI.mqtt.onStatus((s) => {
+      mqttStatusRef.current = s as MQTTStatus;
       setMqttStatus(s as MQTTStatus);
     });
 
@@ -936,7 +951,38 @@ export function useDevice() {
   }, [cleanupSubscriptions, stopPolling, stopWatchdog, stopBleHeartbeat]);
 
   const sendMessage = useCallback(async (text: string, channel = 0, destination?: number) => {
-    if (!deviceRef.current) throw new Error("Not connected");
+    if (!deviceRef.current) {
+      if (mqttStatusRef.current !== "connected") throw new Error("Not connected");
+
+      // MQTT-only send path (no device connected)
+      const from = myNodeNumRef.current || getOrCreateVirtualNodeId();
+      const packetId = await window.electronAPI.mqtt.publish({
+        text,
+        from,
+        channel,
+        destination: destination ?? BROADCAST_ADDR,
+        channelName: "LongFast",
+      });
+
+      const msg: ChatMessage = {
+        sender_id: from,
+        sender_name: getNodeName(from),
+        payload: text,
+        channel,
+        timestamp: Date.now(),
+        packetId,
+        status: "acked",
+        to: destination,
+      };
+
+      // Register packetId to deduplicate the echo that comes back via MQTT subscription
+      isDuplicate(packetId);
+
+      setMessages((prev) => [...prev, msg]);
+      window.electronAPI.db.saveMessage(msg);
+      return;
+    }
+
     try {
       const dest: number | "broadcast" = destination ?? "broadcast";
       const packetId = await deviceRef.current.sendText(
@@ -964,7 +1010,7 @@ export function useDevice() {
       );
       window.electronAPI.db.updateMessageStatus(packetId, "failed", error);
     }
-  }, []);
+  }, [getNodeName, isDuplicate]);
 
   const setConfig = useCallback(async (config: unknown) => {
     if (!deviceRef.current) return;

@@ -258,7 +258,8 @@ export default function App() {
                 onSend={device.sendMessage}
                 onReact={device.sendReaction}
                 onNodeClick={setSelectedNodeId}
-                isConnected={isOperational}
+                isConnected={isOperational || device.mqttStatus === "connected"}
+                isMqttOnly={!isOperational && device.mqttStatus === "connected"}
                 nodes={device.nodes}
                 initialDmTarget={pendingDmTarget}
                 onDmTargetConsumed={() => setPendingDmTarget(null)}

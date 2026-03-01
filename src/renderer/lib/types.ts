@@ -121,6 +121,8 @@ declare global {
         onError: (cb: (message: string) => void) => () => void;
         onNodeUpdate: (cb: (node: Partial<MeshNode> & { node_id: number }) => void) => () => void;
         onMessage: (cb: (msg: Omit<ChatMessage, "id">) => void) => () => void;
+        onClientId: (cb: (id: string) => void) => () => void;
+        publish: (args: { text: string; from: number; channel: number; destination?: number; channelName?: string }) => Promise<number>;
       };
       onBluetoothDevicesDiscovered: (
         cb: (devices: BluetoothDevice[]) => void

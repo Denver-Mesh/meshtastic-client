@@ -100,6 +100,7 @@ interface Props {
   onReact: (emoji: number, replyId: number, channel: number) => Promise<void>;
   onNodeClick: (nodeNum: number) => void;
   isConnected: boolean;
+  isMqttOnly?: boolean;
   nodes: Map<number, MeshNode>;
   initialDmTarget?: number | null;
   onDmTargetConsumed?: () => void;
@@ -113,6 +114,7 @@ export default function ChatPanel({
   onReact,
   onNodeClick,
   isConnected,
+  isMqttOnly,
   nodes,
   initialDmTarget,
   onDmTargetConsumed,
@@ -930,9 +932,11 @@ export default function ChatPanel({
           placeholder={
             isDmMode
               ? `DM to ${dmNodeName}...`
-              : isConnected
-              ? "Type a message..."
-              : "Connect to send messages"
+              : !isConnected
+              ? "Connect to send messages"
+              : isMqttOnly
+              ? "Type a message (via MQTT)..."
+              : "Type a message..."
           }
           className={`flex-1 px-4 py-2.5 rounded-xl text-gray-200 border focus:outline-none disabled:opacity-50 transition-colors ${
             isDmMode

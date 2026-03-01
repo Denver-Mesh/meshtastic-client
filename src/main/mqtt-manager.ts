@@ -1,12 +1,12 @@
 import { EventEmitter } from "events";
 import * as mqtt from "mqtt";
-import { createDecipheriv } from "crypto";
-import { fromBinary } from "@bufbuild/protobuf";
+import { createDecipheriv, createCipheriv } from "crypto";
+import { fromBinary, toBinary, create } from "@bufbuild/protobuf";
 import { Mqtt as MqttProto, Mesh, Portnums } from "@meshtastic/protobufs";
 import type { MeshNode, ChatMessage, MQTTSettings, MQTTStatus } from "../renderer/lib/types";
 
 const { ServiceEnvelopeSchema } = MqttProto;
-const { UserSchema, PositionSchema, DataSchema } = Mesh;
+const { UserSchema, PositionSchema, DataSchema, MeshPacketSchema } = Mesh;
 const { PortNum } = Portnums;
 
 // Default PSK for meshtastic: 0x01 followed by 15 zero bytes
@@ -140,6 +140,55 @@ export class MQTTManager extends EventEmitter {
         this.setStatus("connecting");
       }
     });
+  }
+
+  publish(text: string, from: number, channel: number, destination: number, channelName: string): number {
+    if (!this.client?.connected || !this.currentSettings) {
+      throw new Error("MQTT not connected");
+    }
+
+    const packetId = (Math.random() * 0xFFFFFFFF) >>> 0;
+
+    // Build Data protobuf
+    const data = create(DataSchema, {
+      portnum: PortNum.TEXT_MESSAGE_APP,
+      payload: new TextEncoder().encode(text),
+    });
+    const dataBytes = toBinary(DataSchema, data);
+
+    // Encrypt with AES-128-CTR using the same nonce convention as decrypt
+    const nonce = Buffer.alloc(16, 0);
+    nonce.writeUInt32LE(packetId >>> 0, 0);
+    nonce.writeUInt32LE(from >>> 0, 4);
+    const cipher = createCipheriv("aes-128-ctr", DEFAULT_PSK, nonce);
+    const encrypted = Buffer.concat([cipher.update(Buffer.from(dataBytes)), cipher.final()]);
+
+    // Build MeshPacket
+    const packet = create(MeshPacketSchema, {
+      from,
+      to: destination,
+      id: packetId,
+      channel,
+      hopLimit: 3,
+      payloadVariant: { case: "encrypted", value: encrypted },
+    });
+
+    // Build ServiceEnvelope and publish
+    const gatewayId = `!${from.toString(16).padStart(8, "0")}`;
+    const envelope = create(ServiceEnvelopeSchema, {
+      packet,
+      channelId: channelName,
+      gatewayId,
+    });
+    const prefix = this.currentSettings.topicPrefix.endsWith("/")
+      ? this.currentSettings.topicPrefix
+      : `${this.currentSettings.topicPrefix}/`;
+    this.client.publish(
+      `${prefix}2/e/${channelName}/${gatewayId}`,
+      Buffer.from(toBinary(ServiceEnvelopeSchema, envelope))
+    );
+
+    return packetId;
   }
 
   disconnect(): void {

@@ -285,6 +285,15 @@ ipcMain.handle("mqtt:connect", async (_event, settings) => {
 ipcMain.handle("mqtt:disconnect", async () => {
   mqttManager.disconnect();
 });
+ipcMain.handle("mqtt:publish", async (_event, args) => {
+  return mqttManager.publish(
+    args.text,
+    args.from,
+    args.channel,
+    args.destination ?? 0xffffffff,
+    args.channelName ?? "LongFast"
+  );
+});
 
 // ─── IPC: Force quit (disconnect all, then quit) ────────────────────
 ipcMain.handle("app:quit", async () => {

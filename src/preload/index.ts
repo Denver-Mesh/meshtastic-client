@@ -89,6 +89,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.on("mqtt:clientId", handler);
       return () => ipcRenderer.off("mqtt:clientId", handler);
     },
+    publish: (args: { text: string; from: number; channel: number; destination?: number; channelName?: string }) =>
+      ipcRenderer.invoke("mqtt:publish", args),
   },
 
   // ─── Bluetooth device selection ─────────────────────────────────
