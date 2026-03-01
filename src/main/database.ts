@@ -39,7 +39,7 @@ export function initDatabase(): void {
       createBaseTables();
       if (isFreshDb) {
         // Base DDL already includes all columns; stamp current schema version
-        db!.pragma("user_version = 6");
+        db!.pragma("user_version = 7");
       } else {
         runMigrations();
       }
@@ -95,7 +95,8 @@ function createBaseTables(): void {
         channel_utilization REAL,
         air_util_tx REAL,
         altitude INTEGER,
-        favorited INTEGER DEFAULT 0
+        favorited INTEGER DEFAULT 0,
+        source TEXT DEFAULT 'rf'
       );
 
       CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
@@ -179,8 +180,18 @@ function runMigrations(): void {
         "CREATE INDEX IF NOT EXISTS idx_messages_channel_ts ON messages(channel, timestamp DESC)"
       ).run();
       db!.pragma("user_version = 6");
+      userVersion = 6;
     } catch (e) {
       throw new Error(`Migration v6 failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  if (userVersion < 7) {
+    try {
+      db!.prepare("ALTER TABLE nodes ADD COLUMN source TEXT DEFAULT 'rf'").run();
+      db!.pragma("user_version = 7");
+    } catch (e) {
+      throw new Error(`Migration v7 failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 }
@@ -249,6 +260,12 @@ export function mergeDatabase(sourcePath: string) {
   } finally {
     if (sourceDb) sourceDb.close();
   }
+}
+
+export function deleteNodesBySource(source: string): number {
+  const db = getDatabase();
+  const result = db.prepare("DELETE FROM nodes WHERE source = ?").run(source);
+  return result.changes;
 }
 
 export function closeDatabase(): void {

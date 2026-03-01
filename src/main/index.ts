@@ -1,6 +1,9 @@
 import { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage } from "electron";
 import path from "path";
-import { initDatabase, getDatabase, exportDatabase, mergeDatabase, closeDatabase } from "./database";
+import { initDatabase, getDatabase, exportDatabase, mergeDatabase, closeDatabase, deleteNodesBySource } from "./database";
+import { MQTTManager } from "./mqtt-manager";
+
+const mqttManager = new MQTTManager();
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -206,7 +209,7 @@ function createWindow() {
 
   // Handle window close event
   mainWindow.on('close', (event) => {
-    if (isConnected) {
+    if (isConnected || mqttManager.getStatus() === "connected") {
       event.preventDefault();
       if (process.platform === 'darwin') {
         mainWindow.hide();
@@ -265,6 +268,21 @@ ipcMain.on("serial-port-cancelled", () => {
 // ─── IPC: Connection status tracking (module-scope, not per-window) ─
 ipcMain.on('device-connected', () => { isConnected = true; });
 ipcMain.on('device-disconnected', () => { isConnected = false; });
+
+// ─── MQTT: Forward manager events to renderer ───────────────────────
+mqttManager.on("status", (s) => mainWindow?.webContents.send("mqtt:status", s));
+mqttManager.on("error", (msg) => mainWindow?.webContents.send("mqtt:error", msg));
+mqttManager.on("clientId", (id) => mainWindow?.webContents.send("mqtt:clientId", id));
+mqttManager.on("nodeUpdate", (n) => mainWindow?.webContents.send("mqtt:node-update", n));
+mqttManager.on("message", (m) => mainWindow?.webContents.send("mqtt:message", m));
+
+// ─── IPC: MQTT connect/disconnect ───────────────────────────────────
+ipcMain.handle("mqtt:connect", async (_event, settings) => {
+  mqttManager.connect(settings);
+});
+ipcMain.handle("mqtt:disconnect", async () => {
+  mqttManager.disconnect();
+});
 
 // ─── IPC: Database operations ──────────────────────────────────────
 ipcMain.handle("db:saveMessage", (_event, message) => {
@@ -326,9 +344,10 @@ ipcMain.handle("db:saveNode", (_event, node) => {
   try {
     const db = getDatabase();
     const stmt = db.prepare(`
-      INSERT INTO nodes (node_id, long_name, short_name, hw_model, snr, rssi, battery, last_heard, latitude, longitude, role, hops_away, via_mqtt, voltage, channel_utilization, air_util_tx, altitude, favorited)
+      INSERT INTO nodes (node_id, long_name, short_name, hw_model, snr, rssi, battery, last_heard, latitude, longitude, role, hops_away, via_mqtt, voltage, channel_utilization, air_util_tx, altitude, favorited, source)
       VALUES (@node_id, @long_name, @short_name, @hw_model, @snr, @rssi, @battery, @last_heard, @latitude, @longitude, @role, @hops_away, @via_mqtt, @voltage, @channel_utilization, @air_util_tx, @altitude,
-        COALESCE((SELECT favorited FROM nodes WHERE node_id = @node_id), 0))
+        COALESCE((SELECT favorited FROM nodes WHERE node_id = @node_id), 0),
+        @source)
       ON CONFLICT(node_id) DO UPDATE SET
         long_name = excluded.long_name,
         short_name = excluded.short_name,
@@ -345,7 +364,8 @@ ipcMain.handle("db:saveNode", (_event, node) => {
         voltage = excluded.voltage,
         channel_utilization = excluded.channel_utilization,
         air_util_tx = excluded.air_util_tx,
-        altitude = excluded.altitude
+        altitude = excluded.altitude,
+        source = CASE WHEN excluded.source = 'rf' THEN 'rf' ELSE COALESCE((SELECT source FROM nodes WHERE node_id = excluded.node_id), 'mqtt') END
     `);
     return stmt.run({
       role: null,
@@ -355,6 +375,7 @@ ipcMain.handle("db:saveNode", (_event, node) => {
       channel_utilization: null,
       air_util_tx: null,
       altitude: null,
+      source: "rf",
       ...node,
       via_mqtt: node.via_mqtt != null ? (node.via_mqtt ? 1 : 0) : null,
     });
@@ -468,6 +489,15 @@ ipcMain.handle("db:getMessageChannels", () => {
     return getDatabase().prepare("SELECT DISTINCT channel FROM messages ORDER BY channel").all();
   } catch (err) {
     console.error("[IPC] db:getMessageChannels failed:", err);
+    throw err;
+  }
+});
+
+ipcMain.handle("db:deleteNodesBySource", (_event, source: string) => {
+  try {
+    return deleteNodesBySource(source);
+  } catch (err) {
+    console.error("[IPC] db:deleteNodesBySource failed:", err);
     throw err;
   }
 });

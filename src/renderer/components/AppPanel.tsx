@@ -64,6 +64,7 @@ interface AdminSettings {
   distanceFilterMax: number;
   distanceUnit: "miles" | "km";
   congestionHalosEnabled: boolean;
+  filterMqttOnly: boolean;
 }
 
 const DEFAULT_SETTINGS: AdminSettings = {
@@ -75,6 +76,7 @@ const DEFAULT_SETTINGS: AdminSettings = {
   distanceFilterMax: 500,
   distanceUnit: "miles",
   congestionHalosEnabled: false,
+  filterMqttOnly: false,
 };
 
 function loadSettings(): AdminSettings {
@@ -132,8 +134,9 @@ export default function AppPanel({
       maxDistance: settings.distanceFilterMax,
       unit: settings.distanceUnit,
       congestionHalosEnabled: settings.congestionHalosEnabled,
+      hideMqttOnly: settings.filterMqttOnly,
     });
-  }, [settings.distanceFilterEnabled, settings.distanceFilterMax, settings.distanceUnit, settings.congestionHalosEnabled, onLocationFilterChange]);
+  }, [settings.distanceFilterEnabled, settings.distanceFilterMax, settings.distanceUnit, settings.congestionHalosEnabled, settings.filterMqttOnly, onLocationFilterChange]);
 
   const updateSetting = <K extends keyof AdminSettings>(key: K, value: AdminSettings[K]) =>
     setSettings((prev) => ({ ...prev, [key]: value }));
@@ -239,6 +242,18 @@ export default function AppPanel({
               Show channel utilization halos on map
             </label>
           </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="filterMqttOnly"
+              checked={settings.filterMqttOnly}
+              onChange={(e) => updateSetting("filterMqttOnly", e.target.checked)}
+              className="accent-brand-green"
+            />
+            <label htmlFor="filterMqttOnly" className="text-sm text-gray-300 cursor-pointer">
+              Hide MQTT-only nodes from map and node list
+            </label>
+          </div>
         </div>
       </div>
 
@@ -320,6 +335,27 @@ export default function AppPanel({
               className="w-24 px-2 py-1 bg-deep-black border border-gray-600 rounded text-gray-200 text-sm text-right focus:border-brand-green focus:outline-none disabled:opacity-40"
             />
             <span className="text-sm text-gray-300">nodes</span>
+          </div>
+
+          {/* Prune MQTT-only nodes */}
+          <div className="pt-1 border-t border-gray-700">
+            <button
+              onClick={() =>
+                executeWithConfirmation({
+                  name: "Prune MQTT-only Nodes",
+                  title: "Prune MQTT-only Nodes",
+                  message: "This will permanently delete all nodes discovered only via MQTT (never heard via RF). They will reappear if heard again via MQTT or RF.",
+                  confirmLabel: "Prune MQTT Nodes",
+                  danger: true,
+                  action: async () => {
+                    await window.electronAPI.db.deleteNodesBySource("mqtt");
+                  },
+                })
+              }
+              className="w-full px-4 py-2.5 bg-red-900/50 text-red-300 hover:bg-red-900/70 border border-red-800 rounded-lg text-sm font-medium transition-colors"
+            >
+              Prune MQTT-only Nodes
+            </button>
           </div>
 
           {/* Clear all nodes */}

@@ -69,6 +69,11 @@ export default function NodeListPanel({
       );
     }
 
+    // Filter MQTT-only nodes
+    if (locationFilter.hideMqttOnly) {
+      list = list.filter((n) => !n.heard_via_mqtt_only);
+    }
+
     // Filter by distance
     if (locationFilter.enabled) {
       const homeNode = myNodeNum ? nodes.get(myNodeNum) : undefined;
@@ -436,10 +441,16 @@ export default function NodeListPanel({
                       <RoleDisplay role={node.role} />
                     </td>
                     <td className={`px-3 py-2 text-right text-xs ${node.hops_away === 0 ? "text-bright-green" : "text-gray-300"}`}>
-                      {node.hops_away !== undefined ? node.hops_away : "-"}
+                      {node.heard_via_mqtt_only
+                        ? <span className="text-muted">—</span>
+                        : node.hops_away !== undefined ? node.hops_away : "-"}
                     </td>
                     <td className="px-3 py-2 text-center text-gray-300 text-xs">
-                      {node.via_mqtt ? "Yes" : "-"}
+                      {node.heard_via_mqtt_only
+                        ? <span title="Heard only via MQTT" className="text-blue-400">🌐</span>
+                        : node.via_mqtt
+                        ? <span title="Relay uses MQTT" className="text-gray-400 text-xs">relay</span>
+                        : "-"}
                     </td>
                     <td className="px-3 py-2 text-right font-mono text-xs text-muted">
                       {formatCoord(node.latitude)}
@@ -449,11 +460,13 @@ export default function NodeListPanel({
                     </td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex justify-end">
-                        <SignalBars rssi={node.rssi} isSelf={isSelf} />
+                        {node.heard_via_mqtt_only
+                          ? <span className="text-muted text-xs">—</span>
+                          : <SignalBars rssi={node.rssi} isSelf={isSelf} />}
                       </div>
                     </td>
                     <td className="px-3 py-2 text-right font-mono text-xs text-muted">
-                      {node.rssi != null ? `${node.rssi} dBm` : "-"}
+                      {node.heard_via_mqtt_only ? "—" : node.rssi != null ? `${node.rssi} dBm` : "-"}
                     </td>
                     <td className="px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-1.5">

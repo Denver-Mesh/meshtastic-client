@@ -8,6 +8,7 @@ import type {
   DeviceState,
   ChatMessage,
   MeshNode,
+  MQTTStatus,
   TelemetryPoint,
 } from "../lib/types";
 
@@ -47,6 +48,14 @@ export function useDevice() {
   const reconnectGenerationRef = useRef<number>(0);
   const bleHeartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // ─── MQTT session tracking ────────────────────────────────────
+  // Nodes heard via RF this session — prevents MQTT-only flag from being set
+  const rfHeardNodeIds = useRef<Set<number>>(new Set());
+  // Dedup map shared between RF and MQTT handlers
+  const seenPacketIds = useRef<Map<number, number>>(new Map());
+
+  const [mqttStatus, setMqttStatus] = useState<MQTTStatus>("disconnected");
+
   const [state, setState] = useState<DeviceState>({
     status: "disconnected",
     myNodeNum: 0,
@@ -83,6 +92,21 @@ export function useDevice() {
     },
     []
   );
+
+  // ─── Packet dedup helper (shared by RF and MQTT handlers) ──────
+  const isDuplicate = useCallback((packetId: number): boolean => {
+    const now = Date.now();
+    const expiry = seenPacketIds.current.get(packetId);
+    if (expiry !== undefined && expiry > now) return true;
+    seenPacketIds.current.set(packetId, now + 10 * 60 * 1000);
+    // Periodic cleanup to prevent unbounded growth
+    if (seenPacketIds.current.size > 5_000) {
+      for (const [id, exp] of seenPacketIds.current) {
+        if (exp < now) seenPacketIds.current.delete(id);
+      }
+    }
+    return false;
+  }, []);
 
   // Compact display name: short_name, truncated long_name, or hex ID
   const getNodeName = useCallback((nodeNum: number): string => {
@@ -214,6 +238,61 @@ export function useDevice() {
       .catch((err) => { console.error("[useDevice] Failed to load nodes:", err); });
   }, []);
 
+  // ─── MQTT event subscriptions (independent of RF device) ──────
+  useEffect(() => {
+    const unsubStatus = window.electronAPI.mqtt.onStatus((s) => {
+      setMqttStatus(s as MQTTStatus);
+    });
+
+    const unsubNode = window.electronAPI.mqtt.onNodeUpdate((rawNode) => {
+      const nodeUpdate = rawNode as Partial<MeshNode> & { node_id: number; from_mqtt?: boolean };
+      if (!nodeUpdate.node_id) return;
+
+      updateNodes((prev) => {
+        const existing = prev.get(nodeUpdate.node_id) || emptyNode(nodeUpdate.node_id);
+        const heardViaRF = rfHeardNodeIds.current.has(nodeUpdate.node_id);
+        const updated = new Map(prev);
+        const node: MeshNode = {
+          ...existing,
+          ...nodeUpdate,
+          heard_via_mqtt_only: !heardViaRF,
+          source: heardViaRF ? "rf" : "mqtt",
+          last_heard: nodeUpdate.last_heard ?? Date.now(),
+        };
+        // Don't overwrite RF signal data with MQTT-sourced node data
+        if (!heardViaRF) {
+          // MQTT-only: suppress RF metrics
+          node.hops_away = existing.hops_away;
+          node.snr = existing.snr;
+          node.rssi = existing.rssi;
+        }
+        updated.set(nodeUpdate.node_id, node);
+        window.electronAPI.db.saveNode(node);
+        return updated;
+      });
+    });
+
+    const unsubMsg = window.electronAPI.mqtt.onMessage((rawMsg) => {
+      const msg = rawMsg as Omit<ChatMessage, "id"> & { from_mqtt?: boolean };
+      if (msg.packetId && isDuplicate(msg.packetId)) return;
+      // Deduplicate by content too (same sender + timestamp)
+      setMessages((prev) => {
+        const isDup = prev.some(
+          (m) => m.sender_id === msg.sender_id && m.timestamp === msg.timestamp && m.payload === msg.payload
+        );
+        if (isDup) return prev;
+        return [...prev, msg];
+      });
+      window.electronAPI.db.saveMessage(msg);
+    });
+
+    return () => {
+      unsubStatus();
+      unsubNode();
+      unsubMsg();
+    };
+  }, [updateNodes, isDuplicate]);
+
   // Cleanup on unmount — stop all intervals and subscriptions
   useEffect(() => {
     return () => {
@@ -336,6 +415,7 @@ export function useDevice() {
       // ─── User info (node identity) ─────────────────────────────
       const unsub4 = device.events.onUserPacket.subscribe((packet) => {
         touchLastData();
+        rfHeardNodeIds.current.add(packet.from);
         const user = packet.data as {
           id?: string;
           longName?: string;
@@ -352,6 +432,8 @@ export function useDevice() {
             short_name: user.shortName ?? existing.short_name,
             hw_model: String(user.hwModel ?? existing.hw_model),
             last_heard: Date.now(),
+            heard_via_mqtt_only: false,
+            source: "rf",
           };
           updated.set(packet.from, node);
           window.electronAPI.db.saveNode(node);
@@ -363,6 +445,7 @@ export function useDevice() {
       // ─── Node info packets ─────────────────────────────────────
       const unsub5 = device.events.onNodeInfoPacket.subscribe((packet) => {
         touchLastData();
+        rfHeardNodeIds.current.add((packet as any).num ?? packet.from);
         const info = packet as {
           num?: number;
           user?: {
@@ -415,6 +498,8 @@ export function useDevice() {
             channel_utilization: info.deviceMetrics?.channelUtilization ?? existing.channel_utilization,
             air_util_tx: info.deviceMetrics?.airUtilTx ?? existing.air_util_tx,
             altitude: info.position?.altitude ?? existing.altitude,
+            heard_via_mqtt_only: false,
+            source: "rf",
           };
           updated.set(nodeNum, node);
           window.electronAPI.db.saveNode(node);
@@ -947,6 +1032,7 @@ export function useDevice() {
 
   return {
     state,
+    mqttStatus,
     messages,
     nodes,
     telemetry,

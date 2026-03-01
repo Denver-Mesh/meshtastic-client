@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useDevice } from "./hooks/useDevice";
 import { ToastProvider } from "./components/Toast";
+import type { MQTTSettings } from "./lib/types";
 import Tabs from "./components/Tabs";
 import ErrorBoundary from "./components/ErrorBoundary";
 import NodeDetailModal from "./components/NodeDetailModal";
@@ -37,6 +38,23 @@ export interface LocationFilter {
   maxDistance: number;
   unit: "miles" | "km";
   congestionHalosEnabled: boolean;
+  hideMqttOnly: boolean;
+}
+
+function MqttGlobeIcon({ connected }: { connected: boolean }) {
+  return (
+    <svg
+      className={`w-4 h-4 ${connected ? "text-brand-green" : "text-gray-400"}`}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.5}
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20M2 12h20" />
+      <path d="M2 7h20M2 17h20" />
+    </svg>
+  );
 }
 
 export default function App() {
@@ -51,9 +69,10 @@ export default function App() {
         maxDistance: s.distanceFilterMax ?? 500,
         unit: s.distanceUnit ?? "miles",
         congestionHalosEnabled: s.congestionHalosEnabled ?? false,
+        hideMqttOnly: s.filterMqttOnly ?? false,
       };
     } catch {
-      return { enabled: false, maxDistance: 500, unit: "miles", congestionHalosEnabled: false };
+      return { enabled: false, maxDistance: 500, unit: "miles", congestionHalosEnabled: false, hideMqttOnly: false };
     }
   });
   const [pendingDmTarget, setPendingDmTarget] = useState<number | null>(null);
@@ -87,6 +106,17 @@ export default function App() {
       const s = raw ? JSON.parse(raw) : {};
       if (s.autoPruneEnabled) window.electronAPI.db.deleteNodesByAge(s.autoPruneDays ?? 30);
       if (s.nodeCapEnabled !== false) window.electronAPI.db.pruneNodesByCount(s.nodeCapCount ?? 10000);
+    } catch {}
+  }, []);
+
+  // ─── MQTT auto-launch on startup ─────────────────────────────────
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("mesh-client:mqttSettings");
+      if (raw) {
+        const settings = JSON.parse(raw) as MQTTSettings;
+        if (settings.autoLaunch) window.electronAPI.mqtt.connect(settings);
+      }
     } catch {}
   }, []);
 
@@ -169,6 +199,13 @@ export default function App() {
             <span className="text-xs text-muted">Meshtastic Client</span>
           </div>
           <div className="flex items-center gap-2">
+            {/* MQTT status globe */}
+            <div className="flex items-center gap-1.5 mr-3 pr-3 border-r border-gray-700">
+              <MqttGlobeIcon connected={device.mqttStatus === "connected"} />
+              <span className={`text-xs ${device.mqttStatus === "connected" ? "text-brand-green" : "text-gray-500"}`}>
+                MQTT
+              </span>
+            </div>
             {isConnectedOrOperational && (
               <LinkIcon className="w-4 h-4" />
             )}
@@ -205,6 +242,7 @@ export default function App() {
                 state={device.state}
                 onConnect={device.connect}
                 onDisconnect={device.disconnect}
+                mqttStatus={device.mqttStatus}
                 myNodeLabel={
                   device.state.myNodeNum > 0
                     ? device.getFullNodeLabel(device.state.myNodeNum)

@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type {
   ConnectionType,
   DeviceState,
   BluetoothDevice,
   SerialPortInfo,
+  MQTTSettings,
+  MQTTStatus,
 } from "../lib/types";
 import { LinkIcon } from "./SignalBars";
 
@@ -78,10 +80,46 @@ function Spinner({ className = "" }: { className?: string }) {
   );
 }
 
+const MQTT_DEFAULTS: MQTTSettings = {
+  server: "mqtt.meshtastic.org",
+  port: 1883,
+  username: "meshdev",
+  password: "large4cats",
+  topicPrefix: "msh/US/",
+  autoLaunch: false,
+  maxRetries: 5,
+};
+
+function loadMqttSettings(): MQTTSettings {
+  try {
+    const raw = localStorage.getItem("mesh-client:mqttSettings");
+    return raw ? { ...MQTT_DEFAULTS, ...JSON.parse(raw) } : MQTT_DEFAULTS;
+  } catch {
+    return MQTT_DEFAULTS;
+  }
+}
+
+function MqttGlobeIcon({ connected }: { connected: boolean }) {
+  return (
+    <svg
+      className={`w-5 h-5 ${connected ? "text-brand-green" : "text-gray-400"}`}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.5}
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20M2 12h20" />
+      <path d="M2 7h20M2 17h20" />
+    </svg>
+  );
+}
+
 interface Props {
   state: DeviceState;
   onConnect: (type: ConnectionType, httpAddress?: string) => Promise<void>;
   onDisconnect: () => Promise<void>;
+  mqttStatus: MQTTStatus;
   myNodeLabel?: string;
 }
 
@@ -89,6 +127,7 @@ export default function ConnectionPanel({
   state,
   onConnect,
   onDisconnect,
+  mqttStatus,
   myNodeLabel,
 }: Props) {
   const [connectionType, setConnectionType] = useState<ConnectionType>("ble");
@@ -96,6 +135,35 @@ export default function ConnectionPanel({
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [connectionStage, setConnectionStage] = useState("");
+
+  // ─── MQTT settings state ───────────────────────────────────────
+  const [mqttSettings, setMqttSettings] = useState<MQTTSettings>(loadMqttSettings);
+  const [showMqttPassword, setShowMqttPassword] = useState(false);
+  const [mqttError, setMqttError] = useState<string | null>(null);
+  const [mqttClientId, setMqttClientId] = useState("");
+  const mqttSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Persist MQTT settings with debounce
+  useEffect(() => {
+    if (mqttSaveTimerRef.current) clearTimeout(mqttSaveTimerRef.current);
+    mqttSaveTimerRef.current = setTimeout(() => {
+      localStorage.setItem("mesh-client:mqttSettings", JSON.stringify(mqttSettings));
+    }, 300);
+    return () => { if (mqttSaveTimerRef.current) clearTimeout(mqttSaveTimerRef.current); };
+  }, [mqttSettings]);
+
+  // Listen for MQTT events from main process
+  useEffect(() => window.electronAPI.mqtt.onError(setMqttError), []);
+  useEffect(() => window.electronAPI.mqtt.onClientId(setMqttClientId), []);
+
+  // Clear MQTT error/clientId when connection succeeds or is disconnected
+  useEffect(() => {
+    if (mqttStatus === "connected" || mqttStatus === "disconnected") setMqttError(null);
+    if (mqttStatus === "disconnected") setMqttClientId("");
+  }, [mqttStatus]);
+
+  const updateMqtt = <K extends keyof MQTTSettings>(key: K, value: MQTTSettings[K]) =>
+    setMqttSettings((prev) => ({ ...prev, [key]: value }));
 
   // ─── BLE device picker state ──────────────────────────────────
   const [bleDevices, setBleDevices] = useState<BluetoothDevice[]>([]);
@@ -353,6 +421,164 @@ export default function ConnectionPanel({
     );
   }
 
+  // ─── Shared MQTT section ────────────────────────────────────────
+  const mqttHeaderBar = (
+    <div className={`flex items-center justify-between px-4 py-3 bg-secondary-dark border-b ${mqttStatus === "connected" ? "border-brand-green/20" : "border-gray-700"}`}>
+      <div className="flex items-center gap-2">
+        <MqttGlobeIcon connected={mqttStatus === "connected"} />
+        <span className="font-medium text-gray-200">MQTT Connection</span>
+      </div>
+      <span className={`text-xs font-medium ${
+        mqttStatus === "connected" ? "text-brand-green" :
+        mqttStatus === "connecting" ? "text-yellow-400 animate-pulse" :
+        mqttStatus === "error" ? "text-red-400" : "text-gray-500"
+      }`}>
+        ● {mqttStatus}
+      </span>
+    </div>
+  );
+
+  const mqttSection = mqttStatus === "connected" ? (
+    <div className={`bg-deep-black rounded-lg border border-brand-green/20 overflow-hidden`}>
+      {mqttHeaderBar}
+      <div className="p-4 space-y-3">
+        <div className="flex justify-between text-sm">
+          <span className="text-muted">Server</span>
+          <span className="text-gray-200">{mqttSettings.server}:{mqttSettings.port}</span>
+        </div>
+        {mqttClientId && (
+          <div className="flex justify-between text-sm">
+            <span className="text-muted">Client ID</span>
+            <span className="text-gray-200 font-mono text-xs">{mqttClientId}</span>
+          </div>
+        )}
+        <div className="flex justify-between text-sm">
+          <span className="text-muted">Topic</span>
+          <span className="text-gray-200 font-mono text-xs">
+            {mqttSettings.topicPrefix.endsWith("/") ? mqttSettings.topicPrefix : `${mqttSettings.topicPrefix}/`}#
+          </span>
+        </div>
+        <button
+          onClick={() => window.electronAPI.mqtt.disconnect()}
+          className="w-full px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-lg transition-colors"
+        >
+          Disconnect
+        </button>
+      </div>
+    </div>
+  ) : (
+    <div className="bg-deep-black rounded-lg border border-gray-700 overflow-hidden">
+      {mqttHeaderBar}
+      {mqttError && (
+        <div className="px-4 py-2 bg-red-900/50 border-b border-red-800 text-red-300 text-xs">
+          {mqttError}
+        </div>
+      )}
+      <div className="p-4 space-y-3">
+        <div className="grid grid-cols-3 gap-2">
+          <div className="col-span-2 space-y-1">
+            <label className="text-xs text-muted">Server</label>
+            <input
+              type="text"
+              value={mqttSettings.server}
+              onChange={(e) => updateMqtt("server", e.target.value)}
+              className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted">Port</label>
+            <input
+              type="number"
+              value={mqttSettings.port}
+              onChange={(e) => updateMqtt("port", parseInt(e.target.value) || 1883)}
+              className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <label className="text-xs text-muted">Username</label>
+            <input
+              type="text"
+              value={mqttSettings.username}
+              onChange={(e) => updateMqtt("username", e.target.value)}
+              className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted">Password</label>
+            <div className="relative">
+              <input
+                type={showMqttPassword ? "text" : "password"}
+                value={mqttSettings.password}
+                onChange={(e) => updateMqtt("password", e.target.value)}
+                className="w-full px-2 py-1.5 pr-8 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => setShowMqttPassword((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 text-xs"
+              >
+                {showMqttPassword ? "hide" : "show"}
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="space-y-1">
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs text-muted">Topic Prefix</label>
+            <span
+              title="Each country/region has its own Topic setting; please research the correct hierarchy. Example: Colorado is msh/US/CO"
+              className="text-xs text-gray-500 cursor-help"
+            >
+              ⓘ
+            </span>
+          </div>
+          <input
+            type="text"
+            value={mqttSettings.topicPrefix}
+            onChange={(e) => updateMqtt("topicPrefix", e.target.value)}
+            className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
+            placeholder="msh/US/"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs text-muted">Max Retries</label>
+          <input
+            type="number"
+            min={1}
+            max={20}
+            value={mqttSettings.maxRetries ?? 5}
+            onChange={(e) => updateMqtt("maxRetries", parseInt(e.target.value) || 5)}
+            className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="mqttAutoLaunch"
+            checked={mqttSettings.autoLaunch}
+            onChange={(e) => updateMqtt("autoLaunch", e.target.checked)}
+            className="accent-brand-green"
+          />
+          <label htmlFor="mqttAutoLaunch" className="text-sm text-gray-300 cursor-pointer">
+            Auto-connect on application start
+          </label>
+        </div>
+        <div className="pt-1">
+          <button
+            onClick={() => window.electronAPI.mqtt.connect(mqttSettings)}
+            disabled={mqttStatus === "connecting"}
+            className="w-full px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-40"
+            style={{ backgroundColor: "#4CAF50" }}
+          >
+            Connect
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   // ─── Connected View ────────────────────────────────────────────
   if (isConnected) {
     return (
@@ -399,6 +625,8 @@ export default function ConnectionPanel({
         >
           Disconnect
         </button>
+
+        {mqttSection}
       </div>
     );
   }
@@ -575,6 +803,8 @@ export default function ConnectionPanel({
           </p>
         </div>
       )}
+
+      {mqttSection}
     </div>
   );
 }

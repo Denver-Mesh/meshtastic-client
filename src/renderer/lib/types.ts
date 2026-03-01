@@ -19,7 +19,22 @@ export interface MeshNode {
   air_util_tx?: number;
   altitude?: number;
   favorited?: boolean;
+  // MQTT source tracking
+  heard_via_mqtt_only?: boolean; // session-only: true if never heard via RF this session
+  source?: "rf" | "mqtt";       // persistent: written to DB
 }
+
+export interface MQTTSettings {
+  server: string;
+  port: number;
+  username: string;
+  password: string;
+  topicPrefix: string;
+  autoLaunch: boolean;
+  maxRetries?: number;
+}
+
+export type MQTTStatus = "disconnected" | "connecting" | "connected" | "error";
 
 export interface ChatMessage {
   id?: number;
@@ -96,6 +111,15 @@ declare global {
         clearMessagesByChannel: (channel: number) => Promise<unknown>;
         getMessageChannels: () => Promise<{ channel: number }[]>;
         setNodeFavorited: (nodeId: number, favorited: boolean) => Promise<unknown>;
+        deleteNodesBySource: (source: string) => Promise<number>;
+      };
+      mqtt: {
+        connect: (settings: MQTTSettings) => Promise<void>;
+        disconnect: () => Promise<void>;
+        onStatus: (cb: (status: MQTTStatus) => void) => () => void;
+        onError: (cb: (message: string) => void) => () => void;
+        onNodeUpdate: (cb: (node: Partial<MeshNode> & { node_id: number }) => void) => () => void;
+        onMessage: (cb: (msg: Omit<ChatMessage, "id">) => void) => () => void;
       };
       onBluetoothDevicesDiscovered: (
         cb: (devices: BluetoothDevice[]) => void
