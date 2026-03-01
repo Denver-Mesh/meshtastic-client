@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from "react";
 import type { ChatMessage, MeshNode } from "../lib/types";
 
 // Standard emoji reaction set — Row 1: iMessage Classic, Row 2: WhatsApp/RCS Extended
@@ -79,6 +79,18 @@ function HighlightText({
   );
 }
 
+function UnreadDivider() {
+  return (
+    <div className="flex items-center gap-3 py-2">
+      <div className="flex-1 border-t border-red-500/50" />
+      <span className="text-[10px] text-red-400 font-semibold uppercase tracking-wider shrink-0 bg-red-500/10 border border-red-500/30 rounded-full px-2.5 py-0.5">
+        New messages
+      </span>
+      <div className="flex-1 border-t border-red-500/50" />
+    </div>
+  );
+}
+
 interface Props {
   messages: ChatMessage[];
   channels: Array<{ index: number; name: string }>;
@@ -140,6 +152,35 @@ export default function ChatPanel({
   // Track unread counts per channel
   const lastReadRef = useRef<Map<number, number>>(new Map());
   const [unreadCounts, setUnreadCounts] = useState<Map<number, number>>(new Map());
+
+  // Persisted lastRead: { "ch:0": timestamp, "ch:2": ..., "dm:12345678": ... }
+  const [persistedLastRead, setPersistedLastRead] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem("mesh-client:lastRead");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+      }
+    } catch { /* ignore corrupt */ }
+    return {};
+  });
+  // Ref mirror — lets view-switch effect read latest value without adding it to deps
+  const persistedLastReadRef = useRef(persistedLastRead);
+  persistedLastReadRef.current = persistedLastRead;
+
+  // Snapshot of lastRead taken at the moment of view switch (for divider calculation)
+  const [unreadDividerTimestamp, setUnreadDividerTimestamp] = useState(0);
+
+  // Counter-based trigger: increment → useLayoutEffect fires scroll-to-divider
+  const [triggerScrollToUnread, setTriggerScrollToUnread] = useState(0);
+
+  // Ref to divider DOM node for scrollIntoView
+  const unreadDividerRef = useRef<HTMLDivElement>(null);
+
+  // Persist lastRead timestamps to localStorage
+  useEffect(() => {
+    localStorage.setItem("mesh-client:lastRead", JSON.stringify(persistedLastRead));
+  }, [persistedLastRead]);
 
   const getDmLabel = useCallback((nodeNum: number) => {
     const node = nodes.get(nodeNum);
@@ -241,13 +282,38 @@ export default function ChatPanel({
     return msgs;
   }, [regularMessages, channel, searchQuery, viewMode, activeDmNode, myNodeNum]);
 
-  // Scroll tracking for scroll-to-bottom button
+  const viewKey = useMemo(() => {
+    if (viewMode === "dm" && activeDmNode != null) return `dm:${activeDmNode}`;
+    return `ch:${channel}`;
+  }, [viewMode, activeDmNode, channel]);
+
+  // On view switch: snapshot lastRead for divider + arm scroll trigger
+  useEffect(() => {
+    if (channel === -1) {
+      // "All" view: no divider, just scroll to bottom
+      setUnreadDividerTimestamp(0);
+      setTriggerScrollToUnread((n) => n + 1);
+      return;
+    }
+    const snapshot = persistedLastReadRef.current[viewKey] ?? 0;
+    setUnreadDividerTimestamp(snapshot);
+    setTriggerScrollToUnread((n) => n + 1);
+  }, [viewKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Intentionally reads persistedLastRead via ref (not dep) to avoid re-firing on scroll updates
+
+  // Scroll tracking for scroll-to-bottom button + mark-as-read when at bottom
   const handleScroll = useCallback(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     setShowScrollButton(distFromBottom > 200);
-  }, []);
+
+    if (distFromBottom < 50) {
+      const now = Date.now();
+      setPersistedLastRead((prev) => ({ ...prev, [viewKey]: now }));
+      setUnreadDividerTimestamp(0); // hide divider once user has read to bottom
+    }
+  }, [viewKey]);
 
   // Auto-scroll on new messages (only if near bottom)
   useEffect(() => {
@@ -258,6 +324,17 @@ export default function ChatPanel({
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [filteredMessages.length]);
+
+  // Fires after view switch (triggerScrollToUnread increments). useLayoutEffect
+  // ensures DOM is committed before scrolling, preventing flash of wrong position.
+  useLayoutEffect(() => {
+    if (triggerScrollToUnread === 0) return; // skip initial mount
+    if (unreadDividerRef.current) {
+      unreadDividerRef.current.scrollIntoView({ block: "center" });
+    } else {
+      messagesEndRef.current?.scrollIntoView();
+    }
+  }, [triggerScrollToUnread]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -300,6 +377,9 @@ export default function ChatPanel({
       const destination = viewMode === "dm" && activeDmNode != null ? activeDmNode : undefined;
       await onSend(input.trim(), sendChannel, destination);
       setInput("");
+      const now = Date.now();
+      setPersistedLastRead((prev) => ({ ...prev, [viewKey]: now }));
+      setUnreadDividerTimestamp(0);
     } catch (err) {
       console.error("Send failed:", err);
     } finally {
@@ -405,6 +485,17 @@ export default function ChatPanel({
     }
     return indices;
   }, [filteredMessages]);
+
+  // Index of first message from another node newer than unreadDividerTimestamp.
+  // Returns -1 when: All view, search active, timestamp=0, or no qualifying messages.
+  const unreadStartIndex = useMemo(() => {
+    if (channel === -1 || searchQuery.trim() || unreadDividerTimestamp === 0) return -1;
+    for (let i = 0; i < filteredMessages.length; i++) {
+      const msg = filteredMessages[i];
+      if (msg.sender_id !== myNodeNum && msg.timestamp > unreadDividerTimestamp) return i;
+    }
+    return -1;
+  }, [filteredMessages, myNodeNum, unreadDividerTimestamp, channel, searchQuery]);
 
   const isDmMode = viewMode === "dm" && activeDmNode != null;
   const dmNodeName = activeDmNode != null ? getDmLabel(activeDmNode) : "";
@@ -566,9 +657,16 @@ export default function ChatPanel({
               </div>
             ) : null;
 
+            const isUnreadStart = i === unreadStartIndex;
+
             return (
               <div key={`${msg.timestamp}-${i}`}>
                 {daySeparator}
+                {isUnreadStart && (
+                  <div ref={unreadDividerRef}>
+                    <UnreadDivider />
+                  </div>
+                )}
                 <div
                   className={`flex flex-col ${
                     isOwn ? "items-end" : "items-start"
