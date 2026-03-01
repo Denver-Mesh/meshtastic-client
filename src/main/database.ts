@@ -25,6 +25,8 @@ export function initDatabase(): void {
 
   try {
     db = new Database(dbPath, { timeout: 5000 });
+    // Restrict DB file to owner-only access (no-op on Windows)
+    try { fs.chmodSync(dbPath, 0o600); } catch { /* Windows */ }
     db.pragma("journal_mode = WAL");
     db.pragma("synchronous = NORMAL");
 
@@ -37,7 +39,7 @@ export function initDatabase(): void {
       createBaseTables();
       if (isFreshDb) {
         // Base DDL already includes all columns; stamp current schema version
-        db!.pragma("user_version = 5");
+        db!.pragma("user_version = 6");
       } else {
         runMigrations();
       }
@@ -97,6 +99,7 @@ function createBaseTables(): void {
       );
 
       CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_messages_channel_ts ON messages(channel, timestamp DESC);
       CREATE INDEX IF NOT EXISTS idx_nodes_last_heard ON nodes(last_heard);
     `);
   } catch (error) {
@@ -164,17 +167,26 @@ function runMigrations(): void {
     try {
       db!.prepare("ALTER TABLE nodes ADD COLUMN favorited INTEGER DEFAULT 0").run();
       db!.pragma("user_version = 5");
+      userVersion = 5;
     } catch (e) {
       throw new Error(`Migration v5 failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
+
+  if (userVersion < 6) {
+    try {
+      db!.prepare(
+        "CREATE INDEX IF NOT EXISTS idx_messages_channel_ts ON messages(channel, timestamp DESC)"
+      ).run();
+      db!.pragma("user_version = 6");
+    } catch (e) {
+      throw new Error(`Migration v6 failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
 }
 
-export function exportDatabase(destPath: string): void {
-  const database = getDatabase();
-  database.backup(destPath)
-    .then(() => console.log("Backup complete"))
-    .catch((err: unknown) => console.error("Backup failed", err));
+export async function exportDatabase(destPath: string): Promise<void> {
+  await getDatabase().backup(destPath);
 }
 
 export function mergeDatabase(sourcePath: string) {

@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import type { MeshDevice } from "@meshtastic/core";
 import { create } from "@bufbuild/protobuf";
 import { Channel as ProtobufChannel } from "@meshtastic/protobufs";
-import { createConnection, reconnectBle, safeDisconnect } from "../lib/connection";
+import { createConnection, reconnectBle, safeDisconnect, clearCapturedBleDevice } from "../lib/connection";
 import type {
   ConnectionType,
   DeviceState,
@@ -199,17 +199,19 @@ export function useDevice() {
 
   // Load saved data from DB on mount
   useEffect(() => {
-    window.electronAPI.db.getMessages(undefined, 500).then((msgs) => {
-      setMessages(msgs.reverse());
-    });
-    window.electronAPI.db.getNodes().then((savedNodes) => {
-      const nodeMap = new Map<number, MeshNode>();
-      for (const n of savedNodes) {
-        nodeMap.set(n.node_id, { ...n, role: parseNodeRole(n.role), favorited: Boolean(n.favorited) });
-      }
-      nodesRef.current = nodeMap;
-      setNodes(nodeMap);
-    });
+    window.electronAPI.db.getMessages(undefined, 500)
+      .then((msgs) => { setMessages(msgs.reverse()); })
+      .catch((err) => { console.error("[useDevice] Failed to load messages:", err); setMessages([]); });
+    window.electronAPI.db.getNodes()
+      .then((savedNodes) => {
+        const nodeMap = new Map<number, MeshNode>();
+        for (const n of savedNodes) {
+          nodeMap.set(n.node_id, { ...n, role: parseNodeRole(n.role), favorited: Boolean(n.favorited) });
+        }
+        nodesRef.current = nodeMap;
+        setNodes(nodeMap);
+      })
+      .catch((err) => { console.error("[useDevice] Failed to load nodes:", err); });
   }, []);
 
   // Cleanup on unmount — stop all intervals and subscriptions
@@ -257,21 +259,15 @@ export function useDevice() {
           startWatchdog();
         }
 
-        // Always clean up timers on disconnect, even before reaching configured
+        // Always clean up on disconnect, even if we never reached configured
         if (status === 2) {
           stopBleHeartbeat();
           stopWatchdog();
+          cleanupSubscriptions();
+          stopPolling();
           setTraceRouteResults(new Map());
-          if (wasConfigured) {
-            cleanupSubscriptions();
-            stopPolling();
-            deviceRef.current = null;
-            setState((s) => ({
-              ...s,
-              status: "disconnected",
-              connectionType: null,
-            }));
-          }
+          deviceRef.current = null;
+          setState((s) => ({ ...s, status: "disconnected", connectionType: null }));
         }
       });
       unsubscribesRef.current.push(unsub1);
@@ -788,6 +784,7 @@ export function useDevice() {
     stopPolling();
     stopWatchdog();
     stopBleHeartbeat();
+    clearCapturedBleDevice();
     isReconnectingRef.current = false;
     reconnectAttemptRef.current = 0;
     reconnectGenerationRef.current++;

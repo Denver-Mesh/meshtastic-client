@@ -346,12 +346,10 @@ export default function ChatPanel({
 
   // Open a DM tab for a node
   const openDmTo = useCallback((nodeNum: number) => {
-    if (!openDmTabs.includes(nodeNum)) {
-      setOpenDmTabs(prev => [...prev, nodeNum]);
-    }
+    setOpenDmTabs(prev => prev.includes(nodeNum) ? prev : [...prev, nodeNum]);
     setActiveDmNode(nodeNum);
     setViewMode("dm");
-  }, [openDmTabs]);
+  }, []);
 
   // Close a DM tab
   const closeDmTab = useCallback((nodeNum: number) => {

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import type { MeshNode } from "../lib/types";
 import { useToast } from "./Toast";
 import { haversineDistanceKm } from "../lib/nodeStatus";
@@ -125,8 +125,13 @@ export default function AdminPanel({
   const [settings, setSettings] = useState<AdminSettings>(loadSettings);
   const [deleteAgeDays, setDeleteAgeDays] = useState(90);
 
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    localStorage.setItem("mesh-client:adminSettings", JSON.stringify(settings));
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      localStorage.setItem("mesh-client:adminSettings", JSON.stringify(settings));
+    }, 300);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [settings]);
 
   useEffect(() => {
@@ -150,10 +155,10 @@ export default function AdminPanel({
     }).catch(() => {});
   }, []);
 
-  const getChannelLabel = (ch: number) => {
+  const getChannelLabel = useCallback((ch: number) => {
     const named = channels.find((c) => c.index === ch);
     return named ? `Channel ${ch} — ${named.name}` : `Channel ${ch}`;
-  };
+  }, [channels]);
 
   // ─── Confirmation flow ──────────────────────────────────────
   const executeWithConfirmation = useCallback((action: PendingAction) => {

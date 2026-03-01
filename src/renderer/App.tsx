@@ -13,6 +13,15 @@ import TelemetryPanel from "./components/TelemetryPanel";
 import AdminPanel from "./components/AdminPanel";
 import { LinkIcon } from "./components/SignalBars";
 
+const STATUS_COLOR: Record<string, string> = {
+  disconnected: "bg-red-500",
+  connecting: "bg-yellow-500 animate-pulse",
+  connected: "bg-blue-500",
+  configured: "bg-green-500",
+  stale: "bg-yellow-500 animate-pulse",
+  reconnecting: "bg-orange-500 animate-pulse",
+};
+
 const TAB_NAMES = [
   "Connection",
   "Chat",
@@ -140,14 +149,7 @@ export default function App() {
 
   const handleLocationFilterChange = useCallback((f: LocationFilter) => setLocationFilter(f), []);
 
-  const statusColor = {
-    disconnected: "bg-red-500",
-    connecting: "bg-yellow-500 animate-pulse",
-    connected: "bg-blue-500",
-    configured: "bg-green-500",
-    stale: "bg-yellow-500 animate-pulse",
-    reconnecting: "bg-orange-500 animate-pulse",
-  }[device.state.status];
+  const statusColor = STATUS_COLOR[device.state.status] ?? "bg-gray-500";
 
   return (
     <ToastProvider>
