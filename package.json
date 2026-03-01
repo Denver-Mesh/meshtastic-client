@@ -1,7 +1,7 @@
 {
   "name": "mesh-client",
   "version": "1.0.0",
-  "description": "Cross-platform Meshtastic desktop client — BLE, Serial, and HTTP support",
+  "description": "Cross-platform Meshtastic desktop client — BLE, Serial, HTTP, and MQTT support",
   "main": "dist-electron/main/index.js",
   "scripts": {
     "build:main": "esbuild src/main/index.ts --bundle --platform=node --outfile=dist-electron/main/index.js --external:electron --external:better-sqlite3 --format=cjs",
@@ -23,6 +23,7 @@
     "meshtastic",
     "mesh-network",
     "bluetooth",
+    "mqtt",
     "electron",
     "desktop"
   ],
