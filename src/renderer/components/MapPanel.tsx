@@ -16,7 +16,7 @@ function getCUColor(cu: number): string {
 
 // Create colored marker icons using SVG data URIs, with optional CU halo
 function createMarkerIcon(color: string, isSelf: boolean, cu: number = 0, markerOpacity: number = 1): L.Icon {
-  const haloPx = cu <= 0 ? 0 : Math.round((cu / 100) * 28);
+  const haloPx = cu <= 0 ? 0 : Math.round((cu / 100) * 14);
   const haloColor = getCUColor(cu);
   const halo = (c: number) =>
     haloPx > 0
