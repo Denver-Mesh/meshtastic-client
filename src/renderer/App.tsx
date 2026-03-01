@@ -230,6 +230,7 @@ export default function App() {
                 onNodeClick={(node) => setSelectedNodeId(node.node_id)}
                 isConnected={isOperational}
                 locationFilter={locationFilter}
+                onToggleFavorite={device.setNodeFavorited}
               />
             )}
             {activeTab === 3 && (
@@ -332,6 +333,7 @@ export default function App() {
               ? handleMessageNode
               : undefined
           }
+          onToggleFavorite={device.setNodeFavorited}
           isConnected={isOperational}
         />
       </div>

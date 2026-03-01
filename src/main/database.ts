@@ -37,7 +37,7 @@ export function initDatabase(): void {
       createBaseTables();
       if (isFreshDb) {
         // Base DDL already includes all columns; stamp current schema version
-        db!.pragma("user_version = 4");
+        db!.pragma("user_version = 5");
       } else {
         runMigrations();
       }
@@ -92,7 +92,8 @@ function createBaseTables(): void {
         voltage REAL,
         channel_utilization REAL,
         air_util_tx REAL,
-        altitude INTEGER
+        altitude INTEGER,
+        favorited INTEGER DEFAULT 0
       );
 
       CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
@@ -153,8 +154,18 @@ function runMigrations(): void {
         "WHERE emoji IS NOT NULL AND reply_id IS NOT NULL"
       );
       db!.pragma("user_version = 4");
+      userVersion = 4;
     } catch (e) {
       throw new Error(`Migration v4 failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  if (userVersion < 5) {
+    try {
+      db!.prepare("ALTER TABLE nodes ADD COLUMN favorited INTEGER DEFAULT 0").run();
+      db!.pragma("user_version = 5");
+    } catch (e) {
+      throw new Error(`Migration v5 failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 }

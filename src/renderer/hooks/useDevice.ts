@@ -205,7 +205,7 @@ export function useDevice() {
     window.electronAPI.db.getNodes().then((savedNodes) => {
       const nodeMap = new Map<number, MeshNode>();
       for (const n of savedNodes) {
-        nodeMap.set(n.node_id, { ...n, role: parseNodeRole(n.role) });
+        nodeMap.set(n.node_id, { ...n, role: parseNodeRole(n.role), favorited: Boolean(n.favorited) });
       }
       nodesRef.current = nodeMap;
       setNodes(nodeMap);
@@ -915,6 +915,16 @@ export function useDevice() {
     });
   }, [updateNodes]);
 
+  const setNodeFavorited = useCallback(async (nodeId: number, favorited: boolean) => {
+    await window.electronAPI.db.setNodeFavorited(nodeId, favorited);
+    updateNodes((prev) => {
+      const updated = new Map(prev);
+      const existing = updated.get(nodeId);
+      if (existing) updated.set(nodeId, { ...existing, favorited });
+      return updated;
+    });
+  }, [updateNodes]);
+
   const requestRefresh = useCallback(async () => {
     if (!deviceRef.current) return;
     await deviceRef.current.configure();
@@ -962,6 +972,7 @@ export function useDevice() {
     requestPosition,
     traceRoute,
     deleteNode,
+    setNodeFavorited,
     requestRefresh,
     getFullNodeLabel,
   };

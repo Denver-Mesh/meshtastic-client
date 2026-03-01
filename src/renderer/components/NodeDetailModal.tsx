@@ -10,6 +10,7 @@ interface NodeDetailModalProps {
   traceRouteHops?: string[];
   onDeleteNode: (nodeNum: number) => Promise<void>;
   onMessageNode?: (nodeNum: number) => void;
+  onToggleFavorite: (nodeId: number, favorited: boolean) => void;
   isConnected: boolean;
 }
 
@@ -49,6 +50,7 @@ export default function NodeDetailModal({
   traceRouteHops,
   onDeleteNode,
   onMessageNode,
+  onToggleFavorite,
   isConnected,
 }: NodeDetailModalProps) {
   const [actionStatus, setActionStatus] = useState<string | null>(null);
@@ -175,6 +177,15 @@ export default function NodeDetailModal({
               )}
             </div>
           </div>
+          <button
+            onClick={() => onToggleFavorite(node.node_id, !node.favorited)}
+            className="p-1.5 rounded-lg hover:bg-secondary-dark transition-colors shrink-0 mr-1"
+            title={node.favorited ? "Remove from favorites" : "Add to favorites"}
+          >
+            <span className={`text-xl ${node.favorited ? "text-yellow-400" : "text-gray-500 hover:text-yellow-400"}`}>
+              {node.favorited ? "★" : "☆"}
+            </span>
+          </button>
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-secondary-dark text-muted hover:text-gray-200 transition-colors shrink-0"

@@ -30,6 +30,7 @@ interface Props {
   onNodeClick: (node: MeshNode) => void;
   isConnected: boolean;
   locationFilter: LocationFilter;
+  onToggleFavorite: (nodeId: number, favorited: boolean) => void;
 }
 
 export default function NodeListPanel({
@@ -39,6 +40,7 @@ export default function NodeListPanel({
   onNodeClick,
   isConnected,
   locationFilter,
+  onToggleFavorite,
 }: Props) {
   const [sortField, setSortField] = useState<SortField>("last_heard");
   const [sortAsc, setSortAsc] = useState(false);
@@ -89,6 +91,14 @@ export default function NodeListPanel({
 
     // Sort
     list.sort((a, b) => {
+      // Self-node always first
+      if (a.node_id === myNodeNum) return -1;
+      if (b.node_id === myNodeNum) return 1;
+      // Favorites pinned above non-favorites
+      const aFav = a.favorited ? 1 : 0;
+      const bFav = b.favorited ? 1 : 0;
+      if (aFav !== bFav) return bFav - aFav;
+      // Regular field sort
       let cmp = 0;
       switch (sortField) {
         case "node_id":
@@ -137,9 +147,6 @@ export default function NodeListPanel({
           cmp = (a.altitude ?? 0) - (b.altitude ?? 0);
           break;
       }
-      // Self-node always first
-      if (a.node_id === myNodeNum) return -1;
-      if (b.node_id === myNodeNum) return 1;
       return sortAsc ? cmp : -cmp;
     });
 
@@ -245,6 +252,7 @@ export default function NodeListPanel({
           <thead>
             <tr className="bg-deep-black text-muted text-left sticky top-0 z-10">
               <th className="px-3 py-2 w-8"></th>
+              <th className="px-2 py-2 w-6" title="Favorites"></th>
               <th
                 className="px-3 py-2 cursor-pointer hover:text-gray-200 transition-colors select-none"
                 onClick={() => handleSort("node_id")}
@@ -347,7 +355,7 @@ export default function NodeListPanel({
             {nodeList.length === 0 ? (
               <tr>
                 <td
-                  colSpan={17}
+                  colSpan={18}
                   className="text-center text-muted py-8"
                 >
                   {searchQuery
@@ -395,6 +403,19 @@ export default function NodeListPanel({
                           </span>
                         )}
                       </div>
+                    </td>
+                    {/* Favorite toggle */}
+                    <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
+                      {!isSelf && (
+                        <button
+                          onClick={() => onToggleFavorite(node.node_id, !node.favorited)}
+                          title={node.favorited ? "Remove from favorites" : "Add to favorites"}
+                        >
+                          <span className={node.favorited ? "text-yellow-400" : "text-gray-600 hover:text-yellow-400"}>
+                            {node.favorited ? "★" : "☆"}
+                          </span>
+                        </button>
+                      )}
                     </td>
                     <td className="px-3 py-2 font-mono text-xs text-muted">
                       !{node.node_id.toString(16)}

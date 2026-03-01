@@ -54,6 +54,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     deleteNodesBatch: (nodeIds: number[]) => ipcRenderer.invoke("db:deleteNodesBatch", nodeIds),
     clearMessagesByChannel: (channel: number) => ipcRenderer.invoke("db:clearMessagesByChannel", channel),
     getMessageChannels: () => ipcRenderer.invoke("db:getMessageChannels"),
+    setNodeFavorited: (nodeId: number, favorited: boolean) =>
+      ipcRenderer.invoke("db:setNodeFavorited", nodeId, favorited),
   },
 
   // ─── Bluetooth device selection ─────────────────────────────────

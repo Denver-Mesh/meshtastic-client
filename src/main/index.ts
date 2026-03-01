@@ -323,8 +323,26 @@ ipcMain.handle("db:getMessages", (_event, channel?: number, limit = 200) => {
 ipcMain.handle("db:saveNode", (_event, node) => {
   const db = getDatabase();
   const stmt = db.prepare(`
-    INSERT OR REPLACE INTO nodes (node_id, long_name, short_name, hw_model, snr, rssi, battery, last_heard, latitude, longitude, role, hops_away, via_mqtt, voltage, channel_utilization, air_util_tx, altitude)
-    VALUES (@node_id, @long_name, @short_name, @hw_model, @snr, @rssi, @battery, @last_heard, @latitude, @longitude, @role, @hops_away, @via_mqtt, @voltage, @channel_utilization, @air_util_tx, @altitude)
+    INSERT INTO nodes (node_id, long_name, short_name, hw_model, snr, rssi, battery, last_heard, latitude, longitude, role, hops_away, via_mqtt, voltage, channel_utilization, air_util_tx, altitude, favorited)
+    VALUES (@node_id, @long_name, @short_name, @hw_model, @snr, @rssi, @battery, @last_heard, @latitude, @longitude, @role, @hops_away, @via_mqtt, @voltage, @channel_utilization, @air_util_tx, @altitude,
+      COALESCE((SELECT favorited FROM nodes WHERE node_id = @node_id), 0))
+    ON CONFLICT(node_id) DO UPDATE SET
+      long_name = excluded.long_name,
+      short_name = excluded.short_name,
+      hw_model = excluded.hw_model,
+      snr = excluded.snr,
+      rssi = excluded.rssi,
+      battery = excluded.battery,
+      last_heard = excluded.last_heard,
+      latitude = excluded.latitude,
+      longitude = excluded.longitude,
+      role = excluded.role,
+      hops_away = excluded.hops_away,
+      via_mqtt = excluded.via_mqtt,
+      voltage = excluded.voltage,
+      channel_utilization = excluded.channel_utilization,
+      air_util_tx = excluded.air_util_tx,
+      altitude = excluded.altitude
   `);
   return stmt.run({
     role: null,
@@ -337,6 +355,12 @@ ipcMain.handle("db:saveNode", (_event, node) => {
     ...node,
     via_mqtt: node.via_mqtt != null ? (node.via_mqtt ? 1 : 0) : null,
   });
+});
+
+ipcMain.handle("db:setNodeFavorited", (_event, nodeId: number, favorited: boolean) => {
+  const db = getDatabase();
+  return db.prepare("UPDATE nodes SET favorited = ? WHERE node_id = ?")
+    .run(favorited ? 1 : 0, nodeId);
 });
 
 ipcMain.handle("db:getNodes", () => {

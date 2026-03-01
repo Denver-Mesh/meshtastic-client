@@ -18,6 +18,7 @@ export interface MeshNode {
   channel_utilization?: number;
   air_util_tx?: number;
   altitude?: number;
+  favorited?: boolean;
 }
 
 export interface ChatMessage {
@@ -94,6 +95,7 @@ declare global {
         deleteNodesBatch: (nodeIds: number[]) => Promise<number>;
         clearMessagesByChannel: (channel: number) => Promise<unknown>;
         getMessageChannels: () => Promise<{ channel: number }[]>;
+        setNodeFavorited: (nodeId: number, favorited: boolean) => Promise<unknown>;
       };
       onBluetoothDevicesDiscovered: (
         cb: (devices: BluetoothDevice[]) => void
