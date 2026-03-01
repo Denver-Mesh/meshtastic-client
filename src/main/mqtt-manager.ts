@@ -18,6 +18,14 @@ const DEFAULT_PSK = Buffer.from([
 // Dedup window: 10 minutes
 const DEDUP_TTL_MS = 10 * 60 * 1000;
 
+function coordWarning(lat: number, lon: number): string | null {
+  if (lat === 0 && lon === 0) return "No GPS fix (0°, 0°)";
+  if (lat < -90 || lat > 90) return `Latitude out of range: ${lat.toFixed(4)}°`;
+  if (lon < -180 || lon > 180) return `Longitude out of range: ${lon.toFixed(4)}°`;
+  if (lat === 90 && lon === 0) return "GPS no fix (reports North Pole)";
+  return null;
+}
+
 export class MQTTManager extends EventEmitter {
   private client: mqtt.MqttClient | null = null;
   private status: MQTTStatus = "disconnected";
@@ -237,14 +245,21 @@ export class MQTTManager extends EventEmitter {
     } else if (portnum === PortNum.POSITION_APP && payload) {
       try {
         const pos = fromBinary(PositionSchema, payload);
-        if (pos.latitudeI || pos.longitudeI) {
-          const nodeUpdate: Partial<MeshNode> & { node_id: number; from_mqtt: boolean } = {
+        const lat = (pos.latitudeI ?? 0) / 1e7;
+        const lon = (pos.longitudeI ?? 0) / 1e7;
+        const warning = coordWarning(lat, lon);
+
+        if (warning) {
+          this.emit("nodeUpdate", { node_id: nodeId, positionWarning: warning, last_heard: Date.now(), from_mqtt: true });
+        } else if (pos.latitudeI || pos.longitudeI) {
+          const nodeUpdate: Partial<MeshNode> & { node_id: number; from_mqtt: boolean; positionWarning: null } = {
             node_id: nodeId,
-            latitude: (pos.latitudeI ?? 0) / 1e7,
-            longitude: (pos.longitudeI ?? 0) / 1e7,
+            latitude: lat,
+            longitude: lon,
             altitude: pos.altitude ?? undefined,
             last_heard: Date.now(),
             from_mqtt: true,
+            positionWarning: null,
           };
           this.emit("nodeUpdate", nodeUpdate);
         } else {

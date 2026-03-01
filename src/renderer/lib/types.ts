@@ -22,6 +22,7 @@ export interface MeshNode {
   // MQTT source tracking
   heard_via_mqtt_only?: boolean; // session-only: true if never heard via RF this session
   source?: "rf" | "mqtt";       // persistent: written to DB
+  lastPositionWarning?: string; // set when bad GPS data received; cleared on valid update
 }
 
 export interface MQTTSettings {

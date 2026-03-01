@@ -3,6 +3,7 @@ import type { MeshDevice } from "@meshtastic/core";
 import { create } from "@bufbuild/protobuf";
 import { Channel as ProtobufChannel } from "@meshtastic/protobufs";
 import { createConnection, reconnectBle, safeDisconnect, clearCapturedBleDevice } from "../lib/connection";
+import { validateCoords } from "../lib/coordUtils";
 import type {
   ConnectionType,
   DeviceState,
@@ -245,7 +246,7 @@ export function useDevice() {
     });
 
     const unsubNode = window.electronAPI.mqtt.onNodeUpdate((rawNode) => {
-      const nodeUpdate = rawNode as Partial<MeshNode> & { node_id: number; from_mqtt?: boolean };
+      const nodeUpdate = rawNode as Partial<MeshNode> & { node_id: number; from_mqtt?: boolean; positionWarning?: string | null };
       if (!nodeUpdate.node_id) return;
 
       updateNodes((prev) => {
@@ -265,6 +266,25 @@ export function useDevice() {
           node.hops_away = existing.hops_away;
           node.snr = existing.snr;
           node.rssi = existing.rssi;
+        }
+        // Validate position if the update includes coords
+        if (nodeUpdate.latitude != null || nodeUpdate.longitude != null) {
+          const lat = nodeUpdate.latitude ?? 0;
+          const lon = nodeUpdate.longitude ?? 0;
+          const r = validateCoords(lat, lon);
+          if (!r.valid) {
+            node.latitude = existing.latitude;
+            node.longitude = existing.longitude;
+            node.lastPositionWarning = r.warning;
+          } else {
+            node.lastPositionWarning = undefined;
+          }
+        }
+        // Apply positionWarning emitted by mqtt-manager (bad coords, no position change)
+        if (nodeUpdate.positionWarning) {
+          node.lastPositionWarning = nodeUpdate.positionWarning;
+        } else if (nodeUpdate.positionWarning === null) {
+          node.lastPositionWarning = undefined;
         }
         updated.set(nodeUpdate.node_id, node);
         window.electronAPI.db.saveNode(node);
@@ -472,6 +492,26 @@ export function useDevice() {
         updateNodes((prev) => {
           const updated = new Map(prev);
           const existing = updated.get(nodeNum) || emptyNode(nodeNum);
+
+          let newLat = existing.latitude;
+          let newLon = existing.longitude;
+          let newAlt = info.position?.altitude ?? existing.altitude;
+          let posWarn: string | undefined = existing.lastPositionWarning;
+
+          if (info.position?.latitudeI != null || info.position?.longitudeI != null) {
+            const lat = (info.position.latitudeI ?? 0) / 1e7;
+            const lon = (info.position.longitudeI ?? 0) / 1e7;
+            const r = validateCoords(lat, lon);
+            if (r.valid) {
+              newLat = lat;
+              newLon = lon;
+              newAlt = info.position?.altitude ?? existing.altitude;
+              posWarn = undefined;
+            } else {
+              posWarn = r.warning;
+            }
+          }
+
           const node: MeshNode = {
             ...existing,
             node_id: nodeNum,
@@ -483,23 +523,18 @@ export function useDevice() {
             last_heard: (info.lastHeard ?? 0) > 0
               ? info.lastHeard! * 1000
               : existing.last_heard,
-            latitude:
-              info.position?.latitudeI
-                ? info.position.latitudeI / 1e7
-                : existing.latitude,
-            longitude:
-              info.position?.longitudeI
-                ? info.position.longitudeI / 1e7
-                : existing.longitude,
+            latitude: newLat,
+            longitude: newLon,
             role: info.user?.role ?? existing.role,
             hops_away: info.hopsAway ?? existing.hops_away,
             via_mqtt: info.viaMqtt ?? existing.via_mqtt,
             voltage: info.deviceMetrics?.voltage ?? existing.voltage,
             channel_utilization: info.deviceMetrics?.channelUtilization ?? existing.channel_utilization,
             air_util_tx: info.deviceMetrics?.airUtilTx ?? existing.air_util_tx,
-            altitude: info.position?.altitude ?? existing.altitude,
+            altitude: newAlt,
             heard_via_mqtt_only: false,
             source: "rf",
+            lastPositionWarning: posWarn,
           };
           updated.set(nodeNum, node);
           window.electronAPI.db.saveNode(node);
@@ -514,8 +549,22 @@ export function useDevice() {
         const pos = packet.data as {
           latitudeI?: number;
           longitudeI?: number;
+          altitude?: number;
         };
-        if (!pos.latitudeI && !pos.longitudeI) return;
+
+        const lat = (pos.latitudeI ?? 0) / 1e7;
+        const lon = (pos.longitudeI ?? 0) / 1e7;
+        const r = validateCoords(lat, lon);
+
+        if (!r.valid) {
+          updateNodes((prev) => {
+            const updated = new Map(prev);
+            const existing = updated.get(packet.from) || emptyNode(packet.from);
+            updated.set(packet.from, { ...existing, lastPositionWarning: r.warning });
+            return updated;
+          });
+          return;
+        }
 
         updateNodes((prev) => {
           const updated = new Map(prev);
@@ -523,15 +572,11 @@ export function useDevice() {
 
           const node: MeshNode = {
             ...existing,
-            latitude:
-              pos.latitudeI
-                ? pos.latitudeI / 1e7
-                : existing.latitude,
-            longitude:
-              pos.longitudeI
-                ? pos.longitudeI / 1e7
-                : existing.longitude,
+            latitude: lat,
+            longitude: lon,
+            altitude: pos.altitude ?? existing.altitude,
             last_heard: Date.now(),
+            lastPositionWarning: undefined,
           };
           updated.set(packet.from, node);
           window.electronAPI.db.saveNode(node);
