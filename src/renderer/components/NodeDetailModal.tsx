@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import type { MeshNode } from "../lib/types";
+import type { MeshNode, HopHistoryPoint } from "../lib/types";
 import { useDiagnosticsStore } from "../stores/diagnosticsStore";
 import { RoleDisplay } from "../lib/roleInfo";
+
+const EMPTY_HOP_HISTORY: HopHistoryPoint[] = [];
 
 interface NodeDetailModalProps {
   node: MeshNode | null;
@@ -111,7 +113,7 @@ export default function NodeDetailModal({
 
   const anomaly = useDiagnosticsStore((s) => s.anomalies.get(node?.node_id ?? 0));
   const hopHistory = useDiagnosticsStore(
-    (s) => s.hopHistory.get(node?.node_id ?? 0) ?? []
+    (s) => s.hopHistory.get(node?.node_id ?? 0) ?? EMPTY_HOP_HISTORY
   );
 
   if (!node) return null;
