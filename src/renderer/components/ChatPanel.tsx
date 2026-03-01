@@ -96,7 +96,7 @@ interface Props {
   messages: ChatMessage[];
   channels: Array<{ index: number; name: string }>;
   myNodeNum: number;
-  onSend: (text: string, channel: number, destination?: number) => Promise<void>;
+  onSend: (text: string, channel: number, destination?: number, replyId?: number) => Promise<void>;
   onReact: (emoji: number, replyId: number, channel: number) => Promise<void>;
   onNodeClick: (nodeNum: number) => void;
   isConnected: boolean;
@@ -122,6 +122,7 @@ export default function ChatPanel({
   const [input, setInput] = useState("");
   const [channel, setChannel] = useState(0);
   const [sending, setSending] = useState(false);
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [pickerOpenFor, setPickerOpenFor] = useState<number | null>(null);
   const [showComposePicker, setShowComposePicker] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -221,6 +222,15 @@ export default function ChatPanel({
     }
     return { regularMessages: regular, reactionsByReplyId: reactions };
   }, [messages]);
+
+  // Lookup map for rendering quoted replies
+  const messageByPacketId = useMemo(() => {
+    const map = new Map<number, ChatMessage>();
+    for (const msg of regularMessages) {
+      if (msg.packetId) map.set(msg.packetId, msg);
+    }
+    return map;
+  }, [regularMessages]);
 
   // Update unread counts when messages change
   useEffect(() => {
@@ -349,7 +359,9 @@ export default function ChatPanel({
       if (e.key === "Escape") {
         setPickerOpenFor(null);
         setShowComposePicker(false);
-        if (showSearch) {
+        if (replyTo) {
+          setReplyTo(null);
+        } else if (showSearch) {
           setShowSearch(false);
         } else if (viewMode === "dm") {
           setViewMode("channels");
@@ -358,7 +370,7 @@ export default function ChatPanel({
     };
     document.addEventListener("keydown", handleEscape);
     return () => document.removeEventListener("keydown", handleEscape);
-  }, [showSearch, viewMode]);
+  }, [showSearch, viewMode, replyTo]);
 
   // Toggle search with Cmd+F / Ctrl+F
   useEffect(() => {
@@ -378,8 +390,9 @@ export default function ChatPanel({
     try {
       const sendChannel = channel === -1 ? 0 : channel;
       const destination = viewMode === "dm" && activeDmNode != null ? activeDmNode : undefined;
-      await onSend(input.trim(), sendChannel, destination);
+      await onSend(input.trim(), sendChannel, destination, replyTo?.packetId);
       setInput("");
+      setReplyTo(null);
       const now = Date.now();
       setPersistedLastRead((prev) => ({ ...prev, [viewKey]: now }));
       setUnreadDividerTimestamp(0);
@@ -722,6 +735,22 @@ export default function ChatPanel({
                         )}
                       </div>
 
+                      {/* Quoted reply preview */}
+                      {msg.replyId && !msg.emoji && messageByPacketId.has(msg.replyId) && (() => {
+                        const orig = messageByPacketId.get(msg.replyId)!;
+                        return (
+                          <div className="flex gap-1.5 mb-1.5 opacity-80">
+                            <div className="w-0.5 rounded-full bg-gray-500 shrink-0" />
+                            <div className="min-w-0">
+                              <span className="text-[10px] font-semibold text-gray-400 block">{orig.sender_name}</span>
+                              <span className="text-[11px] text-gray-500 block truncate">
+                                {orig.payload.length > 80 ? orig.payload.slice(0, 80) + "…" : orig.payload}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       {/* Message text with optional search highlight */}
                       <p className="text-sm text-gray-200 break-words leading-relaxed">
                         <HighlightText text={msg.payload} query={searchQuery} />
@@ -761,6 +790,27 @@ export default function ChatPanel({
                     {/* Inline reaction trigger — visible on hover */}
                     {isConnected && msg.packetId && (
                       <div className="opacity-0 group-hover/msg:opacity-100 flex gap-0.5 transition-all shrink-0">
+                        {/* Reply */}
+                        <button
+                          onClick={() => { setReplyTo(msg); inputRef.current?.focus(); }}
+                          className="text-gray-600 hover:text-blue-400 text-xs p-1 rounded"
+                          title="Reply"
+                        >
+                          <svg
+                            className="w-3.5 h-3.5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"
+                            />
+                          </svg>
+                        </button>
+                        {/* React */}
                         <button
                           onClick={() =>
                             setPickerOpenFor(
@@ -786,7 +836,7 @@ export default function ChatPanel({
                             />
                           </svg>
                         </button>
-                        {/* Quick DM reply */}
+                        {/* Quick DM */}
                         {!isOwn && (
                           <button
                             onClick={() => openDmTo(msg.sender_id)}
@@ -917,6 +967,29 @@ export default function ChatPanel({
               </button>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Reply preview bar */}
+      {replyTo && (
+        <div className="flex items-center gap-2 px-3 py-1.5 mb-1 bg-secondary-dark/80 border border-gray-600/50 rounded-xl text-xs">
+          <svg className="w-3 h-3 text-blue-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+          </svg>
+          <span className="text-gray-400">
+            Replying to{" "}
+            <span className="text-gray-200 font-medium">{replyTo.sender_name}</span>:
+          </span>
+          <span className="flex-1 truncate text-gray-500">
+            {replyTo.payload.length > 60 ? replyTo.payload.slice(0, 60) + "…" : replyTo.payload}
+          </span>
+          <button
+            onClick={() => setReplyTo(null)}
+            className="text-muted hover:text-gray-200 ml-1 leading-none"
+            title="Cancel reply"
+          >
+            ×
+          </button>
         </div>
       )}
 

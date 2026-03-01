@@ -60,6 +60,8 @@ export function useDevice() {
   const isReconnectingRef = useRef<boolean>(false);
   const reconnectGenerationRef = useRef<number>(0);
   const bleHeartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Carries replyId from sendMessage into the echo handler (packets are sequential)
+  const pendingReplyIdRef = useRef<number | undefined>(undefined);
 
   // ─── MQTT session tracking ────────────────────────────────────
   // Tracks current MQTT connection status in a ref for use in callbacks
@@ -409,7 +411,10 @@ export function useDevice() {
         touchLastData();
         const isEcho = meshPacket.from === myNodeNumRef.current;
         const emoji = dataPacket.emoji || undefined;
-        const replyId = dataPacket.replyId || undefined;
+        const replyId = dataPacket.replyId
+          || (isEcho ? pendingReplyIdRef.current : undefined)
+          || undefined;
+        if (isEcho) pendingReplyIdRef.current = undefined;
 
         const msg: ChatMessage = {
           sender_id: meshPacket.from,
@@ -950,7 +955,7 @@ export function useDevice() {
     setState({ status: "disconnected", myNodeNum: 0, connectionType: null });
   }, [cleanupSubscriptions, stopPolling, stopWatchdog, stopBleHeartbeat]);
 
-  const sendMessage = useCallback(async (text: string, channel = 0, destination?: number) => {
+  const sendMessage = useCallback(async (text: string, channel = 0, destination?: number, replyId?: number) => {
     if (!deviceRef.current) {
       if (mqttStatusRef.current !== "connected") throw new Error("Not connected");
 
@@ -973,6 +978,7 @@ export function useDevice() {
         packetId,
         status: "acked",
         to: destination,
+        replyId,
       };
 
       // Register packetId to deduplicate the echo that comes back via MQTT subscription
@@ -984,6 +990,7 @@ export function useDevice() {
     }
 
     try {
+      pendingReplyIdRef.current = replyId;
       const dest: number | "broadcast" = destination ?? "broadcast";
       const packetId = await deviceRef.current.sendText(
         text,
