@@ -307,7 +307,19 @@ export function useDevice() {
           replyId: pkt.replyId || undefined,
           to: pkt.to && pkt.to !== BROADCAST_ADDR ? pkt.to : undefined,
         };
-        setMessages((prev) => [...prev, msg]);
+        setMessages((prev) => {
+          // Dedup reaction retransmissions before the DB write completes
+          if (msg.emoji && msg.replyId) {
+            const isDup = prev.some(
+              (m) =>
+                m.emoji === msg.emoji &&
+                m.replyId === msg.replyId &&
+                m.sender_id === msg.sender_id
+            );
+            if (isDup) return prev;
+          }
+          return [...prev, msg];
+        });
         window.electronAPI.db.saveMessage(msg);
 
         // Desktop notification for incoming messages when app is not focused

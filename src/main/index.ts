@@ -279,7 +279,7 @@ ipcMain.on("serial-port-cancelled", () => {
 ipcMain.handle("db:saveMessage", (_event, message) => {
   const db = getDatabase();
   const stmt = db.prepare(`
-    INSERT INTO messages (sender_id, sender_name, payload, channel, timestamp, packet_id, status, error, emoji, reply_id, to_node)
+    INSERT OR IGNORE INTO messages (sender_id, sender_name, payload, channel, timestamp, packet_id, status, error, emoji, reply_id, to_node)
     VALUES (@sender_id, @sender_name, @payload, @channel, @timestamp, @packet_id, @status, @error, @emoji, @reply_id, @to_node)
   `);
   return stmt.run({

@@ -37,7 +37,7 @@ export function initDatabase(): void {
       createBaseTables();
       if (isFreshDb) {
         // Base DDL already includes all columns; stamp current schema version
-        db!.pragma("user_version = 3");
+        db!.pragma("user_version = 4");
       } else {
         runMigrations();
       }
@@ -139,10 +139,22 @@ function runMigrations(): void {
     try {
       db!.exec("ALTER TABLE messages ADD COLUMN to_node INTEGER");
       db!.pragma("user_version = 3");
+      userVersion = 3;
     } catch (e) {
-      throw new Error(
-        `Migration v3 failed: ${e instanceof Error ? e.message : String(e)}`
+      throw new Error(`Migration v3 failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  if (userVersion < 4) {
+    try {
+      db!.exec(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_reaction_dedup " +
+        "ON messages(sender_id, reply_id, emoji) " +
+        "WHERE emoji IS NOT NULL AND reply_id IS NOT NULL"
       );
+      db!.pragma("user_version = 4");
+    } catch (e) {
+      throw new Error(`Migration v4 failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 }

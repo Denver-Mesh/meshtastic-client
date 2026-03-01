@@ -1,14 +1,24 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import type { ChatMessage, MeshNode } from "../lib/types";
 
-// Standard Meshtastic emoji reactions (matching mobile app conventions)
+// Standard emoji reaction set — Row 1: iMessage Classic, Row 2: WhatsApp/RCS Extended
 const REACTION_EMOJIS = [
-  { code: 128077, label: "\ud83d\udc4d" }, // thumbs up
-  { code: 10084, label: "\u2764\ufe0f" },   // red heart
-  { code: 128514, label: "\ud83d\ude02" }, // face with tears of joy
-  { code: 128078, label: "\ud83d\udc4e" }, // thumbs down
-  { code: 127881, label: "\ud83c\udf89" }, // party popper
+  // Row 1 (iMessage Classic — 6)
+  { code: 10084,  label: "\u2764\ufe0f", name: "Love"      },
+  { code: 128077, label: "\ud83d\udc4d", name: "Like"      },
+  { code: 128078, label: "\ud83d\udc4e", name: "Dislike"   },
+  { code: 128514, label: "\ud83d\ude02", name: "Laugh"     },
+  { code: 8252,   label: "\u203c\ufe0f", name: "Emphasize" },
+  { code: 10067,  label: "\u2753",       name: "Question"  },
+  // Row 2 (WhatsApp/RCS Extended — 5)
+  { code: 128591, label: "\ud83d\ude4f", name: "Thanks"    },
+  { code: 128558, label: "\ud83d\ude2e", name: "Wow"       },
+  { code: 128293, label: "\ud83d\udd25", name: "Fire"      },
+  { code: 129300, label: "\ud83e\udd14", name: "Thinking"  },
+  { code: 10005,  label: "\u2705",       name: "Check"     },
 ];
+
+const REACTION_LABEL_MAP = new Map(REACTION_EMOJIS.map((e) => [e.code, e.name]));
 
 /** Convert a Unicode codepoint to an emoji string */
 function emojiFromCode(code: number): string {
@@ -98,11 +108,13 @@ export default function ChatPanel({
   const [channel, setChannel] = useState(0);
   const [sending, setSending] = useState(false);
   const [pickerOpenFor, setPickerOpenFor] = useState<number | null>(null);
+  const [showComposePicker, setShowComposePicker] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   // Two-section UI state — load DM tabs from localStorage for restart persistence
   const [viewMode, setViewMode] = useState<"channels" | "dm">("channels");
@@ -256,6 +268,7 @@ export default function ChatPanel({
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setPickerOpenFor(null);
+        setShowComposePicker(false);
         if (showSearch) {
           setShowSearch(false);
         } else if (viewMode === "dm") {
@@ -314,6 +327,23 @@ export default function ChatPanel({
     }
   };
 
+  const insertEmojiAtCursor = (code: number) => {
+    const el = inputRef.current;
+    const char = String.fromCodePoint(code);
+    // emoji is a surrogate pair = 2 UTF-16 code units
+    const charLen = char.length;
+    const start = el?.selectionStart ?? input.length;
+    const end = el?.selectionEnd ?? input.length;
+    const newVal = input.slice(0, start) + char + input.slice(end);
+    if (newVal.length > 228) return; // enforce maxLength
+    setInput(newVal);
+    setShowComposePicker(false);
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(start + charLen, start + charLen);
+    });
+  };
+
   // Open a DM tab for a node
   const openDmTo = useCallback((nodeNum: number) => {
     if (!openDmTabs.includes(nodeNum)) {
@@ -360,7 +390,7 @@ export default function ChatPanel({
     return Array.from(grouped.entries()).map(([emoji, senders]) => ({
       emoji,
       count: senders.length,
-      tooltip: senders.join(", "),
+      tooltip: `${REACTION_LABEL_MAP.get(emoji) ?? emojiFromCode(emoji)}: ${senders.join(", ")}`,
     }));
   }
 
@@ -686,26 +716,34 @@ export default function ChatPanel({
                   {/* Emoji picker */}
                   {showPicker && (
                     <div
-                      className={`flex gap-1 bg-secondary-dark border border-gray-600 rounded-xl px-2 py-1.5 mt-1 shadow-lg ${
+                      className={`flex flex-col gap-0.5 bg-secondary-dark border border-gray-600 rounded-xl px-2 py-1.5 mt-1 shadow-lg ${
                         isOwn ? "self-end" : "self-start"
                       }`}
                     >
-                      {REACTION_EMOJIS.map((re) => (
-                        <button
-                          key={re.code}
-                          onClick={() =>
-                            handleReact(
-                              re.code,
-                              msg.packetId!,
-                              msg.channel
-                            )
-                          }
-                          className="hover:scale-125 transition-transform text-lg px-0.5"
-                          title={re.label}
-                        >
-                          {re.label}
-                        </button>
-                      ))}
+                      <div className="flex gap-1">
+                        {REACTION_EMOJIS.slice(0, 6).map((re) => (
+                          <button
+                            key={re.code}
+                            onClick={() => handleReact(re.code, msg.packetId!, msg.channel)}
+                            className="hover:scale-125 transition-transform text-lg px-0.5"
+                            title={re.name}
+                          >
+                            {re.label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex gap-1 justify-center">
+                        {REACTION_EMOJIS.slice(6).map((re) => (
+                          <button
+                            key={re.code}
+                            onClick={() => handleReact(re.code, msg.packetId!, msg.channel)}
+                            className="hover:scale-125 transition-transform text-lg px-0.5"
+                            title={re.name}
+                          >
+                            {re.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
 
@@ -753,9 +791,40 @@ export default function ChatPanel({
         )}
       </div>
 
+      {/* Compose emoji picker — renders above the input row */}
+      {showComposePicker && (
+        <div className="flex flex-col gap-0.5 bg-secondary-dark border border-gray-600 rounded-xl px-2 py-1.5 mb-1 shadow-lg self-start">
+          <div className="flex gap-1">
+            {REACTION_EMOJIS.slice(0, 6).map((re) => (
+              <button
+                key={re.code}
+                onClick={() => insertEmojiAtCursor(re.code)}
+                className="hover:scale-125 transition-transform text-lg px-0.5"
+                title={re.name}
+              >
+                {re.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-1 justify-center">
+            {REACTION_EMOJIS.slice(6).map((re) => (
+              <button
+                key={re.code}
+                onClick={() => insertEmojiAtCursor(re.code)}
+                className="hover:scale-125 transition-transform text-lg px-0.5"
+                title={re.name}
+              >
+                {re.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Input area */}
       <div className="flex gap-2 mt-2">
         <input
+          ref={inputRef}
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -775,6 +844,19 @@ export default function ChatPanel({
           }`}
           maxLength={228}
         />
+        {/* Compose emoji picker toggle */}
+        <button
+          onClick={() => setShowComposePicker((prev) => !prev)}
+          disabled={!isConnected || sending}
+          className={`px-2.5 py-2.5 rounded-xl transition-colors disabled:opacity-50 ${
+            showComposePicker
+              ? "bg-brand-green/20 text-bright-green"
+              : "bg-secondary-dark/80 text-muted hover:text-gray-300 border border-gray-600/50"
+          }`}
+          title="Insert emoji"
+        >
+          😊
+        </button>
         <button
           onClick={handleSend}
           disabled={!isConnected || !input.trim() || sending}
