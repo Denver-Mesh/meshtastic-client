@@ -863,7 +863,7 @@ export default function ChatPanel({
           className={`px-5 py-2.5 font-medium rounded-xl transition-colors ${
             isDmMode
               ? "bg-purple-600 hover:bg-purple-500 disabled:bg-gray-600 disabled:text-muted text-white"
-              : "bg-brand-green hover:bg-brand-green/90 disabled:bg-gray-600 disabled:text-muted text-white"
+              : "bg-[#4CAF50] hover:bg-[#43A047] disabled:bg-gray-600 disabled:text-muted text-white"
           }`}
         >
           {sending ? "..." : isDmMode ? "DM" : "Send"}
