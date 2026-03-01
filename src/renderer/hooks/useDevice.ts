@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { MeshDevice } from "@meshtastic/core";
 import { create } from "@bufbuild/protobuf";
-import { Channel as ProtobufChannel } from "@meshtastic/protobufs";
+import { Channel as ProtobufChannel, Portnums } from "@meshtastic/protobufs";
 import { createConnection, reconnectBle, safeDisconnect, clearCapturedBleDevice } from "../lib/connection";
 import { validateCoords } from "../lib/coordUtils";
 import type {
@@ -386,22 +386,29 @@ export function useDevice() {
       unsubscribesRef.current.push(unsub2);
 
       // ─── Text messages ─────────────────────────────────────────
-      const unsub3 = device.events.onMessagePacket.subscribe((packet) => {
+      const unsub3 = device.events.onMeshPacket.subscribe((meshPacket) => {
+        if (meshPacket.payloadVariant.case !== "decoded") return;
+        const dataPacket = meshPacket.payloadVariant.value;
+        if (dataPacket.portnum !== Portnums.PortNum.TEXT_MESSAGE_APP) return;
+
         touchLastData();
-        const isEcho = packet.from === myNodeNumRef.current;
-        const pkt = packet as typeof packet & { emoji?: number; replyId?: number; to?: number };
+        const isEcho = meshPacket.from === myNodeNumRef.current;
+        const emoji = dataPacket.emoji || undefined;
+        const replyId = dataPacket.replyId || undefined;
+
         const msg: ChatMessage = {
-          sender_id: packet.from,
-          sender_name: getNodeName(packet.from),
-          payload: packet.data as string,
-          channel: packet.channel ?? 0,
-          timestamp: packet.rxTime?.getTime() ?? Date.now(),
-          packetId: packet.id,
+          sender_id: meshPacket.from,
+          sender_name: getNodeName(meshPacket.from),
+          payload: new TextDecoder().decode(dataPacket.payload),
+          channel: meshPacket.channel ?? 0,
+          timestamp: meshPacket.rxTime ? meshPacket.rxTime * 1000 : Date.now(),
+          packetId: meshPacket.id,
           status: isEcho ? "sending" : undefined,
-          emoji: pkt.emoji || undefined,
-          replyId: pkt.replyId || undefined,
-          to: pkt.to && pkt.to !== BROADCAST_ADDR ? pkt.to : undefined,
+          emoji,
+          replyId,
+          to: meshPacket.to && meshPacket.to !== BROADCAST_ADDR ? meshPacket.to : undefined,
         };
+
         setMessages((prev) => {
           // Dedup reaction retransmissions before the DB write completes
           if (msg.emoji && msg.replyId) {
@@ -418,7 +425,7 @@ export function useDevice() {
         window.electronAPI.db.saveMessage(msg);
 
         // Desktop notification for incoming messages when app is not focused
-        if (!isEcho && !msg.emoji && document.hidden) {
+        if (!isEcho && !emoji && document.hidden) {
           try {
             const title = msg.to
               ? `DM from ${msg.sender_name}`

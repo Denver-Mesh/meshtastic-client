@@ -3,19 +3,20 @@ import type { ChatMessage, MeshNode } from "../lib/types";
 
 // Standard emoji reaction set — Row 1: iMessage Classic, Row 2: WhatsApp/RCS Extended
 const REACTION_EMOJIS = [
-  // Row 1 (iMessage Classic — 6)
-  { code: 10084,  label: "\u2764\ufe0f", name: "Love"      },
-  { code: 128077, label: "\ud83d\udc4d", name: "Like"      },
-  { code: 128078, label: "\ud83d\udc4e", name: "Dislike"   },
-  { code: 128514, label: "\ud83d\ude02", name: "Laugh"     },
-  { code: 8252,   label: "\u203c\ufe0f", name: "Emphasize" },
-  { code: 10067,  label: "\u2753",       name: "Question"  },
-  // Row 2 (WhatsApp/RCS Extended — 5)
-  { code: 128591, label: "\ud83d\ude4f", name: "Thanks"    },
-  { code: 128558, label: "\ud83d\ude2e", name: "Wow"       },
-  { code: 128293, label: "\ud83d\udd25", name: "Fire"      },
-  { code: 129300, label: "\ud83e\udd14", name: "Thinking"  },
-  { code: 10005,  label: "\u2705",       name: "Check"     },
+  // Row 1 (6)
+  { code: 128077, label: "\ud83d\udc4d", name: "Like"      },  // 👍
+  { code: 10084,  label: "\u2764\ufe0f", name: "Love"      },  // ❤️
+  { code: 128514, label: "\ud83d\ude02", name: "Laugh"     },  // 😂
+  { code: 128078, label: "\ud83d\udc4e", name: "Dislike"   },  // 👎
+  { code: 127881, label: "\ud83c\udf89", name: "Party"     },  // 🎉
+  { code: 128558, label: "\ud83d\ude2e", name: "Wow"       },  // 😮
+  // Row 2 (6)
+  { code: 128546, label: "\ud83d\ude22", name: "Sad"       },  // 😢
+  { code: 128075, label: "\ud83d\udc4b", name: "Wave"      },  // 👋
+  { code: 128591, label: "\ud83d\ude4f", name: "Thanks"    },  // 🙏
+  { code: 128293, label: "\ud83d\udd25", name: "Fire"      },  // 🔥
+  { code: 9989,   label: "\u2705",       name: "Check"     },  // ✅
+  { code: 129300, label: "\ud83e\udd14", name: "Thinking"  },  // 🤔
 ];
 
 const REACTION_LABEL_MAP = new Map(REACTION_EMOJIS.map((e) => [e.code, e.name]));
