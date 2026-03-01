@@ -136,9 +136,12 @@ export default function NodeListPanel({
         case "hops_away":
           cmp = (a.hops_away ?? 999) - (b.hops_away ?? 999);
           break;
-        case "via_mqtt":
-          cmp = (a.via_mqtt ? 1 : 0) - (b.via_mqtt ? 1 : 0);
+        case "via_mqtt": {
+          const aVal = a.heard_via_mqtt_only ? 2 : (a.via_mqtt ? 1 : 0);
+          const bVal = b.heard_via_mqtt_only ? 2 : (b.via_mqtt ? 1 : 0);
+          cmp = aVal - bVal;
           break;
+        }
         case "voltage":
           cmp = (a.voltage ?? 0) - (b.voltage ?? 0);
           break;
