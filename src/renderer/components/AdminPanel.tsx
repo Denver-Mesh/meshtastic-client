@@ -435,6 +435,7 @@ export default function AdminPanel({
                   : settings.distanceFilterMax;
                 const distantNodes = Array.from(nodes.values()).filter((n) => {
                   if (n.node_id === myNodeNum) return false;
+                  if (!n.latitude && !n.longitude) return false; // no GPS — can't determine distance
                   const d = haversineDistanceKm(homeNode.latitude, homeNode.longitude, n.latitude, n.longitude);
                   return d > maxKm;
                 });

@@ -80,7 +80,7 @@ export default function NodeListPanel({
         list = list.filter((n) => {
           if (n.node_id === myNodeNum) return true;
           // Nodes without GPS can't be distance-filtered — keep them visible
-          if (!n.latitude || !n.longitude) return true;
+          if (!n.latitude && !n.longitude) return true;
           const d = haversineDistanceKm(homeNode!.latitude, homeNode!.longitude, n.latitude, n.longitude);
           return d <= maxKm;
         });
@@ -146,6 +146,22 @@ export default function NodeListPanel({
     return list;
   }, [nodes, sortField, sortAsc, searchQuery, myNodeNum, locationFilter]);
 
+  const filterStatus = useMemo(() => {
+    if (!locationFilter.enabled) return null;
+    const homeNode = myNodeNum ? nodes.get(myNodeNum) : undefined;
+    const homeHasLocation = homeNode &&
+      homeNode.latitude != null && homeNode.latitude !== 0 &&
+      homeNode.longitude != null && homeNode.longitude !== 0;
+    if (!homeHasLocation) return "no-gps";
+    const totalWithGps = Array.from(nodes.values()).filter(
+      (n) => n.node_id !== myNodeNum && (n.latitude || n.longitude)
+    ).length;
+    const visibleWithGps = nodeList.filter(
+      (n) => n.node_id !== myNodeNum && (n.latitude || n.longitude)
+    ).length;
+    return { hidden: totalWithGps - visibleWithGps };
+  }, [locationFilter, myNodeNum, nodes, nodeList]);
+
   function formatTime(ts: number): string {
     if (!ts) return "Never";
     const diff = Date.now() - ts;
@@ -195,6 +211,18 @@ export default function NodeListPanel({
         </div>
         <RefreshButton onRefresh={onRefresh} disabled={!isConnected} />
       </div>
+
+      {/* Distance filter status */}
+      {filterStatus === "no-gps" && (
+        <div className="bg-yellow-900/30 border border-yellow-700 text-yellow-300 px-3 py-2 rounded-lg text-xs">
+          Distance filter is enabled but your device has no GPS fix — all nodes are shown.
+        </div>
+      )}
+      {filterStatus !== null && filterStatus !== "no-gps" && filterStatus.hidden > 0 && (
+        <div className="bg-brand-green/10 border border-brand-green/30 text-brand-green px-3 py-2 rounded-lg text-xs">
+          Distance filter active — {filterStatus.hidden} node{filterStatus.hidden !== 1 ? "s" : ""} hidden beyond {locationFilter.maxDistance} {locationFilter.unit}.
+        </div>
+      )}
 
       {/* Online / Stale / Offline summary */}
       <div className="flex gap-3 text-xs text-muted">
