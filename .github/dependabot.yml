@@ -1,0 +1,23 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "saturday"
+    open-pull-requests-limit: 10
+    versioning-strategy: lockfile-only # Safer for Electron builds
+    groups:
+      # Grouping Electron specifically allows you to test it in isolation
+      electron-framework:
+        patterns:
+          - "electron"
+      # Grouping everything else to reduce PR noise
+      all-other-deps:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
