@@ -226,6 +226,20 @@ function MapMarker({
             <div className="text-xs text-muted">
               {node.latitude.toFixed(5)}, {node.longitude.toFixed(5)}
             </div>
+            {anomaly && (
+              <div
+                className={`mt-1 px-2 py-1 rounded text-xs border ${
+                  isError
+                    ? "bg-red-50 border-red-300 text-red-700"
+                    : "bg-amber-50 border-amber-300 text-amber-700"
+                }`}
+              >
+                <span className="font-semibold">
+                  {isError ? "⚠ Error: " : "⚠ Warning: "}
+                </span>
+                {anomaly.description}
+              </div>
+            )}
           </div>
         </Popup>
       </Marker>
