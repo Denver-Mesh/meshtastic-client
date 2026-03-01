@@ -135,6 +135,7 @@ declare global {
       notifyDeviceConnected: () => void;
       notifyDeviceDisconnected: () => void;
       setTrayUnread: (count: number) => void;
+      quitApp: () => Promise<void>;
     };
   }
 }

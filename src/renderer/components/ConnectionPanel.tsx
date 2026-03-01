@@ -583,40 +583,55 @@ export default function ConnectionPanel({
   if (isConnected) {
     return (
       <div className="max-w-lg mx-auto space-y-6">
-        <h2 className="text-xl font-semibold text-gray-200">
-          Device Connection
-        </h2>
+        <button
+          onClick={async () => {
+            await onDisconnect();
+            window.electronAPI.mqtt.disconnect();
+            window.electronAPI.quitApp();
+          }}
+          className="w-full px-6 py-2.5 border border-red-700 text-red-400 hover:bg-red-900/30 hover:text-red-300 font-medium rounded-lg transition-colors text-sm"
+        >
+          Disconnect &amp; Quit
+        </button>
 
-        <div className="bg-deep-black rounded-lg p-5 space-y-3 border border-brand-green/20">
-          <div className="flex items-center gap-3 mb-1">
-            <LinkIcon className="w-5 h-5" />
-            <span className={`font-medium capitalize ${state.status === "reconnecting" ? "text-orange-400" : "text-bright-green"}`}>
-              {state.status}
-            </span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted">Connection Type</span>
-            <span className="text-gray-200 uppercase flex items-center gap-2">
+        <div className={`bg-deep-black rounded-lg border overflow-hidden ${
+          state.status === "reconnecting" ? "border-orange-500/30" : "border-brand-green/20"
+        }`}>
+          <div className={`flex items-center justify-between px-4 py-3 bg-secondary-dark border-b ${
+            state.status === "reconnecting" ? "border-orange-500/30" : "border-brand-green/20"
+          }`}>
+            <div className="flex items-center gap-2">
               <ConnectionIcon type={state.connectionType!} />
-              {state.connectionType}
+              <span className="font-medium text-gray-200">Radio Connection</span>
+            </div>
+            <span className={`text-xs font-medium ${
+              state.status === "reconnecting" ? "text-orange-400 animate-pulse" : "text-brand-green"
+            }`}>
+              ● {state.status}
             </span>
           </div>
-          {state.myNodeNum > 0 && (
+          <div className="p-4 space-y-3">
             <div className="flex justify-between text-sm">
-              <span className="text-muted">My Node</span>
-              <span className="text-gray-200 font-mono">
-                {myNodeLabel ?? `!${state.myNodeNum.toString(16)}`}
-              </span>
+              <span className="text-muted">Connection Type</span>
+              <span className="text-gray-200 uppercase">{state.connectionType}</span>
             </div>
-          )}
-          {state.lastDataReceived && (
-            <div className="flex justify-between text-sm">
-              <span className="text-muted">Last Data</span>
-              <span className="text-gray-300 text-xs">
-                {new Date(state.lastDataReceived).toLocaleTimeString()}
-              </span>
-            </div>
-          )}
+            {state.myNodeNum > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted">My Node</span>
+                <span className="text-gray-200 font-mono">
+                  {myNodeLabel ?? `!${state.myNodeNum.toString(16)}`}
+                </span>
+              </div>
+            )}
+            {state.lastDataReceived && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted">Last Data</span>
+                <span className="text-gray-300 text-xs">
+                  {new Date(state.lastDataReceived).toLocaleTimeString()}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
 
         <button
@@ -634,10 +649,6 @@ export default function ConnectionPanel({
   // ─── Disconnected View ─────────────────────────────────────────
   return (
     <div className="max-w-lg mx-auto space-y-6">
-      <h2 className="text-xl font-semibold text-gray-200">
-        Device Connection
-      </h2>
-
       {/* Saved Profiles */}
       {profiles.length > 0 && (
         <div className="space-y-2">

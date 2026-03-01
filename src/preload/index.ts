@@ -139,4 +139,5 @@ contextBridge.exposeInMainWorld("electronAPI", {
   notifyDeviceConnected: () => ipcRenderer.send("device-connected"),
   notifyDeviceDisconnected: () => ipcRenderer.send("device-disconnected"),
   setTrayUnread: (count: number) => ipcRenderer.send("set-tray-unread", count),
+  quitApp: () => ipcRenderer.invoke("app:quit"),
 });

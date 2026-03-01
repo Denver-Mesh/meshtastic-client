@@ -286,6 +286,13 @@ ipcMain.handle("mqtt:disconnect", async () => {
   mqttManager.disconnect();
 });
 
+// ─── IPC: Force quit (disconnect all, then quit) ────────────────────
+ipcMain.handle("app:quit", async () => {
+  mqttManager.disconnect();
+  isConnected = false;
+  app.quit();
+});
+
 // ─── IPC: Database operations ──────────────────────────────────────
 ipcMain.handle("db:saveMessage", (_event, message) => {
   try {
