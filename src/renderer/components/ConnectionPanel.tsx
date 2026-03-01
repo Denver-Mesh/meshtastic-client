@@ -631,15 +631,14 @@ export default function ConnectionPanel({
                 </span>
               </div>
             )}
+            <button
+              onClick={onDisconnect}
+              className="w-full px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              Disconnect
+            </button>
           </div>
         </div>
-
-        <button
-          onClick={onDisconnect}
-          className="w-full px-6 py-3 bg-red-600 hover:bg-red-500 text-white font-medium rounded-lg transition-colors"
-        >
-          Disconnect
-        </button>
 
         {mqttSection}
       </div>
@@ -649,6 +648,18 @@ export default function ConnectionPanel({
   // ─── Disconnected View ─────────────────────────────────────────
   return (
     <div className="max-w-lg mx-auto space-y-6">
+      {mqttStatus === "connected" && (
+        <button
+          onClick={() => {
+            window.electronAPI.mqtt.disconnect();
+            window.electronAPI.quitApp();
+          }}
+          className="w-full px-6 py-2.5 border border-red-700 text-red-400 hover:bg-red-900/30 hover:text-red-300 font-medium rounded-lg transition-colors text-sm"
+        >
+          Disconnect &amp; Quit
+        </button>
+      )}
+
       {/* Saved Profiles */}
       {profiles.length > 0 && (
         <div className="space-y-2">
@@ -686,103 +697,106 @@ export default function ConnectionPanel({
         </div>
       )}
 
-      {/* Connection type selector */}
-      <div className="space-y-3">
-        <label className="text-sm text-muted">Connection Type</label>
-        <div className="grid grid-cols-3 gap-2">
-          {(["ble", "serial", "http"] as const).map((type) => (
+      {/* Radio Connection card */}
+      <div className="bg-deep-black rounded-lg border border-gray-700 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 bg-secondary-dark border-b border-gray-700">
+          <div className="flex items-center gap-2">
+            <ConnectionIcon type={connectionType} />
+            <span className="font-medium text-gray-200">Radio Connection</span>
+          </div>
+          <span className="text-xs font-medium text-gray-500">● disconnected</span>
+        </div>
+
+        {/* Inline error */}
+        {error && (
+          <div className="px-4 py-2 bg-red-900/50 border-b border-red-800 text-red-300 text-xs">
+            {error}
+          </div>
+        )}
+
+        {/* Content */}
+        <div className="p-4 space-y-3">
+          {/* Connection type selector */}
+          <div className="space-y-2">
+            <label className="text-xs text-muted">Connection Type</label>
+            <div className="grid grid-cols-3 gap-2">
+              {(["ble", "serial", "http"] as const).map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setConnectionType(type)}
+                  className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+                    connectionType === type
+                      ? "text-white ring-2 ring-bright-green"
+                      : "bg-secondary-dark text-gray-300 hover:bg-gray-600"
+                  }`}
+                  style={connectionType === type ? { backgroundColor: "#4CAF50" } : undefined}
+                >
+                  <ConnectionIcon type={type} />
+                  {type === "ble" && "Bluetooth"}
+                  {type === "serial" && "USB Serial"}
+                  {type === "http" && "WiFi/HTTP"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* HTTP address input */}
+          {connectionType === "http" && (
+            <div className="space-y-1">
+              <label className="text-xs text-muted">Device Address</label>
+              <input
+                type="text"
+                value={httpAddress}
+                onChange={(e) => setHttpAddress(e.target.value)}
+                placeholder="meshtastic.local or 192.168.1.x"
+                className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
+              />
+              <p className="text-xs text-muted">
+                Enter hostname or IP address (without http://)
+              </p>
+            </div>
+          )}
+
+          {/* Connection hints */}
+          <div className="text-xs text-muted bg-secondary-dark rounded-lg p-3 space-y-1">
+            {connectionType === "ble" && (
+              <>
+                <p>Ensure your Meshtastic device has Bluetooth enabled and is in range.</p>
+                <p>Click Connect to scan — a device picker will appear with discovered Meshtastic devices.</p>
+              </>
+            )}
+            {connectionType === "serial" && (
+              <>
+                <p>Connect your Meshtastic device via USB cable.</p>
+                <p>Click Connect — a port picker will appear with available serial ports.</p>
+              </>
+            )}
+            {connectionType === "http" && (
+              <p>Enter the IP address or hostname of a WiFi-connected Meshtastic node. The device must have WiFi enabled in its config.</p>
+            )}
+          </div>
+
+          {/* Connect button + Save profile */}
+          <div className="flex gap-2 pt-1">
             <button
-              key={type}
-              onClick={() => setConnectionType(type)}
-              className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
-                connectionType === type
-                  ? "text-white ring-2 ring-bright-green"
-                  : "bg-secondary-dark text-gray-300 hover:bg-gray-600"
-              }`}
-              style={connectionType === type ? { backgroundColor: "#4CAF50" } : undefined}
+              onClick={handleConnect}
+              className="flex-1 px-4 py-2.5 text-white text-sm font-medium rounded-lg transition-colors"
+              style={{ backgroundColor: "#4CAF50" }}
             >
-              <ConnectionIcon type={type} />
-              {type === "ble" && "Bluetooth"}
-              {type === "serial" && "USB Serial"}
-              {type === "http" && "WiFi/HTTP"}
+              Connect
             </button>
-          ))}
+            <button
+              onClick={() => setShowProfileForm(!showProfileForm)}
+              className="px-3 py-2.5 bg-secondary-dark hover:bg-gray-600 text-gray-300 rounded-lg transition-colors"
+              title="Save as profile"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+              </svg>
+            </button>
+          </div>
         </div>
-      </div>
-
-      {/* HTTP address input */}
-      {connectionType === "http" && (
-        <div className="space-y-2">
-          <label className="text-sm text-muted">Device Address</label>
-          <input
-            type="text"
-            value={httpAddress}
-            onChange={(e) => setHttpAddress(e.target.value)}
-            placeholder="meshtastic.local or 192.168.1.x"
-            className="w-full px-3 py-2 bg-secondary-dark rounded-lg text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none"
-          />
-          <p className="text-xs text-muted">
-            Enter hostname or IP address (without http://)
-          </p>
-        </div>
-      )}
-
-      {/* Connection hints */}
-      <div className="text-sm text-muted bg-deep-black rounded-lg p-3 space-y-1">
-        {connectionType === "ble" && (
-          <>
-            <p>
-              Ensure your Meshtastic device has Bluetooth enabled and is in
-              range.
-            </p>
-            <p>
-              Click Connect to scan — a device picker will appear with
-              discovered Meshtastic devices.
-            </p>
-          </>
-        )}
-        {connectionType === "serial" && (
-          <>
-            <p>Connect your Meshtastic device via USB cable.</p>
-            <p>
-              Click Connect — a port picker will appear with available serial
-              ports.
-            </p>
-          </>
-        )}
-        {connectionType === "http" && (
-          <p>
-            Enter the IP address or hostname of a WiFi-connected Meshtastic
-            node. The device must have WiFi enabled in its config.
-          </p>
-        )}
-      </div>
-
-      {/* Error display */}
-      {error && (
-        <div className="bg-red-900/50 border border-red-700 text-red-300 px-4 py-2 rounded-lg text-sm">
-          {error}
-        </div>
-      )}
-
-      {/* Connect button + Save profile */}
-      <div className="flex gap-2">
-        <button
-          onClick={handleConnect}
-          className="flex-1 px-6 py-3 text-white font-medium rounded-lg transition-colors"
-          style={{ backgroundColor: "#4CAF50" }}
-        >
-          Connect
-        </button>
-        <button
-          onClick={() => setShowProfileForm(!showProfileForm)}
-          className="px-4 py-3 bg-secondary-dark hover:bg-gray-600 text-gray-300 rounded-lg transition-colors"
-          title="Save as profile"
-        >
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-          </svg>
-        </button>
       </div>
 
       {/* Save Profile Form */}
