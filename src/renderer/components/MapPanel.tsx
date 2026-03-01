@@ -4,6 +4,7 @@ import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from "react-le
 import L from "leaflet";
 import type { MeshNode } from "../lib/types";
 import { getNodeStatus, haversineDistanceKm } from "../lib/nodeStatus";
+import { useDiagnosticsStore } from "../stores/diagnosticsStore";
 import RefreshButton from "./RefreshButton";
 import type { LocationFilter } from "../App";
 
@@ -90,6 +91,8 @@ function MapFitter({ positions }: { positions: [number, number][] }) {
 }
 
 export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected, locationFilter }: Props) {
+  const congestionHalosEnabled = useDiagnosticsStore((s) => s.congestionHalosEnabled);
+  const anomalies = useDiagnosticsStore((s) => s.anomalies);
   const nodesWithPosition = useMemo(() => {
     const homeNode = myNodeNum ? nodes.get(myNodeNum) : undefined;
     const homeHasLocation = homeNode &&
@@ -171,12 +174,26 @@ export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected, loc
         {nodesWithPosition.map((node) => {
           const isSelf = node.node_id === myNodeNum;
           const status = getNodeStatus(node.last_heard);
-          const cu = locationFilter.congestionHalosEnabled ? (node.channel_utilization ?? 0) : 0;
+          const cu = congestionHalosEnabled ? (node.channel_utilization ?? 0) : 0;
           const icon = getMarkerIcon(status, isSelf, cu, node.heard_via_mqtt_only);
 
           return (
             <Fragment key={node.node_id}>
-              {locationFilter.congestionHalosEnabled && node.channel_utilization != null && (
+              {/* Anomaly status aura (rendered behind CU halo) */}
+              {anomalies.has(node.node_id) && (
+                <Circle
+                  center={[node.latitude, node.longitude]}
+                  radius={500}
+                  pathOptions={{
+                    color: anomalies.get(node.node_id)?.severity === "error" ? "#ef4444" : "#f97316",
+                    fillColor: anomalies.get(node.node_id)?.severity === "error" ? "#ef4444" : "#f97316",
+                    fillOpacity: 0.12,
+                    weight: 2,
+                    opacity: 0.7,
+                  }}
+                />
+              )}
+              {congestionHalosEnabled && node.channel_utilization != null && (
                 <Circle
                   center={[node.latitude, node.longitude]}
                   radius={300}

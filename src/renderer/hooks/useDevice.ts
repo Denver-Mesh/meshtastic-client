@@ -4,6 +4,7 @@ import { create } from "@bufbuild/protobuf";
 import { Channel as ProtobufChannel, Portnums } from "@meshtastic/protobufs";
 import { createConnection, reconnectBle, safeDisconnect, clearCapturedBleDevice } from "../lib/connection";
 import { validateCoords } from "../lib/coordUtils";
+import { useDiagnosticsStore } from "../stores/diagnosticsStore";
 import type {
   ConnectionType,
   DeviceState,
@@ -307,11 +308,21 @@ export function useDevice() {
         window.electronAPI.db.saveNode(node);
         return updated;
       });
+      const updatedMqttNode = nodesRef.current.get(nodeUpdate.node_id);
+      if (updatedMqttNode) {
+        useDiagnosticsStore.getState().processNodeUpdate(
+          updatedMqttNode,
+          nodesRef.current.get(myNodeNumRef.current) ?? null
+        );
+      }
     });
 
     const unsubMsg = window.electronAPI.mqtt.onMessage((rawMsg) => {
       const msg = rawMsg as Omit<ChatMessage, "id"> & { from_mqtt?: boolean };
-      if (msg.packetId && isDuplicate(msg.packetId)) return;
+      if (msg.packetId && isDuplicate(msg.packetId)) {
+        useDiagnosticsStore.getState().recordDuplicate(msg.sender_id);
+        return;
+      }
       // Deduplicate by content too (same sender + timestamp)
       setMessages((prev) => {
         const isDup = prev.some(
@@ -567,6 +578,13 @@ export function useDevice() {
           window.electronAPI.db.saveNode(node);
           return updated;
         });
+        const updatedRfNode = nodesRef.current.get(nodeNum);
+        if (updatedRfNode) {
+          useDiagnosticsStore.getState().processNodeUpdate(
+            updatedRfNode,
+            nodesRef.current.get(myNodeNumRef.current) ?? null
+          );
+        }
       });
       unsubscribesRef.current.push(unsub5);
 

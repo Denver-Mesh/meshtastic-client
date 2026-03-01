@@ -63,7 +63,6 @@ interface AdminSettings {
   distanceFilterEnabled: boolean;
   distanceFilterMax: number;
   distanceUnit: "miles" | "km";
-  congestionHalosEnabled: boolean;
   filterMqttOnly: boolean;
 }
 
@@ -75,7 +74,6 @@ const DEFAULT_SETTINGS: AdminSettings = {
   distanceFilterEnabled: false,
   distanceFilterMax: 500,
   distanceUnit: "miles",
-  congestionHalosEnabled: false,
   filterMqttOnly: false,
 };
 
@@ -133,10 +131,9 @@ export default function AppPanel({
       enabled: settings.distanceFilterEnabled,
       maxDistance: settings.distanceFilterMax,
       unit: settings.distanceUnit,
-      congestionHalosEnabled: settings.congestionHalosEnabled,
       hideMqttOnly: settings.filterMqttOnly,
     });
-  }, [settings.distanceFilterEnabled, settings.distanceFilterMax, settings.distanceUnit, settings.congestionHalosEnabled, settings.filterMqttOnly, onLocationFilterChange]);
+  }, [settings.distanceFilterEnabled, settings.distanceFilterMax, settings.distanceUnit, settings.filterMqttOnly, onLocationFilterChange]);
 
   const updateSetting = <K extends keyof AdminSettings>(key: K, value: AdminSettings[K]) =>
     setSettings((prev) => ({ ...prev, [key]: value }));
@@ -230,18 +227,6 @@ export default function AppPanel({
             ) : null;
           })()}
           <p className="text-xs text-muted">Note: Requires your device to have a valid GPS fix.</p>
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="congestionHalos"
-              checked={settings.congestionHalosEnabled}
-              onChange={(e) => updateSetting("congestionHalosEnabled", e.target.checked)}
-              className="accent-brand-green"
-            />
-            <label htmlFor="congestionHalos" className="text-sm text-gray-300 cursor-pointer">
-              Show channel utilization halos on map
-            </label>
-          </div>
           <div className="flex items-center gap-2">
             <input
               type="checkbox"

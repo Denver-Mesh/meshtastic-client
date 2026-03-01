@@ -12,6 +12,7 @@ import RadioPanel from "./components/RadioPanel";
 import MapPanel from "./components/MapPanel";
 import TelemetryPanel from "./components/TelemetryPanel";
 import AppPanel from "./components/AppPanel";
+import DiagnosticsPanel from "./components/DiagnosticsPanel";
 import { LinkIcon } from "./components/SignalBars";
 
 const STATUS_COLOR: Record<string, string> = {
@@ -31,13 +32,13 @@ const TAB_NAMES = [
   "Telemetry",
   "Radio",
   "App",
+  "Diagnostics",
 ];
 
 export interface LocationFilter {
   enabled: boolean;
   maxDistance: number;
   unit: "miles" | "km";
-  congestionHalosEnabled: boolean;
   hideMqttOnly: boolean;
 }
 
@@ -68,11 +69,10 @@ export default function App() {
         enabled: s.distanceFilterEnabled ?? false,
         maxDistance: s.distanceFilterMax ?? 500,
         unit: s.distanceUnit ?? "miles",
-        congestionHalosEnabled: s.congestionHalosEnabled ?? false,
         hideMqttOnly: s.filterMqttOnly ?? false,
       };
     } catch {
-      return { enabled: false, maxDistance: 500, unit: "miles", congestionHalosEnabled: false, hideMqttOnly: false };
+      return { enabled: false, maxDistance: 500, unit: "miles", hideMqttOnly: false };
     }
   });
   const [pendingDmTarget, setPendingDmTarget] = useState<number | null>(null);
@@ -123,7 +123,7 @@ export default function App() {
   // ─── Keyboard shortcuts: Cmd/Ctrl+1-7 for tabs ───────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "7") {
+      if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "8") {
         e.preventDefault();
         setActiveTab(parseInt(e.key) - 1);
       }
@@ -314,6 +314,14 @@ export default function App() {
                 channels={device.channels}
                 myNodeNum={device.state.myNodeNum}
                 onLocationFilterChange={handleLocationFilterChange}
+              />
+            )}
+            {activeTab === 7 && (
+              <DiagnosticsPanel
+                nodes={device.nodes}
+                myNodeNum={device.state.myNodeNum}
+                onTraceRoute={device.traceRoute}
+                isConnected={isOperational}
               />
             )}
           </ErrorBoundary>

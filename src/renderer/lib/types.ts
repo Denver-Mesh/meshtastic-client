@@ -1,5 +1,22 @@
 export type ConnectionType = "ble" | "serial" | "http";
 
+export type AnomalyType = 'hop_goblin' | 'bad_route' | 'route_flapping' | 'impossible_hop';
+
+export interface NodeAnomaly {
+  nodeId: number;
+  type: AnomalyType;
+  severity: 'warning' | 'error';
+  description: string;
+  detectedAt: number;
+  snr?: number;
+  hopsAway?: number;
+}
+
+export interface HopHistoryPoint {
+  t: number; // timestamp ms
+  h: number; // hops_away value
+}
+
 export interface MeshNode {
   node_id: number;
   long_name: string;

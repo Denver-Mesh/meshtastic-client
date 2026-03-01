@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import type { MeshNode } from "../lib/types";
 import { getNodeStatus, haversineDistanceKm } from "../lib/nodeStatus";
+import { useDiagnosticsStore } from "../stores/diagnosticsStore";
 import { RoleDisplay } from "../lib/roleInfo";
 import RefreshButton from "./RefreshButton";
 import SignalBars from "./SignalBars";
@@ -42,6 +43,7 @@ export default function NodeListPanel({
   locationFilter,
   onToggleFavorite,
 }: Props) {
+  const anomalies = useDiagnosticsStore((s) => s.anomalies);
   const [sortField, setSortField] = useState<SortField>("last_heard");
   const [sortAsc, setSortAsc] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -432,6 +434,22 @@ export default function NodeListPanel({
                       {node.long_name || "-"}
                       {isSelf && (
                         <span className="text-[10px] text-bright-green/60 ml-1.5">(you)</span>
+                      )}
+                      {!isSelf && anomalies.has(node.node_id) && (
+                        <svg
+                          className={`w-3 h-3 ml-1 inline ${
+                            anomalies.get(node.node_id)?.severity === "error"
+                              ? "text-red-400"
+                              : "text-orange-400"
+                          }`}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          title={anomalies.get(node.node_id)?.description}
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
                       )}
                     </td>
                     <td className="px-3 py-2 text-gray-300">

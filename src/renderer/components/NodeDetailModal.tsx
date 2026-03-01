@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { MeshNode } from "../lib/types";
+import { useDiagnosticsStore } from "../stores/diagnosticsStore";
 import { RoleDisplay } from "../lib/roleInfo";
 
 interface NodeDetailModalProps {
@@ -107,6 +108,11 @@ export default function NodeDetailModal({
     }, 60_000);
     return () => clearTimeout(timer);
   }, [traceRoutePending]);
+
+  const anomaly = useDiagnosticsStore((s) => s.anomalies.get(node?.node_id ?? 0));
+  const hopHistory = useDiagnosticsStore(
+    (s) => s.hopHistory.get(node?.node_id ?? 0) ?? []
+  );
 
   if (!node) return null;
 
@@ -272,6 +278,68 @@ export default function NodeDetailModal({
               <span>GPS Warning: {node.lastPositionWarning}</span>
             </div>
           )}
+
+          {/* Routing Health */}
+          {(() => {
+            const now = Date.now();
+            const twentyFourHoursAgo = now - 24 * 60 * 60 * 1000;
+            const recentHistory = hopHistory.filter((p) => p.t >= twentyFourHoursAgo);
+            const hasSparkline = recentHistory.length >= 2;
+
+            return (
+              <div className="mt-3 p-3 bg-primary-dark rounded-lg">
+                <div className="text-xs text-gray-400 mb-1.5">Routing Health</div>
+                {anomaly ? (
+                  <div className={`flex items-start gap-1.5 text-xs ${
+                    anomaly.severity === "error" ? "text-red-400" : "text-orange-400"
+                  }`}>
+                    <svg
+                      className="w-3.5 h-3.5 shrink-0 mt-0.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <span>{anomaly.description}</span>
+                  </div>
+                ) : (
+                  <div className="text-xs text-brand-green">No routing issues detected</div>
+                )}
+                {hasSparkline && (() => {
+                  const minH = Math.min(...recentHistory.map((p) => p.h));
+                  const maxH = Math.max(...recentHistory.map((p) => p.h));
+                  const range = maxH - minH || 1;
+                  const minT = recentHistory[0].t;
+                  const maxT = recentHistory[recentHistory.length - 1].t;
+                  const timeRange = maxT - minT || 1;
+                  const points = recentHistory
+                    .map((p) => {
+                      const x = ((p.t - minT) / timeRange) * 200;
+                      const y = 40 - ((p.h - minH) / range) * 36 - 2;
+                      return `${x.toFixed(1)},${y.toFixed(1)}`;
+                    })
+                    .join(" ");
+                  return (
+                    <div className="mt-2">
+                      <div className="text-[10px] text-gray-500 mb-0.5">Hop count — 24h</div>
+                      <svg viewBox="0 0 200 40" className="w-full h-8 text-brand-green/60">
+                        <polyline
+                          points={points}
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinejoin="round"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    </div>
+                  );
+                })()}
+              </div>
+            );
+          })()}
 
           {/* Trace route result */}
           {traceRouteHops && (

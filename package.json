@@ -31,6 +31,7 @@
     "url": "https://github.com/Denver-Mesh/meshtastic-client"
   },
   "devDependencies": {
+    "zustand": "^5.0.0",
     "@meshtastic/core": "npm:@jsr/meshtastic__core@^2.6.6",
     "@meshtastic/protobufs": "npm:@jsr/meshtastic__protobufs@^2.7.18",
     "@meshtastic/transport-http": "npm:@jsr/meshtastic__transport-http@^0.2.1",
