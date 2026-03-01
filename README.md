@@ -71,9 +71,11 @@ Should work out of the box. If serial isn't detected, make sure you have the cor
 1. **Power on** your Meshtastic device
 2. **Put it in Bluetooth pairing mode** (if connecting via BLE)
 3. Open Mesh-Client and go to the **Connection** tab
-4. Select your connection type (Bluetooth / USB Serial / WiFi)
+4. Select your connection type (Bluetooth / USB Serial / WiFi / MQTT)
 5. Click **Connect** and select your device from the picker
 6. Wait for status to show **Configured** — you're connected!
+
+For **MQTT**, enter your broker URL, topic, and optional credentials in the MQTT section of the Connection tab. When connected, the section collapses to a compact info card showing the server, client ID, and topic.
 
 ---
 
@@ -109,16 +111,18 @@ The distributable is output to the `release/` directory.
 - **Bluetooth LE** — pair wirelessly with nearby Meshtastic devices
 - **USB Serial** — plug in via USB cable
 - **WiFi/HTTP** — connect to network-enabled nodes
-- **Chat** — send/receive messages across channels with delivery indicators (ACK/NAK) and emoji reactions (tapback)
+- **MQTT** — subscribe to a Meshtastic MQTT broker to receive mesh traffic over the internet; AES-128-CTR decryption, automatic deduplication with RF, and exponential-backoff reconnect
+- **Chat** — send/receive messages across channels with delivery indicators (ACK/NAK) and emoji reactions (11 emojis with compose picker)
 - **Channel Management** — create and configure channels with custom names and PSK encryption
-- **Node List** — all discovered nodes with SNR, RSSI signal strength, battery, GPS, last heard; distance filter hides nodes beyond a configurable range
+- **Node List** — all discovered nodes with SNR, RSSI signal strength, battery, GPS, last heard; distance filter hides nodes beyond a configurable range; favorite/pin nodes for quick access
 - **Signal Strength Indicators** — live RSSI bars on nodes and in chat, color-coded by signal quality
+- **Congestion Halos** — optional visual halo on map markers to indicate RF congestion
 - **Device Role Display** — visual icons and badges for each node's configured role (Router, Client, Repeater, etc.)
 - **Node Detail Modal** — click any node or sender name for full info; send a DM, run a trace route with hop-path display, or delete the node
 - **Map** — interactive OpenStreetMap with node positions; distance filter matches the node list
 - **Telemetry** — battery voltage and signal quality charts
-- **Radio Config** — region, modem preset, device role, GPS, power, Bluetooth, display settings
-- **Admin** — reboot, shutdown, factory reset, node retention controls, channel-scoped message deletion, DB export/import/clear; map & node distance filter; prune nodes by location
+- **Radio** — region, modem preset, device role, GPS, power, Bluetooth, display settings
+- **App** — reboot, shutdown, factory reset, node retention controls, channel-scoped message deletion, DB export/import/clear; map & node distance filter; prune nodes by location; congestion halos toggle
 - **System Tray** — tray icon with live unread message badge; app stays accessible when window is closed
 - **Persistent Storage** — messages and nodes saved locally via SQLite
 - **Dark UI** — custom scrollbar, tab icons, polished chat bubbles
@@ -127,11 +131,11 @@ The distributable is output to the `release/` directory.
 
 ## Connection Types
 
-| Platform | Bluetooth | Serial | HTTP |
-|----------|-----------|--------|------|
-| macOS    | Yes       | Yes    | Yes  |
-| Windows  | Yes       | Yes    | Yes  |
-| Linux    | Partial   | Yes    | Yes  |
+| Platform | Bluetooth | Serial | HTTP | MQTT |
+|----------|-----------|--------|------|------|
+| macOS    | Yes       | Yes    | Yes  | Yes  |
+| Windows  | Yes       | Yes    | Yes  | Yes  |
+| Linux    | Partial   | Yes    | Yes  | Yes  |
 
 ---
 
@@ -154,10 +158,10 @@ The distributable is output to the `release/` directory.
 
 ```
 src/
-├── main/           # Electron main process (window, BLE handler, SQLite)
+├── main/           # Electron main process (window, BLE handler, SQLite, MQTT manager)
 ├── preload/        # Context bridge (IPC)
 └── renderer/       # React app
-    ├── components/ # All UI panels (Chat, Nodes, Map, Config, etc.)
+    ├── components/ # All UI panels (Chat, Nodes, Map, Radio, App, etc.)
     ├── hooks/      # useDevice — Meshtastic device state management
     └── lib/        # Transport setup, TypeScript types
 ```
