@@ -55,7 +55,7 @@ function getMarkerIcon(
 ): L.Icon {
   const color =
     status === "online" ? "#9ae6b4" : status === "stale" ? "#c4a864" : "#6b7280";
-  const opacity = status === "online" ? 1 : status === "stale" ? 0.45 : 0.25;
+  const opacity = status === "online" ? 1 : status === "stale" ? 0.65 : 0.45;
   return createMarkerIcon(color, isSelf, cu, opacity);
 }
 
@@ -141,7 +141,7 @@ export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected, loc
             {statusCounts.online}
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-amber-500 inline-block opacity-40" />
+            <span className="w-2 h-2 rounded-full bg-amber-500 inline-block opacity-60" />
             {statusCounts.stale}
           </span>
           <span className="flex items-center gap-1">
