@@ -7,10 +7,10 @@ import NodeDetailModal from "./components/NodeDetailModal";
 import ConnectionPanel from "./components/ConnectionPanel";
 import ChatPanel from "./components/ChatPanel";
 import NodeListPanel from "./components/NodeListPanel";
-import ConfigPanel from "./components/ConfigPanel";
+import RadioPanel from "./components/RadioPanel";
 import MapPanel from "./components/MapPanel";
 import TelemetryPanel from "./components/TelemetryPanel";
-import AdminPanel from "./components/AdminPanel";
+import AppPanel from "./components/AppPanel";
 import { LinkIcon } from "./components/SignalBars";
 
 const STATUS_COLOR: Record<string, string> = {
@@ -28,8 +28,8 @@ const TAB_NAMES = [
   "Nodes",
   "Map",
   "Telemetry",
-  "Config",
-  "Admin",
+  "Radio",
+  "App",
 ];
 
 export interface LocationFilter {
@@ -253,25 +253,24 @@ export default function App() {
               />
             )}
             {activeTab === 5 && (
-              <ConfigPanel
+              <RadioPanel
                 onSetConfig={device.setConfig}
                 onCommit={device.commitConfig}
                 onSetChannel={device.setDeviceChannel}
                 onClearChannel={device.clearChannel}
                 channelConfigs={device.channelConfigs}
                 isConnected={isOperational}
-              />
-            )}
-            {activeTab === 6 && (
-              <AdminPanel
-                nodes={device.nodes}
-                messageCount={device.messages.length}
-                channels={device.channels}
                 onReboot={device.reboot}
                 onShutdown={device.shutdown}
                 onFactoryReset={device.factoryReset}
                 onResetNodeDb={device.resetNodeDb}
-                isConnected={isOperational}
+              />
+            )}
+            {activeTab === 6 && (
+              <AppPanel
+                nodes={device.nodes}
+                messageCount={device.messages.length}
+                channels={device.channels}
                 myNodeNum={device.state.myNodeNum}
                 onLocationFilterChange={handleLocationFilterChange}
               />
