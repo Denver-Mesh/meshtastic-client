@@ -2,6 +2,14 @@ import { useEffect, useState } from "react";
 import type { MeshNode, HopHistoryPoint } from "../lib/types";
 import { useDiagnosticsStore } from "../stores/diagnosticsStore";
 import { RoleDisplay } from "../lib/roleInfo";
+import { getRecommendedAction } from "../lib/diagnostics/RemediationEngine";
+
+const CATEGORY_STYLES: Record<string, string> = {
+  Configuration: "bg-blue-500/20 text-blue-400 border border-blue-500/30",
+  Physical:      "bg-orange-500/20 text-orange-400 border border-orange-500/30",
+  Hardware:      "bg-purple-500/20 text-purple-400 border border-purple-500/30",
+  Software:      "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30",
+};
 
 const EMPTY_HOP_HISTORY: HopHistoryPoint[] = [];
 
@@ -15,6 +23,7 @@ interface NodeDetailModalProps {
   onMessageNode?: (nodeNum: number) => void;
   onToggleFavorite: (nodeId: number, favorited: boolean) => void;
   isConnected: boolean;
+  homeNode?: MeshNode | null;
 }
 
 function formatTime(ts: number): string {
@@ -55,6 +64,7 @@ export default function NodeDetailModal({
   onMessageNode,
   onToggleFavorite,
   isConnected,
+  homeNode = null,
 }: NodeDetailModalProps) {
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const [positionRequestedAt, setPositionRequestedAt] = useState<number | null>(null);
@@ -112,6 +122,7 @@ export default function NodeDetailModal({
   }, [traceRoutePending]);
 
   const anomaly = useDiagnosticsStore((s) => s.anomalies.get(node?.node_id ?? 0));
+  const nodePacketStats = useDiagnosticsStore((s) => s.packetStats.get(node?.node_id ?? 0));
   const hopHistory = useDiagnosticsStore(
     (s) => s.hopHistory.get(node?.node_id ?? 0) ?? EMPTY_HOP_HISTORY
   );
@@ -284,13 +295,56 @@ export default function NodeDetailModal({
           {/* Routing Health */}
           {(() => {
             const now = Date.now();
+            const oneHourAgo = now - 60 * 60 * 1000;
             const twentyFourHoursAgo = now - 24 * 60 * 60 * 1000;
+            const recentHour = hopHistory.filter((p) => p.t >= oneHourAgo);
             const recentHistory = hopHistory.filter((p) => p.t >= twentyFourHoursAgo);
             const hasSparkline = recentHistory.length >= 2;
+
+            // Stability: count hop-count changes in the last hour
+            let hopChanges = 0;
+            for (let i = 1; i < recentHour.length; i++) {
+              if (recentHour[i].h !== recentHour[i - 1].h) hopChanges++;
+            }
+            const stability =
+              recentHour.length < 2 ? "Unknown"
+              : hopChanges === 0 ? "Stable"
+              : hopChanges <= 2 ? "Moderate"
+              : "Unstable";
+            const stabilityColor =
+              stability === "Stable" ? "text-brand-green"
+              : stability === "Moderate" ? "text-yellow-400"
+              : stability === "Unknown" ? "text-muted"
+              : "text-red-400";
+
+            // Human-readable offense summary
+            const offenseSummary = anomaly
+              ? anomaly.type === "hop_goblin"
+                ? "Node is over-hopping for its distance or signal strength"
+                : anomaly.type === "bad_route"
+                ? "Possible routing loop — high packet duplication detected"
+                : anomaly.type === "route_flapping"
+                ? "Route is unstable — hop count changing frequently"
+                : "Reported as 0 hops but GPS data suggests otherwise"
+              : null;
 
             return (
               <div className="mt-3 p-3 bg-primary-dark rounded-lg">
                 <div className="text-xs text-gray-400 mb-1.5">Routing Health</div>
+
+                {/* Remedy badge */}
+                {(() => {
+                  const remedy = getRecommendedAction(node, homeNode, nodePacketStats);
+                  if (!remedy) return null;
+                  return (
+                    <div className={`flex items-start gap-2 p-2 mb-2 rounded-lg text-xs border ${CATEGORY_STYLES[remedy.category]}`}>
+                      <span className="font-semibold shrink-0">{remedy.category}</span>
+                      <span>{remedy.title}</span>
+                    </div>
+                  );
+                })()}
+
+                {/* Offense */}
                 {anomaly ? (
                   <div className={`flex items-start gap-1.5 text-xs ${
                     anomaly.severity === "error" ? "text-red-400" : "text-orange-400"
@@ -304,11 +358,28 @@ export default function NodeDetailModal({
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
-                    <span>{anomaly.description}</span>
+                    <div>
+                      <div className="font-medium mb-0.5">{offenseSummary}</div>
+                      <div className="text-gray-400">{anomaly.description}</div>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-xs text-brand-green">No routing issues detected</div>
                 )}
+
+                {/* Stability metric */}
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-700/50">
+                  <span className="text-[10px] text-gray-500">Route stability (1h)</span>
+                  <span className={`text-xs font-medium ${stabilityColor}`}>
+                    {stability}
+                    {recentHour.length >= 2 && hopChanges > 0 && (
+                      <span className="text-gray-500 font-normal ml-1">
+                        ({hopChanges} change{hopChanges !== 1 ? "s" : ""})
+                      </span>
+                    )}
+                  </span>
+                </div>
+
                 {hasSparkline && (() => {
                   const minH = Math.min(...recentHistory.map((p) => p.h));
                   const maxH = Math.max(...recentHistory.map((p) => p.h));

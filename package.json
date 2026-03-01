@@ -31,7 +31,6 @@
     "url": "https://github.com/Denver-Mesh/meshtastic-client"
   },
   "devDependencies": {
-    "zustand": "^5.0.0",
     "@meshtastic/core": "npm:@jsr/meshtastic__core@^2.6.6",
     "@meshtastic/protobufs": "npm:@jsr/meshtastic__protobufs@^2.7.18",
     "@meshtastic/transport-http": "npm:@jsr/meshtastic__transport-http@^0.2.1",
@@ -43,6 +42,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@types/web-bluetooth": "^0.0.21",
     "@vitejs/plugin-react": "^5.1.4",
     "concurrently": "^9.2.1",
     "electron": "^40.6.0",
@@ -58,7 +58,8 @@
     "tailwindcss": "^4.2.0",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
-    "wait-on": "^9.0.4"
+    "wait-on": "^9.0.4",
+    "zustand": "^5.0.0"
   },
   "overrides": {
     "end-of-stream": "1.4.5",

@@ -322,6 +322,8 @@ export default function App() {
                 myNodeNum={device.state.myNodeNum}
                 onTraceRoute={device.traceRoute}
                 isConnected={isOperational}
+                traceRouteResults={device.traceRouteResults}
+                getFullNodeLabel={device.getFullNodeLabel}
               />
             )}
           </ErrorBoundary>
@@ -385,6 +387,7 @@ export default function App() {
           }
           onToggleFavorite={device.setNodeFavorited}
           isConnected={isOperational}
+          homeNode={device.nodes.get(device.state.myNodeNum) ?? null}
         />
       </div>
     </ToastProvider>

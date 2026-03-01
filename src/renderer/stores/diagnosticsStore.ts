@@ -9,10 +9,14 @@ interface DiagnosticsState {
   hopHistory: Map<number, HopHistoryPoint[]>;
   packetStats: Map<number, { total: number; duplicates: number }>;
   congestionHalosEnabled: boolean;
+  anomalyHalosEnabled: boolean;
+  ignoreMqttEnabled: boolean;
   processNodeUpdate(node: MeshNode, homeNode: MeshNode | null): void;
   recordDuplicate(fromNodeId: number): void;
   runReanalysis(nodes: Map<number, MeshNode>, myNodeNum: number): void;
   setCongestionHalosEnabled(enabled: boolean): void;
+  setAnomalyHalosEnabled(enabled: boolean): void;
+  setIgnoreMqttEnabled(enabled: boolean): void;
 }
 
 // Module-level debounce timer and pending analysis buffer
@@ -22,20 +26,30 @@ const pendingAnalyses = new Map<
   { node: MeshNode; homeNode: MeshNode | null }
 >();
 
-function loadCongestionHalos(): boolean {
+function loadAdminBool(key: string): boolean {
   try {
     const raw = localStorage.getItem("mesh-client:adminSettings");
-    return raw ? (JSON.parse(raw).congestionHalosEnabled ?? false) : false;
+    return raw ? (JSON.parse(raw)[key] ?? false) : false;
   } catch {
     return false;
   }
+}
+
+function saveAdminKey(key: string, value: boolean): void {
+  try {
+    const raw = localStorage.getItem("mesh-client:adminSettings");
+    const s = raw ? JSON.parse(raw) : {};
+    localStorage.setItem("mesh-client:adminSettings", JSON.stringify({ ...s, [key]: value }));
+  } catch {}
 }
 
 export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
   anomalies: new Map(),
   hopHistory: new Map(),
   packetStats: new Map(),
-  congestionHalosEnabled: loadCongestionHalos(),
+  congestionHalosEnabled: loadAdminBool("congestionHalosEnabled"),
+  anomalyHalosEnabled: loadAdminBool("anomalyHalosEnabled"),
+  ignoreMqttEnabled: loadAdminBool("ignoreMqttEnabled"),
 
   processNodeUpdate(node: MeshNode, homeNode: MeshNode | null) {
     const now = Date.now();
@@ -68,7 +82,7 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
         for (const [nodeId, { node: n, homeNode: hn }] of pendingAnalyses) {
           const history = state.hopHistory.get(nodeId) ?? [];
           const stats = state.packetStats.get(nodeId);
-          const anomaly = analyzeNode(n, stats, hn, history);
+          const anomaly = analyzeNode(n, stats, hn, history, state.ignoreMqttEnabled);
           if (anomaly) newAnomalies.set(nodeId, anomaly);
           else newAnomalies.delete(nodeId);
         }
@@ -97,7 +111,7 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
         if (nodeId === myNodeNum) continue;
         const history = state.hopHistory.get(nodeId) ?? [];
         const stats = state.packetStats.get(nodeId);
-        const anomaly = analyzeNode(node, stats, homeNode, history);
+        const anomaly = analyzeNode(node, stats, homeNode, history, state.ignoreMqttEnabled);
         if (anomaly) newAnomalies.set(nodeId, anomaly);
       }
       set({ anomalies: newAnomalies });
@@ -105,14 +119,17 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
   },
 
   setCongestionHalosEnabled(enabled: boolean) {
-    try {
-      const raw = localStorage.getItem("mesh-client:adminSettings");
-      const s = raw ? JSON.parse(raw) : {};
-      localStorage.setItem(
-        "mesh-client:adminSettings",
-        JSON.stringify({ ...s, congestionHalosEnabled: enabled })
-      );
-    } catch {}
+    saveAdminKey("congestionHalosEnabled", enabled);
     set({ congestionHalosEnabled: enabled });
+  },
+
+  setAnomalyHalosEnabled(enabled: boolean) {
+    saveAdminKey("anomalyHalosEnabled", enabled);
+    set({ anomalyHalosEnabled: enabled });
+  },
+
+  setIgnoreMqttEnabled(enabled: boolean) {
+    saveAdminKey("ignoreMqttEnabled", enabled);
+    set({ ignoreMqttEnabled: enabled });
   },
 }));

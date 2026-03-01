@@ -1,14 +1,51 @@
 import { haversineDistanceKm } from "../nodeStatus";
 import type { MeshNode, NodeAnomaly, HopHistoryPoint } from "../types";
 
-export function detectHopGoblin(node: MeshNode): NodeAnomaly | null {
-  if (node.heard_via_mqtt_only) return null;
+export function detectHopGoblin(node: MeshNode, homeNode: MeshNode | null, ignoreMqtt = false): NodeAnomaly | null {
+  if (ignoreMqtt && node.heard_via_mqtt_only) return null;
+
+  // Distance-aware: if both nodes have GPS coords, use haversine
+  if (
+    homeNode?.latitude && homeNode?.longitude &&
+    node.latitude && node.longitude
+  ) {
+    const distKm = haversineDistanceKm(
+      homeNode.latitude, homeNode.longitude,
+      node.latitude, node.longitude
+    );
+    if (distKm < 3 && (node.hops_away ?? 0) > 2) {
+      return {
+        nodeId: node.node_id,
+        type: "hop_goblin",
+        severity: "error",
+        description: `Only ${distKm.toFixed(2)} km away but taking ${node.hops_away} hops — critical over-hopping`,
+        detectedAt: Date.now(),
+        snr: node.snr,
+        hopsAway: node.hops_away,
+      };
+    }
+    // Coords present but node isn't critically close — still check SNR
+    if ((node.hops_away ?? 0) > 2 && node.snr > 5) {
+      return {
+        nodeId: node.node_id,
+        type: "hop_goblin",
+        severity: "warning",
+        description: `${node.hops_away} hops away but strong signal (${node.snr.toFixed(1)} dB) — may be over-hopping`,
+        detectedAt: Date.now(),
+        snr: node.snr,
+        hopsAway: node.hops_away,
+      };
+    }
+    return null;
+  }
+
+  // Fallback: SNR-only when coordinates are missing
   if ((node.hops_away ?? 0) > 2 && node.snr > 5) {
     return {
       nodeId: node.node_id,
       type: "hop_goblin",
       severity: "warning",
-      description: `${node.hops_away} hops away but strong signal (${node.snr.toFixed(1)} dB) — may be over-hopping`,
+      description: `${node.hops_away} hops away but strong signal (${node.snr.toFixed(1)} dB) — may be over-hopping (no GPS for distance check)`,
       detectedAt: Date.now(),
       snr: node.snr,
       hopsAway: node.hops_away,
@@ -20,7 +57,8 @@ export function detectHopGoblin(node: MeshNode): NodeAnomaly | null {
 export function detectBadRoute(
   node: MeshNode,
   stats: { total: number; duplicates: number } | undefined,
-  homeNode: MeshNode | null
+  homeNode: MeshNode | null,
+  ignoreMqtt = false
 ): NodeAnomaly | null {
   // High duplication rate with good signal = routing loop
   if (stats && stats.total > 0) {
@@ -39,7 +77,7 @@ export function detectBadRoute(
   }
   // Very close node taking many hops
   if (
-    !node.heard_via_mqtt_only &&
+    (!ignoreMqtt || !node.heard_via_mqtt_only) &&
     homeNode &&
     homeNode.latitude &&
     homeNode.longitude &&
@@ -70,9 +108,10 @@ export function detectBadRoute(
 
 export function detectImpossibleHop(
   node: MeshNode,
-  homeNode: MeshNode | null
+  homeNode: MeshNode | null,
+  ignoreMqtt = false
 ): NodeAnomaly | null {
-  if (node.heard_via_mqtt_only) return null;
+  if (ignoreMqtt && node.heard_via_mqtt_only) return null;
   if (node.hops_away !== 0) return null;
   if (!homeNode?.latitude || !homeNode?.longitude) return null;
   if (!node.latitude || !node.longitude) return null;
@@ -124,19 +163,20 @@ export function analyzeNode(
   node: MeshNode,
   stats: { total: number; duplicates: number } | undefined,
   homeNode: MeshNode | null,
-  hopHistory: HopHistoryPoint[]
+  hopHistory: HopHistoryPoint[],
+  ignoreMqtt = false
 ): NodeAnomaly | null {
   // Priority: errors first, then warnings
-  const impossibleHop = detectImpossibleHop(node, homeNode);
+  const impossibleHop = detectImpossibleHop(node, homeNode, ignoreMqtt);
   if (impossibleHop) return impossibleHop;
 
-  const badRoute = detectBadRoute(node, stats, homeNode);
+  const badRoute = detectBadRoute(node, stats, homeNode, ignoreMqtt);
   if (badRoute?.severity === "error") return badRoute;
 
   const flapping = detectRouteFlapping(node.node_id, hopHistory);
   if (flapping) return flapping;
 
-  const hopGoblin = detectHopGoblin(node);
+  const hopGoblin = detectHopGoblin(node, homeNode, ignoreMqtt);
   if (hopGoblin) return hopGoblin;
 
   if (badRoute?.severity === "warning") return badRoute;

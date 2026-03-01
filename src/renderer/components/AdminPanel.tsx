@@ -135,10 +135,16 @@ export default function AdminPanel({
   }, [settings]);
 
   useEffect(() => {
+    let hideMqttOnly = false;
+    try {
+      const raw = localStorage.getItem("mesh-client:adminSettings");
+      if (raw) hideMqttOnly = JSON.parse(raw).filterMqttOnly ?? false;
+    } catch { /* ignore */ }
     onLocationFilterChange({
       enabled: settings.distanceFilterEnabled,
       maxDistance: settings.distanceFilterMax,
       unit: settings.distanceUnit,
+      hideMqttOnly,
     });
   }, [settings.distanceFilterEnabled, settings.distanceFilterMax, settings.distanceUnit, onLocationFilterChange]);
 

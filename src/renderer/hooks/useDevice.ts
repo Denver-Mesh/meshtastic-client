@@ -275,6 +275,7 @@ export function useDevice() {
           ...existing,
           ...nodeUpdate,
           heard_via_mqtt_only: !heardViaRF,
+          heard_via_mqtt: true,
           source: heardViaRF ? "rf" : "mqtt",
           last_heard: nodeUpdate.last_heard ?? Date.now(),
         };
@@ -503,7 +504,7 @@ export function useDevice() {
       // ─── Node info packets ─────────────────────────────────────
       const unsub5 = device.events.onNodeInfoPacket.subscribe((packet) => {
         touchLastData();
-        rfHeardNodeIds.current.add((packet as any).num ?? packet.from);
+        rfHeardNodeIds.current.add((packet as any).num ?? (packet as any).from);
         const info = packet as {
           num?: number;
           user?: {

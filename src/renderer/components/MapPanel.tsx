@@ -1,6 +1,22 @@
 import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, Fragment } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from "react-leaflet";
+
+const ANOMALY_HALO_STYLE_ID = "anomaly-halo-keyframes";
+function ensureAnomalyHaloStyles() {
+  if (document.getElementById(ANOMALY_HALO_STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = ANOMALY_HALO_STYLE_ID;
+  style.textContent = `
+    @keyframes anomaly-pulse {
+      0%, 100% { opacity: 0.75; }
+      50%       { opacity: 0.15; }
+    }
+    .anomaly-halo-warning { animation: anomaly-pulse 2s ease-in-out infinite; }
+    .anomaly-halo-error   { animation: anomaly-pulse 1.4s ease-in-out infinite; }
+  `;
+  document.head.appendChild(style);
+}
 import L from "leaflet";
 import type { MeshNode } from "../lib/types";
 import { getNodeStatus, haversineDistanceKm } from "../lib/nodeStatus";
@@ -92,7 +108,10 @@ function MapFitter({ positions }: { positions: [number, number][] }) {
 
 export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected, locationFilter }: Props) {
   const congestionHalosEnabled = useDiagnosticsStore((s) => s.congestionHalosEnabled);
+  const anomalyHalosEnabled = useDiagnosticsStore((s) => s.anomalyHalosEnabled);
   const anomalies = useDiagnosticsStore((s) => s.anomalies);
+
+  useEffect(() => { ensureAnomalyHaloStyles(); }, []);
   const nodesWithPosition = useMemo(() => {
     const homeNode = myNodeNum ? nodes.get(myNodeNum) : undefined;
     const homeHasLocation = homeNode &&
@@ -113,10 +132,21 @@ export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected, loc
     });
   }, [nodes, myNodeNum, locationFilter]);
 
+  // Combine node list with anomaly state so the map only re-renders when
+  // a specific node's health status actually changes (not on every Zustand tick).
+  const nodesWithStatus = useMemo(
+    () => nodesWithPosition.map((node) => ({
+      node,
+      anomaly: anomalies.get(node.node_id) ?? null,
+    })),
+    [nodesWithPosition, anomalies]
+  );
+
   const positions = useMemo<[number, number][]>(
     () => nodesWithPosition.map((n) => [n.latitude, n.longitude]),
     [nodesWithPosition]
   );
+
 
   // Center on nodes if we have positions, otherwise default
   const center: [number, number] =
@@ -171,7 +201,7 @@ export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected, loc
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         />
-        {nodesWithPosition.map((node) => {
+        {nodesWithStatus.map(({ node, anomaly }) => {
           const isSelf = node.node_id === myNodeNum;
           const status = getNodeStatus(node.last_heard);
           const cu = congestionHalosEnabled ? (node.channel_utilization ?? 0) : 0;
@@ -179,20 +209,24 @@ export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected, loc
 
           return (
             <Fragment key={node.node_id}>
-              {/* Anomaly status aura (rendered behind CU halo) */}
-              {anomalies.has(node.node_id) && (
-                <Circle
-                  center={[node.latitude, node.longitude]}
-                  radius={500}
-                  pathOptions={{
-                    color: anomalies.get(node.node_id)?.severity === "error" ? "#ef4444" : "#f97316",
-                    fillColor: anomalies.get(node.node_id)?.severity === "error" ? "#ef4444" : "#f97316",
-                    fillOpacity: 0.12,
-                    weight: 2,
-                    opacity: 0.7,
-                  }}
-                />
-              )}
+              {/* Anomaly status aura — pulsing CSS keyframe halo */}
+              {anomalyHalosEnabled && anomaly !== null && (() => {
+                const isError = anomaly.severity === "error";
+                return (
+                  <Circle
+                    center={[node.latitude, node.longitude]}
+                    radius={500}
+                    pathOptions={{
+                      color: isError ? "#ef4444" : "#FFBF00",
+                      fillColor: isError ? "#ef4444" : "#FFBF00",
+                      fillOpacity: 0.18,
+                      weight: 2,
+                      opacity: 0.75,
+                      className: isError ? "anomaly-halo-error" : "anomaly-halo-warning",
+                    }}
+                  />
+                );
+              })()}
               {congestionHalosEnabled && node.channel_utilization != null && (
                 <Circle
                   center={[node.latitude, node.longitude]}
