@@ -36,6 +36,7 @@ export interface LocationFilter {
   enabled: boolean;
   maxDistance: number;
   unit: "miles" | "km";
+  congestionHalosEnabled: boolean;
 }
 
 export default function App() {
@@ -49,9 +50,10 @@ export default function App() {
         enabled: s.distanceFilterEnabled ?? false,
         maxDistance: s.distanceFilterMax ?? 500,
         unit: s.distanceUnit ?? "miles",
+        congestionHalosEnabled: s.congestionHalosEnabled ?? false,
       };
     } catch {
-      return { enabled: false, maxDistance: 500, unit: "miles" };
+      return { enabled: false, maxDistance: 500, unit: "miles", congestionHalosEnabled: false };
     }
   });
   const [pendingDmTarget, setPendingDmTarget] = useState<number | null>(null);

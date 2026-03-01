@@ -1,6 +1,6 @@
 import "leaflet/dist/leaflet.css";
-import { useEffect, useMemo } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { useEffect, useMemo, Fragment } from "react";
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from "react-leaflet";
 import L from "leaflet";
 import type { MeshNode } from "../lib/types";
 import { getNodeStatus, haversineDistanceKm } from "../lib/nodeStatus";
@@ -167,51 +167,65 @@ export default function MapPanel({ nodes, myNodeNum, onRefresh, isConnected, loc
         {nodesWithPosition.map((node) => {
           const isSelf = node.node_id === myNodeNum;
           const status = getNodeStatus(node.last_heard);
-          const cu = node.channel_utilization ?? 0;
+          const cu = locationFilter.congestionHalosEnabled ? (node.channel_utilization ?? 0) : 0;
           const icon = getMarkerIcon(status, isSelf, cu);
 
           return (
-            <Marker
-              key={node.node_id}
-              position={[node.latitude, node.longitude]}
-              icon={icon}
-              zIndexOffset={isSelf ? 1000 : 0}
-            >
-              <Popup>
-                <div className="text-gray-900 text-sm space-y-1">
-                  <div className="font-bold flex items-center gap-1.5">
-                    {isSelf && <span title="Your node">★</span>}
-                    {node.long_name || `!${node.node_id.toString(16)}`}
+            <Fragment key={node.node_id}>
+              {locationFilter.congestionHalosEnabled && node.channel_utilization != null && (
+                <Circle
+                  center={[node.latitude, node.longitude]}
+                  radius={300}
+                  pathOptions={{
+                    color: getCUColor(node.channel_utilization),
+                    fillColor: getCUColor(node.channel_utilization),
+                    fillOpacity: 0.25,
+                    weight: 1,
+                    opacity: 0.6,
+                  }}
+                />
+              )}
+              <Marker
+                position={[node.latitude, node.longitude]}
+                icon={icon}
+                zIndexOffset={isSelf ? 1000 : 0}
+              >
+                <Popup>
+                  <div className="text-gray-900 text-sm space-y-1">
+                    <div className="font-bold flex items-center gap-1.5">
+                      {isSelf && <span title="Your node">★</span>}
+                      {node.long_name || `!${node.node_id.toString(16)}`}
+                    </div>
+                    {node.short_name && (
+                      <div className="text-gray-600">{node.short_name}</div>
+                    )}
+                    <div className="flex items-center gap-1 text-xs">
+                      <span
+                        className={`inline-block w-2 h-2 rounded-full ${
+                          status === "online"
+                            ? "bg-brand-green"
+                            : status === "stale"
+                            ? "bg-amber-500"
+                            : "bg-gray-400"
+                        }`}
+                      />
+                      <span className="capitalize">{status}</span>
+                    </div>
+                    {node.battery > 0 && <div>Battery: {node.battery}%</div>}
+                    {node.snr !== 0 && (
+                      <div>SNR: {node.snr.toFixed(1)} dB</div>
+                    )}
+                    {node.channel_utilization != null && (
+                      <div>Ch. Util: {node.channel_utilization.toFixed(1)}%</div>
+                    )}
+                    <div>Last heard: {formatTime(node.last_heard)}</div>
+                    <div className="text-xs text-muted">
+                      {node.latitude.toFixed(5)}, {node.longitude.toFixed(5)}
+                    </div>
                   </div>
-                  {node.short_name && (
-                    <div className="text-gray-600">{node.short_name}</div>
-                  )}
-                  <div className="flex items-center gap-1 text-xs">
-                    <span
-                      className={`inline-block w-2 h-2 rounded-full ${
-                        status === "online"
-                          ? "bg-brand-green"
-                          : status === "stale"
-                          ? "bg-amber-500"
-                          : "bg-gray-400"
-                      }`}
-                    />
-                    <span className="capitalize">{status}</span>
-                  </div>
-                  {node.battery > 0 && <div>Battery: {node.battery}%</div>}
-                  {node.snr !== 0 && (
-                    <div>SNR: {node.snr.toFixed(1)} dB</div>
-                  )}
-                  {node.channel_utilization != null && (
-                    <div>Ch. Util: {node.channel_utilization.toFixed(1)}%</div>
-                  )}
-                  <div>Last heard: {formatTime(node.last_heard)}</div>
-                  <div className="text-xs text-muted">
-                    {node.latitude.toFixed(5)}, {node.longitude.toFixed(5)}
-                  </div>
-                </div>
-              </Popup>
-            </Marker>
+                </Popup>
+              </Marker>
+            </Fragment>
           );
         })}
       </MapContainer>
