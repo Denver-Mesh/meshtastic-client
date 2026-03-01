@@ -281,6 +281,17 @@ export default function AdminPanel({
               <option value="km">km</option>
             </select>
           </div>
+          {settings.distanceFilterEnabled && (() => {
+            const homeNode = myNodeNum != null ? nodes.get(myNodeNum) : undefined;
+            const homeHasLocation = homeNode &&
+              homeNode.latitude != null && homeNode.latitude !== 0 &&
+              homeNode.longitude != null && homeNode.longitude !== 0;
+            return !homeHasLocation ? (
+              <p className="text-xs text-yellow-300 bg-yellow-900/30 border border-yellow-700 px-2 py-1.5 rounded">
+                Your device has no GPS fix — filter is enabled but all nodes are shown.
+              </p>
+            ) : null;
+          })()}
           <p className="text-xs text-muted">Note: Requires your device to have a valid GPS fix.</p>
         </div>
       </div>
