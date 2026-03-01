@@ -111,14 +111,14 @@ The distributable is output to the `release/` directory.
 - **Bluetooth LE** — pair wirelessly with nearby Meshtastic devices
 - **USB Serial** — plug in via USB cable
 - **WiFi/HTTP** — connect to network-enabled nodes
-- **MQTT** — subscribe to a Meshtastic MQTT broker to receive mesh traffic over the internet; AES-128-CTR decryption, automatic deduplication with RF, and exponential-backoff reconnect
-- **Chat** — send/receive messages across channels with delivery indicators (ACK/NAK) and emoji reactions (11 emojis with compose picker)
+- **MQTT** — subscribe to a Meshtastic MQTT broker to receive mesh traffic over the internet; send messages via MQTT even when no hardware device is connected; AES-128-CTR encryption/decryption, automatic deduplication with RF, and exponential-backoff reconnect
+- **Chat** — send/receive messages across channels with delivery indicators (ACK/NAK), emoji reactions (11 emojis with compose picker), and an unread message divider that persists across restarts and scrolls you to where you left off
 - **Channel Management** — create and configure channels with custom names and PSK encryption
 - **Node List** — all discovered nodes with SNR, RSSI signal strength, battery, GPS, last heard; distance filter hides nodes beyond a configurable range; favorite/pin nodes for quick access
 - **Signal Strength Indicators** — live RSSI bars on nodes and in chat, color-coded by signal quality
 - **Congestion Halos** — optional visual halo on map markers to indicate RF congestion
 - **Device Role Display** — visual icons and badges for each node's configured role (Router, Client, Repeater, etc.)
-- **Node Detail Modal** — click any node or sender name for full info; send a DM, run a trace route with hop-path display, or delete the node
+- **Node Detail Modal** — click any node or sender name for full info; send a DM, run a trace route with hop-path display, or delete the node; GPS warning banner shown when a node has reported invalid coordinates
 - **Map** — interactive OpenStreetMap with node positions; distance filter matches the node list
 - **Telemetry** — battery voltage and signal quality charts
 - **Radio** — region, modem preset, device role, GPS, power, Bluetooth, display settings
