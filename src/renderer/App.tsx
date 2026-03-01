@@ -17,9 +17,9 @@ const TAB_NAMES = [
   "Connection",
   "Chat",
   "Nodes",
-  "Config",
   "Map",
   "Telemetry",
+  "Config",
   "Admin",
 ];
 
@@ -233,16 +233,6 @@ export default function App() {
               />
             )}
             {activeTab === 3 && (
-              <ConfigPanel
-                onSetConfig={device.setConfig}
-                onCommit={device.commitConfig}
-                onSetChannel={device.setDeviceChannel}
-                onClearChannel={device.clearChannel}
-                channelConfigs={device.channelConfigs}
-                isConnected={isOperational}
-              />
-            )}
-            {activeTab === 4 && (
               <MapPanel
                 nodes={device.nodes}
                 myNodeNum={device.state.myNodeNum}
@@ -251,11 +241,21 @@ export default function App() {
                 locationFilter={locationFilter}
               />
             )}
-            {activeTab === 5 && (
+            {activeTab === 4 && (
               <TelemetryPanel
                 telemetry={device.telemetry}
                 signalTelemetry={device.signalTelemetry}
                 onRefresh={device.requestRefresh}
+                isConnected={isOperational}
+              />
+            )}
+            {activeTab === 5 && (
+              <ConfigPanel
+                onSetConfig={device.setConfig}
+                onCommit={device.commitConfig}
+                onSetChannel={device.setDeviceChannel}
+                onClearChannel={device.clearChannel}
+                channelConfigs={device.channelConfigs}
                 isConnected={isOperational}
               />
             )}
