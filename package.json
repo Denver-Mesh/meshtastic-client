@@ -17,7 +17,11 @@
     "dist:linux": "npm dedupe && npm run build && electron-builder --linux",
     "dist:win": "npm dedupe && npm run build && electron-builder --win"
   },
-  "author": "Mesh-client Contributors",
+    "author": "Mesh Contributors <nv0n@denvermesh.org>",
+    "contributors": [
+    "Joey Stanford https://github.com/rinchen",
+    "dude.eth https://github.com/defidude"
+    ],
   "license": "MIT",
   "keywords": [
     "meshtastic",
