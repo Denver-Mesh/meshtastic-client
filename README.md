@@ -17,6 +17,7 @@ Connect to your Meshtastic devices over Bluetooth, USB Serial, or WiFi. Independ
 - **Build tools** for compiling the native SQLite module:
   - **Mac**: Xcode Command Line Tools — run `xcode-select --install`
   - **Linux**: `sudo apt install build-essential python3` (Debian/Ubuntu)
+               `sudo dnf groupinstall "Development Tools" && sudo dnf install python3` (Fedora/RedHat)  
   - **Windows**: [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the "Desktop development with C++" workload
 - A Meshtastic device (any hardware running Meshtastic firmware)
 - **For development**: [React DevTools](https://react.dev/link/react-devtools) browser extension
