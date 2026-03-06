@@ -272,7 +272,7 @@ export class MQTTManager extends EventEmitter {
     }
   }
 
-  private handleDecoded(nodeId: number, packetId: number, data: { portnum?: number; payload?: Uint8Array }): void {
+  private handleDecoded(nodeId: number, packetId: number, data: { portnum?: number; payload?: Uint8Array; emoji?: number; replyId?: number }): void {
     const portnum = data.portnum ?? 0;
     const payload = data.payload;
 
@@ -317,9 +317,11 @@ export class MQTTManager extends EventEmitter {
       } catch {
         this.emitMinimalNodeUpdate(nodeId);
       }
-    } else if (portnum === PortNum.TEXT_MESSAGE_APP && payload) {
+    } else if (portnum === PortNum.TEXT_MESSAGE_APP && (payload?.length || data.emoji)) {
       try {
-        const text = new TextDecoder().decode(payload);
+        const text = new TextDecoder().decode(payload ?? new Uint8Array());
+        const emoji = data.emoji || undefined;
+        const replyId = data.replyId || undefined;
         const msg: Omit<ChatMessage, "id"> & { from_mqtt: boolean } = {
           sender_id: nodeId,
           sender_name: `!${nodeId.toString(16)}`,
@@ -328,6 +330,8 @@ export class MQTTManager extends EventEmitter {
           timestamp: Date.now(),
           packetId,
           from_mqtt: true,
+          emoji,
+          replyId,
         };
         this.emit("message", msg);
         this.emitMinimalNodeUpdate(nodeId);
