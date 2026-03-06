@@ -40,7 +40,6 @@ app.commandLine.appendSwitch(
 // ─── Icon Path Helper ──────────────────────────────────────────────
 /**
  * Resolves the correct icon file based on the platform and package status.
- * Now pointing specifically to the /resources folder.
  */
 function getAppIconPath() {
   const ext = process.platform === "win32" ? "ico" : process.platform === "darwin" ? "icns" : "png";
@@ -57,12 +56,22 @@ function getAppIconPath() {
 }
 
 function buildTrayIcon(hasUnread: boolean): Electron.NativeImage {
+  // Use a conditional path that works for both dev and production
   const trayIconPath = app.isPackaged
-    ? path.join(process.resourcesPath, "icon.png")
-    : path.join(__dirname, "../../resources/icon.png"); // Fixed from /assets
+    ? path.join(process.resourcesPath, "icon.png") // Packaged location
+    : path.join(__dirname, "../../resources/icon.png"); // Dev location
 
   const size = process.platform === "darwin" ? 16 : 22;
-  const base = nativeImage.createFromPath(trayIconPath).resize({ width: size, height: size });
+  
+  // Create the image from the path
+  const image = nativeImage.createFromPath(trayIconPath);
+  
+  // CRITICAL FOR MAC: Set as template so it handles Dark/Light mode
+  if (process.platform === 'darwin') {
+    image.setTemplateImage(true);
+  }
+
+  const base = image.resize({ width: size, height: size });
 
   if (!hasUnread) return base;
 
