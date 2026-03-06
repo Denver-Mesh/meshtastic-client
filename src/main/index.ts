@@ -8,6 +8,7 @@ const mqttManager = new MQTTManager();
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isConnected = false;
+let isQuitting = false;
 
 // Pending Bluetooth callback from Chromium's Web Bluetooth API
 let pendingBluetoothCallback: ((deviceId: string) => void) | null = null;
@@ -117,7 +118,16 @@ function setupTray(window: BrowserWindow) {
     Menu.buildFromTemplate([
       { label: "Show Mesh-Client", click: () => { window.show(); window.focus(); } },
       { type: "separator" },
-      { label: "Quit", click: () => app.quit() },
+      {
+        label: "Quit",
+        click: () => {
+          isQuitting = true;
+          mqttManager.disconnect();
+          isConnected = false;
+          mainWindow?.destroy();
+          app.quit();
+        },
+      },
     ])
   );
 }
@@ -246,15 +256,13 @@ function createWindow() {
 
   // Handle window close event
   mainWindow.on('close', (event) => {
-    if (isConnected || mqttManager.getStatus() === "connected") {
+    if (!isQuitting && (isConnected || mqttManager.getStatus() === "connected")) {
       event.preventDefault();
       if (process.platform === 'darwin') {
         mainWindow.hide();
       } else {
         mainWindow.minimize();
       }
-    } else {
-      app.quit();
     }
   });
 
@@ -333,6 +341,7 @@ ipcMain.handle("mqtt:publish", async (_event, args) => {
 
 // ─── IPC: Force quit (disconnect all, then quit) ────────────────────
 ipcMain.handle("app:quit", async () => {
+  isQuitting = true;
   mqttManager.disconnect();
   isConnected = false;
   app.quit();
@@ -667,11 +676,12 @@ app.whenReady().then(() => {
 });
 
 app.on("before-quit", () => {
+  isQuitting = true;
   closeDatabase();
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
+  if (process.platform !== "darwin" || isQuitting) {
     app.quit();
   }
 });
