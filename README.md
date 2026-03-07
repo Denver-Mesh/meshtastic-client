@@ -18,7 +18,7 @@ Connect to your Meshtastic devices over Bluetooth, USB Serial, or WiFi. Independ
   - **Mac**: Xcode Command Line Tools — run `xcode-select --install`
   - **Linux**: `sudo apt install build-essential python3` (Debian/Ubuntu)
                `sudo dnf groupinstall "Development Tools" && sudo dnf install python3` (Fedora/RedHat)  
-  - **Windows**: [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the "Desktop development with C++" workload
+  - **Windows**: [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the "Desktop development with C++" workload (or install via `winget install Microsoft.VisualStudio.2022.BuildTools`). Also requires **git** — install via `winget install git.git` if not already present.
 - A Meshtastic device (any hardware running Meshtastic firmware)
 - **For development**: [React DevTools](https://react.dev/link/react-devtools) browser extension
 
@@ -53,6 +53,22 @@ sudo usermod -a -G dialout $USER
 
 ### Windows
 
+**1. Install git** (if not already):
+```powershell
+winget install git.git
+```
+
+**2. Install Node.js** (if not already):
+```powershell
+winget install openjs.nodejs
+```
+
+**3. Allow npm scripts** (PowerShell blocks script execution by default):
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+**4. Clone and run:**
 ```bash
 git clone https://github.com/Colorado-Mesh/meshtastic-client
 cd meshtastic-client
@@ -60,7 +76,7 @@ npm install
 npm start
 ```
 
-Should work out of the box. If serial isn't detected, make sure you have the correct USB drivers for your device (e.g., CP210x or CH340 drivers).
+If serial isn't detected, make sure you have the correct USB drivers for your device (e.g., CP210x or CH340 drivers).
 
 ---
 
