@@ -207,11 +207,24 @@ function runMigrations(): void {
   }
 }
 
+/** Export DB to a file. Best-effort for very large databases; may take a long time with no progress callback. */
 export async function exportDatabase(destPath: string): Promise<void> {
   await getDatabase().backup(destPath);
 }
 
+const MAX_MERGE_FILE_BYTES = 500 * 1024 * 1024; // 500 MB
+
 export function mergeDatabase(sourcePath: string) {
+  try {
+    const stat = fs.statSync(sourcePath);
+    if (!stat.isFile() || stat.size > MAX_MERGE_FILE_BYTES) {
+      throw new Error("Merge source must be a file under 500 MB");
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message === "Merge source must be a file under 500 MB") throw err;
+    throw new Error(`Cannot read merge source: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
   const targetDb = getDatabase();
   let sourceDb: Database.Database | undefined;
 

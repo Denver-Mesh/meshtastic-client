@@ -31,6 +31,9 @@ export class GpsHardwareError extends Error {
   }
 }
 
+// Max response body size before refusing to parse (limits memory for malformed/huge responses)
+const MAX_IP_RESPONSE_BYTES = 64 * 1024;
+
 // ─── IP geolocation via Node http(s) with WHATWG URL (avoids Electron net + url.parse) ───
 
 function fetchIpEndpoint(
@@ -54,7 +57,9 @@ function fetchIpEndpoint(
       (response) => {
         let body = "";
         response.on("data", (chunk: Buffer) => {
-          body += chunk.toString();
+          if (body.length + chunk.length <= MAX_IP_RESPONSE_BYTES) {
+            body += chunk.toString();
+          }
         });
         response.on("end", () => {
           clearTimeout(timer);
@@ -110,15 +115,28 @@ async function getIpFix(): Promise<GpsFix> {
   });
 }
 
+const GPS_SYSTEM_CHECK_TIMEOUT_MS = 8000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export async function getGpsFix(): Promise<GpsFixResult> {
   try {
-    await si.wifiNetworks();
+    await withTimeout(si.wifiNetworks(), GPS_SYSTEM_CHECK_TIMEOUT_MS, undefined);
   } catch {
     // Optional: WiFi scan can fail (permissions, no adapter). Try inetChecksite as fallback.
     try {
-      await si.inetChecksite("https://ip-api.com");
+      await withTimeout(
+        si.inetChecksite("https://ip-api.com"),
+        GPS_SYSTEM_CHECK_TIMEOUT_MS,
+        undefined
+      );
     } catch (e) {
       const msg = sanitizeLogMessage((e as Error).message);
       console.warn(`[gps] inetChecksite fallback failed: ${msg}`);

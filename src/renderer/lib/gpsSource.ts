@@ -26,7 +26,14 @@ export async function resolveOurPosition(
   if (typeof window !== "undefined" && (window as any).electronAPI?.getGpsFix) {
     try {
       const result = await (window as any).electronAPI.getGpsFix();
-      if (result.status !== "error" && !("error" in result)) {
+      if (
+        result.status !== "error" &&
+        !("error" in result) &&
+        typeof result.lat === "number" &&
+        typeof result.lon === "number" &&
+        Number.isFinite(result.lat) &&
+        Number.isFinite(result.lon)
+      ) {
         return { lat: result.lat, lon: result.lon, source: "browser" };
       }
     } catch {
