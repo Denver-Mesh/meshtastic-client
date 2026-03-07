@@ -1,6 +1,26 @@
 import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from "react";
 import type { ChatMessage, MeshNode } from "../lib/types";
 
+function StatusBadge({ status, transport, error }: {
+  status: "sending" | "acked" | "failed";
+  transport: "device" | "mqtt";
+  error?: string;
+}) {
+  const icon = status === "sending" ? "\u23F3" : status === "acked" ? "\u2713" : "\u2717";
+  const colorClass = status === "sending" ? "text-muted"
+    : status === "acked" ? "text-bright-green"
+    : "text-red-400";
+  const label = transport === "mqtt" ? "M" : "BT";
+  const tooltip = `${transport === "mqtt" ? "MQTT" : "Device"}: ${
+    status === "sending" ? "Sending..." : status === "acked" ? "Delivered" : error || "Failed"
+  }`;
+  return (
+    <span className={`text-[10px] ${colorClass} cursor-help`} title={tooltip}>
+      {label}{icon}
+    </span>
+  );
+}
+
 // Standard emoji reaction set — Row 1: iMessage Classic, Row 2: WhatsApp/RCS Extended
 const REACTION_EMOJIS = [
   // Row 1 (6)
@@ -757,32 +777,24 @@ export default function ChatPanel({
                       </p>
 
                       {/* Delivery status for own messages */}
-                      {isOwn && msg.status && (
+                      {isOwn && (msg.status || msg.mqttStatus) && (
                         <div className="flex items-center justify-end gap-1 mt-0.5">
-                          {msg.status === "sending" && (
-                            <span
-                              className="text-[10px] text-muted"
-                              title="Sending..."
-                            >
-                              {"⏳"}
+                          {msg.mqttStatus ? (
+                            <>
+                              {msg.status && (
+                                <StatusBadge status={msg.status} transport="device" error={msg.error} />
+                              )}
+                              <StatusBadge status={msg.mqttStatus} transport="mqtt" />
+                            </>
+                          ) : msg.status === "sending" ? (
+                            <span className="text-[10px] text-muted" title="Sending...">{"\u23F3"}</span>
+                          ) : msg.status === "acked" ? (
+                            <span className="text-[10px] text-bright-green" title="Delivered">{"\u2713"}</span>
+                          ) : msg.status === "failed" ? (
+                            <span className="text-[10px] text-red-400 cursor-help" title={msg.error || "Failed to deliver"}>
+                              {"\u2717"} {msg.error || "Failed"}
                             </span>
-                          )}
-                          {msg.status === "acked" && (
-                            <span
-                              className="text-[10px] text-bright-green"
-                              title="Delivered"
-                            >
-                              {"✓"}
-                            </span>
-                          )}
-                          {msg.status === "failed" && (
-                            <span
-                              className="text-[10px] text-red-400 cursor-help"
-                              title={msg.error || "Failed to deliver"}
-                            >
-                              {"✗"} {msg.error || "Failed"}
-                            </span>
-                          )}
+                          ) : null}
                         </div>
                       )}
                     </div>

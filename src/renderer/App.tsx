@@ -268,7 +268,7 @@ export default function App() {
             {activeTab === 2 && (
               <NodeListPanel
                 nodes={device.nodes}
-                myNodeNum={device.state.myNodeNum}
+                myNodeNum={device.selfNodeId}
                 onRefresh={device.requestRefresh}
                 onNodeClick={(node) => setSelectedNodeId(node.node_id)}
                 isConnected={isOperational}
@@ -279,10 +279,14 @@ export default function App() {
             {activeTab === 3 && (
               <MapPanel
                 nodes={device.nodes}
-                myNodeNum={device.state.myNodeNum}
-                onRefresh={device.requestRefresh}
-                isConnected={isOperational}
+                myNodeNum={device.selfNodeId}
                 locationFilter={locationFilter}
+                ourPosition={device.ourPosition}
+                onLocateMe={() =>
+                  device.refreshOurPosition().then((p) =>
+                    p ? { lat: p.lat, lon: p.lon } : null
+                  )
+                }
               />
             )}
             {activeTab === 4 && (
@@ -305,6 +309,8 @@ export default function App() {
                 onShutdown={device.shutdown}
                 onFactoryReset={device.factoryReset}
                 onResetNodeDb={device.resetNodeDb}
+                ourPosition={device.ourPosition}
+                onSendPositionToDevice={device.sendPositionToDevice}
               />
             )}
             {activeTab === 6 && (
@@ -314,12 +320,18 @@ export default function App() {
                 channels={device.channels}
                 myNodeNum={device.state.myNodeNum}
                 onLocationFilterChange={handleLocationFilterChange}
+                ourPosition={device.ourPosition}
+                onRefreshGps={device.refreshOurPosition}
+                gpsLoading={device.gpsLoading}
+                onGpsIntervalChange={device.updateGpsInterval}
+                onNodesPruned={device.refreshNodesFromDb}
+                onMessagesPruned={device.refreshMessagesFromDb}
               />
             )}
             {activeTab === 7 && (
               <DiagnosticsPanel
                 nodes={device.nodes}
-                myNodeNum={device.state.myNodeNum}
+                myNodeNum={device.selfNodeId}
                 onTraceRoute={device.traceRoute}
                 isConnected={isOperational}
                 traceRouteResults={device.traceRouteResults}

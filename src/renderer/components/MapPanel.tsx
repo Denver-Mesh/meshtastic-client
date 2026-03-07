@@ -1,13 +1,15 @@
 import "leaflet/dist/leaflet.css";
-import { useEffect, useLayoutEffect, useMemo, Fragment } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from "react-leaflet";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment } from "react";
+import { MapContainer, TileLayer, Marker, Popup, Circle, CircleMarker, useMap } from "react-leaflet";
 import { useShallow } from "zustand/react/shallow";
 import L from "leaflet";
 import type { MeshNode, NodeAnomaly } from "../lib/types";
+import type { OurPosition } from "../lib/gpsSource";
 import { getNodeStatus, haversineDistanceKm } from "../lib/nodeStatus";
 import { useDiagnosticsStore } from "../stores/diagnosticsStore";
-import RefreshButton from "./RefreshButton";
+import { useMapViewportStore } from "../stores/mapViewportStore";
 import NodeInfoBody from "./NodeInfoBody";
+import { useToast } from "./Toast";
 import type { LocationFilter } from "../App";
 
 // ─── Map styles (anomaly halos + dark popup) ──────────────────────────────────
@@ -51,6 +53,25 @@ function ensureMapStyles() {
     }
     .leaflet-popup-close-button:hover {
       color: #e5e7eb !important;
+    }
+    .leaflet-locate-control a {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      background: #fff;
+      color: #444;
+      cursor: pointer;
+      border: none;
+      outline: none;
+    }
+    .leaflet-locate-control a:hover {
+      background: #f4f4f4;
+      color: #000;
+    }
+    .leaflet-locate-control a.locating {
+      color: #3b82f6;
     }
   `;
   document.head.appendChild(style);
@@ -228,43 +249,166 @@ function MapMarker({
   );
 }
 
+// 1941 Ute Creek Dr, Longmont CO — used when there are no GPS coordinates
+const DEFAULT_CENTER: [number, number] = [40.185, -105.073];
+const DEFAULT_ZOOM = 10;
+
 // ─── MapFitter ────────────────────────────────────────────────────────────────
 
-function MapFitter({ positions }: { positions: [number, number][] }) {
+function MapFitter({
+  positions,
+  ourPosition,
+  shouldFitOnMount,
+}: {
+  positions: [number, number][];
+  ourPosition?: OurPosition | null;
+  shouldFitOnMount: boolean;
+}) {
   const map = useMap();
+  const hasPerformedInitialFitRef = useRef(false);
   useEffect(() => {
-    if (positions.length === 0) return;
-    if (positions.length === 1) {
-      map.flyTo(positions[0], map.getZoom());
-    } else {
-      const bounds = L.latLngBounds(
-        positions.map(([lat, lng]) => L.latLng(lat, lng)),
-      );
-      map.flyToBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+    if (!shouldFitOnMount) return;
+    if (!hasPerformedInitialFitRef.current) {
+      hasPerformedInitialFitRef.current = true;
+      const center: [number, number] = ourPosition
+        ? [ourPosition.lat, ourPosition.lon]
+        : DEFAULT_CENTER;
+      map.setView(center, DEFAULT_ZOOM);
     }
-  }, [positions.length, map]);
+  }, [positions.length, ourPosition, map, shouldFitOnMount]);
   return null;
+}
+
+// ─── ViewportSaver ────────────────────────────────────────────────────────────
+// Only save viewport when we have position data, so that when data arrives
+// later we still perform the initial fit once instead of staying at default.
+
+function ViewportSaver({ hasAnyPositions }: { hasAnyPositions: boolean }) {
+  const map = useMap();
+  const setViewport = useMapViewportStore((s) => s.setViewport);
+  useEffect(() => {
+    if (!hasAnyPositions) return;
+    const onMoveEnd = () => {
+      const center = map.getCenter();
+      setViewport({
+        center: [center.lat, center.lng],
+        zoom: map.getZoom(),
+      });
+    };
+    map.on("moveend", onMoveEnd);
+    return () => {
+      map.off("moveend", onMoveEnd);
+    };
+  }, [map, setViewport, hasAnyPositions]);
+  return null;
+}
+
+// ─── LocateMeControl ──────────────────────────────────────────────────────────
+
+function LocateMeControl({
+  onLocateMe,
+}: {
+  onLocateMe?: () => Promise<{ lat: number; lon: number } | null>;
+}) {
+  const map = useMap();
+  const [loading, setLoading] = useState(false);
+  const [locatedPos, setLocatedPos] = useState<[number, number] | null>(null);
+  const { addToast } = useToast();
+
+  const handleLocate = async () => {
+    setLoading(true);
+    try {
+      if (onLocateMe) {
+        const pos = await onLocateMe();
+        if (pos) {
+          const coords: [number, number] = [pos.lat, pos.lon];
+          setLocatedPos(coords);
+          map.flyTo(coords, 16);
+        } else {
+          addToast("Location unavailable.", "error");
+        }
+        return;
+      }
+      const result = await (window as any).electronAPI.getGpsFix();
+      if (result.status === "error") {
+        addToast(result.message, "error");
+        return;
+      }
+      if ("error" in result) {
+        addToast(result.code === "NO_FIX" ? "GPS hardware not available." : `Location error: ${result.error}`, "error");
+        return;
+      }
+      const coords: [number, number] = [result.lat, result.lon];
+      setLocatedPos(coords);
+      map.flyTo(coords, 16);
+    } catch (e) {
+      console.error("[LocateMeControl] getGpsFix failed:", e);
+      addToast("Location request failed.", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="leaflet-top leaflet-left" style={{ pointerEvents: "none" }}>
+        <div
+          className="leaflet-control leaflet-bar leaflet-locate-control"
+          style={{ marginTop: "80px", pointerEvents: "auto" }}
+        >
+          <a
+            title="Show my location"
+            role="button"
+            className={loading ? "locating" : ""}
+            onClick={handleLocate}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="12" r="8"/>
+              <line x1="12" y1="2" x2="12" y2="6"/>
+              <line x1="12" y1="18" x2="12" y2="22"/>
+              <line x1="2" y1="12" x2="6" y2="12"/>
+              <line x1="18" y1="12" x2="22" y2="12"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+      {locatedPos && (
+        <CircleMarker
+          center={locatedPos}
+          radius={8}
+          pathOptions={{ color: "#fff", fillColor: "#3b82f6", fillOpacity: 1, weight: 2 }}
+        />
+      )}
+    </>
+  );
 }
 
 // ─── MapPanel ─────────────────────────────────────────────────────────────────
 
-const DEFAULT_CENTER: [number, number] = [40.1672, -105.1019];
-const DEFAULT_ZOOM = 12;
-
 interface Props {
   nodes: Map<number, MeshNode>;
   myNodeNum: number;
-  onRefresh: () => Promise<void>;
-  isConnected: boolean;
   locationFilter: LocationFilter;
+  ourPosition?: OurPosition | null;
+  onLocateMe?: () => Promise<{ lat: number; lon: number } | null>;
 }
 
 export default function MapPanel({
   nodes,
   myNodeNum,
-  onRefresh,
-  isConnected,
   locationFilter,
+  ourPosition,
+  onLocateMe,
 }: Props) {
   const homeNode = nodes.get(myNodeNum) ?? null;
 
@@ -302,7 +446,11 @@ export default function MapPanel({
         : locationFilter.maxDistance;
 
     return Array.from(nodes.values()).filter((n) => {
-      if (!n.latitude || !n.longitude) return false;
+      if (
+        n.latitude == null ||
+        n.longitude == null ||
+        !(Math.abs(n.latitude) > 0.0001 || Math.abs(n.longitude) > 0.0001)
+      ) return false;
       if (locationFilter.hideMqttOnly && n.heard_via_mqtt_only) return false;
       if (locationFilter.enabled && homeHasLocation) {
         const d = haversineDistanceKm(
@@ -333,10 +481,30 @@ export default function MapPanel({
     [nodesWithPosition],
   );
 
-  const center: [number, number] =
+  const savedViewport = useMapViewportStore((s) => s.viewport);
+  const computedCenter: [number, number] =
     nodesWithPosition.length > 0
       ? [nodesWithPosition[0].latitude, nodesWithPosition[0].longitude]
-      : DEFAULT_CENTER;
+      : ourPosition
+        ? [ourPosition.lat, ourPosition.lon]
+        : DEFAULT_CENTER;
+  const computedZoom = DEFAULT_ZOOM;
+  const shouldFitOnMount = savedViewport == null;
+  // Use saved viewport only for initial mount. Once set, never pass store updates
+  // into MapContainer — otherwise moveend → setViewport → re-render → new props →
+  // map.setView() → moveend causes an infinite loop.
+  const initialViewportRef = useRef<{
+    center: [number, number];
+    zoom: number;
+  } | null>(null);
+  if (savedViewport != null && initialViewportRef.current == null) {
+    initialViewportRef.current = {
+      center: savedViewport.center,
+      zoom: savedViewport.zoom,
+    };
+  }
+  const mapCenter = initialViewportRef.current?.center ?? computedCenter;
+  const mapZoom = initialViewportRef.current?.zoom ?? computedZoom;
 
   const statusCounts = useMemo(() => {
     const counts = { online: 0, stale: 0, offline: 0 };
@@ -364,14 +532,17 @@ export default function MapPanel({
             {statusCounts.offline}
           </span>
         </div>
-        <div className="bg-deep-black/70 rounded-full">
-          <RefreshButton onRefresh={onRefresh} disabled={!isConnected} />
-        </div>
       </div>
 
-      <MapContainer center={center} zoom={DEFAULT_ZOOM} className="h-full w-full">
+      <MapContainer center={mapCenter} zoom={mapZoom} className="h-full w-full">
         <DiagnosticPanes />
-        <MapFitter positions={positions} />
+        <ViewportSaver hasAnyPositions={positions.length > 0 || !!ourPosition} />
+        <MapFitter
+          positions={positions}
+          ourPosition={ourPosition}
+          shouldFitOnMount={shouldFitOnMount}
+        />
+        <LocateMeControl onLocateMe={onLocateMe} />
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'

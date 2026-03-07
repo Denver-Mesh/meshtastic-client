@@ -4,7 +4,7 @@ A cross-platform Meshtastic desktop client for **Mac**, **Linux**, and **Windows
 
 Connect to your Meshtastic devices over Bluetooth, USB Serial, or WiFi. Independently, you can connect directly to MQTT.
 
-> Created by **[Joey (NV0N)](https://github.com/rinchen)** & **[dude.eth](https://github.com/defidude)**. Based on the [original Mac client](https://github.com/Denver-Mesh/meshtastic_mac_client). Part of [**Colorado Mesh**](https://github.com/Colorado-Mesh/meshtastic-client).
+> Created by **[Joey (NV0N)](https://github.com/rinchen)** & **[dude.eth](https://github.com/defidude)**. Based on the [original Mac client](https://github.com/Colorado-Mesh/meshtastic_mac_client). Part of [**Colorado Mesh**](https://github.com/Colorado-Mesh/meshtastic-client).
 
 ---
 
@@ -101,6 +101,14 @@ npm run dist:win      # Windows → .exe installer in release/
 ```
 
 The distributable is output to the `release/` directory.
+
+---
+
+## Troubleshooting
+
+- **Permission messages** — You may see `[permissions] checkHandler: media → denied` or `web-app-installation → denied`. These are expected: the app only uses **serial** and **geolocation**. Media and web-app-installation are not used and are intentionally denied.
+- **`[DEP0169]` / `url.parse()` deprecation** — The app patches `follow-redirects` and `cacheable-request` to use the WHATWG URL API instead of the legacy `url` module, which removes this warning. If you still see it after `npm install`, run `npx patch-package` to reapply patches. To find the source of any deprecation, run `npm run trace-deprecation` (builds then runs Electron with `NODE_OPTIONS=--trace-deprecation`).
+- **Swift** — This project does not use Swift. If you had Swift installed for something else, you can remove it; it is not required for Mesh-Client.
 
 ---
 
@@ -206,4 +214,4 @@ MIT — see [LICENSE](LICENSE)
 
 ## Credits
 
-See [CREDITS.md](CREDITS.md). Created by **[Joey (NV0N)](https://github.com/rinchen)** & **[dude.eth](https://github.com/defidude)**. Based on the [original Mac client](https://github.com/Denver-Mesh/meshtastic_mac_client). Part of **[Colorado Mesh](https://github.com/Colorado-Mesh/meshtastic-client)**.
+See [CREDITS.md](CREDITS.md). Created by **[Joey (NV0N)](https://github.com/rinchen)** & **[dude.eth](https://github.com/defidude)**. Based on the [original Mac client](https://github.com/Colorado-Mesh/meshtastic_mac_client). Part of **[Colorado Mesh](https://github.com/Colorado-Mesh/meshtastic-client)**.
