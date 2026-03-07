@@ -3,16 +3,41 @@ import type { MeshNode, NodeAnomaly, HopHistoryPoint } from "../lib/types";
 import { analyzeNode } from "../lib/diagnostics/RoutingDiagnosticEngine";
 
 const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+const FIFTEEN_MIN = 15 * 60 * 1000;
+
+export interface PacketPath {
+  transport: 'rf' | 'mqtt';
+  snr?: number;
+  rssi?: number;
+  timestamp: number;
+}
+
+export interface PacketRecord {
+  packetId: number;
+  fromNodeId: number;
+  firstSeen: number;
+  lastSeen: number;
+  paths: PacketPath[];
+}
+
+export interface NodeRedundancy {
+  maxPaths: number;
+  score: number; // 0-100: min(round((maxPaths-1)/3 * 100), 100)
+  recentPackets: PacketRecord[]; // last 20 packets
+}
 
 interface DiagnosticsState {
   anomalies: Map<number, NodeAnomaly>;
   hopHistory: Map<number, HopHistoryPoint[]>;
   packetStats: Map<number, { total: number; duplicates: number }>;
+  packetCache: Map<number, PacketRecord>;
+  nodeRedundancy: Map<number, NodeRedundancy>;
   congestionHalosEnabled: boolean;
   anomalyHalosEnabled: boolean;
   ignoreMqttEnabled: boolean;
   processNodeUpdate(node: MeshNode, homeNode: MeshNode | null): void;
   recordDuplicate(fromNodeId: number): void;
+  recordPacketPath(packetId: number, fromNodeId: number, path: PacketPath): void;
   runReanalysis(getNodes: () => Map<number, MeshNode>, myNodeNum: number): void;
   setCongestionHalosEnabled(enabled: boolean): void;
   setAnomalyHalosEnabled(enabled: boolean): void;
@@ -47,6 +72,8 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
   anomalies: new Map(),
   hopHistory: new Map(),
   packetStats: new Map(),
+  packetCache: new Map(),
+  nodeRedundancy: new Map(),
   congestionHalosEnabled: loadAdminBool("congestionHalosEnabled"),
   anomalyHalosEnabled: loadAdminBool("anomalyHalosEnabled"),
   ignoreMqttEnabled: loadAdminBool("ignoreMqttEnabled"),
@@ -98,6 +125,47 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
       const newPacketStats = new Map(state.packetStats);
       newPacketStats.set(fromNodeId, { ...stats, duplicates: stats.duplicates + 1 });
       return { packetStats: newPacketStats };
+    });
+  },
+
+  recordPacketPath(packetId: number, fromNodeId: number, path: PacketPath) {
+    set((state) => {
+      // Reject invalid cache keys: must be a non-zero finite integer (id 0 = no unique id per protobuf)
+      if (!Number.isInteger(packetId) || packetId === 0) return state;
+      const now = Date.now();
+      const existing = state.packetCache.get(packetId);
+
+      const newPacketCache = new Map(state.packetCache);
+      let record: PacketRecord;
+
+      if (!existing || now - existing.firstSeen > FIFTEEN_MIN) {
+        record = { packetId, fromNodeId, firstSeen: now, lastSeen: now, paths: [path] };
+      } else {
+        record = { ...existing, lastSeen: now, paths: [...existing.paths, path] };
+      }
+      newPacketCache.set(packetId, record);
+
+      // Periodic TTL cleanup when cache gets large
+      if (newPacketCache.size > 2000) {
+        for (const [id, rec] of newPacketCache) {
+          if (now - rec.firstSeen > FIFTEEN_MIN) newPacketCache.delete(id);
+        }
+      }
+
+      // Recompute redundancy for this node from last 20 packets
+      const nodePackets: PacketRecord[] = [];
+      for (const rec of newPacketCache.values()) {
+        if (rec.fromNodeId === fromNodeId) nodePackets.push(rec);
+      }
+      nodePackets.sort((a, b) => b.lastSeen - a.lastSeen);
+      const recentPackets = nodePackets.slice(0, 20);
+      const maxPaths = recentPackets.reduce((m, r) => Math.max(m, r.paths.length), 0);
+      const score = Math.min(Math.round(((maxPaths - 1) / 3) * 100), 100);
+
+      const newNodeRedundancy = new Map(state.nodeRedundancy);
+      newNodeRedundancy.set(fromNodeId, { maxPaths, score, recentPackets });
+
+      return { packetCache: newPacketCache, nodeRedundancy: newNodeRedundancy };
     });
   },
 

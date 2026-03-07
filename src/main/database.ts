@@ -39,7 +39,7 @@ export function initDatabase(): void {
       createBaseTables();
       if (isFreshDb) {
         // Base DDL already includes all columns; stamp current schema version
-        db!.pragma("user_version = 8");
+        db!.pragma("user_version = 9");
       } else {
         runMigrations();
       }
@@ -97,7 +97,11 @@ function createBaseTables(): void {
         air_util_tx REAL,
         altitude INTEGER,
         favorited INTEGER DEFAULT 0,
-        source TEXT DEFAULT 'rf'
+        source TEXT DEFAULT 'rf',
+        num_packets_rx_bad INTEGER,
+        num_rx_dupe INTEGER,
+        num_packets_rx INTEGER,
+        num_packets_tx INTEGER
       );
 
       CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
@@ -201,17 +205,43 @@ function runMigrations(): void {
     try {
       db!.prepare("ALTER TABLE messages ADD COLUMN mqtt_status TEXT").run();
       db!.pragma("user_version = 8");
+      userVersion = 8;
     } catch (e) {
       throw new Error(`Migration v8 failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
+
+  if (userVersion < 9) {
+    try {
+      db!.prepare("ALTER TABLE nodes ADD COLUMN num_packets_rx_bad INTEGER").run();
+      db!.prepare("ALTER TABLE nodes ADD COLUMN num_rx_dupe INTEGER").run();
+      db!.prepare("ALTER TABLE nodes ADD COLUMN num_packets_rx INTEGER").run();
+      db!.prepare("ALTER TABLE nodes ADD COLUMN num_packets_tx INTEGER").run();
+      db!.pragma("user_version = 9");
+    } catch (e) {
+      throw new Error(`Migration v9 failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
 }
 
+/** Export DB to a file. Best-effort for very large databases; may take a long time with no progress callback. */
 export async function exportDatabase(destPath: string): Promise<void> {
   await getDatabase().backup(destPath);
 }
 
+const MAX_MERGE_FILE_BYTES = 500 * 1024 * 1024; // 500 MB
+
 export function mergeDatabase(sourcePath: string) {
+  try {
+    const stat = fs.statSync(sourcePath);
+    if (!stat.isFile() || stat.size > MAX_MERGE_FILE_BYTES) {
+      throw new Error("Merge source must be a file under 500 MB");
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message === "Merge source must be a file under 500 MB") throw err;
+    throw new Error(`Cannot read merge source: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
   const targetDb = getDatabase();
   let sourceDb: Database.Database | undefined;
 

@@ -39,7 +39,7 @@ const SCENARIOS: ScenarioChecker[] = [
     if (distMiles === null || distMiles >= 10) return null;
     return {
       title: "Notify Op: Reduce Hop Limit to 3",
-      description: `SNR ${node.snr.toFixed(1)} dB + ${node.hops_away} hops within 10 mi — node likely has hop limit set too high.`,
+      description: `SNR ${node.snr.toFixed(1)} dB + ${node.hops_away ?? "?"} hops within 10 mi — node likely has hop limit set too high.`,
       category: "Configuration",
       severity: "info",
     };

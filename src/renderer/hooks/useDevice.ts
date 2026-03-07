@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import type { MeshDevice } from "@meshtastic/core";
 import { create } from "@bufbuild/protobuf";
 import { Channel as ProtobufChannel, Mesh, Portnums } from "@meshtastic/protobufs";
+import { normalizeReactionEmoji } from "../lib/reactions";
 import { resolveOurPosition } from "../lib/gpsSource";
 import type { OurPosition } from "../lib/gpsSource";
 import { createConnection, reconnectBle, safeDisconnect, clearCapturedBleDevice } from "../lib/connection";
@@ -15,6 +16,18 @@ import type {
   MQTTStatus,
   TelemetryPoint,
 } from "../lib/types";
+
+function getMessageLoadLimit(): number {
+  try {
+    const raw = localStorage.getItem("mesh-client:adminSettings");
+    if (!raw) return 1000;
+    const s = JSON.parse(raw);
+    if (s.messageLimitEnabled === false) return 10000;
+    return Math.max(1, s.messageLimitCount ?? 1000);
+  } catch {
+    return 1000;
+  }
+}
 
 const MAX_TELEMETRY_POINTS = 50;
 const POLL_INTERVAL_MS = 30_000; // 30 seconds
@@ -51,6 +64,9 @@ function getOrCreateVirtualNodeId(): number {
   localStorage.setItem(key, String(id));
   return id;
 }
+
+const MQTT_ONLY_VIRTUAL_LONG_NAME = "MQTT-only Virtual Address";
+const ROLE_CLIENT = 0;
 
 export function useDevice() {
   const deviceRef = useRef<MeshDevice | null>(null);
@@ -158,6 +174,22 @@ export function useDevice() {
       return node.long_name.length > 7
         ? node.long_name.slice(0, 7)
         : node.long_name;
+    return `!${nodeNum.toString(16)}`;
+  }, []);
+
+  // Picker-style label: "icon_XXXX" (same format as BLE picker). If short_name
+  // already ends with _ + 4 hex digits, use it; else append _ + last 4 hex of node ID.
+  const getPickerStyleNodeLabel = useCallback((nodeNum: number): string => {
+    const node = nodesRef.current.get(nodeNum);
+    const fourHex = nodeNum.toString(16).slice(-4);
+    if (node?.short_name) {
+      if (/_[0-9a-fA-F]{4}$/.test(node.short_name)) return node.short_name;
+      return `${node.short_name}_${fourHex}`;
+    }
+    if (node?.long_name)
+      return node.long_name.length > 7
+        ? `${node.long_name.slice(0, 7)}_${fourHex}`
+        : `${node.long_name}_${fourHex}`;
     return `!${nodeNum.toString(16)}`;
   }, []);
 
@@ -287,7 +319,7 @@ export function useDevice() {
 
   // Load saved data from DB on mount
   useEffect(() => {
-    window.electronAPI.db.getMessages(undefined, 500)
+    window.electronAPI.db.getMessages(undefined, getMessageLoadLimit())
       .then((msgs) => {
         setMessages(msgs.reverse());
       })
@@ -309,7 +341,22 @@ export function useDevice() {
     const unsubStatus = window.electronAPI.mqtt.onStatus((s) => {
       mqttStatusRef.current = s as MQTTStatus;
       setMqttStatus(s as MQTTStatus);
-      if (s === "connected" && !deviceRef.current) startGpsInterval();
+      if (s === "connected" && !deviceRef.current) {
+        startGpsInterval();
+        const virtualId = getOrCreateVirtualNodeId();
+        updateNodes((prev) => {
+          const updated = new Map(prev);
+          const existing = updated.get(virtualId) || emptyNode(virtualId);
+          updated.set(virtualId, {
+            ...existing,
+            node_id: virtualId,
+            long_name: MQTT_ONLY_VIRTUAL_LONG_NAME,
+            role: ROLE_CLIENT,
+            hops_away: 0,
+          });
+          return updated;
+        });
+      }
     });
 
     const unsubNode = window.electronAPI.mqtt.onNodeUpdate((rawNode) => {
@@ -368,10 +415,22 @@ export function useDevice() {
     });
 
     const unsubMsg = window.electronAPI.mqtt.onMessage((rawMsg) => {
-      const msg = rawMsg as Omit<ChatMessage, "id"> & { from_mqtt?: boolean };
+      const raw = rawMsg as Omit<ChatMessage, "id"> & { from_mqtt?: boolean };
+      const msg: Omit<ChatMessage, "id"> & { from_mqtt?: boolean } = raw.emoji != null && raw.replyId != null
+        ? { ...raw, emoji: normalizeReactionEmoji(raw.emoji, raw.payload) ?? raw.emoji }
+        : raw;
+      // Record MQTT path before dedup check (captures all copies, new and duplicate). Skip packetId 0 (no unique id per protobuf).
+      const rawPacketId = Number(msg.packetId);
+      const packetId = rawPacketId >>> 0;
+      if (msg.sender_id && Number.isInteger(rawPacketId) && packetId !== 0) {
+        useDiagnosticsStore.getState().recordPacketPath(packetId, msg.sender_id, {
+          transport: 'mqtt',
+          timestamp: Date.now(),
+        });
+      }
 
       // Packet ID dedup (catches our own uplink echoes)
-      if (msg.packetId && isDuplicate(msg.packetId)) {
+      if (packetId !== 0 && isDuplicate(packetId)) {
         useDiagnosticsStore.getState().recordDuplicate(msg.sender_id);
         return;
       }
@@ -502,16 +561,20 @@ export function useDevice() {
 
         touchLastData();
         const isEcho = meshPacket.from === myNodeNumRef.current;
-        const emoji = dataPacket.emoji || undefined;
+        const payloadText = new TextDecoder().decode(dataPacket.payload);
         const replyId = dataPacket.replyId
           || (isEcho ? pendingReplyIdRef.current : undefined)
           || undefined;
         if (isEcho) pendingReplyIdRef.current = undefined;
+        const wireEmoji = (dataPacket as { emoji?: number }).emoji;
+        const emoji = replyId
+          ? (normalizeReactionEmoji(wireEmoji, payloadText) ?? wireEmoji ?? undefined)
+          : undefined;
 
         const msg: ChatMessage = {
           sender_id: meshPacket.from,
           sender_name: getNodeName(meshPacket.from),
-          payload: new TextDecoder().decode(dataPacket.payload),
+          payload: payloadText,
           channel: meshPacket.channel ?? 0,
           timestamp: meshPacket.rxTime ? meshPacket.rxTime * 1000 : Date.now(),
           packetId: meshPacket.id,
@@ -686,6 +749,19 @@ export function useDevice() {
             nodesRef.current.get(myNodeNumRef.current) ?? null
           );
         }
+        if (type === "ble" && nodeNum === myNodeNumRef.current) {
+          const btDevice = (device.transport as any)?.__bluetoothDevice;
+          const shortName = info.user?.shortName ?? null;
+          if (btDevice?.id && shortName) {
+            try {
+              const key = "mesh-client:bleDeviceNames";
+              const raw = localStorage.getItem(key);
+              const cache: Record<string, string> = raw ? JSON.parse(raw) : {};
+              cache[btDevice.id] = shortName;
+              localStorage.setItem(key, JSON.stringify(cache));
+            } catch { /* ignore */ }
+          }
+        }
       });
       unsubscribesRef.current.push(unsub5);
 
@@ -738,9 +814,43 @@ export function useDevice() {
           deviceMetrics?: { batteryLevel?: number; voltage?: number };
           variant?: {
             case?: string;
-            value?: { batteryLevel?: number; voltage?: number };
+            value?: {
+              batteryLevel?: number;
+              voltage?: number;
+              channelUtilization?: number;
+              airUtilTx?: number;
+              numPacketsRxBad?: number;
+              numRxDupe?: number;
+              numPacketsRx?: number;
+              numPacketsTx?: number;
+            };
           };
         };
+
+        // Handle localStats variant (connected node's radio statistics)
+        if (tel.variant?.case === "localStats" && tel.variant.value && packet.from === myNodeNumRef.current) {
+          const ls = tel.variant.value;
+          updateNodes((prev) => {
+            const updated = new Map(prev);
+            const existing = updated.get(myNodeNumRef.current);
+            if (existing) {
+              const node: MeshNode = {
+                ...existing,
+                channel_utilization: ls.channelUtilization ?? existing.channel_utilization,
+                air_util_tx: ls.airUtilTx ?? existing.air_util_tx,
+                num_packets_rx_bad: ls.numPacketsRxBad ?? existing.num_packets_rx_bad,
+                num_rx_dupe: ls.numRxDupe ?? existing.num_rx_dupe,
+                num_packets_rx: ls.numPacketsRx ?? existing.num_packets_rx,
+                num_packets_tx: ls.numPacketsTx ?? existing.num_packets_tx,
+              };
+              updated.set(myNodeNumRef.current, node);
+              window.electronAPI.db.saveNode(node);
+            }
+            return updated;
+          });
+          return;
+        }
+
         const metrics = tel.deviceMetrics ?? tel.variant?.value;
         if (!metrics) return;
 
@@ -830,11 +940,24 @@ export function useDevice() {
       const unsub9 = device.events.onMeshPacket.subscribe((packet) => {
         touchLastData();
         const mp = packet as {
+          id?: number;
           rxSnr?: number;
           rxRssi?: number;
           from?: number;
         };
         if (!mp.from) return;
+
+        // Record RF path for packet redundancy tracking (skip id 0 — protobuf: no unique id for no-ack/non-broadcast)
+        const rawId = Number(mp.id);
+        const packetId = rawId >>> 0;
+        if (Number.isInteger(rawId) && packetId !== 0) {
+          useDiagnosticsStore.getState().recordPacketPath(packetId, mp.from, {
+            transport: 'rf',
+            snr: mp.rxSnr,
+            rssi: mp.rxRssi,
+            timestamp: Date.now(),
+          });
+        }
 
         if (mp.rxSnr || mp.rxRssi) {
           updateNodes((prev) => {
@@ -1285,7 +1408,7 @@ export function useDevice() {
   }, []);
 
   const refreshMessagesFromDb = useCallback(() => {
-    window.electronAPI.db.getMessages(undefined, 500)
+    window.electronAPI.db.getMessages(undefined, getMessageLoadLimit())
       .then((msgs) => { setMessages(msgs.reverse()); })
       .catch((err) => { console.error("[useDevice] Failed to refresh messages:", err); setMessages([]); });
   }, []);
@@ -1326,6 +1449,9 @@ export function useDevice() {
               longitude: pos.lon,
               last_heard: Date.now(),
               lastPositionWarning: undefined,
+              ...(isVirtualNode
+                ? { long_name: MQTT_ONLY_VIRTUAL_LONG_NAME, role: ROLE_CLIENT, hops_away: 0 }
+                : {}),
             };
             updated.set(selfNodeId, node);
             if (!isVirtualNode) window.electronAPI.db.saveNode(node);
@@ -1446,6 +1572,8 @@ export function useDevice() {
     refreshOurPosition,
     sendPositionToDevice,
     updateGpsInterval,
+    getNodeName,
+    getPickerStyleNodeLabel,
     getFullNodeLabel,
     getNodes,
   };

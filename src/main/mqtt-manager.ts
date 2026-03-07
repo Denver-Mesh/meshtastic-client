@@ -61,7 +61,8 @@ export class MQTTManager extends EventEmitter {
       keepalive: 60,
       connectTimeout: 30_000,
       reconnectPeriod: 0,          // we manage reconnects manually
-      rejectUnauthorized: false,   // no-op for plain mqtt; prevents TLS chain errors on mqtts
+      // Intentional for mqtts: many brokers use self-signed or non-public CA; strict verification would break common setups.
+      rejectUnauthorized: false,
     });
 
     this.client.on("connect", () => {
@@ -271,8 +272,9 @@ export class MQTTManager extends EventEmitter {
           this.emitMinimalNodeUpdate(nodeId);
         }
       }
-    } catch {
-      // Silently ignore parse errors — not all MQTT messages are ServiceEnvelopes
+    } catch (e) {
+      // Not all MQTT messages are ServiceEnvelopes; ignore but log for operator diagnosis
+      console.debug("[MQTT] Ignored non–ServiceEnvelope or parse error:", e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -292,7 +294,8 @@ export class MQTTManager extends EventEmitter {
           from_mqtt: true,
         };
         this.emit("nodeUpdate", nodeUpdate);
-      } catch {
+      } catch (e) {
+        console.debug("[MQTT] NodeInfo parse failed for node", nodeId, e instanceof Error ? e.message : String(e));
         this.emitMinimalNodeUpdate(nodeId);
       }
     } else if (portnum === PortNum.POSITION_APP && payload) {
@@ -318,7 +321,8 @@ export class MQTTManager extends EventEmitter {
         } else {
           this.emitMinimalNodeUpdate(nodeId);
         }
-      } catch {
+      } catch (e) {
+        console.debug("[MQTT] Position parse failed for node", nodeId, e instanceof Error ? e.message : String(e));
         this.emitMinimalNodeUpdate(nodeId);
       }
     } else if (portnum === PortNum.TEXT_MESSAGE_APP && (payload?.length || data.emoji)) {
@@ -339,7 +343,8 @@ export class MQTTManager extends EventEmitter {
         };
         this.emit("message", msg);
         this.emitMinimalNodeUpdate(nodeId);
-      } catch {
+      } catch (e) {
+        console.debug("[MQTT] TextMessage parse failed for node", nodeId, e instanceof Error ? e.message : String(e));
         this.emitMinimalNodeUpdate(nodeId);
       }
     } else {

@@ -225,7 +225,7 @@ export default function App() {
             </span>
             {device.state.myNodeNum > 0 && (
               <span className="text-xs text-muted ml-2 whitespace-nowrap">
-                Node: {device.getFullNodeLabel(device.state.myNodeNum)}
+                Node: {device.getPickerStyleNodeLabel(device.state.myNodeNum)}
               </span>
             )}
           </div>
@@ -252,7 +252,7 @@ export default function App() {
                 mqttStatus={device.mqttStatus}
                 myNodeLabel={
                   device.state.myNodeNum > 0
-                    ? device.getFullNodeLabel(device.state.myNodeNum)
+                    ? device.getPickerStyleNodeLabel(device.state.myNodeNum)
                     : undefined
                 }
               />
@@ -277,9 +277,7 @@ export default function App() {
               <NodeListPanel
                 nodes={device.nodes}
                 myNodeNum={device.selfNodeId}
-                onRefresh={device.requestRefresh}
                 onNodeClick={(node) => setSelectedNodeId(node.node_id)}
-                isConnected={isOperational}
                 mqttConnected={device.mqttStatus === "connected"}
                 locationFilter={locationFilter}
                 onToggleFavorite={device.setNodeFavorited}

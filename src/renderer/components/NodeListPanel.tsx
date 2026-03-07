@@ -1,9 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { MeshNode } from "../lib/types";
 import { getNodeStatus, haversineDistanceKm } from "../lib/nodeStatus";
 import { useDiagnosticsStore } from "../stores/diagnosticsStore";
 import { RoleDisplay } from "../lib/roleInfo";
-import RefreshButton from "./RefreshButton";
 import SignalBars from "./SignalBars";
 import type { LocationFilter } from "../App";
 
@@ -22,14 +21,13 @@ type SortField =
   | "voltage"
   | "channel_utilization"
   | "air_util_tx"
-  | "altitude";
+  | "altitude"
+  | "redundancy";
 
 interface Props {
   nodes: Map<number, MeshNode>;
   myNodeNum: number;
-  onRefresh: () => Promise<void>;
   onNodeClick: (node: MeshNode) => void;
-  isConnected: boolean;
   mqttConnected?: boolean;
   locationFilter: LocationFilter;
   onToggleFavorite: (nodeId: number, favorited: boolean) => void;
@@ -38,18 +36,29 @@ interface Props {
 export default function NodeListPanel({
   nodes,
   myNodeNum,
-  onRefresh,
   onNodeClick,
-  isConnected,
   mqttConnected = false,
   locationFilter,
   onToggleFavorite,
 }: Props) {
   const anomalies = useDiagnosticsStore((s) => s.anomalies);
   const ignoreMqttEnabled = useDiagnosticsStore((s) => s.ignoreMqttEnabled);
+  const nodeRedundancy = useDiagnosticsStore((s) => s.nodeRedundancy);
   const [sortField, setSortField] = useState<SortField>("last_heard");
   const [sortAsc, setSortAsc] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  useEffect(() => {
+    const main = document.querySelector('main');
+    if (!main) return;
+    const handler = () => setShowScrollTop(main.scrollTop > 200);
+    main.addEventListener('scroll', handler);
+    return () => main.removeEventListener('scroll', handler);
+  }, []);
+
+  const scrollToTop = () =>
+    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -159,12 +168,18 @@ export default function NodeListPanel({
         case "altitude":
           cmp = (a.altitude ?? 0) - (b.altitude ?? 0);
           break;
+        case "redundancy": {
+          const aRed = nodeRedundancy.get(a.node_id)?.maxPaths ?? 1;
+          const bRed = nodeRedundancy.get(b.node_id)?.maxPaths ?? 1;
+          cmp = aRed - bRed;
+          break;
+        }
       }
       return sortAsc ? cmp : -cmp;
     });
 
     return list;
-  }, [nodes, sortField, sortAsc, searchQuery, myNodeNum, locationFilter]);
+  }, [nodes, sortField, sortAsc, searchQuery, myNodeNum, locationFilter, nodeRedundancy]);
 
   const filterStatus = useMemo(() => {
     if (!locationFilter.enabled) return null;
@@ -215,8 +230,8 @@ export default function NodeListPanel({
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex justify-between items-center gap-3">
+    <div className="flex flex-col min-h-0 h-full gap-3">
+      <div className="flex justify-between items-center gap-3 shrink-0">
         <h2 className="text-xl font-semibold text-gray-200">
           Node Database ({nodeList.length})
         </h2>
@@ -229,23 +244,22 @@ export default function NodeListPanel({
             className="flex-1 px-3 py-1.5 bg-secondary-dark/80 rounded-lg text-gray-200 text-sm border border-gray-600/50 focus:border-brand-green/50 focus:outline-none"
           />
         </div>
-        <RefreshButton onRefresh={onRefresh} disabled={!isConnected} />
       </div>
 
       {/* Distance filter status */}
       {filterStatus === "no-gps" && (
-        <div className="bg-yellow-900/30 border border-yellow-700 text-yellow-300 px-3 py-2 rounded-lg text-xs">
+        <div className="bg-yellow-900/30 border border-yellow-700 text-yellow-300 px-3 py-2 rounded-lg text-xs shrink-0">
           Distance filter is enabled but your device has no GPS fix — all nodes are shown.
         </div>
       )}
       {filterStatus !== null && filterStatus !== "no-gps" && filterStatus.hidden > 0 && (
-        <div className="bg-brand-green/10 border border-brand-green/30 text-brand-green px-3 py-2 rounded-lg text-xs">
+        <div className="bg-brand-green/10 border border-brand-green/30 text-brand-green px-3 py-2 rounded-lg text-xs shrink-0">
           Distance filter active — {filterStatus.hidden} node{filterStatus.hidden !== 1 ? "s" : ""} hidden beyond {locationFilter.maxDistance} {locationFilter.unit}.
         </div>
       )}
 
       {/* Online / Stale / Offline summary */}
-      <div className="flex gap-3 text-xs text-muted">
+      <div className="flex gap-3 text-xs text-muted shrink-0">
         <span className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full bg-brand-green inline-block" />
           {nodeList.filter((n) => getNodeStatus(n.last_heard) === "online").length} online
@@ -260,10 +274,10 @@ export default function NodeListPanel({
         </span>
       </div>
 
-      <div className="overflow-auto rounded-lg border border-gray-700">
-        <table className="w-full text-sm">
+      <div className="min-w-0 flex-1 overflow-auto rounded-lg border border-gray-700">
+        <table style={{ minWidth: '1600px' }} className="text-sm whitespace-nowrap">
           <thead>
-            <tr className="bg-deep-black text-muted text-left sticky top-0 z-10">
+            <tr className="bg-deep-black text-muted text-left sticky top-0 z-10 whitespace-nowrap">
               <th className="px-3 py-2 w-8"></th>
               <th className="px-2 py-2 w-6" title="Favorites"></th>
               <th
@@ -362,13 +376,20 @@ export default function NodeListPanel({
               >
                 Alt <SortIcon field="altitude" />
               </th>
+              <th
+                className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
+                onClick={() => handleSort("redundancy")}
+                title="Echoes: same packet received via multiple paths (e.g. RF + MQTT or multiple RF hops). Higher means better mesh redundancy."
+              >
+                Redund. <SortIcon field="redundancy" />
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-700/50">
             {nodeList.length === 0 ? (
               <tr>
                 <td
-                  colSpan={18}
+                  colSpan={19}
                   className="text-center text-muted py-8"
                 >
                   {searchQuery
@@ -545,6 +566,24 @@ export default function NodeListPanel({
                     <td className="px-3 py-2 text-right text-gray-300 text-xs">
                       {node.altitude != null && node.altitude !== 0 ? `${node.altitude} m` : "-"}
                     </td>
+                    {(() => {
+                      const red = nodeRedundancy.get(node.node_id);
+                      const echoes = red ? red.maxPaths - 1 : 0;
+                      return (
+                        <td
+                          className={`px-3 py-2 text-right text-xs font-mono ${
+                            echoes >= 3
+                              ? "text-lime-400"
+                              : echoes > 0
+                              ? "text-gray-300"
+                              : "text-muted"
+                          }`}
+                          title={red ? `${red.score}% connection health` : undefined}
+                        >
+                          {echoes > 0 ? `+${echoes}` : "-"}
+                        </td>
+                      );
+                    })()}
                   </tr>
                 );
               })
@@ -552,6 +591,15 @@ export default function NodeListPanel({
           </tbody>
         </table>
       </div>
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 z-50 bg-brand-green text-deep-black text-xs font-bold px-3 py-2 rounded-full shadow-lg hover:bg-bright-green transition-colors"
+          title="Back to top"
+        >
+          ↑ Top
+        </button>
+      )}
     </div>
   );
 }

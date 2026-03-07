@@ -31,6 +31,64 @@ process.on("unhandledRejection", (reason) => {
   console.error("Unhandled rejection:", reason);
 });
 
+// ─── IPC validation helpers (main process boundary) ───────────────────
+const MAX_PAYLOAD_LENGTH = 1024 * 1024; // 1MB cap for message payload
+
+function safeNonNegativeInt(value: unknown): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) throw new Error("Invalid non-negative integer");
+  return n >>> 0;
+}
+
+function validateSaveMessage(message: unknown): asserts message is Record<string, unknown> & {
+  sender_id: number; sender_name: string; payload: string; channel: number; timestamp: number;
+  packetId?: number; status?: string; error?: string; emoji?: number; replyId?: number; to?: number; mqttStatus?: string;
+} {
+  if (!message || typeof message !== "object") throw new Error("db:saveMessage: message must be an object");
+  const m = message as Record<string, unknown>;
+  if (typeof m.payload !== "string") throw new Error("db:saveMessage: payload must be a string");
+  if (m.payload.length > MAX_PAYLOAD_LENGTH) throw new Error("db:saveMessage: payload too long");
+  safeNonNegativeInt(m.sender_id);
+  if (typeof m.sender_name !== "string") throw new Error("db:saveMessage: sender_name must be a string");
+  safeNonNegativeInt(m.channel);
+  if (typeof m.timestamp !== "number" && typeof m.timestamp !== "undefined") throw new Error("db:saveMessage: timestamp must be a number");
+  if (m.timestamp != null && !Number.isFinite(m.timestamp)) throw new Error("db:saveMessage: invalid timestamp");
+}
+
+function validateSaveNode(node: unknown): asserts node is Record<string, unknown> & { node_id: number } {
+  if (!node || typeof node !== "object") throw new Error("db:saveNode: node must be an object");
+  const n = node as Record<string, unknown>;
+  const nodeId = Number(n.node_id);
+  if (!Number.isFinite(nodeId) || nodeId < 0) throw new Error("db:saveNode: node_id must be a finite non-negative number");
+}
+
+function validateMqttSettings(settings: unknown): void {
+  if (!settings || typeof settings !== "object") throw new Error("mqtt:connect: settings must be an object");
+  const s = settings as Record<string, unknown>;
+  if (typeof s.server !== "string" || !s.server.trim()) throw new Error("mqtt:connect: server must be a non-empty string");
+  const port = Number(s.port);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("mqtt:connect: port must be 1–65535");
+  if (s.topicPrefix != null && typeof s.topicPrefix !== "string") throw new Error("mqtt:connect: topicPrefix must be a string");
+  if (s.username != null && typeof s.username !== "string") throw new Error("mqtt:connect: username must be a string");
+  if (s.password != null && typeof s.password !== "string") throw new Error("mqtt:connect: password must be a string");
+}
+
+function validateMqttPublishArgs(args: unknown): void {
+  if (!args || typeof args !== "object") throw new Error("mqtt:publish: args must be an object");
+  const a = args as Record<string, unknown>;
+  if (typeof a.text !== "string") throw new Error("mqtt:publish: text must be a string");
+  if (a.text.length > MAX_PAYLOAD_LENGTH) throw new Error("mqtt:publish: text too long");
+  const from = Number(a.from);
+  if (!Number.isFinite(from) || from < 0) throw new Error("mqtt:publish: from must be a non-negative integer");
+  const channel = Number(a.channel);
+  if (!Number.isFinite(channel) || channel < 0) throw new Error("mqtt:publish: channel must be a non-negative integer");
+  if (a.destination != null) {
+    const dest = Number(a.destination);
+    if (!Number.isFinite(dest) || dest < 0) throw new Error("mqtt:publish: destination must be a non-negative integer");
+  }
+  if (a.channelName != null && typeof a.channelName !== "string") throw new Error("mqtt:publish: channelName must be a string");
+}
+
 // Enable Web Bluetooth feature flag
 app.commandLine.appendSwitch("enable-features", "WebBluetooth");
 // Enable Web Serial (experimental)
@@ -341,6 +399,7 @@ mqttManager.on("message", (m) => mainWindow?.webContents.send("mqtt:message", m)
 
 // ─── IPC: MQTT connect/disconnect ───────────────────────────────────
 ipcMain.handle("mqtt:connect", async (_event, settings) => {
+  validateMqttSettings(settings);
   mqttManager.connect(settings);
 });
 ipcMain.handle("mqtt:disconnect", async () => {
@@ -348,12 +407,14 @@ ipcMain.handle("mqtt:disconnect", async () => {
 });
 ipcMain.handle("mqtt:getClientId", async () => mqttManager.getClientId());
 ipcMain.handle("mqtt:publish", async (_event, args) => {
+  validateMqttPublishArgs(args);
+  const a = args as { text: string; from: number; channel: number; destination?: number; channelName?: string };
   return mqttManager.publish(
-    args.text,
-    args.from,
-    args.channel,
-    args.destination ?? 0xffffffff,
-    args.channelName ?? "LongFast"
+    a.text,
+    a.from,
+    a.channel,
+    a.destination ?? 0xffffffff,
+    a.channelName ?? "LongFast"
   );
 });
 
@@ -382,23 +443,24 @@ ipcMain.handle("app:quit", async () => {
 // ─── IPC: Database operations ──────────────────────────────────────
 ipcMain.handle("db:saveMessage", (_event, message) => {
   try {
+    validateSaveMessage(message);
     const db = getDatabase();
     const stmt = db.prepare(`
       INSERT OR IGNORE INTO messages (sender_id, sender_name, payload, channel, timestamp, packet_id, status, error, emoji, reply_id, to_node, mqtt_status)
       VALUES (@sender_id, @sender_name, @payload, @channel, @timestamp, @packet_id, @status, @error, @emoji, @reply_id, @to_node, @mqtt_status)
     `);
     return stmt.run({
-      sender_id: message.sender_id,
-      sender_name: message.sender_name,
+      sender_id: safeNonNegativeInt(message.sender_id),
+      sender_name: String(message.sender_name),
       payload: message.payload,
-      channel: message.channel,
-      timestamp: message.timestamp,
-      packet_id: message.packetId ?? null,
+      channel: safeNonNegativeInt(message.channel),
+      timestamp: Number(message.timestamp),
+      packet_id: message.packetId != null ? safeNonNegativeInt(message.packetId) : null,
       status: message.status ?? null,
       error: message.error ?? null,
-      emoji: message.emoji ?? null,
-      reply_id: message.replyId ?? null,
-      to_node: message.to ?? null,
+      emoji: message.emoji != null ? safeNonNegativeInt(message.emoji) : null,
+      reply_id: message.replyId != null ? safeNonNegativeInt(message.replyId) : null,
+      to_node: message.to != null ? safeNonNegativeInt(message.to) : null,
       mqtt_status: message.mqttStatus ?? null,
     });
   } catch (err) {
@@ -409,7 +471,7 @@ ipcMain.handle("db:saveMessage", (_event, message) => {
 
 ipcMain.handle("db:getMessages", (_event, channel?: number, limit = 200) => {
   try {
-    const safeLimit = Math.min(Math.max(1, Number(limit) || 200), 2000);
+    const safeLimit = Math.min(Math.max(1, Number(limit) || 1000), 10000);
     const db = getDatabase();
     const columns = `id, sender_id, sender_name, payload, channel, timestamp,
          packet_id AS packetId, status, error, emoji, reply_id AS replyId, to_node,
@@ -439,12 +501,13 @@ ipcMain.handle("db:getMessages", (_event, channel?: number, limit = 200) => {
 
 ipcMain.handle("db:saveNode", (_event, node) => {
   try {
+    validateSaveNode(node);
     const db = getDatabase();
     const stmt = db.prepare(`
-      INSERT INTO nodes (node_id, long_name, short_name, hw_model, snr, rssi, battery, last_heard, latitude, longitude, role, hops_away, via_mqtt, voltage, channel_utilization, air_util_tx, altitude, favorited, source)
+      INSERT INTO nodes (node_id, long_name, short_name, hw_model, snr, rssi, battery, last_heard, latitude, longitude, role, hops_away, via_mqtt, voltage, channel_utilization, air_util_tx, altitude, favorited, source, num_packets_rx_bad, num_rx_dupe, num_packets_rx, num_packets_tx)
       VALUES (@node_id, @long_name, @short_name, @hw_model, @snr, @rssi, @battery, @last_heard, @latitude, @longitude, @role, @hops_away, @via_mqtt, @voltage, @channel_utilization, @air_util_tx, @altitude,
         COALESCE((SELECT favorited FROM nodes WHERE node_id = @node_id), 0),
-        @source)
+        @source, @num_packets_rx_bad, @num_rx_dupe, @num_packets_rx, @num_packets_tx)
       ON CONFLICT(node_id) DO UPDATE SET
         long_name = excluded.long_name,
         short_name = excluded.short_name,
@@ -462,7 +525,11 @@ ipcMain.handle("db:saveNode", (_event, node) => {
         channel_utilization = excluded.channel_utilization,
         air_util_tx = excluded.air_util_tx,
         altitude = excluded.altitude,
-        source = CASE WHEN excluded.source = 'rf' THEN 'rf' ELSE COALESCE((SELECT source FROM nodes WHERE node_id = excluded.node_id), 'mqtt') END
+        source = CASE WHEN excluded.source = 'rf' THEN 'rf' ELSE COALESCE((SELECT source FROM nodes WHERE node_id = excluded.node_id), 'mqtt') END,
+        num_packets_rx_bad = COALESCE(excluded.num_packets_rx_bad, num_packets_rx_bad),
+        num_rx_dupe = COALESCE(excluded.num_rx_dupe, num_rx_dupe),
+        num_packets_rx = COALESCE(excluded.num_packets_rx, num_packets_rx),
+        num_packets_tx = COALESCE(excluded.num_packets_tx, num_packets_tx)
     `);
     return stmt.run({
       role: null,
@@ -473,6 +540,10 @@ ipcMain.handle("db:saveNode", (_event, node) => {
       air_util_tx: null,
       altitude: null,
       source: "rf",
+      num_packets_rx_bad: null,
+      num_rx_dupe: null,
+      num_packets_rx: null,
+      num_packets_tx: null,
       ...node,
       via_mqtt: node.via_mqtt != null ? (node.via_mqtt ? 1 : 0) : null,
     });
@@ -484,9 +555,11 @@ ipcMain.handle("db:saveNode", (_event, node) => {
 
 ipcMain.handle("db:setNodeFavorited", (_event, nodeId: number, favorited: boolean) => {
   try {
+    const id = safeNonNegativeInt(nodeId);
+    if (typeof favorited !== "boolean") throw new Error("db:setNodeFavorited: favorited must be a boolean");
     const db = getDatabase();
     return db.prepare("UPDATE nodes SET favorited = ? WHERE node_id = ?")
-      .run(favorited ? 1 : 0, nodeId);
+      .run(favorited ? 1 : 0, id);
   } catch (err) {
     console.error("[IPC] db:setNodeFavorited failed:", err);
     throw err;
@@ -525,8 +598,9 @@ ipcMain.handle("db:clearNodes", () => {
 
 ipcMain.handle("db:deleteNode", (_event, nodeId: number) => {
   try {
+    const id = safeNonNegativeInt(nodeId);
     const db = getDatabase();
-    return db.prepare("DELETE FROM nodes WHERE node_id = ?").run(nodeId);
+    return db.prepare("DELETE FROM nodes WHERE node_id = ?").run(id);
   } catch (err) {
     console.error("[IPC] db:deleteNode failed:", err);
     throw err;
@@ -574,7 +648,8 @@ ipcMain.handle("db:deleteNodesBatch", (_event, nodeIds: number[]) => {
 
 ipcMain.handle("db:clearMessagesByChannel", (_event, channel: number) => {
   try {
-    return getDatabase().prepare("DELETE FROM messages WHERE channel = ?").run(channel);
+    const ch = safeNonNegativeInt(channel);
+    return getDatabase().prepare("DELETE FROM messages WHERE channel = ?").run(ch);
   } catch (err) {
     console.error("[IPC] db:clearMessagesByChannel failed:", err);
     throw err;
@@ -592,6 +667,8 @@ ipcMain.handle("db:getMessageChannels", () => {
 
 ipcMain.handle("db:deleteNodesBySource", (_event, source: string) => {
   try {
+    if (typeof source !== "string") throw new Error("db:deleteNodesBySource: source must be a string");
+    if (source.length > 64) throw new Error("db:deleteNodesBySource: source string too long");
     return deleteNodesBySource(source);
   } catch (err) {
     console.error("[IPC] db:deleteNodesBySource failed:", err);
@@ -604,15 +681,18 @@ ipcMain.handle(
   "db:updateMessageStatus",
   (_event, packetId: number, status: string, error?: string, mqttStatus?: string) => {
     try {
+      const pid = safeNonNegativeInt(packetId);
+      if (typeof status !== "string") throw new Error("db:updateMessageStatus: status must be a string");
       const db = getDatabase();
       if (mqttStatus !== undefined) {
+        if (typeof mqttStatus !== "string") throw new Error("db:updateMessageStatus: mqttStatus must be a string");
         return db
           .prepare("UPDATE messages SET status = ?, error = ?, mqtt_status = ? WHERE packet_id = ?")
-          .run(status, error ?? null, mqttStatus, packetId);
+          .run(status, error ?? null, mqttStatus, pid);
       }
       return db
         .prepare("UPDATE messages SET status = ?, error = ? WHERE packet_id = ?")
-        .run(status, error ?? null, packetId);
+        .run(status, error ?? null, pid);
     } catch (err) {
       console.error("[IPC] db:updateMessageStatus failed:", err);
       throw err;

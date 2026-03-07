@@ -1,7 +1,14 @@
+import { useState } from "react";
 import type { MeshNode, HopHistoryPoint } from "../lib/types";
 import { useDiagnosticsStore } from "../stores/diagnosticsStore";
 import { RoleDisplay } from "../lib/roleInfo";
 import { getRecommendedAction } from "../lib/diagnostics/RemediationEngine";
+import {
+  diagnoseConnectedNode,
+  diagnoseOtherNode,
+  hasLocalStatsData,
+  type RFDiagnosis,
+} from "../lib/diagnostics/RFDiagnosticEngine";
 
 export const CATEGORY_STYLES: Record<string, string> = {
   Configuration: "bg-blue-500/20 text-blue-400 border border-blue-500/30",
@@ -46,12 +53,24 @@ export interface NodeInfoBodyProps {
   traceRouteHops?: string[];
 }
 
+const SEVERITY_STYLES: Record<RFDiagnosis["severity"], string> = {
+  warning: "text-orange-400",
+  info: "text-blue-400",
+};
+
+const SEVERITY_ICON: Record<RFDiagnosis["severity"], string> = {
+  warning: "⚠",
+  info: "ℹ",
+};
+
 export default function NodeInfoBody({ node, homeNode, traceRouteHops }: NodeInfoBodyProps) {
   const anomaly = useDiagnosticsStore((s) => s.anomalies.get(node.node_id));
   const nodePacketStats = useDiagnosticsStore((s) => s.packetStats.get(node.node_id));
   const hopHistory = useDiagnosticsStore(
     (s) => s.hopHistory.get(node.node_id) ?? EMPTY_HOP_HISTORY
   );
+  const nodeRedundancy = useDiagnosticsStore((s) => s.nodeRedundancy.get(node.node_id));
+  const [pathHistoryOpen, setPathHistoryOpen] = useState(false);
 
   const batteryColor =
     node.battery > 50
@@ -252,6 +271,74 @@ export default function NodeInfoBody({ node, homeNode, traceRouteHops }: NodeInf
             </div>
           );
         })()}
+
+        {/* Connection Health (packet redundancy) — only shown once echoes have been observed */}
+        {nodeRedundancy && nodeRedundancy.maxPaths > 1 && (
+          <div
+            className="mt-2 pt-2 border-t border-gray-700/50"
+            title="Based on same packet received via multiple paths (e.g. RF + MQTT or multiple RF receptions)."
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-gray-500">Connection Health</span>
+              <span className={`text-xs font-medium ${
+                nodeRedundancy.score >= 67
+                  ? "text-lime-400"
+                  : nodeRedundancy.score >= 33
+                  ? "text-yellow-400"
+                  : "text-muted"
+              }`}>
+                {nodeRedundancy.score}%
+                {nodeRedundancy.maxPaths >= 3 && (
+                  <span className="ml-1 text-[10px] text-lime-400/80">Highly Redundant</span>
+                )}
+              </span>
+            </div>
+
+            {/* Path History toggle — only shown when there are echoes to display */}
+            {(() => {
+              const totalEchoes = nodeRedundancy.recentPackets.reduce((s, r) => s + r.paths.length - 1, 0);
+              const echoPackets = nodeRedundancy.recentPackets.filter((r) => r.paths.length > 1);
+              if (totalEchoes === 0) return null;
+              return (
+                <div className="mt-1.5">
+                  <button
+                    onClick={() => setPathHistoryOpen((o) => !o)}
+                    className="text-[10px] text-gray-500 hover:text-gray-300 transition-colors flex items-center gap-1"
+                  >
+                    <span>{pathHistoryOpen ? "▾" : "▸"}</span>
+                    Path History ({totalEchoes} echo{totalEchoes !== 1 ? "es" : ""})
+                  </button>
+
+                  {pathHistoryOpen && (
+                    <div className="mt-1.5 flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1">
+                      {echoPackets.map((rec) => (
+                        <div key={rec.packetId} className="text-[10px] bg-deep-black/50 rounded p-1.5">
+                          <div className="text-gray-400 mb-0.5 font-mono">
+                            #{rec.packetId.toString(16).toUpperCase()} — {rec.paths.length} paths
+                          </div>
+                          {rec.paths.map((p, i) => (
+                            <div key={i} className="text-gray-500 pl-1.5 leading-tight">
+                              {i === 0 ? "Original" : `Echo ${i}`}:{" "}
+                              <span className={p.transport === "rf" ? "text-brand-green/80" : "text-blue-400/80"}>
+                                {p.transport.toUpperCase()}
+                              </span>
+                              {p.snr != null && (
+                                <span className="ml-1">SNR {p.snr > 0 ? "+" : ""}{p.snr.toFixed(1)} dB</span>
+                              )}
+                              {p.rssi != null && (
+                                <span className="ml-1">{p.rssi} dBm</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        )}
       </div>
 
       {/* Trace route result */}
@@ -276,6 +363,66 @@ export default function NodeInfoBody({ node, homeNode, traceRouteHops }: NodeInf
           </div>
         </div>
       )}
+
+      {/* RF Diagnostics */}
+      <RFDiagnosticsSection node={node} isOurNode={node.node_id === homeNode?.node_id} />
     </>
+  );
+}
+
+function RFDiagnosticsSection({ node, isOurNode }: { node: MeshNode; isOurNode: boolean }) {
+  let findings: RFDiagnosis[] | null;
+  let totalChecks: number | null = null;
+  let noTelemetry = false;
+
+  if (isOurNode) {
+    findings = diagnoseConnectedNode(node);
+    totalChecks = 7;
+    // If no LocalStats and no channel_utilization, we have no data at all
+    if (!hasLocalStatsData(node) && node.channel_utilization == null) {
+      noTelemetry = true;
+    }
+  } else {
+    findings = diagnoseOtherNode(node);
+    if (findings === null) noTelemetry = true;
+  }
+
+  const flagged = findings?.length ?? 0;
+
+  return (
+    <div className="mt-3 p-3 bg-primary-dark rounded-lg">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-xs text-gray-400">RF Diagnostics</div>
+        {!noTelemetry && totalChecks !== null && (
+          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+            flagged === 0
+              ? "bg-green-900/40 text-green-400"
+              : "bg-orange-900/40 text-orange-400"
+          }`}>
+            {flagged}/{totalChecks} flagged
+          </span>
+        )}
+      </div>
+
+      {noTelemetry ? (
+        <div className="text-xs text-muted">
+          No node telemetry. Node diagnostics unavailable.
+        </div>
+      ) : flagged === 0 ? (
+        <div className="text-xs text-brand-green">All RF diagnostics OK</div>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          {findings!.map((f, i) => (
+            <div key={i} className={`flex items-start gap-1.5 text-xs ${SEVERITY_STYLES[f.severity]}`}>
+              <span className="shrink-0 mt-0.5">{SEVERITY_ICON[f.severity]}</span>
+              <div>
+                <span className="font-semibold">{f.condition}</span>
+                <span className="text-gray-400 ml-1">— {f.cause}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

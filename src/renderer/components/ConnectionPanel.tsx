@@ -349,23 +349,39 @@ export default function ConnectionPanel({
                   Scanning for Meshtastic devices...
                 </div>
               ) : (
-                bleDevices.map((device) => (
-                  <button
-                    key={device.deviceId}
-                    onClick={() => handleSelectBleDevice(device.deviceId)}
-                    className="w-full px-4 py-3 text-left hover:bg-secondary-dark transition-colors border-b border-gray-700 last:border-b-0"
-                  >
-                    <div className="text-sm text-gray-200 flex items-center gap-2">
-                      <ConnectionIcon type="ble" />
-                      {device.deviceName}
-                    </div>
-                    <div className="text-xs text-muted font-mono ml-7">
-                      {device.deviceId}
-                    </div>
-                  </button>
-                ))
+                bleDevices.map((device) => {
+                  let displayName: string;
+                  try {
+                    const raw = localStorage.getItem("mesh-client:bleDeviceNames");
+                    const cache: Record<string, string> = raw ? JSON.parse(raw) : {};
+                    const cached = cache[device.deviceId];
+                    displayName = cached ? (cached !== device.deviceName ? `${cached} (${device.deviceName})` : cached) : device.deviceName;
+                  } catch {
+                    displayName = device.deviceName;
+                  }
+                  return (
+                    <button
+                      key={device.deviceId}
+                      onClick={() => handleSelectBleDevice(device.deviceId)}
+                      className="w-full px-4 py-3 text-left hover:bg-secondary-dark transition-colors border-b border-gray-700 last:border-b-0"
+                    >
+                      <div className="text-sm text-gray-200 flex items-center gap-2">
+                        <ConnectionIcon type="ble" />
+                        {displayName}
+                      </div>
+                      <div className="text-xs text-muted font-mono ml-7">
+                        {device.deviceId}
+                      </div>
+                    </button>
+                  );
+                })
               )}
             </div>
+            {bleDevices.some((d) => d.deviceName === "AdaDFU") && (
+              <p className="px-4 py-2 text-xs text-muted border-t border-gray-700">
+                On macOS, if a device shows as &quot;AdaDFU&quot;, pair it first in System Settings → Bluetooth to see its Meshtastic name.
+              </p>
+            )}
           </div>
         )}
 

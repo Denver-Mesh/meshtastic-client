@@ -65,6 +65,8 @@ interface AdminSettings {
   distanceFilterMax: number;
   distanceUnit: "miles" | "km";
   filterMqttOnly: boolean;
+  messageLimitEnabled: boolean;
+  messageLimitCount: number;
 }
 
 const DEFAULT_SETTINGS: AdminSettings = {
@@ -76,6 +78,8 @@ const DEFAULT_SETTINGS: AdminSettings = {
   distanceFilterMax: 500,
   distanceUnit: "miles",
   filterMqttOnly: false,
+  messageLimitEnabled: true,
+  messageLimitCount: 1000,
 };
 
 function loadSettings(): AdminSettings {
@@ -592,6 +596,35 @@ export default function AppPanel({
         <h3 className="text-sm font-medium text-muted">
           Message Management
         </h3>
+
+        {/* Message limit */}
+        <div className="bg-secondary-dark rounded-lg p-4 space-y-3">
+          <p className="text-xs text-muted leading-relaxed">
+            Limits how many messages are loaded from the database. Helps keep memory usage low on busy networks.
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="messageLimit"
+              checked={settings.messageLimitEnabled}
+              onChange={(e) => updateSetting("messageLimitEnabled", e.target.checked)}
+              className="accent-brand-green"
+            />
+            <label htmlFor="messageLimit" className="text-sm text-gray-300 flex-1 cursor-pointer">
+              Limit messages loaded
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={10000}
+              value={settings.messageLimitCount}
+              onChange={(e) => updateSetting("messageLimitCount", Math.max(1, Math.min(10000, parseInt(e.target.value) || 1000)))}
+              disabled={!settings.messageLimitEnabled}
+              className="w-24 px-2 py-1 bg-deep-black border border-gray-600 rounded text-gray-200 text-sm text-right focus:border-brand-green focus:outline-none disabled:opacity-40"
+            />
+            <span className="text-sm text-gray-300">messages</span>
+          </div>
+        </div>
 
         {/* Channel-scoped message deletion */}
         <div className="space-y-2">
