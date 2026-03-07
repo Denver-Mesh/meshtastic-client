@@ -22,7 +22,8 @@ type SortField =
   | "voltage"
   | "channel_utilization"
   | "air_util_tx"
-  | "altitude";
+  | "altitude"
+  | "redundancy";
 
 interface Props {
   nodes: Map<number, MeshNode>;
@@ -47,6 +48,7 @@ export default function NodeListPanel({
 }: Props) {
   const anomalies = useDiagnosticsStore((s) => s.anomalies);
   const ignoreMqttEnabled = useDiagnosticsStore((s) => s.ignoreMqttEnabled);
+  const nodeRedundancy = useDiagnosticsStore((s) => s.nodeRedundancy);
   const [sortField, setSortField] = useState<SortField>("last_heard");
   const [sortAsc, setSortAsc] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -159,12 +161,18 @@ export default function NodeListPanel({
         case "altitude":
           cmp = (a.altitude ?? 0) - (b.altitude ?? 0);
           break;
+        case "redundancy": {
+          const aRed = nodeRedundancy.get(a.node_id)?.maxPaths ?? 1;
+          const bRed = nodeRedundancy.get(b.node_id)?.maxPaths ?? 1;
+          cmp = aRed - bRed;
+          break;
+        }
       }
       return sortAsc ? cmp : -cmp;
     });
 
     return list;
-  }, [nodes, sortField, sortAsc, searchQuery, myNodeNum, locationFilter]);
+  }, [nodes, sortField, sortAsc, searchQuery, myNodeNum, locationFilter, nodeRedundancy]);
 
   const filterStatus = useMemo(() => {
     if (!locationFilter.enabled) return null;
@@ -362,13 +370,20 @@ export default function NodeListPanel({
               >
                 Alt <SortIcon field="altitude" />
               </th>
+              <th
+                className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
+                onClick={() => handleSort("redundancy")}
+                title="Number of duplicate packet receptions — higher means better mesh redundancy"
+              >
+                Redund. <SortIcon field="redundancy" />
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-700/50">
             {nodeList.length === 0 ? (
               <tr>
                 <td
-                  colSpan={18}
+                  colSpan={19}
                   className="text-center text-muted py-8"
                 >
                   {searchQuery
@@ -545,6 +560,24 @@ export default function NodeListPanel({
                     <td className="px-3 py-2 text-right text-gray-300 text-xs">
                       {node.altitude != null && node.altitude !== 0 ? `${node.altitude} m` : "-"}
                     </td>
+                    {(() => {
+                      const red = nodeRedundancy.get(node.node_id);
+                      const echoes = red ? red.maxPaths - 1 : 0;
+                      return (
+                        <td
+                          className={`px-3 py-2 text-right text-xs font-mono ${
+                            echoes >= 3
+                              ? "text-lime-400"
+                              : echoes > 0
+                              ? "text-gray-300"
+                              : "text-muted"
+                          }`}
+                          title={red ? `${red.score}% connection health` : undefined}
+                        >
+                          {echoes > 0 ? `+${echoes}` : "-"}
+                        </td>
+                      );
+                    })()}
                   </tr>
                 );
               })

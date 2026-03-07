@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { MeshNode, HopHistoryPoint } from "../lib/types";
 import { useDiagnosticsStore } from "../stores/diagnosticsStore";
 import { RoleDisplay } from "../lib/roleInfo";
@@ -68,6 +69,8 @@ export default function NodeInfoBody({ node, homeNode, traceRouteHops }: NodeInf
   const hopHistory = useDiagnosticsStore(
     (s) => s.hopHistory.get(node.node_id) ?? EMPTY_HOP_HISTORY
   );
+  const nodeRedundancy = useDiagnosticsStore((s) => s.nodeRedundancy.get(node.node_id));
+  const [pathHistoryOpen, setPathHistoryOpen] = useState(false);
 
   const batteryColor =
     node.battery > 50
@@ -268,6 +271,71 @@ export default function NodeInfoBody({ node, homeNode, traceRouteHops }: NodeInf
             </div>
           );
         })()}
+
+        {/* Connection Health (packet redundancy) — only shown once echoes have been observed */}
+        {nodeRedundancy && nodeRedundancy.maxPaths > 1 && (
+          <div className="mt-2 pt-2 border-t border-gray-700/50">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] text-gray-500">Connection Health</span>
+              <span className={`text-xs font-medium ${
+                nodeRedundancy.score >= 67
+                  ? "text-lime-400"
+                  : nodeRedundancy.score >= 33
+                  ? "text-yellow-400"
+                  : "text-muted"
+              }`}>
+                {nodeRedundancy.score}%
+                {nodeRedundancy.maxPaths >= 3 && (
+                  <span className="ml-1 text-[10px] text-lime-400/80">Highly Redundant</span>
+                )}
+              </span>
+            </div>
+
+            {/* Path History toggle — only shown when there are echoes to display */}
+            {(() => {
+              const totalEchoes = nodeRedundancy.recentPackets.reduce((s, r) => s + r.paths.length - 1, 0);
+              const echoPackets = nodeRedundancy.recentPackets.filter((r) => r.paths.length > 1);
+              if (totalEchoes === 0) return null;
+              return (
+                <div className="mt-1.5">
+                  <button
+                    onClick={() => setPathHistoryOpen((o) => !o)}
+                    className="text-[10px] text-gray-500 hover:text-gray-300 transition-colors flex items-center gap-1"
+                  >
+                    <span>{pathHistoryOpen ? "▾" : "▸"}</span>
+                    Path History ({totalEchoes} echo{totalEchoes !== 1 ? "es" : ""})
+                  </button>
+
+                  {pathHistoryOpen && (
+                    <div className="mt-1.5 flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1">
+                      {echoPackets.map((rec) => (
+                        <div key={rec.packetId} className="text-[10px] bg-deep-black/50 rounded p-1.5">
+                          <div className="text-gray-400 mb-0.5 font-mono">
+                            #{rec.packetId.toString(16).toUpperCase()} — {rec.paths.length} paths
+                          </div>
+                          {rec.paths.map((p, i) => (
+                            <div key={i} className="text-gray-500 pl-1.5 leading-tight">
+                              {i === 0 ? "Original" : `Echo ${i}`}:{" "}
+                              <span className={p.transport === "rf" ? "text-brand-green/80" : "text-blue-400/80"}>
+                                {p.transport.toUpperCase()}
+                              </span>
+                              {p.snr != null && (
+                                <span className="ml-1">SNR {p.snr > 0 ? "+" : ""}{p.snr.toFixed(1)} dB</span>
+                              )}
+                              {p.rssi != null && (
+                                <span className="ml-1">{p.rssi} dBm</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        )}
       </div>
 
       {/* Trace route result */}
