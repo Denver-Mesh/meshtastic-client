@@ -263,6 +263,7 @@ export default function App() {
                 nodes={device.nodes}
                 initialDmTarget={pendingDmTarget}
                 onDmTargetConsumed={() => setPendingDmTarget(null)}
+                isActive={activeTab === 1}
               />
             </div>
             {activeTab === 2 && (

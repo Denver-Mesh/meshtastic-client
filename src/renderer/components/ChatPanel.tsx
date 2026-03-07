@@ -124,6 +124,7 @@ interface Props {
   nodes: Map<number, MeshNode>;
   initialDmTarget?: number | null;
   onDmTargetConsumed?: () => void;
+  isActive?: boolean;
 }
 
 export default function ChatPanel({
@@ -138,6 +139,7 @@ export default function ChatPanel({
   nodes,
   initialDmTarget,
   onDmTargetConsumed,
+  isActive = true,
 }: Props) {
   const [input, setInput] = useState("");
   const [channel, setChannel] = useState(0);
@@ -362,15 +364,20 @@ export default function ChatPanel({
   // ensures DOM is committed before scrolling, preventing flash of wrong position.
   useLayoutEffect(() => {
     if (triggerScrollToUnread === 0) return; // skip initial mount
+    if (!isActive) return;                   // skip while hidden
     if (unreadDividerRef.current) {
       unreadDividerRef.current.scrollIntoView({ block: "center" });
     } else {
       messagesEndRef.current?.scrollIntoView();
     }
-  }, [triggerScrollToUnread]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [triggerScrollToUnread, isActive]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const scrollToUnreadOrBottom = useCallback(() => {
+    if (unreadDividerRef.current) {
+      unreadDividerRef.current.scrollIntoView({ block: "start", behavior: "smooth" });
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, []);
 
   // Escape key handler
@@ -938,16 +945,16 @@ export default function ChatPanel({
         )}
         <div ref={messagesEndRef} />
 
-        {/* Scroll to bottom button */}
+        {/* Scroll to unread / bottom button */}
         {showScrollButton && (
           <button
-            onClick={scrollToBottom}
+            onClick={scrollToUnreadOrBottom}
             className="sticky bottom-2 left-1/2 -translate-x-1/2 bg-secondary-dark hover:bg-gray-600 text-gray-300 rounded-full px-3 py-1.5 text-xs font-medium shadow-lg border border-gray-600 transition-all flex items-center gap-1.5 z-10"
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
             </svg>
-            New messages
+            Jump to Unread
           </button>
         )}
       </div>
