@@ -277,9 +277,7 @@ export default function App() {
               <NodeListPanel
                 nodes={device.nodes}
                 myNodeNum={device.selfNodeId}
-                onRefresh={device.requestRefresh}
                 onNodeClick={(node) => setSelectedNodeId(node.node_id)}
-                isConnected={isOperational}
                 mqttConnected={device.mqttStatus === "connected"}
                 locationFilter={locationFilter}
                 onToggleFavorite={device.setNodeFavorited}

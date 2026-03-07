@@ -65,6 +65,9 @@ function getOrCreateVirtualNodeId(): number {
   return id;
 }
 
+const MQTT_ONLY_VIRTUAL_LONG_NAME = "MQTT-only Virtual Address";
+const ROLE_CLIENT = 0;
+
 export function useDevice() {
   const deviceRef = useRef<MeshDevice | null>(null);
   // Track own node number in a ref so event callbacks can access it
@@ -338,7 +341,22 @@ export function useDevice() {
     const unsubStatus = window.electronAPI.mqtt.onStatus((s) => {
       mqttStatusRef.current = s as MQTTStatus;
       setMqttStatus(s as MQTTStatus);
-      if (s === "connected" && !deviceRef.current) startGpsInterval();
+      if (s === "connected" && !deviceRef.current) {
+        startGpsInterval();
+        const virtualId = getOrCreateVirtualNodeId();
+        updateNodes((prev) => {
+          const updated = new Map(prev);
+          const existing = updated.get(virtualId) || emptyNode(virtualId);
+          updated.set(virtualId, {
+            ...existing,
+            node_id: virtualId,
+            long_name: MQTT_ONLY_VIRTUAL_LONG_NAME,
+            role: ROLE_CLIENT,
+            hops_away: 0,
+          });
+          return updated;
+        });
+      }
     });
 
     const unsubNode = window.electronAPI.mqtt.onNodeUpdate((rawNode) => {
@@ -401,16 +419,18 @@ export function useDevice() {
       const msg: Omit<ChatMessage, "id"> & { from_mqtt?: boolean } = raw.emoji != null && raw.replyId != null
         ? { ...raw, emoji: normalizeReactionEmoji(raw.emoji, raw.payload) ?? raw.emoji }
         : raw;
-      // Record MQTT path before dedup check (captures all copies, new and duplicate)
-      if (msg.packetId && msg.sender_id) {
-        useDiagnosticsStore.getState().recordPacketPath(msg.packetId, msg.sender_id, {
+      // Record MQTT path before dedup check (captures all copies, new and duplicate). Skip packetId 0 (no unique id per protobuf).
+      const rawPacketId = Number(msg.packetId);
+      const packetId = rawPacketId >>> 0;
+      if (msg.sender_id && Number.isInteger(rawPacketId) && packetId !== 0) {
+        useDiagnosticsStore.getState().recordPacketPath(packetId, msg.sender_id, {
           transport: 'mqtt',
           timestamp: Date.now(),
         });
       }
 
       // Packet ID dedup (catches our own uplink echoes)
-      if (msg.packetId && isDuplicate(msg.packetId)) {
+      if (packetId !== 0 && isDuplicate(packetId)) {
         useDiagnosticsStore.getState().recordDuplicate(msg.sender_id);
         return;
       }
@@ -927,9 +947,11 @@ export function useDevice() {
         };
         if (!mp.from) return;
 
-        // Record RF path for packet redundancy tracking
-        if (mp.id) {
-          useDiagnosticsStore.getState().recordPacketPath(mp.id, mp.from, {
+        // Record RF path for packet redundancy tracking (skip id 0 — protobuf: no unique id for no-ack/non-broadcast)
+        const rawId = Number(mp.id);
+        const packetId = rawId >>> 0;
+        if (Number.isInteger(rawId) && packetId !== 0) {
+          useDiagnosticsStore.getState().recordPacketPath(packetId, mp.from, {
             transport: 'rf',
             snr: mp.rxSnr,
             rssi: mp.rxRssi,
@@ -1427,6 +1449,9 @@ export function useDevice() {
               longitude: pos.lon,
               last_heard: Date.now(),
               lastPositionWarning: undefined,
+              ...(isVirtualNode
+                ? { long_name: MQTT_ONLY_VIRTUAL_LONG_NAME, role: ROLE_CLIENT, hops_away: 0 }
+                : {}),
             };
             updated.set(selfNodeId, node);
             if (!isVirtualNode) window.electronAPI.db.saveNode(node);

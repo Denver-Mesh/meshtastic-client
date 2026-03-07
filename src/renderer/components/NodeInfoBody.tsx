@@ -274,7 +274,10 @@ export default function NodeInfoBody({ node, homeNode, traceRouteHops }: NodeInf
 
         {/* Connection Health (packet redundancy) — only shown once echoes have been observed */}
         {nodeRedundancy && nodeRedundancy.maxPaths > 1 && (
-          <div className="mt-2 pt-2 border-t border-gray-700/50">
+          <div
+            className="mt-2 pt-2 border-t border-gray-700/50"
+            title="Based on same packet received via multiple paths (e.g. RF + MQTT or multiple RF receptions)."
+          >
             <div className="flex items-center justify-between">
               <span className="text-[10px] text-gray-500">Connection Health</span>
               <span className={`text-xs font-medium ${

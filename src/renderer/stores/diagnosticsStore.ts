@@ -130,6 +130,8 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
 
   recordPacketPath(packetId: number, fromNodeId: number, path: PacketPath) {
     set((state) => {
+      // Reject invalid cache keys: must be a non-zero finite integer (id 0 = no unique id per protobuf)
+      if (!Number.isInteger(packetId) || packetId === 0) return state;
       const now = Date.now();
       const existing = state.packetCache.get(packetId);
 
