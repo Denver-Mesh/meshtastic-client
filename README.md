@@ -18,7 +18,7 @@ Connect to your Meshtastic devices over Bluetooth, USB Serial, or WiFi. Independ
   - **Mac**: Xcode Command Line Tools — run `xcode-select --install`
   - **Linux**: `sudo apt install build-essential python3` (Debian/Ubuntu)
                `sudo dnf groupinstall "Development Tools" && sudo dnf install python3` (Fedora/RedHat)  
-  - **Windows**: [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the "Desktop development with C++" workload
+  - **Windows**: [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the "Desktop development with C++" workload (or install via `winget install Microsoft.VisualStudio.2022.BuildTools`). Also requires **git** — install via `winget install git.git` if not already present.
 - A Meshtastic device (any hardware running Meshtastic firmware)
 - **For development**: [React DevTools](https://react.dev/link/react-devtools) browser extension
 
@@ -53,6 +53,22 @@ sudo usermod -a -G dialout $USER
 
 ### Windows
 
+**1. Install git** (if not already):
+```powershell
+winget install git.git
+```
+
+**2. Install Node.js** (if not already):
+```powershell
+winget install openjs.nodejs
+```
+
+**3. Allow npm scripts** (PowerShell blocks script execution by default):
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+**4. Clone and run:**
 ```bash
 git clone https://github.com/Colorado-Mesh/meshtastic-client
 cd meshtastic-client
@@ -60,7 +76,7 @@ npm install
 npm start
 ```
 
-Should work out of the box. If serial isn't detected, make sure you have the correct USB drivers for your device (e.g., CP210x or CH340 drivers).
+If serial isn't detected, make sure you have the correct USB drivers for your device (e.g., CP210x or CH340 drivers).
 
 ---
 
@@ -88,6 +104,8 @@ npm run dev
 This starts the Vite dev server, watches the main/preload processes for changes, and launches Electron automatically.
 
 For the best development experience, install [React DevTools](https://react.dev/link/react-devtools).
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for coding conventions, branch workflow, and PR guidelines.
 
 ---
 
@@ -124,7 +142,7 @@ The distributable is output to the `release/` directory.
 - **Signal Strength Indicators** — live RSSI bars on nodes and in chat, color-coded by signal quality
 - **Device Role Display** — visual icons and badges for each node's configured role (Router, Client, Repeater, etc.)
 - **Node Detail Modal** — click any node or sender name for full info; send a DM, run a trace route with hop-path display, or delete the node; GPS warning banner shown when a node has reported invalid coordinates; Routing Health section with active anomaly description, 24-hour hop-count sparkline, Connection Health % (packet redundancy score), and collapsible Path History; RF diagnostics for the connected node (channel utilization, bad-packet rate, interference detection)
-- **Diagnostics** — tab 8 (Cmd/Ctrl+8): network health score badge (0–100), searchable anomaly table with per-node trace-route action, and remediation suggestions (antenna mismatch, RF noise, MQTT ghost, config issues); anomaly badges (⚠) shown inline in the node list; status aura circles on the map; congestion halos toggle; Ignore MQTT checkbox filters MQTT-only nodes from routing analysis and dims them in the node list
+- **Diagnostics** — tab 8 (Cmd/Ctrl+8): network health score badge (0–100), searchable anomaly table with per-node trace-route action, and remediation suggestions (antenna mismatch, RF noise, MQTT ghost, config issues); anomaly badges (⚠) shown inline in the node list; status aura circles on the map; congestion halos toggle; global Ignore MQTT checkbox filters MQTT-only nodes from routing analysis and dims them in the node list; per-node MQTT ignore toggle (in node detail modal and anomaly table action column) for fine-grained exclusion of individual nodes from routing analysis
 - **Map** — interactive OpenStreetMap with node positions; your current position is shown when available (device GPS, or browser geolocation as a city-level fallback); map auto-centers on your position when no nodes are visible; distance filter matches the node list
 - **Telemetry** — battery voltage and signal quality charts
 - **Radio** — region, modem preset, device role, GPS, power, Bluetooth, display settings; fixed-position mode lets you enter coordinates manually or auto-fill from your current GPS location, then send them directly to the device
