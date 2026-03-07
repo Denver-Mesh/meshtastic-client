@@ -40,12 +40,6 @@ function safeNonNegativeInt(value: unknown): number {
   return n >>> 0;
 }
 
-function safePositiveInt(value: unknown): number {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n <= 0) throw new Error("Invalid positive integer");
-  return n >>> 0;
-}
-
 function validateSaveMessage(message: unknown): asserts message is Record<string, unknown> & {
   sender_id: number; sender_name: string; payload: string; channel: number; timestamp: number;
   packetId?: number; status?: string; error?: string; emoji?: number; replyId?: number; to?: number; mqttStatus?: string;
