@@ -280,23 +280,6 @@ export function useDevice() {
   useEffect(() => {
     window.electronAPI.db.getMessages(undefined, 500)
       .then((msgs) => {
-        // #region agent log
-        const empty = (msgs as ChatMessage[]).filter((m) => !(m.payload ?? "").trim());
-        if (empty.length > 0) {
-          fetch("http://127.0.0.1:7586/ingest/49af3064-4f08-4b78-bc65-b64d378f5d17", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6e6e25" },
-            body: JSON.stringify({
-              sessionId: "6e6e25",
-              location: "useDevice.ts:DB-getMessages",
-              message: "DB loaded messages with empty payload",
-              data: { count: empty.length, samples: empty.slice(0, 5).map((m) => ({ emoji: m.emoji, replyId: m.replyId, sender_id: m.sender_id })) },
-              timestamp: Date.now(),
-              hypothesisId: "H3",
-            }),
-          }).catch(() => {});
-        }
-        // #endregion
         setMessages(msgs.reverse());
       })
       .catch((err) => { console.error("[useDevice] Failed to load messages:", err); setMessages([]); });
@@ -377,24 +360,6 @@ export function useDevice() {
 
     const unsubMsg = window.electronAPI.mqtt.onMessage((rawMsg) => {
       const msg = rawMsg as Omit<ChatMessage, "id"> & { from_mqtt?: boolean };
-
-      // #region agent log
-      const pl = (msg.payload ?? "").length;
-      if (pl === 0 || msg.emoji !== undefined || msg.replyId !== undefined) {
-        fetch("http://127.0.0.1:7586/ingest/49af3064-4f08-4b78-bc65-b64d378f5d17", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6e6e25" },
-          body: JSON.stringify({
-            sessionId: "6e6e25",
-            location: "useDevice.ts:MQTT-onMessage",
-            message: "MQTT message",
-            data: { payloadLen: pl, emoji: msg.emoji, replyId: msg.replyId, sender_id: msg.sender_id },
-            timestamp: Date.now(),
-            hypothesisId: "H2",
-          }),
-        }).catch(() => {});
-      }
-      // #endregion
 
       // Packet ID dedup (catches our own uplink echoes)
       if (msg.packetId && isDuplicate(msg.packetId)) {
@@ -497,10 +462,15 @@ export function useDevice() {
       // ─── My node info ──────────────────────────────────────────
       const unsub2 = device.events.onMyNodeInfo.subscribe((info) => {
         touchLastData();
+        const virtualNodeId = getOrCreateVirtualNodeId();
+        if (virtualNodeId !== info.myNodeNum) {
+          window.electronAPI.db.deleteNode(virtualNodeId).catch(() => {});
+        }
         myNodeNumRef.current = info.myNodeNum;
         setState((s) => ({ ...s, myNodeNum: info.myNodeNum }));
         updateNodes((prev) => {
           const updated = new Map(prev);
+          if (virtualNodeId !== info.myNodeNum) updated.delete(virtualNodeId);
           const existing = updated.get(info.myNodeNum);
           if (!existing) {
             const selfNode = { ...emptyNode(info.myNodeNum), hops_away: 0 };
@@ -541,24 +511,6 @@ export function useDevice() {
           replyId,
           to: meshPacket.to && meshPacket.to !== BROADCAST_ADDR ? meshPacket.to : undefined,
         };
-
-        // #region agent log
-        const pl = msg.payload.length;
-        if (pl === 0 || emoji !== undefined || replyId !== undefined) {
-          fetch("http://127.0.0.1:7586/ingest/49af3064-4f08-4b78-bc65-b64d378f5d17", {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "6e6e25" },
-            body: JSON.stringify({
-              sessionId: "6e6e25",
-              location: "useDevice.ts:RF-TEXT_MESSAGE_APP",
-              message: "RF text/reaction packet",
-              data: { payloadLen: pl, emoji, replyId, from: meshPacket.from, rawReplyId: dataPacket.replyId },
-              timestamp: Date.now(),
-              hypothesisId: "H1",
-            }),
-          }).catch(() => {});
-        }
-        // #endregion
 
         // Packet ID dedup: skip if already seen (e.g. via MQTT) so same message is not shown twice
         if (!isEcho && !msg.emoji && msg.packetId && isDuplicate(msg.packetId)) {
@@ -1354,6 +1306,7 @@ export function useDevice() {
             ? getOrCreateVirtualNodeId()
             : 0;
         if (selfNodeId > 0) {
+          const isVirtualNode = !hasDevice && selfNodeId === getOrCreateVirtualNodeId();
           updateNodes((prev) => {
             const updated = new Map(prev);
             const existing = updated.get(selfNodeId) || emptyNode(selfNodeId);
@@ -1366,7 +1319,7 @@ export function useDevice() {
               lastPositionWarning: undefined,
             };
             updated.set(selfNodeId, node);
-            window.electronAPI.db.saveNode(node);
+            if (!isVirtualNode) window.electronAPI.db.saveNode(node);
             return updated;
           });
         }
@@ -1446,6 +1399,8 @@ export function useDevice() {
         ? getOrCreateVirtualNodeId()
         : 0;
 
+  const getNodes = useCallback(() => nodesRef.current, []);
+
   return {
     state,
     mqttStatus,
@@ -1483,6 +1438,7 @@ export function useDevice() {
     sendPositionToDevice,
     updateGpsInterval,
     getFullNodeLabel,
+    getNodes,
   };
 }
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useDevice } from "./hooks/useDevice";
+import { useDiagnosticsStore } from "./stores/diagnosticsStore";
 import { ToastProvider } from "./components/Toast";
 import type { MQTTSettings } from "./lib/types";
 import Tabs from "./components/Tabs";
@@ -80,6 +81,12 @@ export default function App() {
   const prevMsgCountRef = useRef(0);
   const isInitialLoadRef = useRef(true);
   const device = useDevice();
+  const runReanalysis = useDiagnosticsStore((s) => s.runReanalysis);
+  const ignoreMqttEnabled = useDiagnosticsStore((s) => s.ignoreMqttEnabled);
+
+  useEffect(() => {
+    runReanalysis(device.getNodes, device.selfNodeId);
+  }, [device.nodes, device.selfNodeId, device.getNodes, runReanalysis, ignoreMqttEnabled]);
 
   const isConfigured = device.state.status === "configured";
   const isOperational = isConfigured || device.state.status === "stale";
