@@ -16,6 +16,18 @@ import type {
   TelemetryPoint,
 } from "../lib/types";
 
+function getMessageLoadLimit(): number {
+  try {
+    const raw = localStorage.getItem("mesh-client:adminSettings");
+    if (!raw) return 1000;
+    const s = JSON.parse(raw);
+    if (s.messageLimitEnabled === false) return 10000;
+    return Math.max(1, s.messageLimitCount ?? 1000);
+  } catch {
+    return 1000;
+  }
+}
+
 const MAX_TELEMETRY_POINTS = 50;
 const POLL_INTERVAL_MS = 30_000; // 30 seconds
 const BROADCAST_ADDR = 0xffffffff;
@@ -287,7 +299,7 @@ export function useDevice() {
 
   // Load saved data from DB on mount
   useEffect(() => {
-    window.electronAPI.db.getMessages(undefined, 500)
+    window.electronAPI.db.getMessages(undefined, getMessageLoadLimit())
       .then((msgs) => {
         setMessages(msgs.reverse());
       })
@@ -1319,7 +1331,7 @@ export function useDevice() {
   }, []);
 
   const refreshMessagesFromDb = useCallback(() => {
-    window.electronAPI.db.getMessages(undefined, 500)
+    window.electronAPI.db.getMessages(undefined, getMessageLoadLimit())
       .then((msgs) => { setMessages(msgs.reverse()); })
       .catch((err) => { console.error("[useDevice] Failed to refresh messages:", err); setMessages([]); });
   }, []);

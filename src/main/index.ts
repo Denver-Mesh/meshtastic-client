@@ -477,7 +477,7 @@ ipcMain.handle("db:saveMessage", (_event, message) => {
 
 ipcMain.handle("db:getMessages", (_event, channel?: number, limit = 200) => {
   try {
-    const safeLimit = Math.min(Math.max(1, Number(limit) || 200), 2000);
+    const safeLimit = Math.min(Math.max(1, Number(limit) || 1000), 10000);
     const db = getDatabase();
     const columns = `id, sender_id, sender_name, payload, channel, timestamp,
          packet_id AS packetId, status, error, emoji, reply_id AS replyId, to_node,
