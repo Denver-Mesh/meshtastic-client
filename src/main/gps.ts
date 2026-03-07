@@ -2,6 +2,11 @@ import http from "http";
 import https from "https";
 import si from "systeminformation";
 
+function sanitizeLogMessage(message: unknown): string {
+  // Remove newline and carriage return characters to prevent log injection.
+  return String(message).replace(/[\r\n]+/g, " ");
+}
+
 export type GpsFixSource = "native" | "ip";
 
 export interface GpsFix {
@@ -90,8 +95,9 @@ async function getIpFix(): Promise<GpsFix> {
         : null;
     });
   } catch (e) {
+    const msg = sanitizeLogMessage((e as Error).message);
     console.warn(
-      `[gps] ip-api.com failed: ${(e as Error).message}, trying ipwho.is`
+      `[gps] ip-api.com failed: ${msg}, trying ipwho.is`
     );
   }
   return fetchIpEndpoint("https://ipwho.is/", (d: unknown) => {
@@ -114,7 +120,8 @@ export async function getGpsFix(): Promise<GpsFixResult> {
     try {
       await si.inetChecksite("https://ip-api.com");
     } catch (e) {
-      console.warn(`[gps] inetChecksite fallback failed: ${(e as Error).message}`);
+      const msg = sanitizeLogMessage((e as Error).message);
+      console.warn(`[gps] inetChecksite fallback failed: ${msg}`);
     }
   }
 
@@ -123,7 +130,7 @@ export async function getGpsFix(): Promise<GpsFixResult> {
     console.log(`[gps] ip fix: ${fix.lat}, ${fix.lon}`);
     return fix;
   } catch (e) {
-    const msg = (e as Error).message;
+    const msg = sanitizeLogMessage((e as Error).message);
     console.warn(`[gps] ip fix failed: ${msg}`);
     return {
       status: "error",
