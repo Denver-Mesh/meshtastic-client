@@ -713,6 +713,19 @@ export function useDevice() {
             nodesRef.current.get(myNodeNumRef.current) ?? null
           );
         }
+        if (type === "ble" && nodeNum === myNodeNumRef.current) {
+          const btDevice = (device.transport as any)?.__bluetoothDevice;
+          const shortName = info.user?.shortName ?? null;
+          if (btDevice?.id && shortName) {
+            try {
+              const key = "mesh-client:bleDeviceNames";
+              const raw = localStorage.getItem(key);
+              const cache: Record<string, string> = raw ? JSON.parse(raw) : {};
+              cache[btDevice.id] = shortName;
+              localStorage.setItem(key, JSON.stringify(cache));
+            } catch { /* ignore */ }
+          }
+        }
       });
       unsubscribesRef.current.push(unsub5);
 
