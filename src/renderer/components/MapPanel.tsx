@@ -283,6 +283,8 @@ function MapFitter({
 // Only save viewport when we have position data, so that when data arrives
 // later we still perform the initial fit once instead of staying at default.
 
+const VIEWPORT_EPS = 1e-6;
+
 function ViewportSaver({ hasAnyPositions }: { hasAnyPositions: boolean }) {
   const map = useMap();
   const setViewport = useMapViewportStore((s) => s.setViewport);
@@ -290,10 +292,18 @@ function ViewportSaver({ hasAnyPositions }: { hasAnyPositions: boolean }) {
     if (!hasAnyPositions) return;
     const onMoveEnd = () => {
       const center = map.getCenter();
-      setViewport({
-        center: [center.lat, center.lng],
-        zoom: map.getZoom(),
-      });
+      const zoom = map.getZoom();
+      const next = { center: [center.lat, center.lng] as [number, number], zoom };
+      const current = useMapViewportStore.getState().viewport;
+      if (
+        current &&
+        current.zoom === next.zoom &&
+        Math.abs(current.center[0] - next.center[0]) < VIEWPORT_EPS &&
+        Math.abs(current.center[1] - next.center[1]) < VIEWPORT_EPS
+      ) {
+        return;
+      }
+      setViewport(next);
     };
     map.on("moveend", onMoveEnd);
     return () => {
@@ -490,21 +500,11 @@ export default function MapPanel({
         : DEFAULT_CENTER;
   const computedZoom = DEFAULT_ZOOM;
   const shouldFitOnMount = savedViewport == null;
-  // Use saved viewport only for initial mount. Once set, never pass store updates
-  // into MapContainer — otherwise moveend → setViewport → re-render → new props →
-  // map.setView() → moveend causes an infinite loop.
-  const initialViewportRef = useRef<{
-    center: [number, number];
-    zoom: number;
-  } | null>(null);
-  if (savedViewport != null && initialViewportRef.current == null) {
-    initialViewportRef.current = {
-      center: savedViewport.center,
-      zoom: savedViewport.zoom,
-    };
-  }
-  const mapCenter = initialViewportRef.current?.center ?? computedCenter;
-  const mapZoom = initialViewportRef.current?.zoom ?? computedZoom;
+  // Use current viewport from store when available so props match the map after
+  // moveend; otherwise react-leaflet syncs map to (stale) props → setView →
+  // moveend → setViewport → re-render loop.
+  const mapCenter = savedViewport?.center ?? computedCenter;
+  const mapZoom = savedViewport?.zoom ?? computedZoom;
 
   const statusCounts = useMemo(() => {
     const counts = { online: 0, stale: 0, offline: 0 };
