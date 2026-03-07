@@ -116,22 +116,19 @@ function getAppIconPath() {
 }
 
 function buildTrayIcon(hasUnread: boolean): Electron.NativeImage {
-  // Use a conditional path that works for both dev and production
-  const trayIconPath = app.isPackaged
-    ? path.join(process.resourcesPath, "icon.png") // Packaged location
-    : path.join(__dirname, "../../resources/icon.png"); // Dev location
-
-  const size = process.platform === "darwin" ? 16 : 22;
-  
-  // Create the image from the path
-  const image = nativeImage.createFromPath(trayIconPath);
-  
-  // CRITICAL FOR MAC: Set as template so it handles Dark/Light mode
+  let base: Electron.NativeImage;
   if (process.platform === 'darwin') {
-    image.setTemplateImage(true);
+    const trayIconPath = app.isPackaged
+      ? path.join(process.resourcesPath, "macos-menubar-icon-Template.png")
+      : path.join(__dirname, "../../resources/macos-menubar-icon-Template.png");
+    base = nativeImage.createFromPath(trayIconPath);
+    base.setTemplateImage(true);
+  } else {
+    const trayIconPath = app.isPackaged
+      ? path.join(process.resourcesPath, "icon.png")
+      : path.join(__dirname, "../../resources/icon.png");
+    base = nativeImage.createFromPath(trayIconPath).resize({ width: 22, height: 22 });
   }
-
-  const base = image.resize({ width: size, height: size });
 
   if (!hasUnread) return base;
 
