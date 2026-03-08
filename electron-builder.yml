@@ -60,7 +60,9 @@ linux:
     entry:
       StartupWMClass: "com.mesh-client.app"
       Categories: "Utility;Network;"
-
+  extraResources:
+    - from: ./copyright
+      to: usr/share/doc/mesh-client/copyright
 win:
   target:
     - target: nsis
