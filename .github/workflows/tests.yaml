@@ -7,8 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  test:
-    name: Unit & Component Tests
+  tests:
+    name: Unit Tests
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run accessibility tests
+      - name: Run tests
         run: npm run test:run
 
       - name: Upload test results
@@ -33,3 +33,4 @@ jobs:
           name: vitest-report
           path: test-results/
           retention-days: 7
+          if-no-files-found: warn

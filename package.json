@@ -20,7 +20,7 @@
     "dist:win": "npm dedupe && npm run build && electron-builder --win",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:a11y": "vitest run --reporter=verbose"
+    "test:verbose": "vitest run --reporter=verbose"
   },
   "author": {
     "name": "Mesh Contributors",
