@@ -16,6 +16,7 @@ import TelemetryPanel from "./components/TelemetryPanel";
 import AppPanel from "./components/AppPanel";
 import DiagnosticsPanel from "./components/DiagnosticsPanel";
 import { LinkIcon } from "./components/SignalBars";
+import UpdateBanner from "./components/UpdateBanner";
 
 const STATUS_COLOR: Record<string, string> = {
   disconnected: "bg-red-500",
@@ -42,6 +43,16 @@ export interface LocationFilter {
   maxDistance: number;
   unit: "miles" | "km";
   hideMqttOnly: boolean;
+}
+
+export interface UpdateState {
+  phase: "idle" | "available" | "downloading" | "ready" | "error";
+  version?: string;
+  releaseUrl?: string;
+  isPackaged?: boolean;
+  isMac?: boolean;
+  percent?: number;
+  dismissed: boolean;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -92,6 +103,8 @@ export default function App() {
   const [chatUnread, setChatUnread] = useState(0);
   const prevMsgCountRef = useRef(0);
   const isInitialLoadRef = useRef(true);
+  const [updateState, setUpdateState] = useState<UpdateState>({ phase: "idle", dismissed: false });
+
   const device = useDevice();
   const runReanalysis = useDiagnosticsStore((s) => s.runReanalysis);
   const ignoreMqttEnabled = useDiagnosticsStore((s) => s.ignoreMqttEnabled);
@@ -137,6 +150,39 @@ export default function App() {
         if (settings.autoLaunch) window.electronAPI.mqtt.connect(settings);
       }
     } catch {}
+  }, []);
+
+  // ─── Auto-update event subscriptions ─────────────────────────────
+  useEffect(() => {
+    const offAvailable = window.electronAPI.update.onAvailable((info) => {
+      setUpdateState({
+        phase: "available",
+        version: info.version,
+        releaseUrl: info.releaseUrl,
+        isPackaged: info.isPackaged,
+        isMac: info.isMac,
+        dismissed: false,
+      });
+    });
+    const offNotAvailable = window.electronAPI.update.onNotAvailable(() => {
+      setUpdateState((s) => s.phase === "idle" ? s : { ...s, phase: "idle" });
+    });
+    const offProgress = window.electronAPI.update.onProgress((info) => {
+      setUpdateState((s) => ({ ...s, phase: "downloading", percent: info.percent }));
+    });
+    const offDownloaded = window.electronAPI.update.onDownloaded(() => {
+      setUpdateState((s) => ({ ...s, phase: "ready" }));
+    });
+    const offError = window.electronAPI.update.onError(() => {
+      setUpdateState((s) => ({ ...s, phase: "error" }));
+    });
+    return () => {
+      offAvailable();
+      offNotAvailable();
+      offProgress();
+      offDownloaded();
+      offError();
+    };
   }, []);
 
   // ─── Keyboard shortcuts: Cmd/Ctrl+1-8 for tabs, ? for help ───────────────
@@ -279,6 +325,15 @@ export default function App() {
           status={device.state.status}
           reconnectAttempt={device.state.reconnectAttempt}
           onReconnect={handleReconnect}
+        />
+
+        {/* Update Notification Banner */}
+        <UpdateBanner
+          updateState={updateState}
+          onDownload={() => window.electronAPI.update.download()}
+          onInstall={() => window.electronAPI.update.install()}
+          onViewRelease={() => window.electronAPI.update.openReleases(updateState.releaseUrl)}
+          onDismiss={() => setUpdateState((s) => ({ ...s, dismissed: true }))}
         />
 
         {/* Tabs */}

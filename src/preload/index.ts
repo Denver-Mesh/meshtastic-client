@@ -144,6 +144,39 @@ contextBridge.exposeInMainWorld("electronAPI", {
     | { status: "error"; message: string; code?: string }
   > => ipcRenderer.invoke("gps:getFix"),
 
+  // ─── Update notifications ──────────────────────────────────────
+  update: {
+    check: () => ipcRenderer.invoke("update:check"),
+    download: () => ipcRenderer.invoke("update:download"),
+    install: () => ipcRenderer.invoke("update:install"),
+    openReleases: (url?: string) => ipcRenderer.invoke("update:open-releases", url),
+    onAvailable: (cb: (info: { version: string; releaseUrl: string; isPackaged: boolean; isMac: boolean }) => void) => {
+      const handler = (_: unknown, info: { version: string; releaseUrl: string; isPackaged: boolean; isMac: boolean }) => cb(info);
+      ipcRenderer.on("update:available", handler);
+      return () => ipcRenderer.off("update:available", handler);
+    },
+    onNotAvailable: (cb: () => void) => {
+      const handler = () => cb();
+      ipcRenderer.on("update:not-available", handler);
+      return () => ipcRenderer.off("update:not-available", handler);
+    },
+    onProgress: (cb: (info: { percent: number }) => void) => {
+      const handler = (_: unknown, info: { percent: number }) => cb(info);
+      ipcRenderer.on("update:progress", handler);
+      return () => ipcRenderer.off("update:progress", handler);
+    },
+    onDownloaded: (cb: () => void) => {
+      const handler = () => cb();
+      ipcRenderer.on("update:downloaded", handler);
+      return () => ipcRenderer.off("update:downloaded", handler);
+    },
+    onError: (cb: (info: { message: string }) => void) => {
+      const handler = (_: unknown, info: { message: string }) => cb(info);
+      ipcRenderer.on("update:error", handler);
+      return () => ipcRenderer.off("update:error", handler);
+    },
+  },
+
   // ─── Connection status ─────────────────────────────────────────
   notifyDeviceConnected: () => ipcRenderer.send("device-connected"),
   notifyDeviceDisconnected: () => ipcRenderer.send("device-disconnected"),
