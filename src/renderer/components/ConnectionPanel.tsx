@@ -7,27 +7,58 @@ import type {
   MQTTSettings,
   MQTTStatus,
 } from "../lib/types";
-import { LinkIcon } from "./SignalBars";
-
-// ─── Connection Profiles (localStorage) ───────────────────────────
-interface ConnectionProfile {
-  id: string;
-  name: string;
+// ─── Last Connection (localStorage) ───────────────────────────────
+interface LastConnection {
   type: ConnectionType;
   httpAddress?: string;
+  bleDeviceId?: string;
+  bleDeviceName?: string;
+  serialPortId?: string;
 }
 
-function loadProfiles(): ConnectionProfile[] {
+const LAST_CONNECTION_KEY = "mesh-client:lastConnection";
+const LAST_BLE_DEVICE_KEY = "mesh-client:lastBleDevice";
+const LAST_SERIAL_PORT_KEY = "mesh-client:lastSerialPort";
+
+function loadLastConnection(): LastConnection | null {
   try {
-    const raw = localStorage.getItem("mesh-client_profiles");
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+    const raw = localStorage.getItem(LAST_CONNECTION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
 }
 
-function saveProfiles(profiles: ConnectionProfile[]) {
-  localStorage.setItem("mesh-client_profiles", JSON.stringify(profiles));
+function saveLastConnection(c: LastConnection) {
+  try { localStorage.setItem(LAST_CONNECTION_KEY, JSON.stringify(c)); } catch {}
+}
+
+function clearLastConnection() {
+  try { localStorage.removeItem(LAST_CONNECTION_KEY); } catch {}
+}
+
+function loadLastBleDevice(): string | null {
+  try { return localStorage.getItem(LAST_BLE_DEVICE_KEY); } catch { return null; }
+}
+
+function saveLastBleDevice(id: string) {
+  try { localStorage.setItem(LAST_BLE_DEVICE_KEY, id); } catch {}
+}
+
+function loadLastSerialPort(): string | null {
+  try { return localStorage.getItem(LAST_SERIAL_PORT_KEY); } catch { return null; }
+}
+
+function saveLastSerialPort(id: string) {
+  try { localStorage.setItem(LAST_SERIAL_PORT_KEY, id); } catch {}
+}
+
+function getBleDeviceName(deviceId: string): string | null {
+  try {
+    const raw = localStorage.getItem("mesh-client:bleDeviceNames");
+    const cache: Record<string, string> = raw ? JSON.parse(raw) : {};
+    return cache[deviceId] ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** Inline SVG icon for each connection type */
@@ -118,6 +149,7 @@ function MqttGlobeIcon({ connected }: { connected: boolean }) {
 interface Props {
   state: DeviceState;
   onConnect: (type: ConnectionType, httpAddress?: string) => Promise<void>;
+  onAutoConnect: (type: ConnectionType, httpAddress?: string, lastSerialPortId?: string | null) => Promise<void>;
   onDisconnect: () => Promise<void>;
   mqttStatus: MQTTStatus;
   myNodeLabel?: string;
@@ -126,12 +158,16 @@ interface Props {
 export default function ConnectionPanel({
   state,
   onConnect,
+  onAutoConnect,
   onDisconnect,
   mqttStatus,
   myNodeLabel,
 }: Props) {
   const [connectionType, setConnectionType] = useState<ConnectionType>("ble");
-  const [httpAddress, setHttpAddress] = useState("meshtastic.local");
+  const [httpAddress, setHttpAddress] = useState(() => {
+    const last = loadLastConnection();
+    return last?.type === "http" && last.httpAddress ? last.httpAddress : "meshtastic.local";
+  });
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [connectionStage, setConnectionStage] = useState("");
@@ -177,12 +213,16 @@ export default function ConnectionPanel({
   const [serialPorts, setSerialPorts] = useState<SerialPortInfo[]>([]);
   const [showSerialPicker, setShowSerialPicker] = useState(false);
 
-  // ─── Connection profiles ──────────────────────────────────────
-  const [profiles, setProfiles] = useState<ConnectionProfile[]>(loadProfiles);
-  const [showProfileForm, setShowProfileForm] = useState(false);
-  const [profileName, setProfileName] = useState("");
+  // ─── Last connection + auto-connect state ─────────────────────
+  const [lastConnection, setLastConnection] = useState<LastConnection | null>(loadLastConnection);
+  const autoConnectFiredRef = useRef(false);
+  const autoConnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isAutoConnectingRef = useRef(false);
+  const [isAutoConnecting, setIsAutoConnecting] = useState(false);
+  // Tracks BLE device name at selection time, used when saving LastConnection
+  const lastSelectedBleNameRef = useRef<string | null>(null);
 
-  // Update connection stage based on state transitions
+  // Update connection stage based on state transitions, and save last connection on success
   useEffect(() => {
     if (state.status === "connecting") {
       if (showBlePicker) setConnectionStage("Select your device below");
@@ -193,33 +233,91 @@ export default function ConnectionPanel({
     } else if (state.status === "configured") {
       setConnectionStage("");
       setConnecting(false);
+      isAutoConnectingRef.current = false;
+      setIsAutoConnecting(false);
+      if (autoConnectTimeoutRef.current) {
+        clearTimeout(autoConnectTimeoutRef.current);
+        autoConnectTimeoutRef.current = null;
+      }
+      // Persist connection details for next startup
+      if (state.connectionType) {
+        const conn: LastConnection = { type: state.connectionType };
+        if (state.connectionType === "http") {
+          conn.httpAddress = httpAddress;
+        } else if (state.connectionType === "ble") {
+          const bleId = loadLastBleDevice();
+          if (bleId) {
+            conn.bleDeviceId = bleId;
+            conn.bleDeviceName = getBleDeviceName(bleId) ?? lastSelectedBleNameRef.current ?? lastConnection?.bleDeviceName ?? undefined;
+          }
+        } else if (state.connectionType === "serial") {
+          const serialId = loadLastSerialPort();
+          if (serialId) conn.serialPortId = serialId;
+        }
+        saveLastConnection(conn);
+        setLastConnection(conn);
+      }
     } else if (state.status === "disconnected") {
       setConnectionStage("");
       setConnecting(false);
+      isAutoConnectingRef.current = false;
+      setIsAutoConnecting(false);
     }
-  }, [state.status, showBlePicker, showSerialPicker]);
+  }, [state.status, state.connectionType, showBlePicker, showSerialPicker, httpAddress]);
 
   // Listen for BLE devices discovered by main process
   useEffect(() => {
     const cleanup = window.electronAPI.onBluetoothDevicesDiscovered(
       (devices) => {
         setBleDevices(devices);
+        if (isAutoConnectingRef.current) {
+          const lastId = lastConnection?.bleDeviceId ?? loadLastBleDevice();
+          if (lastId) {
+            const match = devices.find((d) => d.deviceId === lastId);
+            if (match) {
+              if (autoConnectTimeoutRef.current) {
+                clearTimeout(autoConnectTimeoutRef.current);
+                autoConnectTimeoutRef.current = null;
+              }
+              saveLastBleDevice(match.deviceId);
+              lastSelectedBleNameRef.current = match.deviceName ?? null;
+              window.electronAPI.selectBluetoothDevice(match.deviceId);
+              setConnectionStage("Connecting to device...");
+              return;
+            }
+          }
+        }
         setShowBlePicker(true);
         setConnectionStage("Select your device below");
       }
     );
     return cleanup;
-  }, []);
+  }, [lastConnection]); // isAutoConnecting intentionally omitted — ref handles it
 
   // Listen for serial ports discovered by main process
   useEffect(() => {
     const cleanup = window.electronAPI.onSerialPortsDiscovered((ports) => {
       setSerialPorts(ports);
+      if (isAutoConnecting) {
+        const lastId = lastConnection?.serialPortId ?? loadLastSerialPort();
+        if (lastId) {
+          const match = ports.find((p) => p.portId === lastId);
+          if (match) {
+            if (autoConnectTimeoutRef.current) {
+              clearTimeout(autoConnectTimeoutRef.current);
+              autoConnectTimeoutRef.current = null;
+            }
+            window.electronAPI.selectSerialPort(match.portId);
+            setConnectionStage("Connecting to device...");
+            return;
+          }
+        }
+      }
       setShowSerialPicker(true);
       setConnectionStage("Select a serial port below");
     });
     return cleanup;
-  }, []);
+  }, [isAutoConnecting, lastConnection]);
 
   const handleConnect = useCallback(async () => {
     setError(null);
@@ -238,29 +336,13 @@ export default function ConnectionPanel({
     }
   }, [connectionType, httpAddress, onConnect]);
 
-  const handleConnectProfile = useCallback(
-    async (profile: ConnectionProfile) => {
-      setConnectionType(profile.type);
-      if (profile.httpAddress) setHttpAddress(profile.httpAddress);
-      setError(null);
-      setConnecting(true);
-      setBleDevices([]);
-      setSerialPorts([]);
-      setShowBlePicker(false);
-      setShowSerialPicker(false);
-      setConnectionStage("Please wait...");
-      try {
-        await onConnect(profile.type, profile.httpAddress);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Connection failed");
-        setConnecting(false);
-        setConnectionStage("");
-      }
-    },
-    [onConnect]
-  );
-
   const handleCancelConnection = useCallback(async () => {
+    isAutoConnectingRef.current = false;
+    setIsAutoConnecting(false);
+    if (autoConnectTimeoutRef.current) {
+      clearTimeout(autoConnectTimeoutRef.current);
+      autoConnectTimeoutRef.current = null;
+    }
     if (showBlePicker) {
       window.electronAPI.cancelBluetoothSelection();
     }
@@ -280,40 +362,111 @@ export default function ConnectionPanel({
   }, [showBlePicker, showSerialPicker, onDisconnect]);
 
   const handleSelectBleDevice = useCallback((deviceId: string) => {
+    saveLastBleDevice(deviceId);
+    // Save BLE advertisement name for use in LastConnection display
+    const found = bleDevices.find((d) => d.deviceId === deviceId);
+    lastSelectedBleNameRef.current = found?.deviceName ?? null;
     window.electronAPI.selectBluetoothDevice(deviceId);
     setShowBlePicker(false);
     setConnectionStage("Connecting to device...");
-  }, []);
+  }, [bleDevices]);
 
   const handleSelectSerialPort = useCallback((portId: string) => {
+    saveLastSerialPort(portId);
     window.electronAPI.selectSerialPort(portId);
     setShowSerialPicker(false);
     setConnectionStage("Connecting to device...");
   }, []);
 
-  const handleSaveProfile = useCallback(() => {
-    if (!profileName.trim()) return;
-    const newProfile: ConnectionProfile = {
-      id: Date.now().toString(36),
-      name: profileName.trim(),
-      type: connectionType,
-      httpAddress: connectionType === "http" ? httpAddress : undefined,
-    };
-    const updated = [...profiles, newProfile];
-    setProfiles(updated);
-    saveProfiles(updated);
-    setProfileName("");
-    setShowProfileForm(false);
-  }, [profileName, connectionType, httpAddress, profiles]);
+  // Auto-connect on mount: fires once per session using saved last connection.
+  // HTTP and serial can connect automatically (no user gesture needed).
+  // BLE requires a user gesture — show reconnect button instead.
+  useEffect(() => {
+    if (autoConnectFiredRef.current) return;
+    if (state.status !== "disconnected") return;
+    if (!lastConnection) return;
 
-  const handleDeleteProfile = useCallback(
-    (id: string) => {
-      const updated = profiles.filter((p) => p.id !== id);
-      setProfiles(updated);
-      saveProfiles(updated);
-    },
-    [profiles]
-  );
+    autoConnectFiredRef.current = true;
+
+    if (lastConnection.type === "serial") {
+      setConnectionType("serial");
+      isAutoConnectingRef.current = true;
+      setIsAutoConnecting(true);
+      setConnecting(true);
+      setConnectionStage("Please wait...");
+      autoConnectTimeoutRef.current = setTimeout(() => {
+        isAutoConnectingRef.current = false;
+        setIsAutoConnecting(false);
+        setError("Auto-connect timed out.");
+        setConnecting(false);
+        setConnectionStage("");
+      }, 30_000);
+      onAutoConnect("serial", undefined, lastConnection.serialPortId).catch((err) => {
+        isAutoConnectingRef.current = false;
+        setIsAutoConnecting(false);
+        setError(err instanceof Error ? err.message : "Auto-connect failed");
+        setConnecting(false);
+        setConnectionStage("");
+      });
+    }
+    // HTTP + BLE: do not auto-trigger — show one-click reconnect card instead
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — fires once on mount
+
+  // Cleanup timeout on unmount
+  useEffect(() => () => {
+    if (autoConnectTimeoutRef.current) clearTimeout(autoConnectTimeoutRef.current);
+  }, []);
+
+  const handleReconnect = useCallback(() => {
+    if (!lastConnection) return;
+    setError(null);
+
+    if (lastConnection.type === "ble") {
+      isAutoConnectingRef.current = true;
+      setIsAutoConnecting(true);
+      setConnectionType("ble");
+      setConnecting(true);
+      setBleDevices([]);
+      setShowBlePicker(false);
+      setConnectionStage("Please wait...");
+      onConnect("ble").catch((err) => {
+        isAutoConnectingRef.current = false;
+        setIsAutoConnecting(false);
+        setError(err instanceof Error ? err.message : "Reconnect failed");
+        setConnecting(false);
+        setConnectionStage("");
+      });
+    } else if (lastConnection.type === "http") {
+      const addr = lastConnection.httpAddress ?? httpAddress;
+      setHttpAddress(addr);
+      setConnectionType("http");
+      setConnecting(true);
+      setBleDevices([]);
+      setSerialPorts([]);
+      setShowBlePicker(false);
+      setShowSerialPicker(false);
+      setConnectionStage("Please wait...");
+      onConnect("http", addr).catch((err) => {
+        setError(err instanceof Error ? err.message : "Reconnect failed");
+        setConnecting(false);
+        setConnectionStage("");
+      });
+    } else if (lastConnection.type === "serial") {
+      isAutoConnectingRef.current = true;
+      setIsAutoConnecting(true);
+      setConnectionType("serial");
+      setConnecting(true);
+      setConnectionStage("Please wait...");
+      onAutoConnect("serial", undefined, lastConnection.serialPortId).catch((err) => {
+        isAutoConnectingRef.current = false;
+        setIsAutoConnecting(false);
+        setError(err instanceof Error ? err.message : "Reconnect failed");
+        setConnecting(false);
+        setConnectionStage("");
+      });
+    }
+  }, [lastConnection, onConnect, onAutoConnect, httpAddress]);
 
   const isConnected =
     state.status === "connected" ||
@@ -327,7 +480,9 @@ export default function ConnectionPanel({
       <div className="max-w-lg mx-auto flex flex-col items-center justify-center py-16 space-y-6">
         <Spinner className="w-12 h-12 text-bright-green" />
         <div className="text-center space-y-2">
-          <h2 className="text-xl font-semibold text-gray-200">Connecting...</h2>
+          <h2 className="text-xl font-semibold text-gray-200">
+            {isAutoConnecting ? "Auto-connecting..." : "Connecting..."}
+          </h2>
           <div role="status" aria-live="polite" aria-atomic="true">
             <p className="text-sm text-muted">{connectionStage}</p>
           </div>
@@ -652,6 +807,12 @@ export default function ConnectionPanel({
                 </span>
               </div>
             )}
+            {state.firmwareVersion && (
+              <div className="flex justify-between text-sm">
+                <span className="text-muted">Firmware</span>
+                <span className="text-gray-300 font-mono text-xs">{state.firmwareVersion}</span>
+              </div>
+            )}
             {state.lastDataReceived && (
               <div className="flex justify-between text-sm">
                 <span className="text-muted">Last Data</span>
@@ -689,40 +850,40 @@ export default function ConnectionPanel({
         </button>
       )}
 
-      {/* Saved Profiles */}
-      {profiles.length > 0 && (
-        <div className="space-y-2">
-          <label className="text-sm text-muted">Quick Connect</label>
-          <div className="space-y-1.5">
-            {profiles.map((profile) => (
-              <div
-                key={profile.id}
-                className="flex items-center gap-2 bg-deep-black rounded-lg px-3 py-2.5 border border-gray-700 hover:border-gray-600 transition-colors"
-              >
-                <ConnectionIcon type={profile.type} />
-                <button
-                  onClick={() => handleConnectProfile(profile)}
-                  className="flex-1 text-left text-sm text-gray-200 hover:text-white transition-colors"
-                >
-                  <span className="font-medium">{profile.name}</span>
-                  <span className="text-muted ml-2 text-xs uppercase">
-                    {profile.type}
-                    {profile.httpAddress && ` • ${profile.httpAddress}`}
-                  </span>
-                </button>
-                <button
-                  onClick={() => handleDeleteProfile(profile.id)}
-                  className="text-gray-600 hover:text-red-400 transition-colors p-1"
-                  title="Delete profile"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+      {/* Last Connection — one-click reconnect card */}
+      {lastConnection && !connecting && (
+        <div className="bg-deep-black rounded-lg border border-gray-700 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <ConnectionIcon type={lastConnection.type} />
+              <div>
+                <p className="text-sm font-medium text-gray-200">
+                  {lastConnection.type === "ble"
+                    ? (lastConnection.bleDeviceName ?? "Bluetooth device")
+                    : lastConnection.type === "serial"
+                    ? "Serial device"
+                    : lastConnection.httpAddress ?? "WiFi device"}
+                </p>
+                <p className="text-xs text-muted uppercase">{lastConnection.type}</p>
               </div>
-            ))}
+            </div>
+            <button
+              onClick={handleReconnect}
+              className="px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors"
+              style={{ backgroundColor: "#4CAF50" }}
+            >
+              Reconnect
+            </button>
           </div>
-          <div className="border-t border-gray-700 pt-4 mt-4" />
+          <button
+            onClick={() => {
+              clearLastConnection();
+              setLastConnection(null);
+            }}
+            className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
+          >
+            Forget this device
+          </button>
         </div>
       )}
 
@@ -806,57 +967,18 @@ export default function ConnectionPanel({
             )}
           </div>
 
-          {/* Connect button + Save profile */}
-          <div className="flex gap-2 pt-1">
+          {/* Connect button */}
+          <div className="pt-1">
             <button
               onClick={handleConnect}
-              className="flex-1 px-4 py-2.5 text-white text-sm font-medium rounded-lg transition-colors"
+              className="w-full px-4 py-2.5 text-white text-sm font-medium rounded-lg transition-colors"
               style={{ backgroundColor: "#4CAF50" }}
             >
               Connect
             </button>
-            <button
-              onClick={() => setShowProfileForm(!showProfileForm)}
-              className="px-3 py-2.5 bg-secondary-dark hover:bg-gray-600 text-gray-300 rounded-lg transition-colors"
-              title="Save as profile"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-              </svg>
-            </button>
           </div>
         </div>
       </div>
-
-      {/* Save Profile Form */}
-      {showProfileForm && (
-        <div className="bg-deep-black rounded-lg border border-gray-600 p-4 space-y-3">
-          <label className="text-sm text-muted">Profile Name</label>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={profileName}
-              onChange={(e) => setProfileName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSaveProfile()}
-              placeholder="e.g., Home Station, Hiking Radio"
-              className="flex-1 px-3 py-2 bg-secondary-dark rounded-lg text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
-              autoFocus
-            />
-            <button
-              onClick={handleSaveProfile}
-              disabled={!profileName.trim()}
-              className="px-4 py-2 disabled:bg-gray-600 text-white text-sm font-medium rounded-lg transition-colors"
-              style={{ backgroundColor: "#4CAF50" }}
-            >
-              Save
-            </button>
-          </div>
-          <p className="text-xs text-muted">
-            Saves: {connectionType.toUpperCase()}
-            {connectionType === "http" ? ` • ${httpAddress}` : ""}
-          </p>
-        </div>
-      )}
 
       {mqttSection}
     </div>

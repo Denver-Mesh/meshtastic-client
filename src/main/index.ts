@@ -3,6 +3,7 @@ import path from "path";
 import { initDatabase, getDatabase, exportDatabase, mergeDatabase, closeDatabase, deleteNodesBySource } from "./database";
 import { MQTTManager } from "./mqtt-manager";
 import { getGpsFix } from "./gps";
+import { initUpdater } from "./updater";
 
 const mqttManager = new MQTTManager();
 
@@ -340,6 +341,7 @@ function createWindow() {
   });
 
   setupTray(mainWindow);
+  initUpdater(mainWindow);
 }
 
 // ─── Tray unread badge ──────────────────────────────────────────────
