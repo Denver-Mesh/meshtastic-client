@@ -9,7 +9,7 @@ const mockNode: MeshNode = {
   short_name: 'TEST',
   long_name: 'Test Node',
   hw_model: 'TBEAM',
-  role: 'CLIENT',
+  role: 0,
   last_heard: Date.now() / 1000 - 60,
   hops_away: 2,
   via_mqtt: false,

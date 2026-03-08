@@ -195,7 +195,7 @@ export default function NodeInfoBody({ node, homeNode, traceRouteHops }: NodeInf
 
         {/* Remedy badge */}
         {(() => {
-          const remedy = getRecommendedAction(node, homeNode, nodePacketStats);
+          const remedy = getRecommendedAction(node, homeNode ?? null, nodePacketStats);
           if (!remedy) return null;
           return (
             <div className={`flex items-start gap-2 p-2 mb-2 rounded-lg text-xs border ${CATEGORY_STYLES[remedy.category]}`}>

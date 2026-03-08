@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { render, act } from '@testing-library/react';
 import { axe } from 'vitest-axe';
 import { describe, it, expect, vi } from 'vitest';
 import AdminPanel from './AdminPanel';
@@ -24,6 +24,8 @@ describe('AdminPanel accessibility', () => {
         <AdminPanel {...defaultProps} />
       </ToastProvider>
     );
+    // Flush async state updates (e.g. getMessageChannels promise)
+    await act(async () => {});
     const results = await axe(container);
     expect(results).toHaveNoViolations();
   });

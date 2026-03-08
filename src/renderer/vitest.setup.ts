@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom';
+import 'vitest-axe/extend-expect';
 import { expect, afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import * as matchers from 'vitest-axe/matchers';
@@ -6,23 +7,26 @@ import * as matchers from 'vitest-axe/matchers';
 expect.extend(matchers);
 afterEach(cleanup);
 
+// Node.js 25+ exposes a native localStorage global that emits a warning when accessed
+// without --localstorage-file. Always stub it unconditionally so no code path touches
+// the native getter, and all tests get a consistent in-memory implementation.
+const _localStorageStore: Record<string, string> = {};
+vi.stubGlobal('localStorage', {
+  getItem: (k: string) => _localStorageStore[k] ?? null,
+  setItem: (k: string, v: string) => { _localStorageStore[k] = v; },
+  removeItem: (k: string) => { delete _localStorageStore[k]; },
+  clear: () => { Object.keys(_localStorageStore).forEach((k) => delete _localStorageStore[k]); },
+  get length() { return Object.keys(_localStorageStore).length; },
+  key: (i: number) => Object.keys(_localStorageStore)[i] ?? null,
+});
+
 // jsdom doesn't implement scroll APIs
 window.HTMLElement.prototype.scrollIntoView = vi.fn();
 window.HTMLElement.prototype.scrollTo = vi.fn();
 
-// jsdom localStorage can be absent in some Electron project configs
-if (typeof localStorage === 'undefined' || !localStorage.setItem) {
-  const store: Record<string, string> = {};
-  const mockStorage = {
-    getItem: (k: string) => store[k] ?? null,
-    setItem: (k: string, v: string) => { store[k] = v; },
-    removeItem: (k: string) => { delete store[k]; },
-    clear: () => { Object.keys(store).forEach((k) => delete store[k]); },
-    get length() { return Object.keys(store).length; },
-    key: (i: number) => Object.keys(store)[i] ?? null,
-  };
-  vi.stubGlobal('localStorage', mockStorage);
-}
+// jsdom doesn't implement canvas
+HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue(null);
+
 
 // Mock window.electronAPI — all renderer components depend on this
 vi.stubGlobal('electronAPI', {

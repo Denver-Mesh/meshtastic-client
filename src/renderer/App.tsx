@@ -220,7 +220,7 @@ export default function App() {
       <div className="flex flex-col h-screen">
         {/* Header */}
         <header
-          className={`flex items-center justify-between px-4 py-2 bg-deep-black border-b ${
+          className={`relative flex items-center justify-between px-4 py-2 bg-deep-black border-b ${
             isConfigured ? "border-brand-green/20" : "border-gray-700"
           }`}
         >
@@ -230,17 +230,17 @@ export default function App() {
             </h1>
             <span className="text-xs text-muted">Meshtastic Client</span>
           </div>
+          {/* Keyboard shortcuts — absolutely centered in header */}
+          <button
+            onClick={() => setShowShortcuts(true)}
+            aria-label="Keyboard shortcuts"
+            aria-haspopup="dialog"
+            className="absolute left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-600 bg-slate-800/60 shadow-sm text-gray-400 hover:text-gray-200 hover:border-slate-500 hover:bg-slate-700/60 transition-colors text-sm font-medium"
+            title="Keyboard shortcuts (?)"
+          >
+            Shortcuts <kbd className="px-1.5 py-0.5 border border-slate-500 rounded bg-slate-700 text-slate-300 text-xs font-mono">?</kbd>
+          </button>
           <div className="flex items-center gap-2">
-            {/* ? keyboard shortcuts help */}
-            <button
-              onClick={() => setShowShortcuts(true)}
-              aria-label="Keyboard shortcuts"
-              aria-haspopup="dialog"
-              className="p-1 rounded text-gray-500 hover:text-gray-300 transition-colors text-sm font-medium"
-              title="Keyboard shortcuts (?)"
-            >
-              ?
-            </button>
             {/* MQTT status globe */}
             <div
               className="flex items-center gap-1.5 mr-3 pr-3 border-r border-gray-700"
