@@ -150,6 +150,7 @@ The distributable is output to the `release/` directory.
 - **App** — reboot, shutdown, factory reset, node retention controls, channel-scoped message deletion, DB export/import/clear; map & node distance filter; prune nodes by location; GPS auto-refresh interval; configurable message load limit to keep memory usage low on busy networks
 - **System Tray** — tray icon with live unread message badge; app stays accessible when window is closed
 - **Persistent Storage** — messages and nodes saved locally via SQLite
+- **Keyboard Shortcuts** — full keyboard navigation for accessibility; press `?` (or click the **Shortcuts** button in the header) to open the shortcut reference. Tab switching (`Cmd/Ctrl+1–8`), modal dismiss (`Escape`), and all interactive controls are keyboard-accessible (WCAG 2.2 AA)
 - **Dark UI** — custom scrollbar, tab icons, polished chat bubbles
 
 ---

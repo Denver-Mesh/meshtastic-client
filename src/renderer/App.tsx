@@ -6,6 +6,7 @@ import type { MQTTSettings } from "./lib/types";
 import Tabs from "./components/Tabs";
 import ErrorBoundary from "./components/ErrorBoundary";
 import NodeDetailModal from "./components/NodeDetailModal";
+import KeyboardShortcutsModal from "./components/KeyboardShortcutsModal";
 import ConnectionPanel from "./components/ConnectionPanel";
 import ChatPanel from "./components/ChatPanel";
 import NodeListPanel from "./components/NodeListPanel";
@@ -43,6 +44,15 @@ export interface LocationFilter {
   hideMqttOnly: boolean;
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  disconnected: "Disconnected",
+  connecting: "Connecting",
+  connected: "Connected",
+  configured: "Configured",
+  stale: "Connection stale",
+  reconnecting: "Reconnecting",
+};
+
 function MqttGlobeIcon({ connected }: { connected: boolean }) {
   return (
     <svg
@@ -51,6 +61,7 @@ function MqttGlobeIcon({ connected }: { connected: boolean }) {
       viewBox="0 0 24 24"
       stroke="currentColor"
       strokeWidth={1.5}
+      aria-hidden="true"
     >
       <circle cx="12" cy="12" r="10" />
       <path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20M2 12h20" />
@@ -62,6 +73,7 @@ function MqttGlobeIcon({ connected }: { connected: boolean }) {
 export default function App() {
   const [activeTab, setActiveTab] = useState(0);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const [locationFilter, setLocationFilter] = useState<LocationFilter>(() => {
     try {
       const raw = localStorage.getItem("mesh-client:adminSettings");
@@ -127,12 +139,18 @@ export default function App() {
     } catch {}
   }, []);
 
-  // ─── Keyboard shortcuts: Cmd/Ctrl+1-7 for tabs ───────────────
+  // ─── Keyboard shortcuts: Cmd/Ctrl+1-8 for tabs, ? for help ───────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "8") {
         e.preventDefault();
         setActiveTab(parseInt(e.key) - 1);
+      } else if (e.key === "?" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        const tag = (e.target as HTMLElement).tagName;
+        if (tag !== "INPUT" && tag !== "TEXTAREA") {
+          e.preventDefault();
+          setShowShortcuts(true);
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -192,10 +210,17 @@ export default function App() {
 
   return (
     <ToastProvider>
+      {/* Global assertive live region for critical announcements */}
+      <div
+        aria-live="assertive"
+        aria-atomic="true"
+        className="sr-only"
+        id="app-announcer"
+      />
       <div className="flex flex-col h-screen">
         {/* Header */}
         <header
-          className={`flex items-center justify-between px-4 py-2 bg-deep-black border-b ${
+          className={`relative flex items-center justify-between px-4 py-2 bg-deep-black border-b ${
             isConfigured ? "border-brand-green/20" : "border-gray-700"
           }`}
         >
@@ -205,24 +230,42 @@ export default function App() {
             </h1>
             <span className="text-xs text-muted">Meshtastic Client</span>
           </div>
+          {/* Keyboard shortcuts — absolutely centered in header */}
+          <button
+            onClick={() => setShowShortcuts(true)}
+            aria-label="Keyboard shortcuts"
+            aria-haspopup="dialog"
+            className="absolute left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-slate-600 bg-slate-800/60 shadow-sm text-gray-400 hover:text-gray-200 hover:border-slate-500 hover:bg-slate-700/60 transition-colors text-sm font-medium"
+            title="Keyboard shortcuts (?)"
+          >
+            Shortcuts <kbd className="px-1.5 py-0.5 border border-slate-500 rounded bg-slate-700 text-slate-300 text-xs font-mono">?</kbd>
+          </button>
           <div className="flex items-center gap-2">
             {/* MQTT status globe */}
-            <div className="flex items-center gap-1.5 mr-3 pr-3 border-r border-gray-700">
+            <div
+              className="flex items-center gap-1.5 mr-3 pr-3 border-r border-gray-700"
+              aria-label={device.mqttStatus === "connected" ? "MQTT: connected" : "MQTT: disconnected"}
+            >
               <MqttGlobeIcon connected={device.mqttStatus === "connected"} />
               <span className={`text-xs ${device.mqttStatus === "connected" ? "text-brand-green" : "text-gray-500"}`}>
                 MQTT
               </span>
             </div>
             {isConnectedOrOperational && (
-              <LinkIcon className="w-4 h-4" />
+              <LinkIcon className="w-4 h-4" aria-hidden="true" />
             )}
-            <div className={`w-2.5 h-2.5 rounded-full ${statusColor}`} />
-            <span className="text-sm text-muted capitalize">
-              {device.state.status}
-              {device.state.connectionType
-                ? ` (${device.state.connectionType.toUpperCase()})`
-                : ""}
-            </span>
+            <div
+              className={`w-2.5 h-2.5 rounded-full ${statusColor}`}
+              aria-label={STATUS_LABELS[device.state.status] ?? device.state.status}
+            />
+            <div role="status" aria-live="polite" aria-atomic="true">
+              <span className="text-sm text-muted capitalize">
+                {device.state.status}
+                {device.state.connectionType
+                  ? ` (${device.state.connectionType.toUpperCase()})`
+                  : ""}
+              </span>
+            </div>
             {device.state.myNodeNum > 0 && (
               <span className="text-xs text-muted ml-2 whitespace-nowrap">
                 Node: {device.getPickerStyleNodeLabel(device.state.myNodeNum)}
@@ -387,6 +430,11 @@ export default function App() {
             {device.nodes.size} nodes | {device.messages.length} messages
           </span>
         </footer>
+
+        {/* Keyboard Shortcuts Modal */}
+        {showShortcuts && (
+          <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />
+        )}
 
         {/* Node Detail Modal — rendered outside main for proper z-indexing */}
         <NodeDetailModal
