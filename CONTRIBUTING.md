@@ -43,7 +43,7 @@ If the input has a visible label element next to it, use `htmlFor`/`id`. If it's
 ```bash
 npm run test:run      # run once (also runs automatically on git commit)
 npm test              # watch mode
-npm run test:a11y     # verbose output with full violation details
+npm run test:verbose  # verbose output with full violation details
 ```
 
 ## AI Tools Policy
