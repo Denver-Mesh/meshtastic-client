@@ -769,7 +769,7 @@ app.whenReady().then(() => {
     initDatabase();
     // Force the dock icon n development on macOS
     if (!app.isPackaged && process.platform === 'darwin') {
-      const iconPath = path.join(__dirname, "../../resources/icon.png");
+      const iconPath = path.join(__dirname, "../../resources/icons/mac/iconset/icon_256x256@1x.png");
       app.dock.setIcon(iconPath);
     }
     createWindow();
