@@ -1,41 +1,80 @@
 # Mesh-Client
 
-A cross-platform Meshtastic desktop client for **Mac**, **Linux**, and **Windows**.
+> A cross-platform Meshtastic desktop client for **Mac**, **Linux**, and **Windows** — built for power users who need more than a mobile app.
 
-Connect to your Meshtastic devices over Bluetooth, USB Serial, or WiFi. Independently, you can connect directly to MQTT.
-
-> Created by **[Joey (NV0N)](https://github.com/rinchen)** & **[dude.eth](https://github.com/defidude)**. Based on the [original Mac client](https://github.com/Colorado-Mesh/meshtastic_mac_client). Part of [**Colorado Mesh**](https://github.com/Colorado-Mesh/meshtastic-client).
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)
+![Build Status](https://img.shields.io/github/actions/workflow/status/Colorado-Mesh/meshtastic-client/ci.yml?branch=main)
 
 ---
 
-## Setup
+## Why
 
-### Prerequisites
+The official Meshtastic apps cover the basics, but desktop power users need more: persistent message history, mesh diagnostics, MQTT integration, and keyboard-driven workflows. Mesh-Client fills that gap — a full-featured desktop client built on Electron with a local SQLite database, routing diagnostics, and multi-transport connectivity.
 
-- **Node.js 20+** (LTS recommended — [download here](https://nodejs.org/))
-- **npm 9+** (included with Node.js)
-- **Build tools** for compiling the native SQLite module:
-  - **Mac**: Xcode Command Line Tools — run `xcode-select --install`
-  - **Linux**: `sudo apt install build-essential python3` (Debian/Ubuntu)
-               `sudo dnf groupinstall "Development Tools" && sudo dnf install python3` (Fedora/RedHat)  
-  - **Windows**: [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the "Desktop development with C++" workload (or install via `winget install Microsoft.VisualStudio.2022.BuildTools`). Also requires **git** — install via `winget install git.git` if not already present.
+---
+
+## Visuals
+
+<details>
+<summary>Screenshots</summary>
+
+<table>
+  <tr>
+    <td><img src="docs/images/node-list.png" height="200" alt="Node List"/></td>
+    <td><img src="docs/images/map.png" height="200" alt="Map"/></td>
+    <td><img src="docs/images/diagnostics.png" height="200" alt="Diagnostics"/></td>
+    <td><img src="docs/images/node-detail.png" height="200" alt="Node Detail"/></td>
+  </tr>
+</table>
+
+</details>
+
+---
+
+## Key Features
+
+**Connectivity**
+- **Bluetooth LE** — pair wirelessly; one-click reconnect card remembers your last device (name persists across sessions)
+- **USB Serial** — plug in via USB; auto-reconnects silently on startup
+- **WiFi/HTTP** — connect to network-enabled nodes; saves last address for quick reconnect
+- **MQTT** — subscribe to a broker to receive mesh traffic over the internet; AES-128-CTR decryption, automatic RF deduplication, exponential-backoff reconnect
+
+**Chat**
+- Send/receive messages across channels with ACK/NAK delivery indicators
+- Emoji reactions (11 emojis with compose picker) and reply-to-message (quoted preview in bubble)
+- Unread message divider that persists across restarts and auto-scrolls on tab switch
+- Direct messages (DMs) to individual nodes
+
+**Node Management**
+- Node list with SNR, RSSI, battery, GPS, last heard, and packet redundancy score
+- Distance filter, favorite/pin nodes, device role icons, signal strength bars
+- Node Detail Modal: DM, trace route with hop-path display, delete node, Routing Health section with 24-hour sparkline, Connection Health %, and collapsible Path History
+
+**Diagnostics**
+- Network health score (0–100) and searchable anomaly table with remediation suggestions
+- Anomaly badges inline in node list; status aura circles on the map
+- Congestion halos toggle; global and per-node MQTT ignore for fine-grained routing analysis
+
+**Map & Telemetry**
+- Interactive OpenStreetMap with node positions and your current location (device GPS → browser geolocation fallback)
+- Battery voltage and signal quality charts (Recharts)
+
+**Productivity**
+- Full keyboard navigation — press `?` for shortcut reference; `Cmd/Ctrl+1–8` switches tabs
+- System tray with live unread badge; app stays accessible when window is closed
+- Persistent storage via local SQLite; DB export/import/clear in the App tab
+
+---
+
+## Quick Start
+
+**Prerequisites:**
+- Node.js 20+ (LTS) and npm 9+
+- Native build tools (for SQLite) — see platform notes below
 - A Meshtastic device (any hardware running Meshtastic firmware)
-- **For development**: [React DevTools](https://react.dev/link/react-devtools) browser extension
 
-### Mac
-
-```bash
-git clone https://github.com/Colorado-Mesh/meshtastic-client
-cd meshtastic-client
-npm install
-npm start
-```
-
-> **Note:** `npm install` automatically compiles the native SQLite module for Electron. If it fails, make sure Xcode Command Line Tools are installed.
-
-On first Bluetooth connection, macOS will show a system popup requesting Bluetooth permission — you must accept. If you accidentally denied it, go to **System Settings > Privacy & Security > Bluetooth** and toggle Mesh-Client on.
-
-### Linux
+### Mac & Linux
 
 ```bash
 git clone https://github.com/Colorado-Mesh/meshtastic-client
@@ -44,29 +83,52 @@ npm install
 npm start
 ```
 
-BLE requires BlueZ installed. If Bluetooth doesn't work, try launching with `--enable-features=WebBluetooth`. For serial access, add yourself to the `dialout` group:
+<details>
+<summary>Mac — extra notes</summary>
 
+Install Xcode Command Line Tools if `npm install` fails:
+```bash
+xcode-select --install
+```
+
+On first Bluetooth connection, macOS shows a system popup requesting Bluetooth permission — you must accept. If you accidentally denied it, go to **System Settings > Privacy & Security > Bluetooth** and toggle Mesh-Client on.
+</details>
+
+<details>
+<summary>Linux — extra notes</summary>
+
+Install build tools:
+```bash
+# Debian/Ubuntu
+sudo apt install build-essential python3
+
+# Fedora/RedHat
+sudo dnf groupinstall "Development Tools" && sudo dnf install python3
+```
+
+BLE requires BlueZ. If Bluetooth doesn't work, try launching with `--enable-features=WebBluetooth`.
+
+For serial access, add yourself to the `dialout` group (then log out and back in):
 ```bash
 sudo usermod -a -G dialout $USER
-# Then log out and back in
 ```
+</details>
 
-### Windows
+<details>
+<summary>Windows — extra notes</summary>
 
-**1. Install git** (if not already):
+**1. Install prerequisites** (if not already):
 ```powershell
 winget install git.git
-```
-
-**2. Install Node.js** (if not already):
-```powershell
 winget install openjs.nodejs
 ```
 
-**3. Allow npm scripts** (PowerShell blocks script execution by default):
+**2. Allow npm scripts:**
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
+
+**3. Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)** with the "Desktop development with C++" workload (required for native SQLite).
 
 **4. Clone and run:**
 ```bash
@@ -76,91 +138,38 @@ npm install
 npm start
 ```
 
-If serial isn't detected, make sure you have the correct USB drivers for your device (e.g., CP210x or CH340 drivers).
+If serial isn't detected, install the correct USB drivers for your device (CP210x or CH340).
+</details>
 
 ---
 
-## Connecting Your Device
+## Usage
 
-1. **Power on** your Meshtastic device
-2. **Put it in Bluetooth pairing mode** (if connecting via BLE)
+### Connecting Your Device
+
+1. Power on your Meshtastic device
+2. Put it in Bluetooth pairing mode (if connecting via BLE)
 3. Open Mesh-Client and go to the **Connection** tab
 4. Select your connection type (Bluetooth / USB Serial / WiFi / MQTT)
 5. Click **Connect** and select your device from the picker
-6. Wait for status to show **Configured** — you're connected!
+6. Wait for status to show **Configured** — you're connected
 
-After a successful connection, Mesh-Client remembers your last device. On the next launch:
+### Auto-Reconnect
+
+After a successful connection, Mesh-Client remembers your last device. On next launch:
 - **Serial** — auto-connects silently in the background
-- **Bluetooth / WiFi** — a one-click reconnect card appears; click **Reconnect** (BLE requires a user gesture, WiFi shows your saved address)
-- **MQTT** — auto-reconnects using your saved broker settings
+- **Bluetooth / WiFi** — a one-click reconnect card appears; click **Reconnect** (BLE requires a user gesture)
+- **MQTT** — auto-reconnects using saved broker settings
 
-For **MQTT**, enter your broker URL, topic, and optional credentials in the MQTT section of the Connection tab. When connected, the section collapses to a compact info card showing the server, client ID, and topic.
+### MQTT
 
----
-
-## Development
-
-To run the app in development mode with hot reload:
-
-```bash
-npm run dev
-```
-
-This starts the Vite dev server, watches the main/preload processes for changes, and launches Electron automatically.
-
-For the best development experience, install [React DevTools](https://react.dev/link/react-devtools).
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for coding conventions, branch workflow, and PR guidelines.
+Enter your broker URL, topic, and optional credentials in the MQTT section of the Connection tab. When connected, the section collapses to a compact info card showing the server, client ID, and topic. You can send messages via MQTT even when no hardware device is connected.
 
 ---
 
-## Building the Distributable
+## Configuration
 
-```bash
-# Build for your platform
-npm run dist:mac      # macOS → .dmg + .zip in release/
-npm run dist:linux    # Linux → .AppImage + .deb in release/
-npm run dist:win      # Windows → .exe installer in release/
-```
-
-The distributable is output to the `release/` directory.
-
----
-
-## Troubleshooting
-
-- **Permission messages** — You may see `[permissions] checkHandler: media → denied` or `web-app-installation → denied`. These are expected: the app only uses **serial** and **geolocation**. Media and web-app-installation are not used and are intentionally denied.
-- **`[DEP0169]` / `url.parse()` deprecation** — The app uses npm package overrides to force `follow-redirects` and `cacheable-request` onto versions that use the WHATWG URL API instead of the legacy `url` module, which removes this warning. To find the source of any deprecation, run `npm run trace-deprecation` (builds then runs Electron with `NODE_OPTIONS=--trace-deprecation`).
-- **Swift** — This project does not use Swift. If you had Swift installed for something else, you can remove it; it is not required for Mesh-Client.
-
----
-
-## Features
-
-- **Bluetooth LE** — pair wirelessly with nearby Meshtastic devices; the last-used device is remembered and a one-click reconnect card appears on the Connection tab so you can reconnect without going through the picker again (device name persists across sessions)
-- **USB Serial** — plug in via USB cable
-- **WiFi/HTTP** — connect to network-enabled nodes; the last-used address is remembered and a one-click reconnect card appears on the Connection tab so you can reconnect without re-entering the IP/hostname
-- **MQTT** — subscribe to a Meshtastic MQTT broker to receive mesh traffic over the internet; auto-reconnects on startup using saved settings; send messages via MQTT even when no hardware device is connected; AES-128-CTR encryption/decryption, automatic deduplication with RF, exponential-backoff reconnect, and per-message delivery status indicators
-- **Chat** — send/receive messages across channels with delivery indicators (ACK/NAK), emoji reactions (11 emojis with compose picker), reply-to-message (hover to reply; quoted preview shown in bubble), and an unread message divider that persists across restarts and auto-scrolls you to where you left off when switching tabs
-- **Channel Management** — create and configure channels with custom names and PSK encryption
-- **Node List** — all discovered nodes with SNR, RSSI signal strength, battery, GPS, last heard, and packet redundancy score; distance filter hides nodes beyond a configurable range; favorite/pin nodes for quick access; scroll-to-top button
-- **Signal Strength Indicators** — live RSSI bars on nodes and in chat, color-coded by signal quality
-- **Device Role Display** — visual icons and badges for each node's configured role (Router, Client, Repeater, etc.)
-- **Node Detail Modal** — click any node or sender name for full info; send a DM, run a trace route with hop-path display, or delete the node; GPS warning banner shown when a node has reported invalid coordinates; Routing Health section with active anomaly description, 24-hour hop-count sparkline, Connection Health % (packet redundancy score), and collapsible Path History; RF diagnostics for the connected node (channel utilization, bad-packet rate, interference detection)
-- **Diagnostics** — tab 8 (Cmd/Ctrl+8): network health score badge (0–100), searchable anomaly table with per-node trace-route action, and remediation suggestions (antenna mismatch, RF noise, MQTT ghost, config issues); anomaly badges (⚠) shown inline in the node list; status aura circles on the map; congestion halos toggle; global Ignore MQTT checkbox filters MQTT-only nodes from routing analysis and dims them in the node list; per-node MQTT ignore toggle (in node detail modal and anomaly table action column) for fine-grained exclusion of individual nodes from routing analysis
-- **Map** — interactive OpenStreetMap with node positions; your current position is shown when available (device GPS, or browser geolocation as a city-level fallback); map auto-centers on your position when no nodes are visible; distance filter matches the node list
-- **Telemetry** — battery voltage and signal quality charts
-- **Radio** — region, modem preset, device role, GPS, power, Bluetooth, display settings; fixed-position mode lets you enter coordinates manually or auto-fill from your current GPS location, then send them directly to the device
-- **GPS / Location** — resolves your position using a waterfall: device GPS first, then browser geolocation as a fallback. Note that browser geolocation is only accurate to roughly the city level. Includes an auto-refresh interval setting and a manual "Refresh Now" button in the App tab
-- **App** — reboot, shutdown, factory reset, node retention controls, channel-scoped message deletion, DB export/import/clear; map & node distance filter; prune nodes by location; GPS auto-refresh interval; configurable message load limit to keep memory usage low on busy networks
-- **System Tray** — tray icon with live unread message badge; app stays accessible when window is closed
-- **Persistent Storage** — messages and nodes saved locally via SQLite
-- **Keyboard Shortcuts** — full keyboard navigation for accessibility; press `?` (or click the **Shortcuts** button in the header) to open the shortcut reference. Tab switching (`Cmd/Ctrl+1–8`), modal dismiss (`Escape`), and all interactive controls are keyboard-accessible (WCAG 2.2 AA)
-- **Dark UI** — custom scrollbar, tab icons, polished chat bubbles
-
----
-
-## Connection Types
+### Connection Types
 
 | Platform | Bluetooth | Serial | HTTP | MQTT |
 |----------|-----------|--------|------|------|
@@ -168,9 +177,7 @@ The distributable is output to the `release/` directory.
 | Windows  | Yes       | Yes    | Yes  | Yes  |
 | Linux    | Partial   | Yes    | Yes  | Yes  |
 
----
-
-## Tech Stack
+### Tech Stack
 
 | Component  | Technology                                |
 |------------|-------------------------------------------|
@@ -183,9 +190,7 @@ The distributable is output to the `release/` directory.
 | Database   | SQLite (better-sqlite3)                   |
 | Build      | esbuild + Vite + electron-builder         |
 
----
-
-## Project Structure
+### Project Structure
 
 ```
 src/
@@ -200,25 +205,51 @@ src/
 
 ---
 
+## Building a Distributable
+
+```bash
+npm run dist:mac      # macOS → .dmg + .zip in release/
+npm run dist:linux    # Linux → .AppImage + .deb in release/
+npm run dist:win      # Windows → .exe installer in release/
+```
+
+Output goes to the `release/` directory.
+
+---
+
+## Contributing / Development
+
+To run in development mode with hot reload:
+
+```bash
+npm run dev
+```
+
+This starts the Vite dev server, watches main/preload for changes, and launches Electron automatically. For the best experience, install [React DevTools](https://react.dev/link/react-devtools).
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for coding conventions, branch workflow, and PR guidelines.
+
+---
+
 ## Troubleshooting
 
 ### `npm install` fails on native module compilation
 
-You're missing build tools for compiling the native SQLite module:
+You're missing build tools for the native SQLite module:
 - **Mac**: `xcode-select --install`
 - **Linux**: `sudo apt install build-essential python3`
 - **Windows**: Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the "Desktop development with C++" workload
 
 ### BLE connection fails with "Connection attempt failed"
 
-- Make sure your device has Bluetooth enabled and is in **pairing mode**
-- On macOS: Check **System Settings > Privacy & Security > Bluetooth**
+- Make sure your device has Bluetooth enabled and is in pairing mode
+- On macOS: check **System Settings > Privacy & Security > Bluetooth**
 - Try disconnecting fully first, then reconnecting
 - If the device picker never appears, restart the app
 
 ### Serial port not detected
 
-- Ensure your USB drivers are installed for your device (CP210x, CH340, etc.)
+- Ensure USB drivers are installed for your device (CP210x, CH340, etc.)
 - On Linux, add yourself to the `dialout` group: `sudo usermod -a -G dialout $USER`
 
 ### App crashes on launch (macOS distributable)
@@ -228,8 +259,19 @@ You're missing build tools for compiling the native SQLite module:
 
 ### App shows "disconnected" but device is still on
 
-- The Bluetooth connection can drop silently. Click Disconnect, then Connect again
+- The Bluetooth connection can drop silently — click Disconnect, then Connect again
 - For serial: the USB cable may have been bumped — reconnect
+
+### Permission messages in the console
+
+`[permissions] checkHandler: media → denied` and `web-app-installation → denied` are expected. The app only uses **serial** and **geolocation** — media and web-app-installation are intentionally denied.
+
+### `[DEP0169]` / `url.parse()` deprecation warning
+
+The app uses npm package overrides to force `follow-redirects` and `cacheable-request` onto versions that use the WHATWG URL API, which removes this warning. To trace the source of any deprecation, run:
+```bash
+npm run trace-deprecation
+```
 
 ---
 
