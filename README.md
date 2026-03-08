@@ -132,7 +132,7 @@ The distributable is output to the `release/` directory.
 
 ## Features
 
-- **Bluetooth LE** — pair wirelessly with nearby Meshtastic devices
+- **Bluetooth LE** — pair wirelessly with nearby Meshtastic devices; the last-used device is remembered and a one-click reconnect card appears on the Connection tab so you can reconnect without going through the picker again (device name persists across sessions)
 - **USB Serial** — plug in via USB cable
 - **WiFi/HTTP** — connect to network-enabled nodes
 - **MQTT** — subscribe to a Meshtastic MQTT broker to receive mesh traffic over the internet; send messages via MQTT even when no hardware device is connected; AES-128-CTR encryption/decryption, automatic deduplication with RF, exponential-backoff reconnect, and per-message delivery status indicators
