@@ -12,7 +12,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/renderer/vitest.setup.ts'],
     include: ['src/renderer/**/*.test.{ts,tsx}'],
-    reporters: ['default', 'junit'],
+    reporters: process.env.CI ? ['default', 'junit'] : ['default'],
     outputFile: {
       junit: 'test-results/junit.xml',
     },
