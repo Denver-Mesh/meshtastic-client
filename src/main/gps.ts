@@ -6,7 +6,7 @@ function sanitizeLogMessage(message: unknown): string {
   // Remove control characters (including newlines and carriage returns) and normalize whitespace
   // to prevent log injection and preserve a single-line log entry.
   return String(message)
-    .replace(/[\x00-\x1F\x7F]+/g, ' ')
+    .replace(/[\x00-\x1F\x7F\u2028\u2029]+/g, ' ') // eslint-disable-line no-control-regex
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -96,7 +96,7 @@ async function getIpFix(): Promise<GpsFix> {
     });
   } catch (e) {
     const msg = sanitizeLogMessage((e as Error).message);
-    console.warn(`[gps] ip-api.com failed: ${msg}, trying ipwho.is`);
+    console.warn(`[gps] ip-api.com failed: ${msg}, trying ipwho.is`); // codeql[js/log-injection] -- msg is sanitized by sanitizeLogMessage (strips control chars)
   }
   return fetchIpEndpoint('https://ipwho.is/', (d: unknown) => {
     const x = d as { success?: boolean; latitude?: number; longitude?: number };
@@ -140,7 +140,7 @@ export async function getGpsFix(): Promise<GpsFixResult> {
     return fix;
   } catch (e) {
     const msg = sanitizeLogMessage((e as Error).message);
-    console.warn(`[gps] ip fix failed: msg="${msg}"`);
+    console.warn(`[gps] ip fix failed: msg="${msg}"`); // codeql[js/log-injection] -- msg is sanitized by sanitizeLogMessage (strips control chars)
     return {
       status: 'error',
       message: 'Location unavailable (network or service error).',
