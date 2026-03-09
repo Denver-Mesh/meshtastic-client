@@ -57,8 +57,8 @@ function fetchIpEndpoint(url: string, extract: (data: unknown) => GpsFix | null)
       response.on('data', (chunk: Buffer) => {
         if (body.length + chunk.length > MAX_IP_RESPONSE_BYTES) {
           clearTimeout(timer);
-          reject(new Error('response too large'));
           request.destroy();
+          reject(new Error('response too large'));
           return;
         }
         body += chunk.toString();
@@ -112,7 +112,9 @@ async function getIpFix(): Promise<GpsFix> {
   });
 }
 
-const GPS_SYSTEM_CHECK_TIMEOUT_MS = 8000;
+// Keep the system check timeout aligned with the IP geolocation request timeout
+// to avoid delaying error responses with a longer pre-check.
+const GPS_SYSTEM_CHECK_TIMEOUT_MS = 5000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
   return Promise.race([
