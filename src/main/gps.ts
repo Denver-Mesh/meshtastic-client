@@ -82,7 +82,7 @@ function fetchIpEndpoint(url: string, extract: (data: unknown) => GpsFix | null)
     });
     const timer = setTimeout(() => {
       request.destroy();
-      reject(new Error('timeout'));
+      reject(new Error('Request timeout exceeded while fetching IP geolocation'));
     }, 5000);
     request.on('error', (e) => {
       clearTimeout(timer);
