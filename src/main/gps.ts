@@ -3,8 +3,12 @@ import https from 'https';
 import si from 'systeminformation';
 
 function sanitizeLogMessage(message: unknown): string {
-  // Remove control characters (including newlines and carriage returns) to prevent log injection.
-  return String(message).replace(/[\x00-\x1F\x7F]+/g, ' ');
+  // Remove control characters (including newlines and carriage returns) and normalize whitespace
+  // to prevent log injection and preserve a single-line log entry.
+  return String(message)
+    .replace(/[\x00-\x1F\x7F]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export type GpsFixSource = 'native' | 'ip';
