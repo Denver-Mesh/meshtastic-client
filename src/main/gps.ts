@@ -91,7 +91,7 @@ function fetchIpEndpoint(url: string, extract: (data: unknown) => GpsFix | null)
 
 async function getIpFix(): Promise<GpsFix> {
   try {
-    return await fetchIpEndpoint('http://ip-api.com/json/', (d: unknown) => {
+    return await fetchIpEndpoint('https://ip-api.com/json/', (d: unknown) => {
       const x = d as { status?: string; lat?: number; lon?: number };
       return x.status === 'success' && typeof x.lat === 'number' && typeof x.lon === 'number'
         ? { lat: x.lat, lon: x.lon, source: 'ip' as const }
