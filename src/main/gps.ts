@@ -57,7 +57,8 @@ function fetchIpEndpoint(url: string, extract: (data: unknown) => GpsFix | null)
       response.on('data', (chunk: Buffer) => {
         if (body.length + chunk.length > MAX_IP_RESPONSE_BYTES) {
           clearTimeout(timer);
-          request.destroy(new Error('response too large'));
+          reject(new Error('response too large'));
+          request.destroy();
           return;
         }
         body += chunk.toString();
@@ -91,7 +92,7 @@ function fetchIpEndpoint(url: string, extract: (data: unknown) => GpsFix | null)
 
 async function getIpFix(): Promise<GpsFix> {
   try {
-    return await fetchIpEndpoint('http://ip-api.com/json/', (d: unknown) => {
+    return await fetchIpEndpoint('https://ip-api.com/json/', (d: unknown) => {
       const x = d as { status?: string; lat?: number; lon?: number };
       return x.status === 'success' && typeof x.lat === 'number' && typeof x.lon === 'number'
         ? { lat: x.lat, lon: x.lon, source: 'ip' as const }
