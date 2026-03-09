@@ -68,7 +68,7 @@ function fetchIpEndpoint(url: string, extract: (data: unknown) => GpsFix | null)
         try {
           const fix = extract(JSON.parse(body));
           if (fix) resolve(fix);
-          else reject(new Error('no lat/lon in response'));
+          else reject(new Error('No latitude/longitude data found in response'));
         } catch (e) {
           const rawMessage = e instanceof Error ? e.message : String(e);
           const safeMessage = sanitizeLogMessage(rawMessage);
