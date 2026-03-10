@@ -97,6 +97,8 @@ export function useDevice() {
   const bleHeartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Carries replyId from sendMessage into the echo handler (packets are sequential)
   const pendingReplyIdRef = useRef<number | undefined>(undefined);
+  // Carries whether MQTT uplink is pending — read + cleared by the echo handler
+  const pendingMqttRef = useRef<boolean>(false);
 
   // ─── GPS tracking ─────────────────────────────────────────────
   const deviceGpsModeRef = useRef<number>(0); // 0=DISABLED,1=ENABLED,2=NOT_PRESENT
@@ -611,7 +613,11 @@ export function useDevice() {
         const payloadText = new TextDecoder().decode(dataPacket.payload);
         const replyId =
           dataPacket.replyId || (isEcho ? pendingReplyIdRef.current : undefined) || undefined;
-        if (isEcho) pendingReplyIdRef.current = undefined;
+        const echoHasMqtt = isEcho && pendingMqttRef.current;
+        if (isEcho) {
+          pendingReplyIdRef.current = undefined;
+          pendingMqttRef.current = false;
+        }
         const wireEmoji = (dataPacket as { emoji?: number }).emoji;
         const emoji = replyId
           ? (normalizeReactionEmoji(wireEmoji, payloadText) ?? wireEmoji ?? undefined)
@@ -625,6 +631,7 @@ export function useDevice() {
           timestamp: meshPacket.rxTime ? meshPacket.rxTime * 1000 : Date.now(),
           packetId: meshPacket.id,
           status: isEcho ? 'sending' : undefined,
+          mqttStatus: echoHasMqtt ? ('sending' as const) : undefined,
           emoji,
           replyId,
           to: meshPacket.to && meshPacket.to !== BROADCAST_ADDR ? meshPacket.to : undefined,
@@ -1399,6 +1406,7 @@ export function useDevice() {
         : null;
 
       try {
+        pendingMqttRef.current = !!shouldUplink;
         pendingReplyIdRef.current = replyId;
         const dest: number | 'broadcast' = destination ?? 'broadcast';
         const packetId = await deviceRef.current.sendText(text, dest, true, channel);

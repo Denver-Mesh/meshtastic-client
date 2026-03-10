@@ -823,6 +823,7 @@ export default function ChatPanel({
                         <div className="flex items-center justify-end gap-1 mt-0.5">
                           {msg.mqttStatus ? (
                             <>
+                              <StatusBadge status={msg.mqttStatus} transport="mqtt" />
                               {msg.status && (
                                 <StatusBadge
                                   status={msg.status}
@@ -831,7 +832,6 @@ export default function ChatPanel({
                                   error={msg.error}
                                 />
                               )}
-                              <StatusBadge status={msg.mqttStatus} transport="mqtt" />
                             </>
                           ) : msg.status ? (
                             <StatusBadge
