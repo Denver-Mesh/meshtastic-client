@@ -645,9 +645,7 @@ ipcMain.handle('db:clearNodes', () => {
 ipcMain.handle('db:clearNodePositions', () => {
   try {
     const db = getDatabase();
-    return db
-      .prepare('UPDATE nodes SET latitude = NULL, longitude = NULL, altitude = NULL')
-      .run();
+    return db.prepare('UPDATE nodes SET latitude = NULL, longitude = NULL, altitude = NULL').run();
   } catch (err) {
     console.error('[IPC] db:clearNodePositions failed:', err);
     throw err;

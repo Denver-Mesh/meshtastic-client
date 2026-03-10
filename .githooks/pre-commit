@@ -3,5 +3,6 @@
 # To skip in an emergency: git commit --no-verify
 
 npm run format || exit 1
+git add -u
 npm run lint || exit 1
 npm run test:run

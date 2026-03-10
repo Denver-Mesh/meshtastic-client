@@ -19,7 +19,10 @@ export function detectHopGoblin(
       node.latitude,
       node.longitude,
     );
-    if (distKm < 3 * distanceMultiplier + distanceOffsetKm && (node.hops_away ?? 0) > hopsThreshold) {
+    if (
+      distKm < 3 * distanceMultiplier + distanceOffsetKm &&
+      (node.hops_away ?? 0) > hopsThreshold
+    ) {
       return {
         nodeId: node.node_id,
         type: 'hop_goblin',

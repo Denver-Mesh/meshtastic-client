@@ -261,7 +261,8 @@ export default function DiagnosticsPanel({
             </div>
             <span className="text-xs text-muted">
               {envMode === 'standard' && 'Default 3 km threshold'}
-              {envMode === 'city' && 'Dense urban RF interference — 1.6× threshold, allow 1 extra hop'}
+              {envMode === 'city' &&
+                'Dense urban RF interference — 1.6× threshold, allow 1 extra hop'}
               {envMode === 'canyon' && 'Mountainous terrain — 2.6× threshold, allow 2 extra hops'}
             </span>
           </div>

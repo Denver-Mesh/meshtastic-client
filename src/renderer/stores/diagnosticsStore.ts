@@ -33,8 +33,8 @@ export type EnvMode = 'standard' | 'city' | 'canyon';
 
 const ENV_PARAMS: Record<EnvMode, { mult: number; hops: number }> = {
   standard: { mult: 1.0, hops: 2 },
-  city:     { mult: 1.6, hops: 3 },
-  canyon:   { mult: 2.6, hops: 4 },
+  city: { mult: 1.6, hops: 3 },
+  canyon: { mult: 2.6, hops: 4 },
 };
 
 function getEnvParams(
@@ -242,7 +242,9 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
       const state = get();
       const nodes = getNodes();
       const homeNode = nodes.get(myNodeNum) ?? null;
-      const isLowAccuracy = !!(state.ourPositionSource && isLowAccuracyPosition(state.ourPositionSource));
+      const isLowAccuracy = !!(
+        state.ourPositionSource && isLowAccuracyPosition(state.ourPositionSource)
+      );
       const { distanceMultiplier, hopsThreshold } = getEnvParams(state.envMode, isLowAccuracy);
       const newAnomalies = new Map<number, NodeAnomaly>();
       for (const [nodeId, node] of nodes) {
