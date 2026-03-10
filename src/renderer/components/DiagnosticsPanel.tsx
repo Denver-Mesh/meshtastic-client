@@ -74,6 +74,8 @@ export default function DiagnosticsPanel({
   const setNodeMqttIgnored = useDiagnosticsStore((s) => s.setNodeMqttIgnored);
   const canyonModeEnabled = useDiagnosticsStore((s) => s.canyonModeEnabled);
   const setCanyonModeEnabled = useDiagnosticsStore((s) => s.setCanyonModeEnabled);
+  const cityModeEnabled = useDiagnosticsStore((s) => s.cityModeEnabled);
+  const setCityModeEnabled = useDiagnosticsStore((s) => s.setCityModeEnabled);
 
   const [search, setSearch] = useState('');
   const [tracePending, setTracePending] = useState<number | null>(null);
@@ -249,6 +251,21 @@ export default function DiagnosticsPanel({
             </label>
             <span className="text-xs text-muted">
               Double distance thresholds for mountainous terrain where line-of-sight is blocked
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="cityMode"
+              checked={cityModeEnabled}
+              onChange={(e) => setCityModeEnabled(e.target.checked)}
+              className="accent-brand-green"
+            />
+            <label htmlFor="cityMode" className="text-sm text-gray-300 cursor-pointer">
+              City Mode
+            </label>
+            <span className="text-xs text-muted">
+              Add 1.5 km to distance thresholds for dense urban areas with RF interference
             </span>
           </div>
         </div>

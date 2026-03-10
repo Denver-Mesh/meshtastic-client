@@ -110,6 +110,7 @@ export default function App() {
   const runReanalysis = useDiagnosticsStore((s) => s.runReanalysis);
   const ignoreMqttEnabled = useDiagnosticsStore((s) => s.ignoreMqttEnabled);
   const canyonModeEnabled = useDiagnosticsStore((s) => s.canyonModeEnabled);
+  const cityModeEnabled = useDiagnosticsStore((s) => s.cityModeEnabled);
 
   useEffect(() => {
     runReanalysis(device.getNodes, device.selfNodeId);
@@ -120,6 +121,7 @@ export default function App() {
     runReanalysis,
     ignoreMqttEnabled,
     canyonModeEnabled,
+    cityModeEnabled,
   ]);
 
   const isConfigured = device.state.status === 'configured';
