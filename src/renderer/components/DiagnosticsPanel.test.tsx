@@ -9,10 +9,12 @@ vi.mock('../stores/diagnosticsStore', () => ({
     const store = {
       anomalies: new Map(),
       anomalyHalosEnabled: false,
+      canyonModeEnabled: false,
       congestionHalosEnabled: false,
       ignoreMqttEnabled: false,
       mqttIgnoredNodes: new Set<number>(),
       setAnomalyHalosEnabled: vi.fn(),
+      setCanyonModeEnabled: vi.fn(),
       setCongestionHalosEnabled: vi.fn(),
       setIgnoreMqttEnabled: vi.fn(),
       setNodeMqttIgnored: vi.fn(),

@@ -40,6 +40,7 @@ interface DiagnosticsState {
   ignoreMqttEnabled: boolean;
   mqttIgnoredNodes: Set<number>;
   ourPositionSource: GpsSource | null;
+  canyonModeEnabled: boolean;
   processNodeUpdate(node: MeshNode, homeNode: MeshNode | null): void;
   recordDuplicate(fromNodeId: number): void;
   recordPacketPath(packetId: number, fromNodeId: number, path: PacketPath): void;
@@ -49,6 +50,7 @@ interface DiagnosticsState {
   setIgnoreMqttEnabled(enabled: boolean): void;
   setNodeMqttIgnored(nodeId: number, ignored: boolean): void;
   setOurPositionSource(source: GpsSource | null): void;
+  setCanyonModeEnabled(enabled: boolean): void;
 }
 
 // Module-level debounce timer and pending analysis buffer
@@ -98,6 +100,7 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
   ignoreMqttEnabled: loadAdminBool('ignoreMqttEnabled'),
   mqttIgnoredNodes: loadMqttIgnoredNodes(),
   ourPositionSource: null,
+  canyonModeEnabled: loadAdminBool('canyonModeEnabled'),
 
   processNodeUpdate(node: MeshNode, homeNode: MeshNode | null) {
     const now = Date.now();
@@ -127,8 +130,9 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
       const state = get();
       set((s) => {
         const newAnomalies = new Map(s.anomalies);
-        const distanceMultiplier =
+        const baseMultiplier =
           s.ourPositionSource && isLowAccuracyPosition(s.ourPositionSource) ? 2 : 1;
+        const distanceMultiplier = s.canyonModeEnabled ? baseMultiplier * 2 : baseMultiplier;
         for (const [nodeId, { node: n, homeNode: hn }] of pendingAnalyses) {
           const history = state.hopHistory.get(nodeId) ?? [];
           const stats = state.packetStats.get(nodeId);
@@ -199,8 +203,9 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
       const state = get();
       const nodes = getNodes();
       const homeNode = nodes.get(myNodeNum) ?? null;
-      const distanceMultiplier =
+      const baseMultiplier =
         state.ourPositionSource && isLowAccuracyPosition(state.ourPositionSource) ? 2 : 1;
+      const distanceMultiplier = state.canyonModeEnabled ? baseMultiplier * 2 : baseMultiplier;
       const newAnomalies = new Map<number, NodeAnomaly>();
       for (const [nodeId, node] of nodes) {
         if (nodeId === myNodeNum) continue;
@@ -241,5 +246,10 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
 
   setOurPositionSource(source: GpsSource | null) {
     set({ ourPositionSource: source });
+  },
+
+  setCanyonModeEnabled(enabled: boolean) {
+    saveAdminKey('canyonModeEnabled', enabled);
+    set({ canyonModeEnabled: enabled });
   },
 }));

@@ -109,10 +109,11 @@ export default function App() {
   const device = useDevice();
   const runReanalysis = useDiagnosticsStore((s) => s.runReanalysis);
   const ignoreMqttEnabled = useDiagnosticsStore((s) => s.ignoreMqttEnabled);
+  const canyonModeEnabled = useDiagnosticsStore((s) => s.canyonModeEnabled);
 
   useEffect(() => {
     runReanalysis(device.getNodes, device.selfNodeId);
-  }, [device.nodes, device.selfNodeId, device.getNodes, runReanalysis, ignoreMqttEnabled]);
+  }, [device.nodes, device.selfNodeId, device.getNodes, runReanalysis, ignoreMqttEnabled, canyonModeEnabled]);
 
   const isConfigured = device.state.status === 'configured';
   const isOperational = isConfigured || device.state.status === 'stale';

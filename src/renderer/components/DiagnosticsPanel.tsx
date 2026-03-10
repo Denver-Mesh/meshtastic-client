@@ -72,6 +72,8 @@ export default function DiagnosticsPanel({
   const setIgnoreMqttEnabled = useDiagnosticsStore((s) => s.setIgnoreMqttEnabled);
   const mqttIgnoredNodes = useDiagnosticsStore((s) => s.mqttIgnoredNodes);
   const setNodeMqttIgnored = useDiagnosticsStore((s) => s.setNodeMqttIgnored);
+  const canyonModeEnabled = useDiagnosticsStore((s) => s.canyonModeEnabled);
+  const setCanyonModeEnabled = useDiagnosticsStore((s) => s.setCanyonModeEnabled);
 
   const [search, setSearch] = useState('');
   const [tracePending, setTracePending] = useState<number | null>(null);
@@ -232,6 +234,21 @@ export default function DiagnosticsPanel({
             </label>
             <span className="text-xs text-muted">
               Gray out MQTT-only nodes and exclude them from diagnostics
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="canyonMode"
+              checked={canyonModeEnabled}
+              onChange={(e) => setCanyonModeEnabled(e.target.checked)}
+              className="accent-brand-green"
+            />
+            <label htmlFor="canyonMode" className="text-sm text-gray-300 cursor-pointer">
+              Canyon Mode
+            </label>
+            <span className="text-xs text-muted">
+              Double distance thresholds for mountainous terrain where line-of-sight is blocked
             </span>
           </div>
         </div>
