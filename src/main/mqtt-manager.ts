@@ -49,10 +49,14 @@ export class MQTTManager extends EventEmitter {
     this.clientId = `meshtastic-electron-${Math.random().toString(36).slice(2, 8)}`;
     const clientId = this.clientId;
 
+    // Port 8883 is the conventional MQTT-over-TLS port: use mqtts and verify certs unless tlsInsecure is set.
+    const useTls = settings.port === 8883;
+    const rejectUnauthorized = useTls ? !settings.tlsInsecure : false;
+
     this.client = mqtt.connect({
       host: settings.server,
       port: settings.port,
-      protocol: 'mqtt',
+      protocol: useTls ? 'mqtts' : 'mqtt',
       protocolVersion: 4, // force MQTT 3.1.1; avoids v5 negotiation issues
       clientId, // stable unique ID; prevents broker session collision
       username: settings.username || undefined,
@@ -61,8 +65,7 @@ export class MQTTManager extends EventEmitter {
       keepalive: 60,
       connectTimeout: 30_000,
       reconnectPeriod: 0, // we manage reconnects manually
-      // Intentional for mqtts: many brokers use self-signed or non-public CA; strict verification would break common setups.
-      rejectUnauthorized: false,
+      rejectUnauthorized,
     });
 
     this.client.on('connect', () => {
@@ -161,6 +164,9 @@ export class MQTTManager extends EventEmitter {
     }
 
     const packetId = (Math.random() * 0xffffffff) >>> 0;
+    // Broker echoes our uplink back to the same client; mark seen now so onMessage
+    // drops it before emit + gateway downlink sendText (avoids duplicate chat rows).
+    this.seenPacketIds.set(packetId, Date.now() + DEDUP_TTL_MS);
 
     // Build Data protobuf
     const data = create(DataSchema, {
