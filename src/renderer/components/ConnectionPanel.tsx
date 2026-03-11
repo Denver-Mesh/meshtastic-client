@@ -609,7 +609,8 @@ export default function ConnectionPanel({
                         ? `${cached} (${device.deviceName})`
                         : cached
                       : device.deviceName;
-                  } catch {
+                  } catch (e) {
+                    console.warn('[ConnectionPanel] BLE device name cache parse failed', e);
                     displayName = device.deviceName;
                   }
                   return (

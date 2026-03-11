@@ -5,9 +5,10 @@
   "main": "dist-electron/main/index.js",
   "scripts": {
     "build:main": "esbuild src/main/index.ts --bundle --platform=node --outfile=dist-electron/main/index.js --external:electron --external:better-sqlite3 --external:electron-updater --external:systeminformation --format=cjs",
+    "build:main:prod": "esbuild src/main/index.ts --bundle --platform=node --outfile=dist-electron/main/index.js --external:electron --external:better-sqlite3 --external:electron-updater --external:systeminformation --format=cjs --minify",
     "build:preload": "esbuild src/preload/index.ts --bundle --platform=node --outfile=dist-electron/preload/index.js --external:electron --format=cjs",
     "build:renderer": "vite build",
-    "build": "npm run build:main && npm run build:preload && npm run build:renderer",
+    "build": "npm run build:main:prod && npm run build:preload && npm run build:renderer",
     "dev": "concurrently \"npm run build:main -- --watch\" \"npm run build:preload -- --watch\" \"vite\" \"node scripts/wait-for-dev.mjs && VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
     "start": "npm run build && electron .",
     "trace-deprecation": "npm run build && NODE_OPTIONS='--trace-deprecation' electron .",

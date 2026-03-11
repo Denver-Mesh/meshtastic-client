@@ -166,8 +166,14 @@ export function initUpdater(win: BrowserWindow): void {
 
   // Shared: open the GitHub releases page
   ipcMain.handle('update:open-releases', async (_event, url?: string) => {
-    const target =
-      typeof url === 'string' && url.startsWith('https://github.com/') ? url : RELEASES_URL;
-    await shell.openExternal(target);
+    try {
+      console.debug('[IPC] update:open-releases');
+      const target =
+        typeof url === 'string' && url.startsWith('https://github.com/') ? url : RELEASES_URL;
+      await shell.openExternal(target);
+    } catch (err) {
+      console.error('[IPC] update:open-releases failed:', err);
+      throw err;
+    }
   });
 }

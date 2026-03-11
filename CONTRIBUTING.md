@@ -72,6 +72,28 @@ Before submitting a PR that touches IPC or the preload layer:
 - **Cross-platform UI**: Test or at minimum visually verify your changes on your platform; flag in the PR if you could not test on other OSes.
 - **Build check**: Confirm `npm run build` completes without errors.
 
+## Error boundaries and logging
+
+Wrap **boundaries** where failure is possible and must not be silent: IPC handlers, `JSON.parse` on persisted strings (e.g. `localStorage`), and main-process I/O (`fs`, `dialog`, `shell.openExternal`). Use a consistent pattern so logs are searchable and severity matches recoverability.
+
+### Convention
+
+| Situation                                                   | try block                                                                                                       | catch block                                                                    |
+| ----------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Entering a risky block (IPC handler, parse persisted state) | `console.debug('[context] operation', …)` once at **entry** to the try (avoids flooding logs on every success). |                                                                                |
+| Recoverable (corrupt storage → default; optional fallback)  | Same as above if you add debug.                                                                                 | `console.warn('[context] …', err)` — app continues with fallback.              |
+| Re-throw or invariant (DB/IPC failure; caller must handle)  | Debug at entry optional.                                                                                        | `console.error('[context] …', err)` then rethrow or return a structured error. |
+| Never                                                       |                                                                                                                 | Swallow without logging unless documented as intentionally ignorable.          |
+
+**warn vs error**
+
+- **warn**: Fallback applied (defaults, ignore corrupt cache, transient errors already handled elsewhere).
+- **error**: Operation failed and you rethrow, or the main-process path surfaces as an IPC rejection without structured recovery.
+
+Main-process IPC handlers that rethrow should log with `console.error` before rethrowing so the main terminal shows context when the renderer sees a rejected promise (aligned with existing `db:*` handlers in `src/main/index.ts`).
+
+For repeated `localStorage` + `JSON.parse` in the renderer, prefer `parseStoredJson` from `src/renderer/lib/parseStoredJson.ts` so debug/warn behavior stays consistent.
+
 ## Commit Style
 
 Use [Conventional Commits](https://www.conventionalcommits.org/):

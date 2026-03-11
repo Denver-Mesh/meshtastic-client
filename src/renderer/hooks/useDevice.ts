@@ -26,12 +26,14 @@ import { useDiagnosticsStore } from '../stores/diagnosticsStore';
 
 function getMessageLoadLimit(): number {
   try {
+    console.debug('[useDevice] getMessageLoadLimit');
     const raw = localStorage.getItem('mesh-client:adminSettings');
     if (!raw) return 1000;
     const s = JSON.parse(raw);
     if (s.messageLimitEnabled === false) return 10000;
     return Math.max(1, s.messageLimitCount ?? 1000);
-  } catch {
+  } catch (e) {
+    console.warn('[useDevice] getMessageLoadLimit parse failed, using 1000', e);
     return 1000;
   }
 }

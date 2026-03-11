@@ -514,29 +514,55 @@ mqttManager.on('message', (m) => mainWindow?.webContents.send('mqtt:message', m)
 
 // ─── IPC: MQTT connect/disconnect ───────────────────────────────────
 ipcMain.handle('mqtt:connect', async (_event, settings) => {
-  validateMqttSettings(settings);
-  mqttManager.connect(settings);
+  try {
+    console.debug('[IPC] mqtt:connect');
+    validateMqttSettings(settings);
+    mqttManager.connect(settings);
+  } catch (err) {
+    console.error('[IPC] mqtt:connect failed:', err);
+    throw err;
+  }
 });
 ipcMain.handle('mqtt:disconnect', async () => {
-  mqttManager.disconnect();
+  try {
+    console.debug('[IPC] mqtt:disconnect');
+    mqttManager.disconnect();
+  } catch (err) {
+    console.error('[IPC] mqtt:disconnect failed:', err);
+    throw err;
+  }
 });
-ipcMain.handle('mqtt:getClientId', async () => mqttManager.getClientId());
+ipcMain.handle('mqtt:getClientId', async () => {
+  try {
+    console.debug('[IPC] mqtt:getClientId');
+    return mqttManager.getClientId();
+  } catch (err) {
+    console.error('[IPC] mqtt:getClientId failed:', err);
+    throw err;
+  }
+});
 ipcMain.handle('mqtt:publish', async (_event, args) => {
-  validateMqttPublishArgs(args);
-  const a = args as {
-    text: string;
-    from: number;
-    channel: number;
-    destination?: number;
-    channelName?: string;
-  };
-  return mqttManager.publish(
-    a.text,
-    a.from,
-    a.channel,
-    a.destination ?? 0xffffffff,
-    a.channelName ?? 'LongFast',
-  );
+  try {
+    console.debug('[IPC] mqtt:publish');
+    validateMqttPublishArgs(args);
+    const a = args as {
+      text: string;
+      from: number;
+      channel: number;
+      destination?: number;
+      channelName?: string;
+    };
+    return mqttManager.publish(
+      a.text,
+      a.from,
+      a.channel,
+      a.destination ?? 0xffffffff,
+      a.channelName ?? 'LongFast',
+    );
+  } catch (err) {
+    console.error('[IPC] mqtt:publish failed:', err);
+    throw err;
+  }
 });
 
 // ─── IPC: GPS fix via main process ──────────────────────────────────

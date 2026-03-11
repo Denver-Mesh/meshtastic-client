@@ -177,6 +177,7 @@ export default function ChatPanel({
   const [viewMode, setViewMode] = useState<'channels' | 'dm'>('channels');
   const [openDmTabs, setOpenDmTabs] = useState<number[]>(() => {
     try {
+      console.debug('[ChatPanel] load openDmTabs from localStorage');
       const saved = localStorage.getItem('mesh-client:openDmTabs');
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -184,8 +185,8 @@ export default function ChatPanel({
           return parsed;
         }
       }
-    } catch {
-      /* ignore corrupt data */
+    } catch (e) {
+      console.warn('[ChatPanel] openDmTabs parse failed, using []', e);
     }
     return [];
   });
@@ -203,13 +204,14 @@ export default function ChatPanel({
   // Persisted lastRead: { "ch:0": timestamp, "ch:2": ..., "dm:12345678": ... }
   const [persistedLastRead, setPersistedLastRead] = useState<Record<string, number>>(() => {
     try {
+      console.debug('[ChatPanel] load lastRead from localStorage');
       const saved = localStorage.getItem('mesh-client:lastRead');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
       }
-    } catch {
-      /* ignore corrupt */
+    } catch (e) {
+      console.warn('[ChatPanel] lastRead parse failed, using {}', e);
     }
     return {};
   });
