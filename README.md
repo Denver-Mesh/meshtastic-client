@@ -78,6 +78,7 @@ The official Meshtastic apps cover the basics, but desktop power users need more
 
 **Productivity**
 
+- **Log panel** (right rail) — live app log stream from the main process, optional debug logging toggle, export or delete the log file
 - Full keyboard navigation — press `?` for shortcut reference; `Cmd/Ctrl+1–8` switches tabs; `Cmd/Ctrl+F` searches chat
 - Automatic update checking — packaged builds download and install in-app; macOS opens the release page
 - System tray with live unread badge; app stays accessible when window is closed
