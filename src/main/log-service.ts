@@ -65,6 +65,7 @@ function flushPendingBuffer(): void {
   const p = getLogFilePath();
   const data = lines.join('');
   appendChain = appendChain.then(() =>
+    // codeql[js/http-to-file-access] -- data is joined formatLine outputs; each line was built after sanitizeLogMessage in appendLine.
     fs.promises.appendFile(p, data, 'utf8').catch((e) => {
       original.debug('[log-service] flushPendingBuffer appendFile failed', e);
     }),
@@ -105,6 +106,8 @@ export function getRecentLines(): LogEntry[] {
  */
 export function appendLine(level: LogLevel, source: string, message: string): void {
   message = sanitizeLogMessage(message);
+  // Source is embedded in the log line; sanitize so the whole line is control-char-free.
+  source = sanitizeLogMessage(source);
   const ts = Date.now();
   pushRecent(ts, level, source, message);
   const line = formatLine(ts, level, source, message);
@@ -116,10 +119,14 @@ export function appendLine(level: LogLevel, source: string, message: string): vo
   }
 
   appendChain = appendChain
-    .then(() => fs.promises.appendFile(getLogFilePath(), line, 'utf8'))
+    .then(() =>
+      // codeql[js/http-to-file-access] -- line is built only from sanitizeLogMessage(message/source) + fixed path; not raw network payload.
+      fs.promises.appendFile(getLogFilePath(), line, 'utf8'),
+    )
     .catch((e) => {
       original.debug('[log-service] appendFile failed, retry writeFileSync', e);
       try {
+        // codeql[js/http-to-file-access] -- same as appendFile above; retry path only.
         fs.writeFileSync(getLogFilePath(), line, { encoding: 'utf8' });
       } catch (e2) {
         original.debug('[log-service] writeFileSync retry failed', e2);
