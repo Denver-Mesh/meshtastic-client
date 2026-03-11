@@ -707,7 +707,9 @@ export function useDevice() {
             long_name: user.longName ?? existing.long_name,
             short_name: user.shortName ?? existing.short_name,
             hw_model: String(user.hwModel ?? existing.hw_model),
-            last_heard: Date.now(),
+            // User packets are often replayed from the device DB at connect; do not
+            // bump last_hear to now or offline nodes appear freshly heard.
+            last_heard: existing.last_heard,
             heard_via_mqtt_only: false,
             source: 'rf',
           };
@@ -771,6 +773,11 @@ export function useDevice() {
             }
           }
 
+          const lastHeardMs =
+            (info.lastHeard ?? 0) > 0 ? info.lastHeard! * 1000 : existing.last_heard;
+          const staleHopMs = 2 * 3_600_000; // align with nodeStatus STALE_MS
+          const lastHeardStale = lastHeardMs > 0 && Date.now() - lastHeardMs > staleHopMs;
+
           const node: MeshNode = {
             ...existing,
             node_id: nodeNum,
@@ -779,14 +786,17 @@ export function useDevice() {
             hw_model: String(info.user?.hwModel ?? existing.hw_model),
             snr: info.snr ?? existing.snr,
             battery: info.deviceMetrics?.batteryLevel ?? existing.battery,
-            last_heard: (info.lastHeard ?? 0) > 0 ? info.lastHeard! * 1000 : existing.last_heard,
+            last_heard: lastHeardMs,
             latitude: newLat,
             longitude: newLon,
             role: info.user?.role ?? existing.role,
+            // Stale NodeInfo still carries cached hops; don't show hop count for ghosts.
             hops_away:
               nodeNum === myNodeNumRef.current
                 ? (info.hopsAway ?? 0)
-                : (info.hopsAway ?? existing.hops_away),
+                : lastHeardStale
+                  ? undefined
+                  : (info.hopsAway ?? existing.hops_away),
             via_mqtt: info.viaMqtt ?? existing.via_mqtt,
             voltage: info.deviceMetrics?.voltage ?? existing.voltage,
             channel_utilization:
@@ -864,7 +874,8 @@ export function useDevice() {
             latitude: lat,
             longitude: lon,
             altitude: pos.altitude ?? existing.altitude,
-            last_heard: Date.now(),
+            // Position replays at connect must not bump last_heard to now.
+            last_heard: existing.last_heard,
             lastPositionWarning: undefined,
           };
           updated.set(packet.from, node);
@@ -941,7 +952,7 @@ export function useDevice() {
               updated.set(packet.from, {
                 ...existing,
                 battery: metrics.batteryLevel!,
-                last_heard: Date.now(),
+                // Telemetry replay at connect must not bump last_heard to now.
               });
             }
             return updated;
@@ -1037,7 +1048,8 @@ export function useDevice() {
                 ...existing,
                 ...(mp.rxSnr ? { snr: mp.rxSnr } : {}),
                 ...(mp.rxRssi ? { rssi: mp.rxRssi } : {}),
-                last_heard: Date.now(),
+                // Do not bump last_heard here — mesh packets at connect can be
+                // replayed/history; SNR/RSSI alone is not proof of a fresh hear.
               };
               updated.set(mp.from!, node);
               window.electronAPI.db.saveNode(node);
