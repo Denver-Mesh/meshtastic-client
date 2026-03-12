@@ -7,7 +7,7 @@ import MapPanel from './MapPanel';
 vi.mock('../stores/diagnosticsStore', () => ({
   useDiagnosticsStore: (selector: (s: unknown) => unknown) => {
     const store = {
-      anomalies: new Map(),
+      diagnosticRows: [],
       anomalyHalosEnabled: false,
       congestionHalosEnabled: false,
     };

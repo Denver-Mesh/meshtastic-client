@@ -7,7 +7,7 @@ import NodeListPanel from './NodeListPanel';
 vi.mock('../stores/diagnosticsStore', () => ({
   useDiagnosticsStore: (selector: (s: unknown) => unknown) => {
     const store = {
-      anomalies: new Map(),
+      diagnosticRows: [],
       ignoreMqttEnabled: false,
       nodeRedundancy: new Map(),
     };

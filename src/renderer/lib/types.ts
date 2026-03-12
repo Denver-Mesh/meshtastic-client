@@ -17,6 +17,71 @@ export interface NodeAnomaly {
   confidence?: AnomalyConfidence;
 }
 
+/** Routing anomaly as a table row (one per node from RoutingDiagnosticEngine). */
+export interface RoutingDiagnosticRow {
+  kind: 'routing';
+  id: string;
+  nodeId: number;
+  type: AnomalyType;
+  severity: 'error' | 'warning' | 'info';
+  description: string;
+  detectedAt: number;
+  snr?: number;
+  hopsAway?: number;
+  confidence?: AnomalyConfidence;
+}
+
+/** RF finding as a table row (multiple per node from RFDiagnosticEngine). */
+export interface RfDiagnosticRow {
+  kind: 'rf';
+  id: string;
+  nodeId: number;
+  condition: string;
+  cause: string;
+  severity: 'warning' | 'info';
+  detectedAt: number;
+  isLastHop?: boolean;
+}
+
+export type DiagnosticRow = RoutingDiagnosticRow | RfDiagnosticRow;
+
+export function routingRowId(nodeId: number): string {
+  return `routing:${nodeId}`;
+}
+
+export function rfRowId(nodeId: number, condition: string): string {
+  const slug = condition.replace(/[/\s]+/g, '_').toLowerCase();
+  return `rf:${nodeId}:${slug}`;
+}
+
+export function nodeAnomalyToRoutingRow(a: NodeAnomaly): RoutingDiagnosticRow {
+  return {
+    kind: 'routing',
+    id: routingRowId(a.nodeId),
+    nodeId: a.nodeId,
+    type: a.type,
+    severity: a.severity,
+    description: a.description,
+    detectedAt: a.detectedAt,
+    snr: a.snr,
+    hopsAway: a.hopsAway,
+    confidence: a.confidence,
+  };
+}
+
+export function routingRowToNodeAnomaly(r: RoutingDiagnosticRow): NodeAnomaly {
+  return {
+    nodeId: r.nodeId,
+    type: r.type,
+    severity: r.severity,
+    description: r.description,
+    detectedAt: r.detectedAt,
+    snr: r.snr,
+    hopsAway: r.hopsAway,
+    confidence: r.confidence,
+  };
+}
+
 export interface HopHistoryPoint {
   t: number; // timestamp ms
   h: number; // hops_away value

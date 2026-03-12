@@ -13,9 +13,11 @@ import {
 } from 'react-leaflet';
 
 import type { LocationFilter } from '../App';
+import { getRoutingRowForNode, routingAnomalyNodeIds } from '../lib/diagnostics/diagnosticRows';
 import type { OurPosition } from '../lib/gpsSource';
 import { getNodeStatus, haversineDistanceKm } from '../lib/nodeStatus';
 import type { MeshNode, NodeAnomaly } from '../lib/types';
+import { routingRowToNodeAnomaly } from '../lib/types';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
 import { useMapViewportStore } from '../stores/mapViewportStore';
 import NodeInfoBody from './NodeInfoBody';
@@ -180,6 +182,7 @@ interface MapMarkerProps {
   congestionHalosEnabled: boolean;
   homeNode?: MeshNode | null;
   haloCenterOffset?: [number, number];
+  nodes: Map<number, MeshNode>;
 }
 
 const MapMarker = memo(
@@ -191,6 +194,7 @@ const MapMarker = memo(
     congestionHalosEnabled,
     homeNode,
     haloCenterOffset = [0, 0],
+    nodes,
   }: MapMarkerProps) {
     const status = getNodeStatus(node.last_heard);
     const cuForIcon = congestionHalosEnabled ? (node.channel_utilization ?? 0) : 0;
@@ -283,7 +287,7 @@ const MapMarker = memo(
                   );
                 })()}
               </div>
-              <NodeInfoBody node={node} homeNode={homeNode} />
+              <NodeInfoBody node={node} homeNode={homeNode} nodes={nodes} />
             </div>
           </Popup>
         </Marker>
@@ -296,6 +300,7 @@ const MapMarker = memo(
     prev.anomalyHalosEnabled === next.anomalyHalosEnabled &&
     prev.congestionHalosEnabled === next.congestionHalosEnabled &&
     prev.homeNode === next.homeNode &&
+    prev.nodes === next.nodes &&
     prev.anomaly?.type === next.anomaly?.type &&
     prev.anomaly?.severity === next.anomaly?.severity &&
     prev.haloCenterOffset?.[0] === next.haloCenterOffset?.[0] &&
@@ -484,7 +489,8 @@ export default function MapPanel({
 
   const congestionHalosEnabled = useDiagnosticsStore((s) => s.congestionHalosEnabled);
   const anomalyHalosEnabled = useDiagnosticsStore((s) => s.anomalyHalosEnabled);
-  const anomalies = useDiagnosticsStore((s) => s.anomalies);
+  const diagnosticRows = useDiagnosticsStore((s) => s.diagnosticRows);
+  const routingNodeIds = useMemo(() => routingAnomalyNodeIds(diagnosticRows), [diagnosticRows]);
 
   useEffect(() => {
     ensureMapStyles();
@@ -527,7 +533,7 @@ export default function MapPanel({
   const nodesToRender = useMemo(() => {
     const idSet = new Set(nodesWithPosition.map((n) => n.node_id));
     const out: MeshNode[] = [...nodesWithPosition];
-    for (const nodeId of anomalies.keys()) {
+    for (const nodeId of routingNodeIds) {
       if (idSet.has(nodeId)) continue;
       const node = nodes.get(nodeId);
       if (
@@ -544,20 +550,21 @@ export default function MapPanel({
     for (const n of out) {
       const k = `${n.latitude},${n.longitude}`;
       const existing = byPos.get(k);
-      const hasAnomaly = anomalies.has(n.node_id);
-      const existingHasAnomaly = existing ? anomalies.has(existing.node_id) : false;
+      const hasAnomaly = routingNodeIds.has(n.node_id);
+      const existingHasAnomaly = existing ? routingNodeIds.has(existing.node_id) : false;
       if (!existing || (hasAnomaly && !existingHasAnomaly)) byPos.set(k, n);
     }
     return Array.from(byPos.values());
-  }, [nodesWithPosition, anomalies, nodes]);
+  }, [nodesWithPosition, routingNodeIds, nodes]);
 
   const nodesWithStatus = useMemo(
     () =>
-      nodesToRender.map((node) => ({
-        node,
-        anomaly: anomalies.get(node.node_id) ?? null,
-      })),
-    [nodesToRender, anomalies],
+      nodesToRender.map((node) => {
+        const routingRow = getRoutingRowForNode(diagnosticRows, node.node_id);
+        const anomaly: NodeAnomaly | null = routingRow ? routingRowToNodeAnomaly(routingRow) : null;
+        return { node, anomaly };
+      }),
+    [nodesToRender, diagnosticRows],
   );
 
   const nodesWithStatusAndHaloOffset = useMemo(() => {
@@ -657,6 +664,7 @@ export default function MapPanel({
             congestionHalosEnabled={congestionHalosEnabled}
             homeNode={homeNode}
             haloCenterOffset={haloCenterOffset}
+            nodes={nodes}
           />
         ))}
       </MapContainer>

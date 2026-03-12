@@ -573,6 +573,7 @@ export default function App() {
 
         {/* Node Detail Modal — rendered outside main for proper z-indexing */}
         <NodeDetailModal
+          nodes={device.nodes}
           node={selectedNode}
           onClose={() => setSelectedNodeId(null)}
           onRequestPosition={device.requestPosition}

@@ -63,46 +63,66 @@ describe('detectHopGoblin', () => {
 describe('detectBadRoute', () => {
   it('flags high duplication without requiring SNR', () => {
     const node = baseNode({ node_id: 0x1, hops_away: 2, snr: 0 });
-    const a = detectBadRoute(node, { total: 100, duplicates: 60 }, null, false, 1, 0);
+    const a = detectBadRoute(node, { total: 100, duplicates: 60 }, null, false, 1, 0, 2);
     expect(a).not.toBeNull();
     expect(a!.type).toBe('bad_route');
     expect(a!.severity).toBe('error');
     expect(a!.description).toContain('duplication');
     expect(a!.description).not.toContain('strong signal');
   });
+
+  it('close-in many-hops warning uses hopsThreshold+2 not fixed 4', () => {
+    const node = baseNode({
+      node_id: 0x2,
+      hops_away: 5,
+      latitude: 37.0,
+      longitude: -122.0,
+    });
+    const home = baseNode({
+      node_id: 1,
+      latitude: 37.001,
+      longitude: -122.001,
+    });
+    // hopsThreshold 2 => maxHopsCloseIn 4 => 5 hops triggers warning
+    const w = detectBadRoute(node, undefined, home, false, 1, 0, 2);
+    expect(w).not.toBeNull();
+    expect(w!.severity).toBe('warning');
+    expect(w!.description).toContain('hops');
+    // hopsThreshold 4 => maxHopsCloseIn 6 => 5 hops does not trigger same branch
+    const w2 = detectBadRoute(node, undefined, home, false, 1, 0, 4);
+    expect(w2).toBeNull();
+  });
 });
 
 describe('computeHealthScore', () => {
   it('does not penalize for info-severity anomalies', () => {
-    const anomalies = new Map([
-      [
-        1,
-        {
-          nodeId: 1,
-          type: 'hop_goblin' as const,
-          severity: 'info' as const,
-          confidence: 'heuristic' as const,
-          description: 'heuristic',
-          detectedAt: Date.now(),
-        },
-      ],
-    ]);
-    expect(computeHealthScore(10, anomalies)).toBe(100);
+    const rows = [
+      {
+        kind: 'routing' as const,
+        id: 'routing:1',
+        nodeId: 1,
+        type: 'hop_goblin' as const,
+        severity: 'info' as const,
+        confidence: 'heuristic' as const,
+        description: 'heuristic',
+        detectedAt: Date.now(),
+      },
+    ];
+    expect(computeHealthScore(10, rows)).toBe(100);
   });
 
   it('still penalizes warnings', () => {
-    const anomalies = new Map([
-      [
-        1,
-        {
-          nodeId: 1,
-          type: 'route_flapping' as const,
-          severity: 'warning' as const,
-          description: 'flap',
-          detectedAt: Date.now(),
-        },
-      ],
-    ]);
-    expect(computeHealthScore(10, anomalies)).toBe(90);
+    const rows = [
+      {
+        kind: 'routing' as const,
+        id: 'routing:1',
+        nodeId: 1,
+        type: 'route_flapping' as const,
+        severity: 'warning' as const,
+        description: 'flap',
+        detectedAt: Date.now(),
+      },
+    ];
+    expect(computeHealthScore(10, rows)).toBe(90);
   });
 });

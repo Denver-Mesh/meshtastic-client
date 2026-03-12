@@ -1,5 +1,5 @@
 import { haversineDistanceKm } from '../nodeStatus';
-import type { HopHistoryPoint, MeshNode, NodeAnomaly } from '../types';
+import type { DiagnosticRow, HopHistoryPoint, MeshNode, NodeAnomaly } from '../types';
 
 export function detectHopGoblin(
   node: MeshNode,
@@ -46,6 +46,8 @@ export function detectBadRoute(
   ignoreMqtt = false,
   distanceMultiplier = 1,
   distanceOffsetKm = 0,
+  /** Align with ENV_PARAMS hops (2/3/4); close-in hop warning uses hopsThreshold+2 vs legacy fixed 4 */
+  hopsThreshold = 2,
 ): NodeAnomaly | null {
   // High duplication rate → routing loop suspected (SNR not used: not meaningful
   // for multi-hop / MQTT; duplication is still a local observation).
@@ -80,7 +82,11 @@ export function detectBadRoute(
     );
     const distMiles = distKm * 0.621371;
     const distanceOffsetMiles = distanceOffsetKm * 0.621371;
-    if (distMiles < 5 * distanceMultiplier + distanceOffsetMiles && (node.hops_away ?? 0) > 4) {
+    const maxHopsCloseIn = hopsThreshold + 2; // standard 4, city 5, canyon 6
+    if (
+      distMiles < 5 * distanceMultiplier + distanceOffsetMiles &&
+      (node.hops_away ?? 0) > maxHopsCloseIn
+    ) {
       return {
         nodeId: node.node_id,
         type: 'bad_route',
@@ -169,6 +175,7 @@ export function analyzeNode(
     ignoreMqtt,
     distanceMultiplier,
     distanceOffsetKm,
+    hopsThreshold,
   );
   if (badRoute?.severity === 'error') return badRoute;
 
@@ -190,18 +197,20 @@ export function analyzeNode(
   return null;
 }
 
-export function computeHealthScore(
-  totalNodes: number,
-  anomalies: Map<number, NodeAnomaly>,
-): number {
+export function computeHealthScore(totalNodes: number, rows: DiagnosticRow[]): number {
   if (totalNodes === 0) return 100;
   let errorCount = 0;
   let warningCount = 0;
-  for (const anomaly of anomalies.values()) {
-    if (anomaly.severity === 'error') errorCount++;
-    else if (anomaly.severity === 'warning') warningCount++;
-    // info (heuristic only) does not penalize health score
+  for (const row of rows) {
+    if (row.kind !== 'routing') continue;
+    if (row.severity === 'error') errorCount++;
+    else if (row.severity === 'warning') warningCount++;
   }
+  const rfNodesWithWarning = new Set<number>();
+  for (const row of rows) {
+    if (row.kind === 'rf' && row.severity === 'warning') rfNodesWithWarning.add(row.nodeId);
+  }
+  warningCount += rfNodesWithWarning.size;
   const score = 100 - ((errorCount * 2 + warningCount) / totalNodes) * 100;
   return Math.max(0, Math.min(100, Math.round(score)));
 }

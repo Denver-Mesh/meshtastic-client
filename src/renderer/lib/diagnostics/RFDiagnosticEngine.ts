@@ -5,6 +5,26 @@ export interface RFDiagnosis {
   condition: string;
   cause: string;
   severity: 'warning' | 'info';
+  /** When true, SNR-based interpretation is last-hop only (remote nodes). */
+  isLastHop?: boolean;
+  /** Extra lines under cause (template-only; render muted in UI). */
+  hints?: string[];
+}
+
+/** 24h CU history stats from diagnosticsStore.getCuStats24h */
+export interface CuStats24h {
+  average: number;
+  sampleCount: number;
+  spanMs: number;
+}
+
+export interface ConnectedNodeDiagnosticContext {
+  cuStats24h?: CuStats24h | null;
+}
+
+/** Same CU spike context for any node_id with cuHistory */
+export interface OtherNodeDiagnosticContext {
+  cuStats24h?: CuStats24h | null;
 }
 
 // Thresholds
@@ -15,12 +35,59 @@ const HIGH_BAD_RATE = 0.1; // > 10% of rx packets are bad
 const SPIKE_BAD_RATE = 0.2; // > 20% — "spiking"
 const HIGH_DUPE_RATE = 0.15; // > 15% of rx packets are dupes
 const MIN_SAMPLE = 5; // minimum packet count for ratio checks
+const HIDDEN_TERMINAL_CU = 40;
+// Hidden Terminal: moderate bad band only — skip if industrial present; ≤ HIGH_BAD_RATE avoids duplicating collision catch-all (Risk 2)
+const HIDDEN_TERMINAL_BAD_MIN = 0.05;
+
+// CU spike gates (Risk 1)
+const MIN_CU_SAMPLES = 12;
+const MIN_CU_SPAN_MS = 30 * 60 * 1000; // 30 min
+const MIN_CU_AVERAGE = 1; // percent — below this baseline is too noisy for 2× rule
+const CU_SPIKE_COOLDOWN_MS = 15 * 60 * 1000; // Risk 1-D: suppress repeat spike for same node
+
+const cuSpikeLastFired = new Map<number, number>();
+
+/** Call when diagnostics are cleared so spike can fire again after reconnect */
+export function resetCuSpikeCooldown(): void {
+  cuSpikeLastFired.clear();
+}
+
+/**
+ * If current CU is more than double the 24h average, return a finding.
+ * Returns null when gates fail (insufficient history).
+ * Cooldown: after firing for nodeId, suppress re-fire until cooldown elapses unless currentCu dropped back to or below average.
+ */
+export function detectCuSpike(
+  currentCu: number,
+  stats: CuStats24h | null | undefined,
+  nodeId?: number,
+): RFDiagnosis | null {
+  if (!stats || stats.sampleCount < MIN_CU_SAMPLES) return null;
+  if (stats.spanMs < MIN_CU_SPAN_MS) return null;
+  if (stats.average < MIN_CU_AVERAGE) return null;
+  if (currentCu <= 2 * stats.average) return null;
+  if (nodeId != null) {
+    const last = cuSpikeLastFired.get(nodeId);
+    if (last != null && Date.now() - last < CU_SPIKE_COOLDOWN_MS && currentCu > stats.average) {
+      return null;
+    }
+    cuSpikeLastFired.set(nodeId, Date.now());
+  }
+  return {
+    condition: 'Channel Utilization Spike',
+    cause: `Current ${currentCu.toFixed(0)}% is over 2× the recent average (${stats.average.toFixed(1)}%) — possible congestion or interference surge.`,
+    severity: 'warning',
+  };
+}
 
 /**
  * Diagnose the connected node using LocalStats telemetry fields.
- * Returns an array of findings (may be empty = all clear).
+ * Optional context: CU spike (needs 24h history), Mesh Congestion hints from path mix.
  */
-export function diagnoseConnectedNode(node: MeshNode): RFDiagnosis[] {
+export function diagnoseConnectedNode(
+  node: MeshNode,
+  context?: ConnectedNodeDiagnosticContext,
+): RFDiagnosis[] {
   const findings: RFDiagnosis[] = [];
 
   const cu = node.channel_utilization ?? 0;
@@ -41,7 +108,7 @@ export function diagnoseConnectedNode(node: MeshNode): RFDiagnosis[] {
     });
   }
 
-  // 2. High CU + rx_bad = 0 → non-LoRa interference (channel busy but nothing decodeable is bad)
+  // 2. High CU + rx_bad = 0 → non-LoRa interference
   if (cu > HIGH_CU && rxTotal > MIN_SAMPLE && rxBad === 0) {
     findings.push({
       condition: 'Non-LoRa Noise / RFI',
@@ -59,11 +126,11 @@ export function diagnoseConnectedNode(node: MeshNode): RFDiagnosis[] {
     });
   }
 
-  // 4–5. SNR not used on connected node: node.snr is client-merged from mesh
-  // packets (last-hop / arbitrary from), not LocalStats. badRate-only path is
-  // covered by check 7 when not already covered by 3.
+  // CU spike vs 24h average (after baseline checks; uses same cu)
+  const cuSpike = detectCuSpike(cu, context?.cuStats24h ?? null, node.node_id);
+  if (cuSpike) findings.push(cuSpike);
 
-  // 6. High rx_duplicate → mesh congestion
+  // 6. High rx_duplicate → mesh congestion (detail shown once in node detail UI, not duplicated as hints here)
   if (dupeRate > HIGH_DUPE_RATE) {
     findings.push({
       condition: 'Mesh Congestion',
@@ -72,7 +139,24 @@ export function diagnoseConnectedNode(node: MeshNode): RFDiagnosis[] {
     });
   }
 
-  // 7. rx_bad general high count (catch-all if not already covered by checks 3/4/5)
+  // Hidden Terminal: CU > 40% + moderate bad rate only; skip if industrial present; stay ≤10% so collision block remains catch-all above that
+  const industrialPresent = findings.some((f) => f.condition === '900MHz Industrial Interference');
+  if (
+    cu > HIDDEN_TERMINAL_CU &&
+    rxTotal > MIN_SAMPLE &&
+    badRate > HIDDEN_TERMINAL_BAD_MIN &&
+    badRate <= HIGH_BAD_RATE &&
+    !industrialPresent
+  ) {
+    findings.push({
+      condition: 'Hidden Terminal Risk',
+      cause:
+        'High channel load with elevated decode failures — concurrent transmitters may not hear each other, increasing collisions at your node.',
+      severity: 'warning',
+    });
+  }
+
+  // 7. rx_bad general high count (catch-all)
   const badRateCovered = findings.some((f) => f.condition === '900MHz Industrial Interference');
   if (badRate > HIGH_BAD_RATE && !badRateCovered) {
     findings.push({
@@ -93,8 +177,13 @@ export function hasLocalStatsData(node: MeshNode): boolean {
 /**
  * Diagnose another node using observed telemetry (channel_utilization, air_util_tx, snr).
  * Returns null if no telemetry is available for the node.
+ * SNR-based findings set isLastHop when interpretation is last-hop only.
+ * Optional context: CU spike when cuHistory exists for this node_id.
  */
-export function diagnoseOtherNode(node: MeshNode): RFDiagnosis[] | null {
+export function diagnoseOtherNode(
+  node: MeshNode,
+  context?: OtherNodeDiagnosticContext,
+): RFDiagnosis[] | null {
   if (node.channel_utilization == null && node.air_util_tx == null) return null;
 
   const findings: RFDiagnosis[] = [];
@@ -103,7 +192,6 @@ export function diagnoseOtherNode(node: MeshNode): RFDiagnosis[] | null {
   const snrMeaningful = snrMeaningfulForNodeDiagnostics(node);
   const snr = node.snr ?? 0;
 
-  // High CU + Low TX → external interference causing node to back off
   if (cu > HIGH_CU && tx < LOW_TX) {
     findings.push({
       condition: 'External Interference',
@@ -112,22 +200,26 @@ export function diagnoseOtherNode(node: MeshNode): RFDiagnosis[] | null {
     });
   }
 
-  // High CU + Low SNR → wideband noise floor (SNR only if direct RF context)
+  const cuSpike = detectCuSpike(cu, context?.cuStats24h ?? null, node.node_id);
+  if (cuSpike) findings.push(cuSpike);
+
+  // SNR only when meaningful (0-hop RF) — still last-hop into client; label for clarity
   if (snrMeaningful && cu > HIGH_CU && snr < LOW_SNR) {
     findings.push({
       condition: 'Wideband Noise Floor',
       cause:
         'Broadband interference (faulty electronics, power-line noise, etc.) elevating the noise floor.',
       severity: 'warning',
+      isLastHop: true,
     });
   }
 
-  // Low CU + Low SNR → fringe / weak coverage
   if (snrMeaningful && cu <= 10 && snr < LOW_SNR) {
     findings.push({
       condition: 'Fringe / Weak Coverage',
       cause: 'Node is too far away or poorly connected to the rest of the mesh.',
       severity: 'info',
+      isLastHop: true,
     });
   }
 

@@ -453,7 +453,11 @@ export function useDevice() {
       if (updatedMqttNode) {
         useDiagnosticsStore
           .getState()
-          .processNodeUpdate(updatedMqttNode, nodesRef.current.get(myNodeNumRef.current) ?? null);
+          .processNodeUpdate(
+            updatedMqttNode,
+            nodesRef.current.get(myNodeNumRef.current) ?? null,
+            myNodeNumRef.current,
+          );
       }
     });
 
@@ -827,7 +831,11 @@ export function useDevice() {
         if (updatedRfNode) {
           useDiagnosticsStore
             .getState()
-            .processNodeUpdate(updatedRfNode, nodesRef.current.get(myNodeNumRef.current) ?? null);
+            .processNodeUpdate(
+              updatedRfNode,
+              nodesRef.current.get(myNodeNumRef.current) ?? null,
+              myNodeNumRef.current,
+            );
         }
         if (type === 'ble' && nodeNum === myNodeNumRef.current) {
           const btDevice = (device.transport as any)?.__bluetoothDevice;
