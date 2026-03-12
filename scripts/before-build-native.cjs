@@ -8,11 +8,13 @@
  * compile into an empty Release folder instead of unlinking a locked binary.
  *
  * Failure point: rmSync can still throw EPERM if something holds the DLL.
- * Fallback: run dist with npmRebuild disabled after a successful npm install
- * (see package.json dist:win:skip-rebuild and README).
+ * Fallbacks on Windows after EPERM/EBUSY: rename build → build.stale.<time> so
+ * node-gyp can create a fresh build dir; if still blocked, try cmd rd /s /q.
+ * Last resort: dist with npmRebuild disabled (package.json dist:win:skip-rebuild).
  */
 const fs = require("fs");
 const path = require("path");
+const { execFileSync } = require("child_process");
 
 const RETRIES = 5;
 const DELAY_MS = 800;
@@ -46,6 +48,40 @@ function rmWithRetries(dir) {
 }
 
 /**
+ * When rmSync fails with EPERM, the whole tree may still be locked. Renaming the
+ * directory often succeeds when delete does not; node-gyp then creates a fresh
+ * `build` folder alongside the stale one.
+ */
+function tryRenameStaleBuild(buildDir) {
+  const stale = `${buildDir}.stale.${Date.now()}`;
+  try {
+    fs.renameSync(buildDir, stale);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * rd /s /q runs outside Node's file handles; sometimes clears a tree rmSync cannot.
+ */
+function tryRdSlashQ(buildDir) {
+  try {
+    execFileSync("cmd.exe", ["/c", "rd", "/s", "/q", buildDir], {
+      stdio: "pipe",
+      windowsHide: true,
+    });
+    return fs.existsSync(buildDir) === false;
+  } catch {
+    return false;
+  }
+}
+
+function isLockError(err) {
+  return err && (err.code === "EPERM" || err.code === "EBUSY");
+}
+
+/**
  * @param {{ appDir: string }} context
  * @returns {Promise<boolean>} true = let electron-builder run install/rebuild
  */
@@ -56,6 +92,21 @@ module.exports = async function beforeBuildNative(context) {
     try {
       rmWithRetries(buildDir);
     } catch (err) {
+      if (isLockError(err) && tryRenameStaleBuild(buildDir)) {
+        console.warn(
+          "[before-build-native] better-sqlite3/build was locked; renamed aside so rebuild can use a fresh folder.",
+          "You can delete",
+          buildDir + ".stale.*",
+          "later if desired.",
+        );
+        return true;
+      }
+      if (isLockError(err) && tryRdSlashQ(buildDir)) {
+        console.warn(
+          "[before-build-native] better-sqlite3/build removed via rd /s /q after rmSync failed (locked).",
+        );
+        return true;
+      }
       console.warn(
         "[before-build-native] Could not remove better-sqlite3/build (file may be locked).",
         err && err.message ? err.message : err,
