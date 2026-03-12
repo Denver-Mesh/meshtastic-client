@@ -2,22 +2,30 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
 
-import type { MeshNode, NodeAnomaly } from '../lib/types';
+import type { MeshNode, RoutingDiagnosticRow } from '../lib/types';
 import DiagnosticsPanel from './DiagnosticsPanel';
 
 const diagnosticsStoreState: {
-  anomalies: Map<number, NodeAnomaly>;
+  diagnosticRows: RoutingDiagnosticRow[];
   packetStats: Map<number, unknown>;
+  packetCache: Map<number, unknown>;
+  getCuStats24h: () => null;
 } = {
-  anomalies: new Map(),
+  diagnosticRows: [],
   packetStats: new Map(),
+  packetCache: new Map(),
+  getCuStats24h: () => null,
 };
 
 vi.mock('../stores/diagnosticsStore', () => ({
   useDiagnosticsStore: (selector: (s: unknown) => unknown) => {
     const store = {
-      anomalies: diagnosticsStoreState.anomalies,
+      diagnosticRows: diagnosticsStoreState.diagnosticRows,
+      diagnosticRowsRestoredAt: null,
+      clearDiagnosticRowsSnapshot: vi.fn(),
       packetStats: diagnosticsStoreState.packetStats,
+      packetCache: diagnosticsStoreState.packetCache,
+      getCuStats24h: diagnosticsStoreState.getCuStats24h,
       anomalyHalosEnabled: false,
       congestionHalosEnabled: false,
       envMode: 'standard',
@@ -29,6 +37,8 @@ vi.mock('../stores/diagnosticsStore', () => ({
       setIgnoreMqttEnabled: vi.fn(),
       setNodeMqttIgnored: vi.fn(),
       runReanalysis: vi.fn(),
+      diagnosticRowsMaxAgeHours: 24,
+      setDiagnosticRowsMaxAgeHours: vi.fn(),
     };
     return selector(store);
   },
@@ -50,7 +60,7 @@ function minimalNode(nodeId: number): MeshNode {
 
 describe('DiagnosticsPanel accessibility', () => {
   it('has no axe violations with empty data', async () => {
-    diagnosticsStoreState.anomalies = new Map();
+    diagnosticsStoreState.diagnosticRows = [];
     diagnosticsStoreState.packetStats = new Map();
     const { container } = render(
       <DiagnosticsPanel
@@ -71,14 +81,16 @@ describe('DiagnosticsPanel node click', () => {
   it('calls onNodeClick when anomaly row is clicked', () => {
     const nodeId = 0x1234;
     const node = minimalNode(nodeId);
-    const anomaly: NodeAnomaly = {
+    const row: RoutingDiagnosticRow = {
+      kind: 'routing',
+      id: `routing:${nodeId}`,
       nodeId,
       type: 'hop_goblin',
       severity: 'warning',
       description: 'Test anomaly',
       detectedAt: Date.now(),
     };
-    diagnosticsStoreState.anomalies = new Map([[nodeId, anomaly]]);
+    diagnosticsStoreState.diagnosticRows = [row];
     diagnosticsStoreState.packetStats = new Map();
 
     const onNodeClick = vi.fn();
@@ -105,14 +117,16 @@ describe('DiagnosticsPanel node click', () => {
   it('does not call onNodeClick when action column is clicked', () => {
     const nodeId = 0x5678;
     const node = minimalNode(nodeId);
-    const anomaly: NodeAnomaly = {
+    const row: RoutingDiagnosticRow = {
+      kind: 'routing',
+      id: `routing:${nodeId}`,
       nodeId,
       type: 'hop_goblin',
       severity: 'warning',
       description: 'Test',
       detectedAt: Date.now(),
     };
-    diagnosticsStoreState.anomalies = new Map([[nodeId, anomaly]]);
+    diagnosticsStoreState.diagnosticRows = [row];
     diagnosticsStoreState.packetStats = new Map();
 
     const onNodeClick = vi.fn();

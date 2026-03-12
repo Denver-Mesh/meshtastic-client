@@ -13,9 +13,11 @@ import {
 } from 'react-leaflet';
 
 import type { LocationFilter } from '../App';
+import { getRoutingRowForNode, routingAnomalyNodeIds } from '../lib/diagnostics/diagnosticRows';
 import type { OurPosition } from '../lib/gpsSource';
 import { getNodeStatus, haversineDistanceKm } from '../lib/nodeStatus';
 import type { MeshNode, NodeAnomaly } from '../lib/types';
+import { routingRowToNodeAnomaly } from '../lib/types';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
 import { useMapViewportStore } from '../stores/mapViewportStore';
 import NodeInfoBody from './NodeInfoBody';
@@ -487,7 +489,8 @@ export default function MapPanel({
 
   const congestionHalosEnabled = useDiagnosticsStore((s) => s.congestionHalosEnabled);
   const anomalyHalosEnabled = useDiagnosticsStore((s) => s.anomalyHalosEnabled);
-  const anomalies = useDiagnosticsStore((s) => s.anomalies);
+  const diagnosticRows = useDiagnosticsStore((s) => s.diagnosticRows);
+  const routingNodeIds = useMemo(() => routingAnomalyNodeIds(diagnosticRows), [diagnosticRows]);
 
   useEffect(() => {
     ensureMapStyles();
@@ -530,7 +533,7 @@ export default function MapPanel({
   const nodesToRender = useMemo(() => {
     const idSet = new Set(nodesWithPosition.map((n) => n.node_id));
     const out: MeshNode[] = [...nodesWithPosition];
-    for (const nodeId of anomalies.keys()) {
+    for (const nodeId of routingNodeIds) {
       if (idSet.has(nodeId)) continue;
       const node = nodes.get(nodeId);
       if (
@@ -547,20 +550,21 @@ export default function MapPanel({
     for (const n of out) {
       const k = `${n.latitude},${n.longitude}`;
       const existing = byPos.get(k);
-      const hasAnomaly = anomalies.has(n.node_id);
-      const existingHasAnomaly = existing ? anomalies.has(existing.node_id) : false;
+      const hasAnomaly = routingNodeIds.has(n.node_id);
+      const existingHasAnomaly = existing ? routingNodeIds.has(existing.node_id) : false;
       if (!existing || (hasAnomaly && !existingHasAnomaly)) byPos.set(k, n);
     }
     return Array.from(byPos.values());
-  }, [nodesWithPosition, anomalies, nodes]);
+  }, [nodesWithPosition, routingNodeIds, nodes]);
 
   const nodesWithStatus = useMemo(
     () =>
-      nodesToRender.map((node) => ({
-        node,
-        anomaly: anomalies.get(node.node_id) ?? null,
-      })),
-    [nodesToRender, anomalies],
+      nodesToRender.map((node) => {
+        const routingRow = getRoutingRowForNode(diagnosticRows, node.node_id);
+        const anomaly: NodeAnomaly | null = routingRow ? routingRowToNodeAnomaly(routingRow) : null;
+        return { node, anomaly };
+      }),
+    [nodesToRender, diagnosticRows],
   );
 
   const nodesWithStatusAndHaloOffset = useMemo(() => {

@@ -32,7 +32,7 @@ const mockNode: MeshNode = {
 vi.mock('../stores/diagnosticsStore', () => ({
   useDiagnosticsStore: (selector: (s: unknown) => unknown) => {
     const store = {
-      anomalies: new Map(),
+      diagnosticRows: [],
       packetStats: new Map(),
       packetCache: new Map(),
       hopHistory: new Map(),

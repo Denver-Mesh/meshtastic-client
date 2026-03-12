@@ -1,5 +1,5 @@
 import { haversineDistanceKm } from '../nodeStatus';
-import type { HopHistoryPoint, MeshNode, NodeAnomaly } from '../types';
+import type { DiagnosticRow, HopHistoryPoint, MeshNode, NodeAnomaly } from '../types';
 
 export function detectHopGoblin(
   node: MeshNode,
@@ -197,18 +197,20 @@ export function analyzeNode(
   return null;
 }
 
-export function computeHealthScore(
-  totalNodes: number,
-  anomalies: Map<number, NodeAnomaly>,
-): number {
+export function computeHealthScore(totalNodes: number, rows: DiagnosticRow[]): number {
   if (totalNodes === 0) return 100;
   let errorCount = 0;
   let warningCount = 0;
-  for (const anomaly of anomalies.values()) {
-    if (anomaly.severity === 'error') errorCount++;
-    else if (anomaly.severity === 'warning') warningCount++;
-    // info (heuristic only) does not penalize health score
+  for (const row of rows) {
+    if (row.kind !== 'routing') continue;
+    if (row.severity === 'error') errorCount++;
+    else if (row.severity === 'warning') warningCount++;
   }
+  const rfNodesWithWarning = new Set<number>();
+  for (const row of rows) {
+    if (row.kind === 'rf' && row.severity === 'warning') rfNodesWithWarning.add(row.nodeId);
+  }
+  warningCount += rfNodesWithWarning.size;
   const score = 100 - ((errorCount * 2 + warningCount) / totalNodes) * 100;
   return Math.max(0, Math.min(100, Math.round(score)));
 }

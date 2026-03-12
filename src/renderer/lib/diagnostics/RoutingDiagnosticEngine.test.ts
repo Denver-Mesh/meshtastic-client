@@ -96,35 +96,33 @@ describe('detectBadRoute', () => {
 
 describe('computeHealthScore', () => {
   it('does not penalize for info-severity anomalies', () => {
-    const anomalies = new Map([
-      [
-        1,
-        {
-          nodeId: 1,
-          type: 'hop_goblin' as const,
-          severity: 'info' as const,
-          confidence: 'heuristic' as const,
-          description: 'heuristic',
-          detectedAt: Date.now(),
-        },
-      ],
-    ]);
-    expect(computeHealthScore(10, anomalies)).toBe(100);
+    const rows = [
+      {
+        kind: 'routing' as const,
+        id: 'routing:1',
+        nodeId: 1,
+        type: 'hop_goblin' as const,
+        severity: 'info' as const,
+        confidence: 'heuristic' as const,
+        description: 'heuristic',
+        detectedAt: Date.now(),
+      },
+    ];
+    expect(computeHealthScore(10, rows)).toBe(100);
   });
 
   it('still penalizes warnings', () => {
-    const anomalies = new Map([
-      [
-        1,
-        {
-          nodeId: 1,
-          type: 'route_flapping' as const,
-          severity: 'warning' as const,
-          description: 'flap',
-          detectedAt: Date.now(),
-        },
-      ],
-    ]);
-    expect(computeHealthScore(10, anomalies)).toBe(90);
+    const rows = [
+      {
+        kind: 'routing' as const,
+        id: 'routing:1',
+        nodeId: 1,
+        type: 'route_flapping' as const,
+        severity: 'warning' as const,
+        description: 'flap',
+        detectedAt: Date.now(),
+      },
+    ];
+    expect(computeHealthScore(10, rows)).toBe(90);
   });
 });

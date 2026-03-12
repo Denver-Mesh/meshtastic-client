@@ -1,6 +1,10 @@
 import { useState } from 'react';
 
 import {
+  diagnosticRowsToRoutingMap,
+  getRoutingRowForNode,
+} from '../lib/diagnostics/diagnosticRows';
+import {
   meshCongestionDetailLines,
   summarizeMeshCongestionAttribution,
   summarizeRfDuplicateOriginators,
@@ -14,7 +18,8 @@ import {
 } from '../lib/diagnostics/RFDiagnosticEngine';
 import { snrMeaningfulForNodeDiagnostics } from '../lib/diagnostics/snrMeaningfulForNodeDiagnostics';
 import { RoleDisplay } from '../lib/roleInfo';
-import type { HopHistoryPoint, MeshNode } from '../lib/types';
+import type { HopHistoryPoint, MeshNode, NodeAnomaly } from '../lib/types';
+import { routingRowToNodeAnomaly } from '../lib/types';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
 import MeshCongestionAttributionBlock from './MeshCongestionAttributionBlock';
 
@@ -72,7 +77,9 @@ const SEVERITY_ICON: Record<RFDiagnosis['severity'], string> = {
 };
 
 export default function NodeInfoBody({ node, homeNode, traceRouteHops, nodes }: NodeInfoBodyProps) {
-  const anomaly = useDiagnosticsStore((s) => s.anomalies.get(node.node_id));
+  const diagnosticRows = useDiagnosticsStore((s) => s.diagnosticRows);
+  const routingRow = getRoutingRowForNode(diagnosticRows, node.node_id);
+  const anomaly: NodeAnomaly | null = routingRow ? routingRowToNodeAnomaly(routingRow) : null;
   const nodePacketStats = useDiagnosticsStore((s) => s.packetStats.get(node.node_id));
   const hopHistory = useDiagnosticsStore(
     (s) => s.hopHistory.get(node.node_id) ?? EMPTY_HOP_HISTORY,
@@ -455,7 +462,8 @@ function RFDiagnosticsSection({
 }) {
   const getCuStats24h = useDiagnosticsStore((s) => s.getCuStats24h);
   const packetCache = useDiagnosticsStore((s) => s.packetCache);
-  const anomalies = useDiagnosticsStore((s) => s.anomalies);
+  const diagnosticRows = useDiagnosticsStore((s) => s.diagnosticRows);
+  const anomaliesMap = diagnosticRowsToRoutingMap(diagnosticRows);
 
   let findings: RFDiagnosis[] | null;
   let totalChecks: number | null = null;
@@ -484,7 +492,7 @@ function RFDiagnosticsSection({
     isOurNode && findings?.find((f) => f.condition === 'Mesh Congestion');
   const attrForOurNode =
     isOurNode && meshCongestionFinding
-      ? summarizeMeshCongestionAttribution(packetCache, anomalies)
+      ? summarizeMeshCongestionAttribution(packetCache, anomaliesMap)
       : null;
   const meshCongestionLines =
     attrForOurNode && meshCongestionFinding
