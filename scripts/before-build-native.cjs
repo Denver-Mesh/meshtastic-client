@@ -19,6 +19,20 @@ const { execFileSync } = require("child_process");
 const RETRIES = 5;
 const DELAY_MS = 800;
 
+/**
+ * Basic safety check to ensure the build directory is an expected, benign path
+ * and not an injected command payload for cmd.exe.
+ */
+function isSafeBuildDir(appDir, buildDir) {
+  if (typeof buildDir !== "string" || buildDir.length === 0) return false;
+  const unsafePattern = /[&|><^"%\r\n]/;
+  if (unsafePattern.test(buildDir)) return false;
+  const normalizedBuildDir = path.resolve(buildDir);
+  const normalizedAppDir = path.resolve(appDir);
+  if (!normalizedBuildDir.startsWith(normalizedAppDir + path.sep)) return false;
+  return path.isAbsolute(normalizedBuildDir);
+}
+
 function sleep(ms) {
   const end = Date.now() + ms;
   while (Date.now() < end) {
@@ -66,6 +80,11 @@ function tryRenameStaleBuild(buildDir) {
  * rd /s /q runs outside Node's file handles; sometimes clears a tree rmSync cannot.
  */
 function tryRdSlashQ(buildDir) {
+  // Best-effort guard against cmd.exe command injection via a malicious path.
+  const appDir = process.cwd();
+  if (!isSafeBuildDir(appDir, buildDir)) {
+    return false;
+  }
   try {
     execFileSync("cmd.exe", ["/c", "rd", "/s", "/q", buildDir], {
       stdio: "pipe",
