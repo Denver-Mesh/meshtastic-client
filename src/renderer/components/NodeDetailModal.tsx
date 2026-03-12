@@ -5,6 +5,8 @@ import { useDiagnosticsStore } from '../stores/diagnosticsStore';
 import NodeInfoBody from './NodeInfoBody';
 
 interface NodeDetailModalProps {
+  /** Optional: enables originator list for Mesh Congestion (RF duplicate-prone by node). */
+  nodes?: Map<number, MeshNode>;
   node: MeshNode | null;
   onClose: () => void;
   onRequestPosition: (nodeNum: number) => Promise<void>;
@@ -18,6 +20,7 @@ interface NodeDetailModalProps {
 }
 
 export default function NodeDetailModal({
+  nodes,
   node,
   onClose,
   onRequestPosition,
@@ -104,6 +107,7 @@ export default function NodeDetailModal({
 
   const hexId = `!${node.node_id.toString(16)}`;
   const displayName = node.short_name || node.long_name || hexId;
+  const isOurNode = homeNode != null && node.node_id === homeNode.node_id;
 
   const handleRequestPosition = async () => {
     setPositionRequestedAt(Date.now());
@@ -138,11 +142,11 @@ export default function NodeDetailModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="node-modal-title"
-        className="bg-deep-black border border-gray-700 rounded-xl max-w-md w-full shadow-2xl"
+        className="bg-deep-black border border-gray-700 rounded-xl max-w-md w-full max-h-[90vh] shadow-2xl flex flex-col min-h-0 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-700">
+        <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-gray-700">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h3 id="node-modal-title" className="text-lg font-semibold text-gray-100 truncate">
@@ -192,43 +196,50 @@ export default function NodeDetailModal({
           </button>
         </div>
 
-        {/* Body */}
-        <div className="px-5 py-3">
-          <NodeInfoBody node={node} homeNode={homeNode} traceRouteHops={traceRouteHops} />
+        {/* Body — scrollable so long RF/diagnostics content fits on screen */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 py-3">
+          <NodeInfoBody
+            node={node}
+            homeNode={homeNode}
+            traceRouteHops={isOurNode ? undefined : traceRouteHops}
+            nodes={nodes}
+          />
         </div>
 
-        {/* Footer actions */}
-        <div className="px-5 py-3 border-t border-gray-700 flex items-center gap-2">
-          <button
-            onClick={handleRequestPosition}
-            disabled={!isConnected || positionRequestedAt !== null}
-            className="flex-1 px-3 py-2 text-sm font-medium bg-secondary-dark hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-gray-200 rounded-lg transition-colors"
-          >
-            📍 Request Position
-          </button>
-          <button
-            onClick={handleTraceRoute}
-            disabled={!isConnected || traceRoutePending}
-            className="flex-1 px-3 py-2 text-sm font-medium bg-secondary-dark hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-gray-200 rounded-lg transition-colors"
-          >
-            🛤 Trace Route
-          </button>
-          {onMessageNode && (
+        {/* Footer actions — omitted for directly connected node (no position/trace/message to self) */}
+        {!isOurNode && (
+          <div className="shrink-0 px-5 py-3 border-t border-gray-700 flex items-center gap-2 flex-wrap">
             <button
-              onClick={() => {
-                onMessageNode(node.node_id);
-                onClose();
-              }}
-              disabled={!isConnected}
-              className="flex-1 px-3 py-2 text-sm font-medium bg-purple-700/50 hover:bg-purple-600/50 disabled:opacity-40 disabled:cursor-not-allowed text-purple-300 rounded-lg transition-colors"
+              onClick={handleRequestPosition}
+              disabled={!isConnected || positionRequestedAt !== null}
+              className="flex-1 min-w-[8rem] px-3 py-2 text-sm font-medium bg-secondary-dark hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-gray-200 rounded-lg transition-colors"
             >
-              💬 Message
+              📍 Request Position
             </button>
-          )}
-        </div>
+            <button
+              onClick={handleTraceRoute}
+              disabled={!isConnected || traceRoutePending}
+              className="flex-1 min-w-[8rem] px-3 py-2 text-sm font-medium bg-secondary-dark hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-gray-200 rounded-lg transition-colors"
+            >
+              🛤 Trace Route
+            </button>
+            {onMessageNode && (
+              <button
+                onClick={() => {
+                  onMessageNode(node.node_id);
+                  onClose();
+                }}
+                disabled={!isConnected}
+                className="flex-1 min-w-[8rem] px-3 py-2 text-sm font-medium bg-purple-700/50 hover:bg-purple-600/50 disabled:opacity-40 disabled:cursor-not-allowed text-purple-300 rounded-lg transition-colors"
+              >
+                💬 Message
+              </button>
+            )}
+          </div>
+        )}
 
         {/* MQTT Ignore toggle */}
-        <div className="px-5 py-2 border-t border-gray-700/50 flex items-center justify-between gap-3">
+        <div className="shrink-0 px-5 py-2 border-t border-gray-700/50 flex items-center justify-between gap-3">
           <div>
             <div className="text-xs font-medium text-gray-300">MQTT Ignore</div>
             <div className="text-xs text-muted">Exclude this node's MQTT data from diagnostics</div>
@@ -256,13 +267,13 @@ export default function NodeDetailModal({
 
         {/* Action status */}
         {actionStatus && (
-          <div className="px-5 pb-3">
+          <div className="shrink-0 px-5 pb-3">
             <div className="text-xs text-muted text-center">{actionStatus}</div>
           </div>
         )}
 
         {/* Delete node */}
-        <div className="px-5 pb-4">
+        <div className="shrink-0 px-5 pb-4">
           {!showDeleteConfirm ? (
             <button
               onClick={() => setShowDeleteConfirm(true)}

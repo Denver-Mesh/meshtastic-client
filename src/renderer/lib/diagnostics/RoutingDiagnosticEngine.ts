@@ -46,6 +46,8 @@ export function detectBadRoute(
   ignoreMqtt = false,
   distanceMultiplier = 1,
   distanceOffsetKm = 0,
+  /** Align with ENV_PARAMS hops (2/3/4); close-in hop warning uses hopsThreshold+2 vs legacy fixed 4 */
+  hopsThreshold = 2,
 ): NodeAnomaly | null {
   // High duplication rate → routing loop suspected (SNR not used: not meaningful
   // for multi-hop / MQTT; duplication is still a local observation).
@@ -80,7 +82,11 @@ export function detectBadRoute(
     );
     const distMiles = distKm * 0.621371;
     const distanceOffsetMiles = distanceOffsetKm * 0.621371;
-    if (distMiles < 5 * distanceMultiplier + distanceOffsetMiles && (node.hops_away ?? 0) > 4) {
+    const maxHopsCloseIn = hopsThreshold + 2; // standard 4, city 5, canyon 6
+    if (
+      distMiles < 5 * distanceMultiplier + distanceOffsetMiles &&
+      (node.hops_away ?? 0) > maxHopsCloseIn
+    ) {
       return {
         nodeId: node.node_id,
         type: 'bad_route',
@@ -169,6 +175,7 @@ export function analyzeNode(
     ignoreMqtt,
     distanceMultiplier,
     distanceOffsetKm,
+    hopsThreshold,
   );
   if (badRoute?.severity === 'error') return badRoute;
 

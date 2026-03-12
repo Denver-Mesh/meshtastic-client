@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 
+import { resetCuSpikeCooldown } from '../lib/diagnostics/RFDiagnosticEngine';
 import { analyzeNode } from '../lib/diagnostics/RoutingDiagnosticEngine';
 import type { GpsSource } from '../lib/gpsSource';
 import { isLowAccuracyPosition } from '../lib/gpsSource';
@@ -49,9 +50,36 @@ function getEnvParams(
   };
 }
 
+/** CU samples for spike detection (connected node); pruned to 24h in processNodeUpdate */
+export interface CuSample {
+  t: number;
+  cu: number;
+}
+
+export function computeCuStats24h(samples: CuSample[]): {
+  average: number;
+  sampleCount: number;
+  spanMs: number;
+} | null {
+  if (samples.length === 0) return null;
+  const now = Date.now();
+  const pruned = samples.filter((s) => s.t > now - TWENTY_FOUR_HOURS);
+  if (pruned.length === 0) return null;
+  const sum = pruned.reduce((a, s) => a + s.cu, 0);
+  const oldest = pruned.reduce((m, s) => Math.min(m, s.t), pruned[0].t);
+  const newest = pruned.reduce((m, s) => Math.max(m, s.t), pruned[0].t);
+  return {
+    average: sum / pruned.length,
+    sampleCount: pruned.length,
+    spanMs: newest - oldest,
+  };
+}
+
 interface DiagnosticsState {
   anomalies: Map<number, NodeAnomaly>;
   hopHistory: Map<number, HopHistoryPoint[]>;
+  /** Per-node channel_utilization samples (24h rolling) for CU spike detection */
+  cuHistory: Map<number, CuSample[]>;
   packetStats: Map<number, { total: number; duplicates: number }>;
   packetCache: Map<number, PacketRecord>;
   nodeRedundancy: Map<number, NodeRedundancy>;
@@ -72,6 +100,7 @@ interface DiagnosticsState {
   setOurPositionSource(source: GpsSource | null): void;
   setEnvMode(mode: EnvMode): void;
   clearDiagnostics(): void;
+  getCuStats24h(nodeId: number): ReturnType<typeof computeCuStats24h>;
 }
 
 // Module-level debounce timer and pending analysis buffer
@@ -125,6 +154,7 @@ function saveMqttIgnoredNodes(nodes: Set<number>): void {
 export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
   anomalies: new Map(),
   hopHistory: new Map(),
+  cuHistory: new Map(),
   packetStats: new Map(),
   packetCache: new Map(),
   nodeRedundancy: new Map(),
@@ -147,12 +177,21 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
       const newHopHistory = new Map(state.hopHistory);
       newHopHistory.set(node.node_id, pruned);
 
+      // CU history for spike detection (24h rolling)
+      const newCuHistory = new Map(state.cuHistory);
+      if (node.channel_utilization != null) {
+        const cuExisting = state.cuHistory.get(node.node_id) ?? [];
+        const cuPruned = cuExisting.filter((s) => s.t > now - TWENTY_FOUR_HOURS);
+        cuPruned.push({ t: now, cu: node.channel_utilization });
+        newCuHistory.set(node.node_id, cuPruned);
+      }
+
       // Increment total packet count
       const stats = state.packetStats.get(node.node_id) ?? { total: 0, duplicates: 0 };
       const newPacketStats = new Map(state.packetStats);
       newPacketStats.set(node.node_id, { ...stats, total: stats.total + 1 });
 
-      return { hopHistory: newHopHistory, packetStats: newPacketStats };
+      return { hopHistory: newHopHistory, cuHistory: newCuHistory, packetStats: newPacketStats };
     });
 
     // Buffer this node for debounced analysis
@@ -304,13 +343,21 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
     set({ envMode: mode });
   },
 
+  getCuStats24h(nodeId: number) {
+    const samples = get().cuHistory.get(nodeId) ?? [];
+    return computeCuStats24h(samples);
+  },
+
   clearDiagnostics() {
+    console.debug('[diagnosticsStore] clearDiagnostics');
     if (analysisTimer) clearTimeout(analysisTimer);
     analysisTimer = null;
     pendingAnalyses.clear();
+    resetCuSpikeCooldown();
     set({
       anomalies: new Map(),
       hopHistory: new Map(),
+      cuHistory: new Map(),
       packetStats: new Map(),
       packetCache: new Map(),
       nodeRedundancy: new Map(),

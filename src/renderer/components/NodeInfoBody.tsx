@@ -1,5 +1,10 @@
 import { useState } from 'react';
 
+import {
+  meshCongestionDetailLines,
+  summarizeMeshCongestionAttribution,
+  summarizeRfDuplicateOriginators,
+} from '../lib/diagnostics/meshCongestionAttribution';
 import { getRecommendedAction } from '../lib/diagnostics/RemediationEngine';
 import {
   diagnoseConnectedNode,
@@ -8,7 +13,7 @@ import {
   type RFDiagnosis,
 } from '../lib/diagnostics/RFDiagnosticEngine';
 import { snrMeaningfulForNodeDiagnostics } from '../lib/diagnostics/snrMeaningfulForNodeDiagnostics';
-import { RoleDisplay } from '../lib/roleInfo';
+import { getRoleInfo, RoleDisplay } from '../lib/roleInfo';
 import type { HopHistoryPoint, MeshNode } from '../lib/types';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
 
@@ -51,6 +56,8 @@ export interface NodeInfoBodyProps {
   node: MeshNode;
   homeNode?: MeshNode | null;
   traceRouteHops?: string[];
+  /** When set, Mesh Congestion can list originators by name/role (RF duplicate-prone traffic). */
+  nodes?: Map<number, MeshNode>;
 }
 
 const SEVERITY_STYLES: Record<RFDiagnosis['severity'], string> = {
@@ -63,7 +70,7 @@ const SEVERITY_ICON: Record<RFDiagnosis['severity'], string> = {
   info: 'ℹ',
 };
 
-export default function NodeInfoBody({ node, homeNode, traceRouteHops }: NodeInfoBodyProps) {
+export default function NodeInfoBody({ node, homeNode, traceRouteHops, nodes }: NodeInfoBodyProps) {
   const anomaly = useDiagnosticsStore((s) => s.anomalies.get(node.node_id));
   const nodePacketStats = useDiagnosticsStore((s) => s.packetStats.get(node.node_id));
   const hopHistory = useDiagnosticsStore(
@@ -83,6 +90,13 @@ export default function NodeInfoBody({ node, homeNode, traceRouteHops }: NodeInf
 
   const isOurNode = homeNode != null && node.node_id === homeNode.node_id;
   const showSnr = snrMeaningfulForNodeDiagnostics(node) || isOurNode;
+  const showLastHopSnr =
+    !isOurNode &&
+    !node.heard_via_mqtt_only &&
+    node.hops_away != null &&
+    node.hops_away > 0 &&
+    node.snr != null &&
+    node.snr !== 0;
   const snrColor =
     node.snr > 5
       ? 'text-bright-green'
@@ -144,13 +158,16 @@ export default function NodeInfoBody({ node, homeNode, traceRouteHops }: NodeInf
         <RoleDisplay role={node.role} />
       </div>
 
-      {/* SNR only meaningful for direct (0-hop) RF; rxSnr is last-hop otherwise */}
+      {/* SNR: direct 0-hop RF or our node; otherwise Last-Hop SNR when multi-hop RF context */}
       {showSnr && (
         <InfoRow
           label="SNR"
           value={node.snr != null && node.snr !== 0 ? `${node.snr.toFixed(1)} dB` : '—'}
           className={snrColor}
         />
+      )}
+      {showLastHopSnr && !showSnr && (
+        <InfoRow label="Last-Hop SNR" value={`${node.snr.toFixed(1)} dB`} className={snrColor} />
       )}
 
       {/* Battery */}
@@ -417,65 +434,157 @@ export default function NodeInfoBody({ node, homeNode, traceRouteHops }: NodeInf
       )}
 
       {/* RF Diagnostics */}
-      <RFDiagnosticsSection node={node} isOurNode={node.node_id === homeNode?.node_id} />
+      <RFDiagnosticsSection
+        node={node}
+        isOurNode={node.node_id === homeNode?.node_id}
+        nodes={nodes}
+      />
     </>
   );
 }
 
-function RFDiagnosticsSection({ node, isOurNode }: { node: MeshNode; isOurNode: boolean }) {
+function RFDiagnosticsSection({
+  node,
+  isOurNode,
+  nodes,
+}: {
+  node: MeshNode;
+  isOurNode: boolean;
+  nodes?: Map<number, MeshNode>;
+}) {
+  const getCuStats24h = useDiagnosticsStore((s) => s.getCuStats24h);
+  const packetCache = useDiagnosticsStore((s) => s.packetCache);
+  const anomalies = useDiagnosticsStore((s) => s.anomalies);
+
   let findings: RFDiagnosis[] | null;
   let totalChecks: number | null = null;
   let noTelemetry = false;
 
   if (isOurNode) {
-    findings = diagnoseConnectedNode(node);
-    totalChecks = 7;
+    const cuStats24h = getCuStats24h(node.node_id);
+    findings = diagnoseConnectedNode(node, {
+      cuStats24h: cuStats24h ?? undefined,
+    });
+    totalChecks = 10;
     // If no LocalStats and no channel_utilization, we have no data at all
     if (!hasLocalStatsData(node) && node.channel_utilization == null) {
       noTelemetry = true;
     }
   } else {
-    findings = diagnoseOtherNode(node);
+    const cuStatsOther = getCuStats24h(node.node_id);
+    findings = diagnoseOtherNode(node, {
+      cuStats24h: cuStatsOther ?? undefined,
+    });
     if (findings === null) noTelemetry = true;
   }
 
   const flagged = findings?.length ?? 0;
+  const meshCongestionFinding =
+    isOurNode && findings?.find((f) => f.condition === 'Mesh Congestion');
+  const attrForOurNode =
+    isOurNode && meshCongestionFinding
+      ? summarizeMeshCongestionAttribution(packetCache, anomalies)
+      : null;
+  const meshCongestionLines =
+    attrForOurNode && meshCongestionFinding ? meshCongestionDetailLines(attrForOurNode) : [];
+  const rfOriginators =
+    meshCongestionFinding && packetCache.size > 0
+      ? summarizeRfDuplicateOriginators(packetCache)
+      : [];
 
   return (
-    <div className="mt-3 p-3 bg-primary-dark rounded-lg">
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-xs text-gray-400">RF Diagnostics</div>
-        {!noTelemetry && totalChecks !== null && (
-          <span
-            className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
-              flagged === 0 ? 'bg-green-900/40 text-green-400' : 'bg-orange-900/40 text-orange-400'
-            }`}
-          >
-            {flagged}/{totalChecks} flagged
-          </span>
-        )}
-      </div>
-
-      {noTelemetry ? (
-        <div className="text-xs text-muted">No node telemetry. Node diagnostics unavailable.</div>
-      ) : flagged === 0 ? (
-        <div className="text-xs text-brand-green">All RF diagnostics OK</div>
-      ) : (
-        <div className="flex flex-col gap-1.5">
-          {findings!.map((f, i) => (
-            <div
-              key={i}
-              className={`flex items-start gap-1.5 text-xs ${SEVERITY_STYLES[f.severity]}`}
-            >
-              <span className="shrink-0 mt-0.5">{SEVERITY_ICON[f.severity]}</span>
-              <div>
-                <span className="font-semibold">{f.condition}</span>
-                <span className="text-gray-400 ml-1">— {f.cause}</span>
+    <>
+      {/* Single block: direct answer for Mesh Congestion (no duplicate of RF Diagnostics hints) */}
+      {meshCongestionLines.length > 0 && (
+        <div className="mt-3 p-3 bg-primary-dark rounded-lg border border-orange-500/20">
+          <div className="text-xs font-medium text-orange-300 mb-2">
+            Why you&apos;re seeing duplicate traffic
+          </div>
+          <div className="flex flex-col gap-2 text-[10px] text-muted">
+            {meshCongestionLines.map((line, j) => (
+              <p key={j} className="leading-relaxed">
+                {line}
+              </p>
+            ))}
+          </div>
+          {rfOriginators.length > 0 && (
+            <div className="mt-3 pt-2 border-t border-orange-500/20">
+              <div className="text-[10px] font-medium text-orange-200/90 mb-1.5">
+                Most RF duplicate-prone traffic lately (by originator — not which relay)
               </div>
+              <ul className="space-y-1">
+                {rfOriginators.map((o) => {
+                  const n = nodes?.get(o.nodeId);
+                  const name = n?.short_name || n?.long_name || `!${o.nodeId.toString(16)}`;
+                  const roleLabel = getRoleInfo(n?.role).label;
+                  return (
+                    <li key={o.nodeId} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                      <span className="text-gray-300">{name}</span>
+                      <span className="text-gray-500">({roleLabel})</span>
+                      <span className="text-gray-600">
+                        +{o.echoScore} extra RF reception{o.echoScore !== 1 ? 's' : ''} ·{' '}
+                        {o.recordCount} packet{o.recordCount !== 1 ? 's' : ''}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
-          ))}
+          )}
         </div>
       )}
-    </div>
+
+      <div className="mt-3 p-3 bg-primary-dark rounded-lg">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-xs text-gray-400">RF Diagnostics</div>
+          {!noTelemetry && totalChecks !== null && (
+            <span
+              className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${
+                flagged === 0
+                  ? 'bg-green-900/40 text-green-400'
+                  : 'bg-orange-900/40 text-orange-400'
+              }`}
+            >
+              {flagged}/{totalChecks} flagged
+            </span>
+          )}
+        </div>
+
+        {noTelemetry ? (
+          <div className="text-xs text-muted">No node telemetry. Node diagnostics unavailable.</div>
+        ) : flagged === 0 ? (
+          <div className="text-xs text-brand-green">All RF diagnostics OK</div>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {findings!.map((f, i) => (
+              <div
+                key={i}
+                className={`flex items-start gap-1.5 text-xs ${SEVERITY_STYLES[f.severity]}`}
+              >
+                <span className="shrink-0 mt-0.5">{SEVERITY_ICON[f.severity]}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1">
+                    <span className="font-semibold">{f.condition}</span>
+                    {f.isLastHop && (
+                      <span className="text-[10px] px-1 py-0 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                        Last-Hop SNR
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-gray-400 mt-0.5">— {f.cause}</div>
+                  {f.hints && f.hints.length > 0 && (
+                    <ul className="mt-1.5 pl-3 list-disc text-[10px] text-muted space-y-0.5">
+                      {f.hints.map((h, j) => (
+                        <li key={j}>{h}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

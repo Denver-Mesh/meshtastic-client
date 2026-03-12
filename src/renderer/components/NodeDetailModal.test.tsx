@@ -34,10 +34,12 @@ vi.mock('../stores/diagnosticsStore', () => ({
     const store = {
       anomalies: new Map(),
       packetStats: new Map(),
+      packetCache: new Map(),
       hopHistory: new Map(),
       nodeRedundancy: new Map(),
       mqttIgnoredNodes: new Set<number>(),
       setNodeMqttIgnored: vi.fn(),
+      getCuStats24h: () => null,
     };
     return selector(store);
   },

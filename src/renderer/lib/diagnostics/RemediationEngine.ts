@@ -47,6 +47,17 @@ const SCENARIOS: ScenarioChecker[] = [
       severity: 'info',
     };
   },
+  // Scenario B2: High duplication — suggest MQTT/RF overlap when mid-band (before B severity)
+  (_node, _home, distMiles, duplicateRate) => {
+    if (duplicateRate === null || duplicateRate < 0.35 || duplicateRate >= 0.5) return null;
+    if (distMiles === null || distMiles >= 5) return null;
+    return {
+      title: 'Check MQTT / RF overlap',
+      description: `${Math.round(duplicateRate * 100)}% packet duplication within 5 mi — gateway downlink or bridged paths may echo RF; try Ignore MQTT for affected nodes.`,
+      category: 'Software',
+      severity: 'warning',
+    };
+  },
   // Scenario B: RF Noise / Hidden Terminal (duplication-only; SNR not reliable multi-hop/MQTT)
   (node, _home, distMiles, duplicateRate) => {
     if (duplicateRate === null || duplicateRate < 0.5) return null;

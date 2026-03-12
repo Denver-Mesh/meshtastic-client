@@ -283,7 +283,7 @@ const MapMarker = memo(
                   );
                 })()}
               </div>
-              <NodeInfoBody node={node} homeNode={homeNode} />
+              <NodeInfoBody node={node} homeNode={homeNode} nodes={nodes} />
             </div>
           </Popup>
         </Marker>
