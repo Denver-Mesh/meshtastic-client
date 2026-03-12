@@ -180,6 +180,7 @@ interface MapMarkerProps {
   congestionHalosEnabled: boolean;
   homeNode?: MeshNode | null;
   haloCenterOffset?: [number, number];
+  nodes: Map<number, MeshNode>;
 }
 
 const MapMarker = memo(
@@ -191,6 +192,7 @@ const MapMarker = memo(
     congestionHalosEnabled,
     homeNode,
     haloCenterOffset = [0, 0],
+    nodes,
   }: MapMarkerProps) {
     const status = getNodeStatus(node.last_heard);
     const cuForIcon = congestionHalosEnabled ? (node.channel_utilization ?? 0) : 0;
@@ -296,6 +298,7 @@ const MapMarker = memo(
     prev.anomalyHalosEnabled === next.anomalyHalosEnabled &&
     prev.congestionHalosEnabled === next.congestionHalosEnabled &&
     prev.homeNode === next.homeNode &&
+    prev.nodes === next.nodes &&
     prev.anomaly?.type === next.anomaly?.type &&
     prev.anomaly?.severity === next.anomaly?.severity &&
     prev.haloCenterOffset?.[0] === next.haloCenterOffset?.[0] &&
@@ -657,6 +660,7 @@ export default function MapPanel({
             congestionHalosEnabled={congestionHalosEnabled}
             homeNode={homeNode}
             haloCenterOffset={haloCenterOffset}
+            nodes={nodes}
           />
         ))}
       </MapContainer>
