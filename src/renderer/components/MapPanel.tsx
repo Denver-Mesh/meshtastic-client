@@ -206,11 +206,13 @@ const MapMarker = memo(
       [anomalyHalosEnabled, anomaly, node.node_id, isSelf],
     );
 
-    const isError = anomaly?.severity === 'error';
+    const severity = anomaly?.severity;
+    const isError = severity === 'error';
+    const isInfo = severity === 'info';
 
     return (
       <Fragment>
-        {shouldShowHalo && (
+        {shouldShowHalo && !isInfo && (
           <Circle
             key={`anomaly-${node.node_id}`}
             center={[node.latitude! + haloCenterOffset[0], node.longitude! + haloCenterOffset[1]]}
@@ -225,6 +227,24 @@ const MapMarker = memo(
               opacity: 0.75,
               dashArray: '8,6',
               className: isError ? 'anomaly-halo-error' : 'anomaly-halo-warning',
+            }}
+          />
+        )}
+        {shouldShowHalo && isInfo && (
+          <Circle
+            key={`anomaly-info-${node.node_id}`}
+            center={[node.latitude! + haloCenterOffset[0], node.longitude! + haloCenterOffset[1]]}
+            radius={350}
+            pane="diagnosticPane"
+            interactive={false}
+            pathOptions={{
+              color: '#60a5fa',
+              fillColor: '#60a5fa',
+              fillOpacity: 0.08,
+              weight: 1,
+              opacity: 0.5,
+              dashArray: '4,8',
+              className: 'anomaly-halo-info',
             }}
           />
         )}
