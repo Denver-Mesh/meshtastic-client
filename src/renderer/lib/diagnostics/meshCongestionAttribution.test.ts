@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { summarizeRfDuplicateOriginators } from './meshCongestionAttribution';
+import type { NodeAnomaly } from '../types';
+import {
+  meshCongestionDetailLines,
+  meshHasRoutingAnomalies,
+  summarizeMeshCongestionAttribution,
+  summarizeRfDuplicateOriginators,
+} from './meshCongestionAttribution';
 
 describe('summarizeRfDuplicateOriginators', () => {
   it('returns empty when no RF-only multi-path records', () => {
@@ -27,5 +33,53 @@ describe('summarizeRfDuplicateOriginators', () => {
     expect(r[0].recordCount).toBe(2);
     expect(r[1].nodeId).toBe(0x20);
     expect(r[1].echoScore).toBe(1);
+  });
+});
+
+function anomaly(nodeId: number, type: NodeAnomaly['type']): NodeAnomaly {
+  return {
+    nodeId,
+    type,
+    severity: 'warning',
+    description: 'test',
+    detectedAt: Date.now(),
+  };
+}
+
+describe('meshHasRoutingAnomalies', () => {
+  it('returns false for empty map', () => {
+    expect(meshHasRoutingAnomalies(new Map())).toBe(false);
+  });
+
+  it('returns false when only route_flapping', () => {
+    const m = new Map<number, NodeAnomaly>();
+    m.set(1, anomaly(1, 'route_flapping'));
+    expect(meshHasRoutingAnomalies(m)).toBe(false);
+  });
+
+  it('returns true when bad_route present', () => {
+    const m = new Map<number, NodeAnomaly>();
+    m.set(1, anomaly(1, 'bad_route'));
+    expect(meshHasRoutingAnomalies(m)).toBe(true);
+  });
+
+  it('returns true when hop_goblin present', () => {
+    const m = new Map<number, NodeAnomaly>();
+    m.set(1, anomaly(1, 'hop_goblin'));
+    expect(meshHasRoutingAnomalies(m)).toBe(true);
+  });
+});
+
+describe('meshCongestionDetailLines alwaysIncludeRoutingAnomalies', () => {
+  it('appends routing line when insufficient evidence but routing anomalies exist', () => {
+    const packetCache = new Map();
+    const anomalies = new Map<number, NodeAnomaly>();
+    anomalies.set(1, anomaly(1, 'bad_route'));
+    const attr = summarizeMeshCongestionAttribution(packetCache, anomalies);
+    expect(attr.sufficientEvidence).toBe(false);
+    const lines = meshCongestionDetailLines(attr, {
+      alwaysIncludeRoutingAnomalies: true,
+    });
+    expect(lines.some((l) => l.includes('routing anomalies'))).toBe(true);
   });
 });

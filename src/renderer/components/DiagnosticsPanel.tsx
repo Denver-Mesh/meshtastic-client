@@ -1,10 +1,19 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 
+import {
+  MESH_ROUTING_ANOMALY_LINE,
+  meshCongestionDetailLines,
+  meshHasRoutingAnomalies,
+  summarizeMeshCongestionAttribution,
+  summarizeRfDuplicateOriginators,
+} from '../lib/diagnostics/meshCongestionAttribution';
 import { getRecommendedAction } from '../lib/diagnostics/RemediationEngine';
+import { diagnoseConnectedNode, hasLocalStatsData } from '../lib/diagnostics/RFDiagnosticEngine';
 import { computeHealthScore } from '../lib/diagnostics/RoutingDiagnosticEngine';
 import type { OurPosition } from '../lib/gpsSource';
 import type { MeshNode, NodeAnomaly } from '../lib/types';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
+import MeshCongestionAttributionBlock from './MeshCongestionAttributionBlock';
 
 const CATEGORY_STYLES: Record<string, string> = {
   Configuration: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
@@ -84,6 +93,8 @@ export default function DiagnosticsPanel({
 }: Props) {
   const anomalies = useDiagnosticsStore((s) => s.anomalies);
   const packetStats = useDiagnosticsStore((s) => s.packetStats);
+  const packetCache = useDiagnosticsStore((s) => s.packetCache);
+  const getCuStats24h = useDiagnosticsStore((s) => s.getCuStats24h);
   const homeNode = nodes.get(myNodeNum) ?? null;
   const congestionHalosEnabled = useDiagnosticsStore((s) => s.congestionHalosEnabled);
   const setCongestionHalosEnabled = useDiagnosticsStore((s) => s.setCongestionHalosEnabled);
@@ -147,6 +158,25 @@ export default function DiagnosticsPanel({
       a.type.includes(q)
     );
   };
+
+  const showRoutingAnomalyBanner = meshHasRoutingAnomalies(anomalies);
+
+  const meshCongestionBlock = useMemo(() => {
+    if (!homeNode) return null;
+    if (!hasLocalStatsData(homeNode) && homeNode.channel_utilization == null) return null;
+    const cuStats24h = getCuStats24h(homeNode.node_id);
+    const findings = diagnoseConnectedNode(homeNode, {
+      cuStats24h: cuStats24h ?? undefined,
+    });
+    if (!findings?.some((f) => f.condition === 'Mesh Congestion')) return null;
+    const attr = summarizeMeshCongestionAttribution(packetCache, anomalies);
+    const lines = meshCongestionDetailLines(attr, {
+      alwaysIncludeRoutingAnomalies: true,
+    });
+    const originators = packetCache.size > 0 ? summarizeRfDuplicateOriginators(packetCache) : [];
+    if (lines.length === 0 && originators.length === 0) return null;
+    return { lines, originators };
+  }, [homeNode, packetCache, anomalies, getCuStats24h]);
 
   const anomalyList = Array.from(anomalies.values())
     .filter(matchesSearch)
@@ -330,6 +360,25 @@ export default function DiagnosticsPanel({
             })}
           </div>
         </div>
+      )}
+
+      {/* Mesh-wide routing stress (independent of packet path mix samples) */}
+      {showRoutingAnomalyBanner && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-orange-500/40 bg-orange-500/10 px-4 py-3 text-sm text-orange-200">
+          <AlertTriangleIcon className="w-4 h-4 mt-0.5 shrink-0 text-orange-400" />
+          <span>{MESH_ROUTING_ANOMALY_LINE}</span>
+        </div>
+      )}
+
+      {/* Duplicate-traffic attribution heard at this client (same logic as home node detail) */}
+      {meshCongestionBlock && (
+        <MeshCongestionAttributionBlock
+          lines={meshCongestionBlock.lines}
+          originators={meshCongestionBlock.originators}
+          nodes={nodes}
+          scopeSubtitle="Observed at this client — path mix is from packets heard at this connected node."
+          className=""
+        />
       )}
 
       {/* IP Geolocation Accuracy Warning */}

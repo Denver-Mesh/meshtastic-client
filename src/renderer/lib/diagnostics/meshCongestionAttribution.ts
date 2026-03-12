@@ -66,6 +66,18 @@ function recordInvolvesMqtt(rec: PacketRecordLike): boolean {
   return rec.paths.some((p) => p.transport === 'mqtt');
 }
 
+/** True when any anomaly is bad_route or hop_goblin (mesh-wide routing stress). */
+export function meshHasRoutingAnomalies(anomalies: Map<number, NodeAnomaly>): boolean {
+  for (const a of anomalies.values()) {
+    if (a.type === 'bad_route' || a.type === 'hop_goblin') return true;
+  }
+  return false;
+}
+
+/** Single line when mesh has routing anomalies — use with meshHasRoutingAnomalies. */
+export const MESH_ROUTING_ANOMALY_LINE =
+  'This mesh currently has routing anomalies (long routes close in) — that increases duplicate receptions until routes improve.';
+
 /**
  * Summarize packetCache for Mesh Congestion detail copy. Only uses packetId/path
  * structure — no user-controlled strings in output templates.
@@ -83,13 +95,7 @@ export function summarizeMeshCongestionAttribution(
   }
   const sufficientEvidence = multiPathCount >= MIN_ECHO_PACKETS;
   const mqttInvolvedRatio = multiPathCount > 0 ? mqttInvolved / multiPathCount : 0;
-  let hasRoutingAnomalies = false;
-  for (const a of anomalies.values()) {
-    if (a.type === 'bad_route' || a.type === 'hop_goblin') {
-      hasRoutingAnomalies = true;
-      break;
-    }
-  }
+  const hasRoutingAnomalies = meshHasRoutingAnomalies(anomalies);
   return {
     sufficientEvidence,
     mqttInvolvedRatio,
@@ -109,8 +115,16 @@ export function meshCongestionPartialAnswer(attr: MeshCongestionAttribution): st
   return `So far, ${attr.multiPathCount} duplicate packet(s) had multiple paths; ${pct}% involved MQTT — need a few more samples to confirm the main cause. If you use a gateway with MQTT downlink, try Ignore MQTT for that node in Diagnostics to see if duplicates drop.`;
 }
 
+export interface MeshCongestionDetailLinesOptions {
+  /** When true, append routing anomaly line even if multi-path evidence is insufficient. */
+  alwaysIncludeRoutingAnomalies?: boolean;
+}
+
 /** Template-only detail lines for UI (no raw node names). */
-export function meshCongestionDetailLines(attr: MeshCongestionAttribution): string[] {
+export function meshCongestionDetailLines(
+  attr: MeshCongestionAttribution,
+  options?: MeshCongestionDetailLinesOptions,
+): string[] {
   const lines: string[] = [];
   if (!attr.sufficientEvidence) {
     const partial = meshCongestionPartialAnswer(attr);
@@ -120,6 +134,9 @@ export function meshCongestionDetailLines(attr: MeshCongestionAttribution): stri
       lines.push(
         'Duplicates are likely from overlapping RF coverage, MQTT+RF double delivery if you use a gateway, or repeaters with a high hop limit — we have not logged enough multi-path packets yet to say which dominates.',
       );
+    }
+    if (options?.alwaysIncludeRoutingAnomalies && attr.hasRoutingAnomalies) {
+      lines.push(MESH_ROUTING_ANOMALY_LINE);
     }
     return lines;
   }
@@ -138,9 +155,7 @@ export function meshCongestionDetailLines(attr: MeshCongestionAttribution): stri
     );
   }
   if (attr.hasRoutingAnomalies) {
-    lines.push(
-      'This mesh currently has routing anomalies (long routes close in) — that increases duplicate receptions until routes improve.',
-    );
+    lines.push(MESH_ROUTING_ANOMALY_LINE);
   }
   return lines;
 }

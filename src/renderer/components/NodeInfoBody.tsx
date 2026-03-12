@@ -13,9 +13,10 @@ import {
   type RFDiagnosis,
 } from '../lib/diagnostics/RFDiagnosticEngine';
 import { snrMeaningfulForNodeDiagnostics } from '../lib/diagnostics/snrMeaningfulForNodeDiagnostics';
-import { getRoleInfo, RoleDisplay } from '../lib/roleInfo';
+import { RoleDisplay } from '../lib/roleInfo';
 import type { HopHistoryPoint, MeshNode } from '../lib/types';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
+import MeshCongestionAttributionBlock from './MeshCongestionAttributionBlock';
 
 export const CATEGORY_STYLES: Record<string, string> = {
   Configuration: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
@@ -486,7 +487,11 @@ function RFDiagnosticsSection({
       ? summarizeMeshCongestionAttribution(packetCache, anomalies)
       : null;
   const meshCongestionLines =
-    attrForOurNode && meshCongestionFinding ? meshCongestionDetailLines(attrForOurNode) : [];
+    attrForOurNode && meshCongestionFinding
+      ? meshCongestionDetailLines(attrForOurNode, {
+          alwaysIncludeRoutingAnomalies: true,
+        })
+      : [];
   const rfOriginators =
     meshCongestionFinding && packetCache.size > 0
       ? summarizeRfDuplicateOriginators(packetCache)
@@ -494,44 +499,12 @@ function RFDiagnosticsSection({
 
   return (
     <>
-      {/* Single block: direct answer for Mesh Congestion (no duplicate of RF Diagnostics hints) */}
-      {meshCongestionLines.length > 0 && (
-        <div className="mt-3 p-3 bg-primary-dark rounded-lg border border-orange-500/20">
-          <div className="text-xs font-medium text-orange-300 mb-2">
-            Why you&apos;re seeing duplicate traffic
-          </div>
-          <div className="flex flex-col gap-2 text-[10px] text-muted">
-            {meshCongestionLines.map((line, j) => (
-              <p key={j} className="leading-relaxed">
-                {line}
-              </p>
-            ))}
-          </div>
-          {rfOriginators.length > 0 && (
-            <div className="mt-3 pt-2 border-t border-orange-500/20">
-              <div className="text-[10px] font-medium text-orange-200/90 mb-1.5">
-                Most RF duplicate-prone traffic lately (by originator — not which relay)
-              </div>
-              <ul className="space-y-1">
-                {rfOriginators.map((o) => {
-                  const n = nodes?.get(o.nodeId);
-                  const name = n?.short_name || n?.long_name || `!${o.nodeId.toString(16)}`;
-                  const roleLabel = getRoleInfo(n?.role).label;
-                  return (
-                    <li key={o.nodeId} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                      <span className="text-gray-300">{name}</span>
-                      <span className="text-gray-500">({roleLabel})</span>
-                      <span className="text-gray-600">
-                        +{o.echoScore} extra RF reception{o.echoScore !== 1 ? 's' : ''} ·{' '}
-                        {o.recordCount} packet{o.recordCount !== 1 ? 's' : ''}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
-        </div>
+      {(meshCongestionLines.length > 0 || rfOriginators.length > 0) && (
+        <MeshCongestionAttributionBlock
+          lines={meshCongestionLines}
+          originators={rfOriginators}
+          nodes={nodes}
+        />
       )}
 
       <div className="mt-3 p-3 bg-primary-dark rounded-lg">
