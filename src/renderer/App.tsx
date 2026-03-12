@@ -513,6 +513,7 @@ export default function App() {
                     traceRouteResults={device.traceRouteResults}
                     getFullNodeLabel={device.getFullNodeLabel}
                     ourPosition={device.ourPosition}
+                    onNodeClick={(node) => setSelectedNodeId(node.node_id)}
                   />
                 )}
               </ErrorBoundary>
