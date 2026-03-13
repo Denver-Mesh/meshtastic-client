@@ -44,8 +44,9 @@ const BLE_STALE_THRESHOLD_MS = 90_000; // 90s — show warning
 const BLE_DEAD_THRESHOLD_MS = 180_000; // 3min — trigger reconnect
 const SERIAL_STALE_THRESHOLD_MS = 120_000; // 2min
 const SERIAL_DEAD_THRESHOLD_MS = 300_000; // 5min
-const HTTP_STALE_THRESHOLD_MS = 60_000; // 1min
-const HTTP_DEAD_THRESHOLD_MS = 120_000; // 2min
+// HTTP: align closer to BLE thresholds so WiFi behaves similarly for staleness/reconnect.
+const HTTP_STALE_THRESHOLD_MS = 90_000; // 90s — show warning
+const HTTP_DEAD_THRESHOLD_MS = 180_000; // 3min — trigger reconnect
 const WATCHDOG_INTERVAL_MS = 15_000; // Check every 15s
 const MAX_RECONNECT_ATTEMPTS = 5;
 const BLE_HEARTBEAT_INTERVAL_MS = 30_000; // 30s heartbeat for BLE
@@ -1146,8 +1147,8 @@ export function useDevice() {
       });
       unsubscribesRef.current.push(unsubTrace);
 
-      // ─── BLE heartbeat with failure detection ──────────────────
-      if (type === 'ble') {
+      // ─── BLE/HTTP heartbeat with failure detection ─────────────
+      if (type === 'ble' || type === 'http') {
         bleHeartbeatRef.current = setInterval(async () => {
           try {
             await deviceRef.current?.heartbeat();
