@@ -1147,8 +1147,13 @@ export function useDevice() {
       });
       unsubscribesRef.current.push(unsubTrace);
 
-      // ─── BLE/HTTP heartbeat with failure detection ─────────────
-      if (type === 'ble' || type === 'http') {
+      // ─── BLE heartbeat with failure detection ──────────────────
+      // HTTP transport does not need a heartbeat — the 3s fromradio poll
+      // and onMeshHeartbeat keep the connection alive. heartbeat() for HTTP
+      // uses the queue with a 60s auto-resolve timeout (no real device ACK),
+      // so awaiting it would call touchLastData() 60s late and mask dead
+      // connections from the watchdog.
+      if (type === 'ble') {
         bleHeartbeatRef.current = setInterval(async () => {
           try {
             await deviceRef.current?.heartbeat();
