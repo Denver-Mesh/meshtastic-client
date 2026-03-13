@@ -142,6 +142,7 @@ export default function App() {
   const prevMsgCountRef = useRef(0);
   const isInitialLoadRef = useRef(true);
   const [updateState, setUpdateState] = useState<UpdateState>({ phase: 'idle', dismissed: false });
+  const [telemetryNoticeDismissed, setTelemetryNoticeDismissed] = useState(false);
 
   // ─── Theme colors (localStorage overrides for @theme tokens) ─────
   useLayoutEffect(() => {
@@ -156,6 +157,12 @@ export default function App() {
   useEffect(() => {
     runReanalysis(device.getNodes, device.selfNodeId);
   }, [device.nodes, device.selfNodeId, device.getNodes, runReanalysis, ignoreMqttEnabled, envMode]);
+
+  useEffect(() => {
+    if (device.state.status === 'disconnected') {
+      setTelemetryNoticeDismissed(false);
+    }
+  }, [device.state.status]);
 
   const isConfigured = device.state.status === 'configured';
   const isOperational = isConfigured || device.state.status === 'stale';
@@ -183,13 +190,17 @@ export default function App() {
           'App startup node pruning',
         ) ?? {};
       if (s.autoPruneEnabled) {
+        const days =
+          typeof s.autoPruneDays === 'number' && s.autoPruneDays > 0 ? s.autoPruneDays : 30;
         void window.electronAPI.db
-          .deleteNodesByAge(s.autoPruneDays ?? 30)
+          .deleteNodesByAge(days)
           .catch((e) => console.warn('[App] startup deleteNodesByAge failed', e));
       }
       if (s.nodeCapEnabled !== false) {
+        const cap =
+          typeof s.nodeCapCount === 'number' && s.nodeCapCount > 0 ? s.nodeCapCount : 10000;
         void window.electronAPI.db
-          .pruneNodesByCount(s.nodeCapCount ?? 10000)
+          .pruneNodesByCount(cap)
           .catch((e) => console.warn('[App] startup pruneNodesByCount failed', e));
       }
     } catch (e) {
@@ -386,6 +397,28 @@ export default function App() {
           onReconnect={handleReconnect}
         />
 
+        {/* Telemetry disabled notice */}
+        {isOperational && device.telemetryEnabled === false && !telemetryNoticeDismissed && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex items-center justify-between gap-3 px-4 py-2 bg-gray-900 border-b border-gray-700 text-sm"
+          >
+            <span className="text-gray-300">
+              Telemetry is disabled on this device. Enabling device metrics helps the mesh and this
+              app (diagnostics, battery, signal). Enable it in the Radio tab.
+            </span>
+            <button
+              type="button"
+              onClick={() => setTelemetryNoticeDismissed(true)}
+              aria-label="Dismiss telemetry notice"
+              className="shrink-0 text-gray-500 hover:text-gray-300 transition-colors text-base leading-none"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         {/* Update Notification Banner */}
         <UpdateBanner
           updateState={updateState}
@@ -478,6 +511,7 @@ export default function App() {
                     onClearChannel={device.clearChannel}
                     channelConfigs={device.channelConfigs}
                     isConnected={isOperational}
+                    telemetryDeviceUpdateInterval={device.telemetryDeviceUpdateInterval}
                     onReboot={device.reboot}
                     onShutdown={device.shutdown}
                     onFactoryReset={device.factoryReset}

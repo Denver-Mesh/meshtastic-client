@@ -6,22 +6,28 @@ Thank you for your interest in contributing. This document covers setup, testing
 
 See [README.md](README.md) for full setup instructions including prerequisites and platform-specific steps.
 
+**Node version:** Use **Node 22** (22.12.0+ recommended). CI (`.github/workflows/`) runs on Node 22 for build, test, and release; using the same version locally avoids environment drift and Linux-specific failures (e.g. native rebuilds) on older Node.
+
 ```bash
 npm install
 npm run dev       # Start in development mode
 npm run build     # Production build
 npm run lint      # Run ESLint (type-aware; see Code style below)
+npm run typecheck # TypeScript check (renderer + main/preload)
 npm run format    # Prettier write — ts, tsx, js, jsx, json, css, md
 npm run format:check   # Prettier check only (no writes)
 npm run rebuild   # Rebuild native modules (better-sqlite3) for current Electron
 ```
+
+**Running CI locally:** With [act](https://github.com/nektos/act) installed, run `act --container-architecture linux/amd64` so Linux jobs use the correct architecture. The test-results artifact upload step is skipped when running under act (actor `nektos/act`); all other steps run as on GitHub.
 
 After `npm install`, the repo’s git hooks are enabled (`core.hooksPath` → `.githooks`). On every commit, the **pre-commit** hook runs in order:
 
 1. **`npm run format`** — Prettier **writes** to matching files (not `format:check`).
 2. **Re-stage** — Only files that were already staged are re-added, so unstaged WIP is not swept in.
 3. **`npm run lint`**
-4. **`npm run test:run`**
+4. **`npm run typecheck`** — TypeScript check for renderer and main/preload.
+5. **`npm run test:run`** — Fails the commit if tests fail.
 
 To skip the hook in an emergency: `git commit --no-verify`.
 
