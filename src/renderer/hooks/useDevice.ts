@@ -641,8 +641,9 @@ export function useDevice() {
         touchLastData();
         const isEcho = meshPacket.from === myNodeNumRef.current;
         const payloadText = new TextDecoder().decode(dataPacket.payload);
-        const replyId = dataPacket.replyId || undefined;
-        const wireEmoji = (dataPacket as { emoji?: number }).emoji;
+        const data = dataPacket as { replyId?: number; reply_id?: number; emoji?: number };
+        const replyId = data.replyId ?? data.reply_id ?? undefined;
+        const wireEmoji = data.emoji;
         const emoji = replyId
           ? (normalizeReactionEmoji(wireEmoji, payloadText) ?? wireEmoji ?? undefined)
           : undefined;
@@ -1814,20 +1815,6 @@ export function useDevice() {
       window.electronAPI.db.saveMessage(msg);
 
       // Device transport
-      // #region agent log
-      fetch('http://127.0.0.1:7586/ingest/49af3064-4f08-4b78-bc65-b64d378f5d17', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'f20454' },
-        body: JSON.stringify({
-          sessionId: 'f20454',
-          location: 'useDevice.ts:sendReaction',
-          message: 'sendReaction device path',
-          data: { hasDevice: !!deviceRef.current, channel, replyId, emoji },
-          hypothesisId: 'H1',
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       if (deviceRef.current) {
         await deviceRef.current.sendText('', 'broadcast', true, channel, replyId, emoji);
       }
