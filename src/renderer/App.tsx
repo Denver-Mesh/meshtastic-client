@@ -37,9 +37,9 @@ const TAB_NAMES = [
   'Chat',
   'Nodes',
   'Map',
-  'Telemetry',
   'Radio',
   'Modules',
+  'Telemetry',
   'App',
   'Diagnostics',
 ];
@@ -514,14 +514,6 @@ export default function App() {
                   />
                 )}
                 {activeTab === 4 && (
-                  <TelemetryPanel
-                    telemetry={device.telemetry}
-                    signalTelemetry={device.signalTelemetry}
-                    onRefresh={device.requestRefresh}
-                    isConnected={isOperational}
-                  />
-                )}
-                {activeTab === 5 && (
                   <RadioPanel
                     onSetConfig={device.setConfig}
                     onCommit={device.commitConfig}
@@ -543,12 +535,20 @@ export default function App() {
                     onFactoryResetConfig={device.factoryResetConfig}
                   />
                 )}
-                {activeTab === 6 && (
+                {activeTab === 5 && (
                   <ModulePanel
                     moduleConfigs={device.moduleConfigs}
                     onSetModuleConfig={device.setModuleConfig}
                     onSetCannedMessages={device.setCannedMessages}
                     onCommit={device.commitConfig}
+                    isConnected={isOperational}
+                  />
+                )}
+                {activeTab === 6 && (
+                  <TelemetryPanel
+                    telemetry={device.telemetry}
+                    signalTelemetry={device.signalTelemetry}
+                    onRefresh={device.requestRefresh}
                     isConnected={isOperational}
                   />
                 )}

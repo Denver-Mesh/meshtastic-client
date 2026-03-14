@@ -543,6 +543,63 @@ export default function RadioPanel({
         </div>
       )}
 
+      {/* ═══ Bluetooth ═══ */}
+      <ConfigSection
+        title="Bluetooth"
+        onApply={() =>
+          applyConfig('Bluetooth', 'bluetooth', {
+            enabled: btEnabled,
+            fixedPin: btFixedPin,
+          })
+        }
+        applying={applyingSection === 'Bluetooth'}
+        disabled={disabled}
+      >
+        <ConfigToggle
+          label="Bluetooth Enabled"
+          checked={btEnabled}
+          onChange={setBtEnabled}
+          disabled={disabled || applyingSection !== null}
+          description="Toggle Bluetooth radio on the device."
+        />
+        <ConfigNumber
+          label="Pairing PIN"
+          value={btFixedPin}
+          onChange={setBtFixedPin}
+          disabled={disabled || applyingSection !== null || !btEnabled}
+          min={100000}
+          max={999999}
+          description="6-digit fixed PIN for Bluetooth pairing. Default: 123456."
+        />
+      </ConfigSection>
+
+      {/* ═══ Channels ═══ */}
+      <ChannelSection
+        channelConfigs={channelConfigs}
+        onSetChannel={onSetChannel}
+        onClearChannel={onClearChannel}
+        onCommit={onCommit}
+        disabled={disabled}
+        setStatus={setStatus}
+      />
+
+      {/* ═══ Device Role ═══ */}
+      <ConfigSection
+        title="Device Role"
+        onApply={() => applyConfig('Device', 'device', { role: deviceRole })}
+        applying={applyingSection === 'Device'}
+        disabled={disabled}
+      >
+        <ConfigSelect
+          label="Role"
+          value={deviceRole}
+          options={DEVICE_ROLES}
+          onChange={setDeviceRole}
+          disabled={disabled || applyingSection !== null}
+          description={DEVICE_ROLES.find((r) => r.value === deviceRole)?.description}
+        />
+      </ConfigSection>
+
       {/* ═══ Device User / Identity ═══ */}
       <ConfigSection
         title="Device User / Identity"
@@ -596,6 +653,37 @@ export default function RadioPanel({
           onChange={setIsLicensed}
           disabled={disabled}
           description="Enables additional frequencies for licensed amateur radio operators"
+        />
+      </ConfigSection>
+
+      {/* ═══ Display ═══ */}
+      <ConfigSection
+        title="Display"
+        onApply={() =>
+          applyConfig('Display', 'display', {
+            screenOnSecs,
+            units: displayUnits,
+          })
+        }
+        applying={applyingSection === 'Display'}
+        disabled={disabled}
+      >
+        <ConfigNumber
+          label="Screen On Duration"
+          value={screenOnSecs}
+          onChange={setScreenOnSecs}
+          disabled={disabled || applyingSection !== null}
+          min={0}
+          max={3600}
+          unit="seconds"
+          description="How long the screen stays on after activity. 0 = always on."
+        />
+        <ConfigSelect
+          label="Display Units"
+          value={displayUnits}
+          options={DISPLAY_UNITS}
+          onChange={setDisplayUnits}
+          disabled={disabled || applyingSection !== null}
         />
       </ConfigSection>
 
@@ -720,23 +808,6 @@ export default function RadioPanel({
             Default: 3.
           </p>
         </div>
-      </ConfigSection>
-
-      {/* ═══ Device Role ═══ */}
-      <ConfigSection
-        title="Device Role"
-        onApply={() => applyConfig('Device', 'device', { role: deviceRole })}
-        applying={applyingSection === 'Device'}
-        disabled={disabled}
-      >
-        <ConfigSelect
-          label="Role"
-          value={deviceRole}
-          options={DEVICE_ROLES}
-          onChange={setDeviceRole}
-          disabled={disabled || applyingSection !== null}
-          description={DEVICE_ROLES.find((r) => r.value === deviceRole)?.description}
-        />
       </ConfigSection>
 
       {/* ═══ Position / GPS ═══ */}
@@ -896,29 +967,6 @@ export default function RadioPanel({
         )}
       </ConfigSection>
 
-      {/* ═══ Telemetry ═══ */}
-      <ConfigSection
-        title="Telemetry"
-        onApply={() =>
-          applyConfig('Telemetry', 'telemetry', {
-            device_update_interval: deviceUpdateInterval,
-          })
-        }
-        applying={applyingSection === 'Telemetry'}
-        disabled={disabled}
-      >
-        <ConfigNumber
-          label="Device metrics update interval"
-          value={deviceUpdateInterval}
-          onChange={setDeviceUpdateInterval}
-          disabled={disabled || applyingSection !== null}
-          min={0}
-          max={86400}
-          unit="seconds"
-          description="How often to send device metrics (battery, voltage, channel utilization) to the mesh. 0 = disabled. Default 1800 (30 min)."
-        />
-      </ConfigSection>
-
       {/* ═══ Power ═══ */}
       <ConfigSection
         title="Power"
@@ -989,64 +1037,26 @@ export default function RadioPanel({
         />
       </ConfigSection>
 
-      {/* ═══ Bluetooth ═══ */}
+      {/* ═══ Telemetry ═══ */}
       <ConfigSection
-        title="Bluetooth"
+        title="Telemetry"
         onApply={() =>
-          applyConfig('Bluetooth', 'bluetooth', {
-            enabled: btEnabled,
-            fixedPin: btFixedPin,
+          applyConfig('Telemetry', 'telemetry', {
+            device_update_interval: deviceUpdateInterval,
           })
         }
-        applying={applyingSection === 'Bluetooth'}
-        disabled={disabled}
-      >
-        <ConfigToggle
-          label="Bluetooth Enabled"
-          checked={btEnabled}
-          onChange={setBtEnabled}
-          disabled={disabled || applyingSection !== null}
-          description="Toggle Bluetooth radio on the device."
-        />
-        <ConfigNumber
-          label="Pairing PIN"
-          value={btFixedPin}
-          onChange={setBtFixedPin}
-          disabled={disabled || applyingSection !== null || !btEnabled}
-          min={100000}
-          max={999999}
-          description="6-digit fixed PIN for Bluetooth pairing. Default: 123456."
-        />
-      </ConfigSection>
-
-      {/* ═══ Display ═══ */}
-      <ConfigSection
-        title="Display"
-        onApply={() =>
-          applyConfig('Display', 'display', {
-            screenOnSecs,
-            units: displayUnits,
-          })
-        }
-        applying={applyingSection === 'Display'}
+        applying={applyingSection === 'Telemetry'}
         disabled={disabled}
       >
         <ConfigNumber
-          label="Screen On Duration"
-          value={screenOnSecs}
-          onChange={setScreenOnSecs}
+          label="Device metrics update interval"
+          value={deviceUpdateInterval}
+          onChange={setDeviceUpdateInterval}
           disabled={disabled || applyingSection !== null}
           min={0}
-          max={3600}
+          max={86400}
           unit="seconds"
-          description="How long the screen stays on after activity. 0 = always on."
-        />
-        <ConfigSelect
-          label="Display Units"
-          value={displayUnits}
-          options={DISPLAY_UNITS}
-          onChange={setDisplayUnits}
-          disabled={disabled || applyingSection !== null}
+          description="How often to send device metrics (battery, voltage, channel utilization) to the mesh. 0 = disabled. Default 1800 (30 min)."
         />
       </ConfigSection>
 
@@ -1109,16 +1119,6 @@ export default function RadioPanel({
           description="Enable hardware Ethernet (supported on select devices)."
         />
       </ConfigSection>
-
-      {/* ═══ Channels ═══ */}
-      <ChannelSection
-        channelConfigs={channelConfigs}
-        onSetChannel={onSetChannel}
-        onClearChannel={onClearChannel}
-        onCommit={onCommit}
-        disabled={disabled}
-        setStatus={setStatus}
-      />
 
       {/* Status */}
       {status && (

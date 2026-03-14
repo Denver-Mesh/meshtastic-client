@@ -286,58 +286,102 @@ export default function ModulePanel({
         </div>
       )}
 
-      {/* ═══ Telemetry Module ═══ */}
+      {/* ═══ Canned Messages ═══ */}
       <ModuleSection
-        title="Telemetry Module"
-        onApply={() =>
-          applyModule('Telemetry Module', 'telemetry', {
-            deviceUpdateInterval: telDeviceInterval,
-            environmentUpdateInterval: telEnvInterval,
-            environmentMeasurementEnabled: telEnvEnabled,
-            powerMeasurementEnabled: telPowerEnabled,
-            airQualityEnabled: telAirQualityEnabled,
-          })
-        }
-        applying={applyingSection === 'Telemetry Module'}
+        title="Canned Messages"
+        onApply={async () => {
+          setApplyingSection('Canned Messages');
+          try {
+            const lines = cannedText
+              .split('\n')
+              .map((l) => l.trim())
+              .filter(Boolean);
+            await onSetCannedMessages(lines);
+            await onSetModuleConfig({
+              payloadVariant: {
+                case: 'cannedMessage',
+                value: { enabled: cannedEnabled },
+              },
+            });
+            await onCommit();
+            addToast('Canned Messages applied.', 'success');
+          } catch (err) {
+            console.warn('[ModulePanel] canned messages failed', err);
+            addToast(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+          } finally {
+            setApplyingSection(null);
+          }
+        }}
+        applying={applyingSection === 'Canned Messages'}
         disabled={disabled}
       >
+        <ConfigToggle
+          label="Canned messages enabled"
+          checked={cannedEnabled}
+          onChange={setCannedEnabled}
+          disabled={disabled}
+        />
+        <div className="space-y-1">
+          <label className="text-sm text-muted">Messages (one per line, max 30 chars each)</label>
+          <textarea
+            value={cannedText}
+            onChange={(e) => setCannedText(e.target.value)}
+            disabled={disabled || !cannedEnabled}
+            rows={6}
+            placeholder={'Hello\nOK\nOn my way\nNeed help'}
+            className="w-full px-3 py-2 bg-secondary-dark rounded-lg text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none disabled:opacity-50 font-mono text-xs resize-y"
+          />
+          <p className="text-xs text-muted">
+            Enter one message per line. Used with the input peripheral buttons.
+          </p>
+        </div>
+      </ModuleSection>
+
+      {/* ═══ Detection Sensor Module ═══ */}
+      <ModuleSection
+        title="Detection Sensor Module"
+        onApply={() =>
+          applyModule('Detection Sensor', 'detectionSensor', {
+            enabled: detectEnabled,
+            name: detectName,
+            minimumBroadcastSecs: detectMinBroadcast,
+            stateBroadcastSecs: detectStateBroadcast,
+          })
+        }
+        applying={applyingSection === 'Detection Sensor'}
+        disabled={disabled}
+      >
+        <ConfigToggle
+          label="Detection sensor enabled"
+          checked={detectEnabled}
+          onChange={setDetectEnabled}
+          disabled={disabled}
+          description="Broadcast detection events (PIR, door sensor, etc.) to the mesh."
+        />
+        <ConfigText
+          label="Sensor name"
+          value={detectName}
+          onChange={setDetectName}
+          disabled={disabled || !detectEnabled}
+          description="Shown in detection alert messages."
+        />
         <ConfigNumber
-          label="Device metrics interval"
-          value={telDeviceInterval}
-          onChange={setTelDeviceInterval}
-          disabled={disabled}
+          label="Minimum broadcast interval"
+          value={detectMinBroadcast}
+          onChange={setDetectMinBroadcast}
+          disabled={disabled || !detectEnabled}
           min={0}
-          max={86400}
           unit="seconds"
-          description="How often to send battery/voltage/channel utilization. 0 = disabled."
+          description="Minimum seconds between broadcasts even if repeatedly triggered."
         />
         <ConfigNumber
-          label="Environment metrics interval"
-          value={telEnvInterval}
-          onChange={setTelEnvInterval}
-          disabled={disabled}
+          label="State broadcast interval"
+          value={detectStateBroadcast}
+          onChange={setDetectStateBroadcast}
+          disabled={disabled || !detectEnabled}
           min={0}
-          max={86400}
           unit="seconds"
-          description="How often to send temperature/humidity/pressure. 0 = disabled."
-        />
-        <ConfigToggle
-          label="Environment measurement enabled"
-          checked={telEnvEnabled}
-          onChange={setTelEnvEnabled}
-          disabled={disabled}
-        />
-        <ConfigToggle
-          label="Power measurement enabled"
-          checked={telPowerEnabled}
-          onChange={setTelPowerEnabled}
-          disabled={disabled}
-        />
-        <ConfigToggle
-          label="Air quality enabled"
-          checked={telAirQualityEnabled}
-          onChange={setTelAirQualityEnabled}
-          disabled={disabled}
+          description="How often to broadcast the current state even without a change."
         />
       </ModuleSection>
 
@@ -423,55 +467,72 @@ export default function ModulePanel({
         />
       </ModuleSection>
 
-      {/* ═══ Canned Messages ═══ */}
+      {/* ═══ Pax Counter Module ═══ */}
       <ModuleSection
-        title="Canned Messages"
-        onApply={async () => {
-          setApplyingSection('Canned Messages');
-          try {
-            const lines = cannedText
-              .split('\n')
-              .map((l) => l.trim())
-              .filter(Boolean);
-            await onSetCannedMessages(lines);
-            await onSetModuleConfig({
-              payloadVariant: {
-                case: 'cannedMessage',
-                value: { enabled: cannedEnabled },
-              },
-            });
-            await onCommit();
-            addToast('Canned Messages applied.', 'success');
-          } catch (err) {
-            console.warn('[ModulePanel] canned messages failed', err);
-            addToast(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
-          } finally {
-            setApplyingSection(null);
-          }
-        }}
-        applying={applyingSection === 'Canned Messages'}
+        title="Pax Counter Module"
+        onApply={() =>
+          applyModule('Pax Counter', 'paxcounter', {
+            enabled: paxEnabled,
+            paxcounterUpdateInterval: paxInterval,
+          })
+        }
+        applying={applyingSection === 'Pax Counter'}
         disabled={disabled}
       >
         <ConfigToggle
-          label="Canned messages enabled"
-          checked={cannedEnabled}
-          onChange={setCannedEnabled}
+          label="Pax counter enabled"
+          checked={paxEnabled}
+          onChange={setPaxEnabled}
+          disabled={disabled}
+          description="Count nearby Bluetooth and WiFi devices as a crowd density metric."
+        />
+        <ConfigNumber
+          label="Update interval"
+          value={paxInterval}
+          onChange={setPaxInterval}
+          disabled={disabled || !paxEnabled}
+          min={0}
+          unit="seconds"
+          description="How often to broadcast pax counter readings. 0 = use default."
+        />
+      </ModuleSection>
+
+      {/* ═══ Range Test Module ═══ */}
+      <ModuleSection
+        title="Range Test Module"
+        onApply={() =>
+          applyModule('Range Test', 'rangeTest', {
+            enabled: rangeEnabled,
+            sender: rangeSenderInterval,
+            save: rangeSave,
+          })
+        }
+        applying={applyingSection === 'Range Test'}
+        disabled={disabled}
+      >
+        <ConfigToggle
+          label="Range test enabled"
+          checked={rangeEnabled}
+          onChange={setRangeEnabled}
           disabled={disabled}
         />
-        <div className="space-y-1">
-          <label className="text-sm text-muted">Messages (one per line, max 30 chars each)</label>
-          <textarea
-            value={cannedText}
-            onChange={(e) => setCannedText(e.target.value)}
-            disabled={disabled || !cannedEnabled}
-            rows={6}
-            placeholder={'Hello\nOK\nOn my way\nNeed help'}
-            className="w-full px-3 py-2 bg-secondary-dark rounded-lg text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none disabled:opacity-50 font-mono text-xs resize-y"
-          />
-          <p className="text-xs text-muted">
-            Enter one message per line. Used with the input peripheral buttons.
-          </p>
-        </div>
+        <ConfigNumber
+          label="Sender interval"
+          value={rangeSenderInterval}
+          onChange={setRangeSenderInterval}
+          disabled={disabled || !rangeEnabled}
+          min={0}
+          max={3600}
+          unit="seconds"
+          description="How often this node sends range test packets. 0 = receiver only."
+        />
+        <ConfigToggle
+          label="Save results to file"
+          checked={rangeSave}
+          onChange={setRangeSave}
+          disabled={disabled || !rangeEnabled}
+          description="Log range test results to the device filesystem."
+        />
       </ModuleSection>
 
       {/* ═══ Serial Module ═══ */}
@@ -516,44 +577,6 @@ export default function ModulePanel({
             ))}
           </select>
         </div>
-      </ModuleSection>
-
-      {/* ═══ Range Test Module ═══ */}
-      <ModuleSection
-        title="Range Test Module"
-        onApply={() =>
-          applyModule('Range Test', 'rangeTest', {
-            enabled: rangeEnabled,
-            sender: rangeSenderInterval,
-            save: rangeSave,
-          })
-        }
-        applying={applyingSection === 'Range Test'}
-        disabled={disabled}
-      >
-        <ConfigToggle
-          label="Range test enabled"
-          checked={rangeEnabled}
-          onChange={setRangeEnabled}
-          disabled={disabled}
-        />
-        <ConfigNumber
-          label="Sender interval"
-          value={rangeSenderInterval}
-          onChange={setRangeSenderInterval}
-          disabled={disabled || !rangeEnabled}
-          min={0}
-          max={3600}
-          unit="seconds"
-          description="How often this node sends range test packets. 0 = receiver only."
-        />
-        <ConfigToggle
-          label="Save results to file"
-          checked={rangeSave}
-          onChange={setRangeSave}
-          disabled={disabled || !rangeEnabled}
-          description="Log range test results to the device filesystem."
-        />
       </ModuleSection>
 
       {/* ═══ Store & Forward Module ═══ */}
@@ -613,81 +636,58 @@ export default function ModulePanel({
         />
       </ModuleSection>
 
-      {/* ═══ Detection Sensor Module ═══ */}
+      {/* ═══ Telemetry Module ═══ */}
       <ModuleSection
-        title="Detection Sensor Module"
+        title="Telemetry Module"
         onApply={() =>
-          applyModule('Detection Sensor', 'detectionSensor', {
-            enabled: detectEnabled,
-            name: detectName,
-            minimumBroadcastSecs: detectMinBroadcast,
-            stateBroadcastSecs: detectStateBroadcast,
+          applyModule('Telemetry Module', 'telemetry', {
+            deviceUpdateInterval: telDeviceInterval,
+            environmentUpdateInterval: telEnvInterval,
+            environmentMeasurementEnabled: telEnvEnabled,
+            powerMeasurementEnabled: telPowerEnabled,
+            airQualityEnabled: telAirQualityEnabled,
           })
         }
-        applying={applyingSection === 'Detection Sensor'}
+        applying={applyingSection === 'Telemetry Module'}
         disabled={disabled}
       >
-        <ConfigToggle
-          label="Detection sensor enabled"
-          checked={detectEnabled}
-          onChange={setDetectEnabled}
+        <ConfigNumber
+          label="Device metrics interval"
+          value={telDeviceInterval}
+          onChange={setTelDeviceInterval}
           disabled={disabled}
-          description="Broadcast detection events (PIR, door sensor, etc.) to the mesh."
-        />
-        <ConfigText
-          label="Sensor name"
-          value={detectName}
-          onChange={setDetectName}
-          disabled={disabled || !detectEnabled}
-          description="Shown in detection alert messages."
+          min={0}
+          max={86400}
+          unit="seconds"
+          description="How often to send battery/voltage/channel utilization. 0 = disabled."
         />
         <ConfigNumber
-          label="Minimum broadcast interval"
-          value={detectMinBroadcast}
-          onChange={setDetectMinBroadcast}
-          disabled={disabled || !detectEnabled}
-          min={0}
-          unit="seconds"
-          description="Minimum seconds between broadcasts even if repeatedly triggered."
-        />
-        <ConfigNumber
-          label="State broadcast interval"
-          value={detectStateBroadcast}
-          onChange={setDetectStateBroadcast}
-          disabled={disabled || !detectEnabled}
-          min={0}
-          unit="seconds"
-          description="How often to broadcast the current state even without a change."
-        />
-      </ModuleSection>
-
-      {/* ═══ Pax Counter Module ═══ */}
-      <ModuleSection
-        title="Pax Counter Module"
-        onApply={() =>
-          applyModule('Pax Counter', 'paxcounter', {
-            enabled: paxEnabled,
-            paxcounterUpdateInterval: paxInterval,
-          })
-        }
-        applying={applyingSection === 'Pax Counter'}
-        disabled={disabled}
-      >
-        <ConfigToggle
-          label="Pax counter enabled"
-          checked={paxEnabled}
-          onChange={setPaxEnabled}
+          label="Environment metrics interval"
+          value={telEnvInterval}
+          onChange={setTelEnvInterval}
           disabled={disabled}
-          description="Count nearby Bluetooth and WiFi devices as a crowd density metric."
-        />
-        <ConfigNumber
-          label="Update interval"
-          value={paxInterval}
-          onChange={setPaxInterval}
-          disabled={disabled || !paxEnabled}
           min={0}
+          max={86400}
           unit="seconds"
-          description="How often to broadcast pax counter readings. 0 = use default."
+          description="How often to send temperature/humidity/pressure. 0 = disabled."
+        />
+        <ConfigToggle
+          label="Environment measurement enabled"
+          checked={telEnvEnabled}
+          onChange={setTelEnvEnabled}
+          disabled={disabled}
+        />
+        <ConfigToggle
+          label="Power measurement enabled"
+          checked={telPowerEnabled}
+          onChange={setTelPowerEnabled}
+          disabled={disabled}
+        />
+        <ConfigToggle
+          label="Air quality enabled"
+          checked={telAirQualityEnabled}
+          onChange={setTelAirQualityEnabled}
+          disabled={disabled}
         />
       </ModuleSection>
     </div>
