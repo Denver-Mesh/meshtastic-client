@@ -25,6 +25,7 @@ export class TransportManager {
   /**
    * Fire both transports concurrently. Returns immediately.
    * Each transport independently calls onStatusUpdate as it resolves/rejects.
+   * @param from - Node ID to use as sender (myNodeNum from device, or virtual node ID when MQTT-only).
    */
   sendMessage(
     text: string,
@@ -32,6 +33,7 @@ export class TransportManager {
     destination: number | undefined,
     replyId: number | undefined,
     tempId: number,
+    from: number,
   ): void {
     const {
       deviceRef,
@@ -51,7 +53,7 @@ export class TransportManager {
       window.electronAPI.mqtt
         .publish({
           text,
-          from: myNodeNumRef.current,
+          from,
           channel,
           destination: destination ?? BROADCAST_ADDR,
           channelName: 'LongFast',

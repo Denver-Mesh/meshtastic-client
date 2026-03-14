@@ -3,25 +3,14 @@ import { app } from 'electron';
 import fs from 'fs';
 import path from 'path';
 
+import { sanitizeForLogSink, sanitizeLogMessage } from './sanitize-log-message';
+
+export { sanitizeLogMessage };
+
 const LOG_FILENAME = 'meshtastic-client.log';
 const MAX_LINE_LENGTH = 8192;
 const MAX_IPC_MESSAGE_LENGTH = 4096;
 const RECENT_MAX = 1500;
-
-/**
- * Sanitize untrusted or user-controlled text before it is persisted or forwarded as a log line.
- * Strips control characters (including newlines) and normalizes whitespace so each entry stays
- * one line and log injection is avoided. All paths that write to the log file go through
- * {@link appendLine}, which applies this helper to every message before formatLine/appendFile.
- */
-export function sanitizeLogMessage(message: unknown): string {
-  // Remove control characters (including newlines and carriage returns) and normalize whitespace
-  // to keep each log entry on a single line and prevent log injection.
-  return String(message)
-    .replace(/[\x00-\x1F\x7F\u2028\u2029]+/g, ' ') // eslint-disable-line no-control-regex
-    .replace(/\s+/g, ' ')
-    .trim();
-}
 
 /**
  * Strip console %c style directives and their trailing CSS argument strings from messages
@@ -230,29 +219,36 @@ function resolveMainSource(): 'sdk' | 'main' {
 /**
  * Route main-process console.* through appendLine and still echo to original console
  * so terminal/devtools behavior is preserved.
+ * Uses sanitizeForLogSink ( .replace(/\n|\r/g, ' ') first) so CodeQL js/log-injection
+ * recognizes the sanitizer; see sanitize-log-message.test.ts for pre-commit coverage.
  */
 export function patchMainConsole(): void {
   if (consolePatched) return;
   consolePatched = true;
 
   console.log = (...args: unknown[]) => {
-    appendLine('log', resolveMainSource(), sanitizeLogMessage(stringifyArgs(args)));
+    const safe = sanitizeForLogSink(stringifyArgs(args));
+    appendLine('log', resolveMainSource(), safe);
     original.log(...args);
   };
   console.info = (...args: unknown[]) => {
-    appendLine('info', resolveMainSource(), sanitizeLogMessage(stringifyArgs(args)));
+    const safe = sanitizeForLogSink(stringifyArgs(args));
+    appendLine('info', resolveMainSource(), safe);
     original.info(...args);
   };
   console.warn = (...args: unknown[]) => {
-    appendLine('warn', resolveMainSource(), sanitizeLogMessage(stringifyArgs(args)));
+    const safe = sanitizeForLogSink(stringifyArgs(args));
+    appendLine('warn', resolveMainSource(), safe);
     original.warn(...args);
   };
   console.error = (...args: unknown[]) => {
-    appendLine('error', resolveMainSource(), sanitizeLogMessage(stringifyArgs(args)));
+    const safe = sanitizeForLogSink(stringifyArgs(args));
+    appendLine('error', resolveMainSource(), safe);
     original.error(...args);
   };
   console.debug = (...args: unknown[]) => {
-    appendLine('debug', resolveMainSource(), sanitizeLogMessage(stringifyArgs(args)));
+    const safe = sanitizeForLogSink(stringifyArgs(args));
+    appendLine('debug', resolveMainSource(), safe);
     original.debug(...args);
   };
 
@@ -264,7 +260,7 @@ export function patchMainConsole(): void {
         const chunk = args[0];
         if (typeof chunk === 'string') {
           const trimmed = chunk.replace(/\r?\n$/, '');
-          if (trimmed) appendLine(level, source, trimmed);
+          if (trimmed) appendLine(level, source, sanitizeLogMessage(trimmed));
         }
       } catch (e) {
         original.debug('[log-service] patchStream write hook', e);
@@ -294,6 +290,9 @@ export function forwardRendererConsoleMessage(details: {
   };
   const mapped: LogLevel = levelMap[details.level] ?? 'log';
   const line = details.lineNumber;
-  const src = details.sourceId ? `renderer:${path.basename(details.sourceId)}:${line}` : 'renderer';
-  appendLine(mapped, src, stripConsoleStyles(details.message));
+  const src = details.sourceId
+    ? sanitizeLogMessage(`renderer:${path.basename(details.sourceId)}:${line}`)
+    : 'renderer';
+  const msg = sanitizeLogMessage(stripConsoleStyles(details.message));
+  appendLine(mapped, src, msg);
 }

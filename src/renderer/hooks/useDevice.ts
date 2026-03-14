@@ -1697,7 +1697,7 @@ export function useDevice() {
           onStatusUpdateRef,
         });
       }
-      transportManagerRef.current.sendMessage(text, channel, destination, replyId, tempId);
+      transportManagerRef.current.sendMessage(text, channel, destination, replyId, tempId, from);
     },
     [getNodeName, isDuplicate],
   );
