@@ -5,6 +5,7 @@ import { EventEmitter } from 'events';
 import * as mqtt from 'mqtt';
 
 import type { ChatMessage, MeshNode, MQTTSettings, MQTTStatus } from '../renderer/lib/types';
+import { sanitizeLogMessage } from './log-service';
 
 const { ServiceEnvelopeSchema } = MqttProto;
 const { UserSchema, PositionSchema, DataSchema, MeshPacketSchema } = Mesh;
@@ -106,9 +107,12 @@ export class MQTTManager extends EventEmitter {
             err.message.toLowerCase().includes('connection closed') ||
             err.message.toLowerCase().includes('connection reset');
           if (isCascade) {
-            console.warn('[MQTT] Subscribe interrupted (will retry on reconnect):', err.message);
+            console.warn(
+              '[MQTT] Subscribe interrupted (will retry on reconnect):',
+              sanitizeLogMessage(err.message),
+            );
           } else {
-            console.error('[MQTT] Subscribe failed:', err);
+            console.error('[MQTT] Subscribe failed:', sanitizeLogMessage(err.message));
             this.setError(`Subscribe failed: ${err.message}`);
           }
         } else {
@@ -133,9 +137,9 @@ export class MQTTManager extends EventEmitter {
         code === 'ETIMEDOUT' ||
         code === 'ENOTFOUND';
       if (isTransient) {
-        console.warn('[MQTT] Network error (will reconnect):', err.message);
+        console.warn('[MQTT] Network error (will reconnect):', sanitizeLogMessage(err.message));
       } else {
-        console.error('[MQTT] Fatal connection error:', err);
+        console.error('[MQTT] Fatal connection error:', sanitizeLogMessage(err.message));
         this.setError(err.message);
       }
     });
