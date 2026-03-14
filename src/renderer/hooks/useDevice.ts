@@ -40,7 +40,8 @@ function getMessageLoadLimit(): number {
 }
 
 const MAX_TELEMETRY_POINTS = 50;
-const POLL_INTERVAL_MS = 30_000; // 30 seconds
+const POLL_INTERVAL_MS = 30_000; // 30 seconds (BLE/serial)
+const HTTP_POLL_INTERVAL_MS = 60_000; // 60 seconds for WiFi — less contention with user sends
 const BROADCAST_ADDR = 0xffffffff;
 
 // ─── Connection watchdog thresholds (per transport) ────────────────
@@ -256,14 +257,14 @@ export function useDevice() {
   }, []);
 
   // ─── Helper: start polling for node updates ─────────────────────
-  const startPolling = useCallback(() => {
+  const startPolling = useCallback((connectionType?: ConnectionType | null) => {
     if (pollRef.current) return; // Already polling
+    const intervalMs = connectionType === 'http' ? HTTP_POLL_INTERVAL_MS : POLL_INTERVAL_MS;
     pollRef.current = setInterval(() => {
-      // Broadcast position request to all nodes
       deviceRef.current?.requestPosition(0xffffffff).catch((e) => {
         console.debug('[useDevice] requestPosition poll', e);
       });
-    }, POLL_INTERVAL_MS);
+    }, intervalMs);
   }, []);
 
   const stopPolling = useCallback(() => {
@@ -635,7 +636,7 @@ export function useDevice() {
         // Start polling + watchdog when configured
         if (status === 7) {
           lastDataReceivedRef.current = Date.now();
-          startPolling();
+          startPolling(type);
           startWatchdog();
           refreshOurPositionRef.current();
           startGpsInterval();
