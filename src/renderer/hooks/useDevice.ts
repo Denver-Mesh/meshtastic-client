@@ -1,4 +1,4 @@
-import { create } from '@bufbuild/protobuf';
+import { create, toBinary } from '@bufbuild/protobuf';
 import type { MeshDevice } from '@meshtastic/core';
 import { Channel as ProtobufChannel, Mesh, Portnums } from '@meshtastic/protobufs';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -508,11 +508,41 @@ export function useDevice() {
         const chCfg = channelConfigsRef.current.find((c) => c.index === msg.channel);
         if (!chCfg?.downlinkEnabled) return; // drop: downlink not enabled for this channel
 
-        // Re-transmit over RF (gateway downlink behavior)
-        // isEcho check in onMeshPacket prevents the re-TX echo from being re-uploaded to MQTT
-        deviceRef.current.sendText(msg.payload, 'broadcast', true, msg.channel).catch((e) => {
-          console.debug('[useDevice] MQTT downlink sendText non-fatal', e);
-        });
+        // Re-transmit over RF preserving the original sender identity (gateway downlink).
+        // We use sendRaw() instead of sendText() because the SDK's sendPacket() unconditionally
+        // stamps from=myNodeNum, losing the original sender's ID.
+        try {
+          const { DataSchema, MeshPacketSchema, ToRadioSchema } = Mesh;
+          const dataBytes = toBinary(
+            DataSchema,
+            create(DataSchema, {
+              portnum: Portnums.PortNum.TEXT_MESSAGE_APP,
+              payload: new TextEncoder().encode(msg.payload),
+            }),
+          );
+          const meshPacket = create(MeshPacketSchema, {
+            from: msg.sender_id,
+            to: 0xffffffff, // broadcast
+            id: (Math.random() * 0xffffffff) >>> 0,
+            wantAck: true,
+            channel: msg.channel,
+            payloadVariant: {
+              case: 'decoded',
+              value: { payload: dataBytes, portnum: Portnums.PortNum.TEXT_MESSAGE_APP },
+            },
+          });
+          const toRadioBytes = toBinary(
+            ToRadioSchema,
+            create(ToRadioSchema, {
+              payloadVariant: { case: 'packet', value: meshPacket },
+            }),
+          );
+          deviceRef.current.sendRaw(toRadioBytes).catch((e) => {
+            console.debug('[useDevice] MQTT downlink sendRaw non-fatal', e);
+          });
+        } catch (e) {
+          console.debug('[useDevice] MQTT downlink build failed', e);
+        }
       }
 
       // Deduplicate by content too (same sender + timestamp)
