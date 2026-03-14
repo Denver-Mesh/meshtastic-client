@@ -58,7 +58,7 @@ The official Meshtastic apps cover the basics, but desktop power users need more
 
 - Edit channels: name, PSK, and role; 18 region presets and 7 modem presets
 - Device roles: Client, Router, Tracker, Sensor, TAK, and more
-- Per-channel MQTT gateway uplink/downlink; device reboot, shutdown, and factory reset
+- Per-channel MQTT gateway uplink (RF → MQTT); MQTT messages are not retransmitted over RF (see Limitations); device reboot, shutdown, and factory reset
 
 **Diagnostics**
 
@@ -92,6 +92,12 @@ The official Meshtastic apps cover the basics, but desktop power users need more
 - Automatic update checking — packaged builds download and install in-app; macOS opens the release page
 - System tray with live unread badge; app stays accessible when window is closed
 - Persistent storage via local SQLite; DB export/import/clear in the App tab; Clear GPS Data and Reset Diagnostics actions available without a full DB wipe
+
+---
+
+## Limitations
+
+- **MQTT → RF**: Messages received via MQTT are shown in chat but are not rebroadcast over the radio. The underlying Meshtastic libraries cannot reliably relay MQTT-originated messages onto the mesh while preserving correct attribution and delivery state; previous relay behavior caused duplicate or misattributed messages and confused users on the mesh. As a result, MQTT remains receive-only for mesh rebroadcast.
 
 ---
 
