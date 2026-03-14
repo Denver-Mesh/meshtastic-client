@@ -9,3 +9,16 @@ export function sanitizeLogMessage(message: unknown): string {
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+/**
+ * Same as sanitizeLogMessage but with .replace(/\n|\r/g, ' ') as the first step so CodeQL
+ * js/log-injection recognizes the sanitizer (see query help). Used by log-service console
+ * overrides; must stay in sync with that pattern for CodeQL and pre-commit tests.
+ */
+export function sanitizeForLogSink(raw: string): string {
+  return raw
+    .replace(/\n|\r/g, ' ')
+    .replace(/[\x00-\x1F\x7F\u2028\u2029]+/g, ' ') // eslint-disable-line no-control-regex
+    .replace(/\s+/g, ' ')
+    .trim();
+}

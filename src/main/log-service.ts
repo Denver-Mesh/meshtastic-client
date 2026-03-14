@@ -3,7 +3,7 @@ import { app } from 'electron';
 import fs from 'fs';
 import path from 'path';
 
-import { sanitizeLogMessage } from './sanitize-log-message';
+import { sanitizeForLogSink, sanitizeLogMessage } from './sanitize-log-message';
 
 export { sanitizeLogMessage };
 
@@ -219,34 +219,36 @@ function resolveMainSource(): 'sdk' | 'main' {
 /**
  * Route main-process console.* through appendLine and still echo to original console
  * so terminal/devtools behavior is preserved.
+ * Uses sanitizeForLogSink ( .replace(/\n|\r/g, ' ') first) so CodeQL js/log-injection
+ * recognizes the sanitizer; see sanitize-log-message.test.ts for pre-commit coverage.
  */
 export function patchMainConsole(): void {
   if (consolePatched) return;
   consolePatched = true;
 
   console.log = (...args: unknown[]) => {
-    const msg = sanitizeLogMessage(stringifyArgs(args));
-    appendLine('log', resolveMainSource(), msg); // codeql[js/log-injection] -- msg sanitized at call site
+    const safe = sanitizeForLogSink(stringifyArgs(args));
+    appendLine('log', resolveMainSource(), safe);
     original.log(...args);
   };
   console.info = (...args: unknown[]) => {
-    const msg = sanitizeLogMessage(stringifyArgs(args));
-    appendLine('info', resolveMainSource(), msg); // codeql[js/log-injection] -- msg sanitized at call site
+    const safe = sanitizeForLogSink(stringifyArgs(args));
+    appendLine('info', resolveMainSource(), safe);
     original.info(...args);
   };
   console.warn = (...args: unknown[]) => {
-    const msg = sanitizeLogMessage(stringifyArgs(args));
-    appendLine('warn', resolveMainSource(), msg); // codeql[js/log-injection] -- msg sanitized at call site
+    const safe = sanitizeForLogSink(stringifyArgs(args));
+    appendLine('warn', resolveMainSource(), safe);
     original.warn(...args);
   };
   console.error = (...args: unknown[]) => {
-    const msg = sanitizeLogMessage(stringifyArgs(args));
-    appendLine('error', resolveMainSource(), msg); // codeql[js/log-injection] -- msg sanitized at call site
+    const safe = sanitizeForLogSink(stringifyArgs(args));
+    appendLine('error', resolveMainSource(), safe);
     original.error(...args);
   };
   console.debug = (...args: unknown[]) => {
-    const msg = sanitizeLogMessage(stringifyArgs(args));
-    appendLine('debug', resolveMainSource(), msg); // codeql[js/log-injection] -- msg sanitized at call site
+    const safe = sanitizeForLogSink(stringifyArgs(args));
+    appendLine('debug', resolveMainSource(), safe);
     original.debug(...args);
   };
 
