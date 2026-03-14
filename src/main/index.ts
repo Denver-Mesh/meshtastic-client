@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Tray } from 'electron';
 import fs from 'fs';
+import net from 'net';
 import path from 'path';
 
 import {
@@ -1283,6 +1284,41 @@ ipcMain.handle('log:export', async () => {
     );
     throw err;
   }
+});
+
+// ─── MeshCore TCP bridge ───────────────────────────────────────────
+let meshcoreTcpSocket: net.Socket | null = null;
+
+ipcMain.handle('meshcore:tcp-connect', (_event, host: string, port: number) => {
+  return new Promise<void>((resolve, reject) => {
+    if (meshcoreTcpSocket) {
+      meshcoreTcpSocket.destroy();
+      meshcoreTcpSocket = null;
+    }
+    const socket = new net.Socket();
+    meshcoreTcpSocket = socket;
+    socket.connect(port, host, () => resolve());
+    socket.on('data', (data) => {
+      mainWindow?.webContents.send('meshcore:tcp-data', Array.from(data));
+    });
+    socket.on('close', () => {
+      mainWindow?.webContents.send('meshcore:tcp-disconnected');
+      if (meshcoreTcpSocket === socket) meshcoreTcpSocket = null;
+    });
+    socket.on('error', (err) => {
+      reject(err);
+      if (meshcoreTcpSocket === socket) meshcoreTcpSocket = null;
+    });
+  });
+});
+
+ipcMain.handle('meshcore:tcp-write', (_event, bytes: number[]) => {
+  meshcoreTcpSocket?.write(new Uint8Array(bytes));
+});
+
+ipcMain.handle('meshcore:tcp-disconnect', () => {
+  meshcoreTcpSocket?.destroy();
+  meshcoreTcpSocket = null;
 });
 
 // ─── App lifecycle ─────────────────────────────────────────────────

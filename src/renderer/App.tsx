@@ -18,10 +18,16 @@ import TelemetryPanel from './components/TelemetryPanel';
 import { ToastProvider } from './components/Toast';
 import UpdateBanner from './components/UpdateBanner';
 import { useDevice } from './hooks/useDevice';
+import { useMeshCore } from './hooks/useMeshCore';
 import { parseStoredJson } from './lib/parseStoredJson';
 import { applyThemeColors, loadThemeColors } from './lib/themeColors';
-import type { ChatMessage, MQTTSettings } from './lib/types';
+import type { ChatMessage, MeshProtocol, MQTTSettings } from './lib/types';
 import { useDiagnosticsStore } from './stores/diagnosticsStore';
+
+const PROTOCOL_KEY = 'mesh-client:protocol';
+
+// Tabs (0-indexed) that are disabled in MeshCore mode
+const MESHCORE_DISABLED_TABS = new Set([3, 4, 5, 6, 8]);
 
 const STATUS_COLOR: Record<string, string> = {
   disconnected: 'bg-red-500',
@@ -161,7 +167,27 @@ export default function App() {
     applyThemeColors(loadThemeColors());
   }, []);
 
-  const device = useDevice();
+  const [protocol, setProtocol] = useState<MeshProtocol>(
+    () => (localStorage.getItem(PROTOCOL_KEY) as MeshProtocol) ?? 'meshtastic',
+  );
+
+  const meshtasticDevice = useDevice();
+  const meshcoreDevice = useMeshCore();
+  const device =
+    protocol === 'meshcore'
+      ? (meshcoreDevice as unknown as typeof meshtasticDevice)
+      : meshtasticDevice;
+
+  const handleProtocolChange = useCallback(
+    (p: MeshProtocol) => {
+      if (p === protocol) return;
+      localStorage.setItem(PROTOCOL_KEY, p);
+      setProtocol(p);
+      void device.disconnect();
+    },
+    [protocol, device],
+  );
+
   const runReanalysis = useDiagnosticsStore((s) => s.runReanalysis);
   const ignoreMqttEnabled = useDiagnosticsStore((s) => s.ignoreMqttEnabled);
   const envMode = useDiagnosticsStore((s) => s.envMode);
@@ -383,20 +409,32 @@ export default function App() {
             </kbd>
           </button>
           <div className="flex items-center gap-2">
-            {/* MQTT status globe */}
-            <div
-              className="flex items-center gap-1.5 mr-3 pr-3 border-r border-gray-700"
-              aria-label={
-                device.mqttStatus === 'connected' ? 'MQTT: connected' : 'MQTT: disconnected'
-              }
+            {/* Protocol badge */}
+            <span
+              className={`text-xs px-2 py-0.5 rounded-full font-mono ${
+                protocol === 'meshcore'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-brand-green/20 text-brand-green'
+              }`}
             >
-              <MqttGlobeIcon connected={device.mqttStatus === 'connected'} />
-              <span
-                className={`text-xs ${device.mqttStatus === 'connected' ? 'text-brand-green' : 'text-gray-500'}`}
+              {protocol === 'meshcore' ? 'MeshCore' : 'Meshtastic'}
+            </span>
+            {/* MQTT status globe — hidden in MeshCore mode */}
+            {protocol === 'meshtastic' && (
+              <div
+                className="flex items-center gap-1.5 mr-3 pr-3 border-r border-gray-700"
+                aria-label={
+                  device.mqttStatus === 'connected' ? 'MQTT: connected' : 'MQTT: disconnected'
+                }
               >
-                MQTT
-              </span>
-            </div>
+                <MqttGlobeIcon connected={device.mqttStatus === 'connected'} />
+                <span
+                  className={`text-xs ${device.mqttStatus === 'connected' ? 'text-brand-green' : 'text-gray-500'}`}
+                >
+                  MQTT
+                </span>
+              </div>
+            )}
             {isConnectedOrOperational && <LinkIcon className="w-4 h-4" aria-hidden="true" />}
             <div
               className={`w-2.5 h-2.5 rounded-full ${statusColor}`}
@@ -473,6 +511,7 @@ export default function App() {
               active={activeTab}
               onChange={setActiveTab}
               chatUnread={chatUnread}
+              disabledTabs={protocol === 'meshcore' ? MESHCORE_DISABLED_TABS : undefined}
             />
 
             {/* Content */}
@@ -481,7 +520,15 @@ export default function App() {
                 <div className={activeTab === 0 ? 'contents' : 'hidden'}>
                   <ConnectionPanel
                     state={device.state}
-                    onConnect={device.connect}
+                    onConnect={
+                      protocol === 'meshcore'
+                        ? (type, addr) =>
+                            meshcoreDevice.connect(
+                              type === 'http' ? 'tcp' : (type as 'ble' | 'serial'),
+                              addr,
+                            )
+                        : meshtasticDevice.connect
+                    }
                     onAutoConnect={device.connectAutomatic}
                     onDisconnect={device.disconnect}
                     mqttStatus={device.mqttStatus}
@@ -490,6 +537,8 @@ export default function App() {
                         ? device.getPickerStyleNodeLabel(device.state.myNodeNum)
                         : undefined
                     }
+                    protocol={protocol}
+                    onProtocolChange={handleProtocolChange}
                   />
                 </div>
                 <div className={activeTab === 1 ? 'contents' : 'hidden'}>

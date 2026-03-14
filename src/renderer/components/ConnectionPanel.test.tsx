@@ -21,6 +21,8 @@ describe('ConnectionPanel accessibility', () => {
         onAutoConnect={vi.fn().mockResolvedValue(undefined)}
         onDisconnect={vi.fn().mockResolvedValue(undefined)}
         mqttStatus="disconnected"
+        protocol="meshtastic"
+        onProtocolChange={vi.fn()}
       />,
     );
     const results = await axe(container);

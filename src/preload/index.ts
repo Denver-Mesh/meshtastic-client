@@ -217,6 +217,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setTrayUnread: (count: number) => ipcRenderer.send('set-tray-unread', count),
   quitApp: () => ipcRenderer.invoke('app:quit'),
 
+  // ─── MeshCore TCP bridge ────────────────────────────────────────
+  meshcore: {
+    tcp: {
+      connect: (host: string, port: number) =>
+        ipcRenderer.invoke('meshcore:tcp-connect', host, port),
+      write: (bytes: number[]) => ipcRenderer.invoke('meshcore:tcp-write', bytes),
+      disconnect: () => ipcRenderer.invoke('meshcore:tcp-disconnect'),
+      onData: (cb: (bytes: number[]) => void) => {
+        const handler = (_: unknown, bytes: number[]) => cb(bytes);
+        ipcRenderer.on('meshcore:tcp-data', handler);
+        return () => ipcRenderer.off('meshcore:tcp-data', handler);
+      },
+      onDisconnected: (cb: () => void) => {
+        const handler = () => cb();
+        ipcRenderer.on('meshcore:tcp-disconnected', handler);
+        return () => ipcRenderer.off('meshcore:tcp-disconnected', handler);
+      },
+    },
+  },
+
   // ─── Log panel ───────────────────────────────────────────────────
   log: {
     getPath: (): Promise<string> => ipcRenderer.invoke('log:getPath'),

@@ -1,5 +1,7 @@
 export type ConnectionType = 'ble' | 'serial' | 'http';
 
+export type MeshProtocol = 'meshtastic' | 'meshcore';
+
 export type AnomalyType = 'hop_goblin' | 'bad_route' | 'route_flapping' | 'impossible_hop';
 
 /** How confident the detector is: proven uses distance/stats; heuristic is SNR/hops pattern only. */
@@ -319,6 +321,15 @@ declare global {
           longitudeI: number;
           altitude?: number;
         }) => Promise<number>;
+      };
+      meshcore: {
+        tcp: {
+          connect: (host: string, port: number) => Promise<void>;
+          write: (bytes: number[]) => Promise<void>;
+          disconnect: () => Promise<void>;
+          onData: (cb: (bytes: number[]) => void) => () => void;
+          onDisconnected: (cb: () => void) => () => void;
+        };
       };
       onBluetoothDevicesDiscovered: (cb: (devices: BluetoothDevice[]) => void) => () => void;
       selectBluetoothDevice: (deviceId: string) => void;
