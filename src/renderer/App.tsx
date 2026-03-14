@@ -8,6 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
 import LogPanel from './components/LogPanel';
 import MapPanel from './components/MapPanel';
+import ModulePanel from './components/ModulePanel';
 import NodeDetailModal from './components/NodeDetailModal';
 import NodeListPanel from './components/NodeListPanel';
 import RadioPanel from './components/RadioPanel';
@@ -38,6 +39,7 @@ const TAB_NAMES = [
   'Map',
   'Telemetry',
   'Radio',
+  'Modules',
   'App',
   'Diagnostics',
 ];
@@ -258,10 +260,10 @@ export default function App() {
     };
   }, []);
 
-  // ─── Keyboard shortcuts: Cmd/Ctrl+1-8 for tabs, ? for help ───────────────
+  // ─── Keyboard shortcuts: Cmd/Ctrl+1-9 for tabs, ? for help ───────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '8') {
+      if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '9') {
         e.preventDefault();
         setActiveTab(parseInt(e.key) - 1);
       } else if (e.key === '?' && !e.metaKey && !e.ctrlKey && !e.altKey) {
@@ -369,6 +371,19 @@ export default function App() {
                 MQTT
               </span>
             </div>
+            {/* Queue status badge */}
+            {device.queueStatus && device.queueStatus.free < device.queueStatus.maxlen && (
+              <div
+                className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                  device.queueStatus.free === 0
+                    ? 'bg-red-900/60 text-red-300 border border-red-700'
+                    : 'bg-amber-900/60 text-amber-300 border border-amber-700'
+                }`}
+                title={`Queue: ${device.queueStatus.maxlen - device.queueStatus.free}/${device.queueStatus.maxlen} used`}
+              >
+                Q: {device.queueStatus.maxlen - device.queueStatus.free}/{device.queueStatus.maxlen}
+              </div>
+            )}
             {isConnectedOrOperational && <LinkIcon className="w-4 h-4" aria-hidden="true" />}
             <div
               className={`w-2.5 h-2.5 rounded-full ${statusColor}`}
@@ -493,6 +508,9 @@ export default function App() {
                         .refreshOurPosition()
                         .then((p) => (p ? { lat: p.lat, lon: p.lon } : null))
                     }
+                    waypoints={device.waypoints}
+                    onSendWaypoint={device.sendWaypoint}
+                    onDeleteWaypoint={device.deleteWaypoint}
                   />
                 )}
                 {activeTab === 4 && (
@@ -520,9 +538,23 @@ export default function App() {
                     onSendPositionToDevice={device.sendPositionToDevice}
                     deviceOwner={device.deviceOwner}
                     onSetOwner={device.setOwner}
+                    onRebootOta={device.rebootOta}
+                    onEnterDfu={device.enterDfuMode}
+                    onFactoryResetConfig={device.factoryResetConfig}
+                    onRequestPosition={device.requestPosition}
+                    nodes={device.nodes}
                   />
                 )}
                 {activeTab === 6 && (
+                  <ModulePanel
+                    moduleConfigs={device.moduleConfigs}
+                    onSetModuleConfig={device.setModuleConfig}
+                    onSetCannedMessages={device.setCannedMessages}
+                    onCommit={device.commitConfig}
+                    isConnected={isOperational}
+                  />
+                )}
+                {activeTab === 7 && (
                   <AppPanel
                     logPanelVisible={logPanelVisible}
                     onLogPanelVisibleChange={(visible) => {
@@ -546,7 +578,7 @@ export default function App() {
                     onMessagesPruned={device.refreshMessagesFromDb}
                   />
                 )}
-                {activeTab === 7 && (
+                {activeTab === 8 && (
                   <DiagnosticsPanel
                     nodes={device.nodes}
                     myNodeNum={device.selfNodeId}
@@ -601,7 +633,7 @@ export default function App() {
               </span>
             </footer>
           </div>
-          {logPanelVisible && <LogPanel />}
+          {logPanelVisible && <LogPanel deviceLogs={device.deviceLogs} />}
         </div>
 
         {/* Keyboard Shortcuts Modal */}
@@ -625,6 +657,7 @@ export default function App() {
           onToggleFavorite={device.setNodeFavorited}
           isConnected={isOperational}
           homeNode={device.nodes.get(device.state.myNodeNum) ?? null}
+          neighborInfo={device.neighborInfo}
         />
       </div>
     </ToastProvider>

@@ -43,6 +43,11 @@ interface Props {
     shortName: string;
     isLicensed: boolean;
   }) => Promise<void>;
+  onRebootOta?: (delay: number) => Promise<void>;
+  onEnterDfu?: () => Promise<void>;
+  onFactoryResetConfig?: () => Promise<void>;
+  onRequestPosition?: (nodeNum: number) => Promise<void>;
+  nodes?: Map<number, { node_id: number; short_name: string; long_name: string }>;
 }
 
 const REGIONS = [
@@ -341,6 +346,42 @@ function ConfirmModal({
   );
 }
 
+function WifiPasswordField({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled: boolean;
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="space-y-1">
+      <label className="text-sm text-muted">WiFi Password</label>
+      <div className="flex items-center gap-1">
+        <input
+          type={show ? 'text' : 'password'}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+          placeholder="Password"
+          maxLength={64}
+          className="flex-1 px-3 py-2 bg-secondary-dark rounded-lg text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none disabled:opacity-50"
+        />
+        <button
+          type="button"
+          onClick={() => setShow((s) => !s)}
+          disabled={disabled}
+          className="px-2 py-2 text-xs text-muted hover:text-gray-300 disabled:opacity-50"
+        >
+          {show ? 'Hide' : 'Show'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 interface PendingAction {
   name: string;
   title: string;
@@ -366,6 +407,11 @@ export default function RadioPanel({
   onSendPositionToDevice,
   deviceOwner,
   onSetOwner,
+  onRebootOta,
+  onEnterDfu,
+  onFactoryResetConfig,
+  onRequestPosition,
+  nodes,
 }: Props) {
   // ─── User / Identity settings ─────────────────────────────────
   const [longName, setLongName] = useState('');
@@ -384,6 +430,12 @@ export default function RadioPanel({
   const [region, setRegion] = useState(1);
   const [modemPreset, setModemPreset] = useState(0);
   const [hopLimit, setHopLimit] = useState(3);
+  const [usePreset, setUsePreset] = useState(true);
+  const [bandwidth, setBandwidth] = useState(250);
+  const [spreadFactor, setSpreadFactor] = useState(12);
+  const [codingRate, setCodingRate] = useState(8);
+  const [txPower, setTxPower] = useState(17);
+  const [rxBoostedGain, setRxBoostedGain] = useState(false);
 
   // ─── Device settings ──────────────────────────────────────────
   const [deviceRole, setDeviceRole] = useState(0);
@@ -395,9 +447,26 @@ export default function RadioPanel({
   const [fixedLat, setFixedLat] = useState(() => ourPosition?.lat ?? 0);
   const [fixedLon, setFixedLon] = useState(() => ourPosition?.lon ?? 0);
   const [fixedAlt, setFixedAlt] = useState(0);
+  const [gpsMode, setGpsMode] = useState(0);
+  const [positionPrecision, setPositionPrecision] = useState(10);
+  const [smartPositionEnabled, setSmartPositionEnabled] = useState(false);
+  const [smartPositionMinDistance, setSmartPositionMinDistance] = useState(100);
+  const [smartPositionMinInterval, setSmartPositionMinInterval] = useState(30);
 
   // ─── Power settings ───────────────────────────────────────────
   const [isPowerSaving, setIsPowerSaving] = useState(false);
+  const [minWakeSecs, setMinWakeSecs] = useState(0);
+  const [waitBluetoothSecs, setWaitBluetoothSecs] = useState(0);
+  const [sdsSecs, setSdsSecs] = useState(0);
+  const [lsSecs, setLsSecs] = useState(0);
+  const [onBatteryShutdownAfterSecs, setOnBatteryShutdownAfterSecs] = useState(0);
+
+  // ─── WiFi / Network settings ─────────────────────────────────
+  const [wifiEnabled, setWifiEnabled] = useState(false);
+  const [wifiSsid, setWifiSsid] = useState('');
+  const [wifiPsk, setWifiPsk] = useState('');
+  const [ntpServer, setNtpServer] = useState('');
+  const [ethEnabled, setEthEnabled] = useState(false);
 
   // ─── Bluetooth settings ───────────────────────────────────────
   const [btEnabled, setBtEnabled] = useState(true);
@@ -420,6 +489,9 @@ export default function RadioPanel({
   // ─── Shared state ─────────────────────────────────────────────
   const [status, setStatus] = useState<string | null>(null);
   const [applyingSection, setApplyingSection] = useState<string | null>(null);
+
+  // ─── Node Commands ─────────────────────────────────────────────
+  const [selectedNodeNum, setSelectedNodeNum] = useState<number>(0);
 
   // ─── Device command confirmation ──────────────────────────────
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
@@ -541,8 +613,17 @@ export default function RadioPanel({
           applyConfig('LoRa', 'lora', {
             region,
             modemPreset,
-            usePreset: true,
+            usePreset,
             hopLimit,
+            ...(usePreset
+              ? {}
+              : {
+                  bandwidth,
+                  spreadFactor,
+                  codingRate,
+                  txPower,
+                  sx126xRxBoostedGain: rxBoostedGain,
+                }),
           })
         }
         applying={applyingSection === 'LoRa'}
@@ -555,13 +636,78 @@ export default function RadioPanel({
           onChange={setRegion}
           disabled={disabled || applyingSection !== null}
         />
-        <ConfigSelect
-          label="Modem Preset"
-          value={modemPreset}
-          options={MODEM_PRESETS}
-          onChange={setModemPreset}
+        <ConfigToggle
+          label="Use modem preset"
+          checked={usePreset}
+          onChange={setUsePreset}
           disabled={disabled || applyingSection !== null}
+          description="Use a predefined modem configuration. Disable for custom RF parameters."
         />
+        {usePreset ? (
+          <ConfigSelect
+            label="Modem Preset"
+            value={modemPreset}
+            options={MODEM_PRESETS}
+            onChange={setModemPreset}
+            disabled={disabled || applyingSection !== null}
+          />
+        ) : (
+          <div className="space-y-4 pl-3 border-l border-gray-700">
+            <ConfigSelect
+              label="Bandwidth"
+              value={bandwidth}
+              options={[
+                { value: 31, label: '31.25 kHz' },
+                { value: 62, label: '62.5 kHz' },
+                { value: 125, label: '125 kHz' },
+                { value: 250, label: '250 kHz' },
+                { value: 500, label: '500 kHz' },
+              ]}
+              onChange={setBandwidth}
+              disabled={disabled || applyingSection !== null}
+            />
+            <ConfigSelect
+              label="Spread Factor"
+              value={spreadFactor}
+              options={Array.from({ length: 6 }, (_, i) => ({
+                value: i + 7,
+                label: `SF${i + 7}`,
+              }))}
+              onChange={setSpreadFactor}
+              disabled={disabled || applyingSection !== null}
+              description="Higher = more range but slower airtime. Default: SF12."
+            />
+            <ConfigSelect
+              label="Coding Rate"
+              value={codingRate}
+              options={[
+                { value: 5, label: '4/5' },
+                { value: 6, label: '4/6' },
+                { value: 7, label: '4/7' },
+                { value: 8, label: '4/8' },
+              ]}
+              onChange={setCodingRate}
+              disabled={disabled || applyingSection !== null}
+            />
+            <ConfigNumber
+              label="TX Power"
+              value={txPower}
+              onChange={setTxPower}
+              disabled={disabled || applyingSection !== null}
+              min={1}
+              max={30}
+              unit="dBm"
+              description="Transmit power. Check local regulations before increasing."
+            />
+            <ConfigToggle
+              label="SX126x RX Boosted Gain"
+              checked={rxBoostedGain}
+              onChange={setRxBoostedGain}
+              disabled={disabled || applyingSection !== null}
+              description="Enable boosted LNA gain for better receive sensitivity (SX1262/1268 chips only)."
+            />
+          </div>
+        )}
         <div className="space-y-1">
           <label className="text-sm text-muted">Hop Limit</label>
           <div className="flex items-center gap-3">
@@ -608,6 +754,11 @@ export default function RadioPanel({
             positionBroadcastSecs,
             gpsUpdateInterval,
             fixedPosition,
+            gpsMode,
+            positionPrecision,
+            smartPositionEnabled,
+            broadcastSmartMinimumDistance: smartPositionMinDistance,
+            broadcastSmartMinimumIntervalSecs: smartPositionMinInterval,
           })
         }
         applying={applyingSection === 'Position'}
@@ -633,6 +784,54 @@ export default function RadioPanel({
           unit="seconds"
           description="How often to poll the GPS module. 0 = use default."
         />
+        <ConfigSelect
+          label="GPS Mode"
+          value={gpsMode}
+          options={[
+            { value: 0, label: 'Disabled' },
+            { value: 1, label: 'Enabled' },
+            { value: 2, label: 'Not Present' },
+          ]}
+          onChange={setGpsMode}
+          disabled={disabled || applyingSection !== null}
+          description="GPS_DISABLED: no GPS; GPS_ENABLED: use GPS; GPS_NOT_PRESENT: hardware lacks GPS."
+        />
+        <ConfigNumber
+          label="Position precision"
+          value={positionPrecision}
+          onChange={setPositionPrecision}
+          disabled={disabled || applyingSection !== null}
+          min={1}
+          max={19}
+          description="Obfuscation level (1=coarsest, 19=exact). Lower values hide your exact location."
+        />
+        <ConfigToggle
+          label="Smart position broadcast"
+          checked={smartPositionEnabled}
+          onChange={setSmartPositionEnabled}
+          disabled={disabled || applyingSection !== null}
+          description="Only broadcast position when you have moved enough or enough time has passed."
+        />
+        {smartPositionEnabled && (
+          <div className="space-y-4 pl-3 border-l border-gray-700">
+            <ConfigNumber
+              label="Min distance to trigger"
+              value={smartPositionMinDistance}
+              onChange={setSmartPositionMinDistance}
+              disabled={disabled || applyingSection !== null}
+              min={0}
+              unit="meters"
+            />
+            <ConfigNumber
+              label="Min interval"
+              value={smartPositionMinInterval}
+              onChange={setSmartPositionMinInterval}
+              disabled={disabled || applyingSection !== null}
+              min={0}
+              unit="seconds"
+            />
+          </div>
+        )}
         <ConfigToggle
           label="Fixed Position"
           checked={fixedPosition}
@@ -730,7 +929,16 @@ export default function RadioPanel({
       {/* ═══ Power ═══ */}
       <ConfigSection
         title="Power"
-        onApply={() => applyConfig('Power', 'power', { isPowerSaving })}
+        onApply={() =>
+          applyConfig('Power', 'power', {
+            isPowerSaving,
+            minWakeSecs,
+            waitBluetoothSecs,
+            sdsSecs,
+            lsSecs,
+            onBatteryShutdownAfterSecs,
+          })
+        }
         applying={applyingSection === 'Power'}
         disabled={disabled}
       >
@@ -740,6 +948,51 @@ export default function RadioPanel({
           onChange={setIsPowerSaving}
           disabled={disabled || applyingSection !== null}
           description="Enable low-power mode. Reduces responsiveness but significantly extends battery life."
+        />
+        <ConfigNumber
+          label="Min wake duration"
+          value={minWakeSecs}
+          onChange={setMinWakeSecs}
+          disabled={disabled || applyingSection !== null}
+          min={0}
+          unit="seconds"
+          description="Minimum time to stay awake after waking. 0 = use default."
+        />
+        <ConfigNumber
+          label="Bluetooth idle timeout"
+          value={waitBluetoothSecs}
+          onChange={setWaitBluetoothSecs}
+          disabled={disabled || applyingSection !== null}
+          min={0}
+          unit="seconds"
+          description="Seconds to wait before disabling BT when no client is connected. 0 = never."
+        />
+        <ConfigNumber
+          label="Super deep sleep after"
+          value={sdsSecs}
+          onChange={setSdsSecs}
+          disabled={disabled || applyingSection !== null}
+          min={0}
+          unit="seconds"
+          description="Enter super deep sleep after this many seconds of inactivity. 0 = disabled."
+        />
+        <ConfigNumber
+          label="Light sleep duration"
+          value={lsSecs}
+          onChange={setLsSecs}
+          disabled={disabled || applyingSection !== null}
+          min={0}
+          unit="seconds"
+          description="Duration of light sleep cycles. 0 = use default."
+        />
+        <ConfigNumber
+          label="Battery shutdown after"
+          value={onBatteryShutdownAfterSecs}
+          onChange={setOnBatteryShutdownAfterSecs}
+          disabled={disabled || applyingSection !== null}
+          min={0}
+          unit="seconds"
+          description="Shut down on battery after this many seconds since last mesh activity. 0 = disabled."
         />
       </ConfigSection>
 
@@ -804,6 +1057,66 @@ export default function RadioPanel({
         />
       </ConfigSection>
 
+      {/* ═══ WiFi / Network ═══ */}
+      <ConfigSection
+        title="WiFi / Network"
+        onApply={() =>
+          applyConfig('Network', 'network', {
+            wifiEnabled,
+            wifiSsid,
+            wifiPsk,
+            ntpServer,
+            ethEnabled,
+          })
+        }
+        applying={applyingSection === 'Network'}
+        disabled={disabled}
+      >
+        <ConfigToggle
+          label="WiFi enabled"
+          checked={wifiEnabled}
+          onChange={setWifiEnabled}
+          disabled={disabled || applyingSection !== null}
+          description="Enable the device's WiFi radio. Requires reboot to take effect."
+        />
+        <div className="space-y-1">
+          <label className="text-sm text-muted">WiFi SSID</label>
+          <input
+            type="text"
+            value={wifiSsid}
+            onChange={(e) => setWifiSsid(e.target.value)}
+            disabled={disabled || !wifiEnabled || applyingSection !== null}
+            placeholder="Network name"
+            maxLength={33}
+            className="w-full px-3 py-2 bg-secondary-dark rounded-lg text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none disabled:opacity-50"
+          />
+        </div>
+        <WifiPasswordField
+          value={wifiPsk}
+          onChange={setWifiPsk}
+          disabled={disabled || !wifiEnabled || applyingSection !== null}
+        />
+        <div className="space-y-1">
+          <label className="text-sm text-muted">NTP Server</label>
+          <input
+            type="text"
+            value={ntpServer}
+            onChange={(e) => setNtpServer(e.target.value)}
+            disabled={disabled || applyingSection !== null}
+            placeholder="0.pool.ntp.org"
+            className="w-full px-3 py-2 bg-secondary-dark rounded-lg text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none disabled:opacity-50"
+          />
+          <p className="text-xs text-muted">Leave empty for default NTP server.</p>
+        </div>
+        <ConfigToggle
+          label="Ethernet enabled"
+          checked={ethEnabled}
+          onChange={setEthEnabled}
+          disabled={disabled || applyingSection !== null}
+          description="Enable hardware Ethernet (supported on select devices)."
+        />
+      </ConfigSection>
+
       {/* ═══ Channels ═══ */}
       <ChannelSection
         channelConfigs={channelConfigs}
@@ -834,6 +1147,46 @@ export default function RadioPanel({
         <p>Changes are written to the device's flash memory and persist across reboots.</p>
         <p>The device may briefly restart after applying new LoRa or device settings.</p>
       </div>
+
+      {/* Node Commands */}
+      {onRequestPosition && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-medium text-muted">Node Commands</h3>
+          <div className="bg-secondary-dark rounded-lg p-4 space-y-3">
+            <div className="flex gap-2 items-center">
+              <select
+                value={selectedNodeNum}
+                onChange={(e) => setSelectedNodeNum(Number(e.target.value))}
+                disabled={!isConnected}
+                aria-label="Select node for position request"
+                className="flex-1 px-3 py-2 bg-deep-black border border-gray-600 rounded text-gray-200 text-sm focus:border-brand-green focus:outline-none disabled:opacity-40"
+              >
+                <option value={0}>Select a node…</option>
+                {nodes &&
+                  [...nodes.values()]
+                    .filter((n) => n.node_id > 0)
+                    .sort((a, b) =>
+                      (a.short_name || a.long_name).localeCompare(b.short_name || b.long_name),
+                    )
+                    .map((n) => (
+                      <option key={n.node_id} value={n.node_id}>
+                        {n.short_name || n.long_name || `!${n.node_id.toString(16)}`}
+                      </option>
+                    ))}
+              </select>
+              <button
+                onClick={() => {
+                  if (selectedNodeNum > 0) void onRequestPosition(selectedNodeNum);
+                }}
+                disabled={!isConnected || selectedNodeNum === 0}
+                className="px-3 py-2 bg-brand-green/20 hover:bg-brand-green/30 text-brand-green border border-brand-green/40 disabled:opacity-50 rounded text-sm font-medium transition-colors whitespace-nowrap"
+              >
+                Request Position
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Device Commands */}
       <div className="space-y-3">
@@ -891,6 +1244,40 @@ export default function RadioPanel({
           >
             Reset NodeDB
           </button>
+
+          <button
+            onClick={() =>
+              executeWithConfirmation({
+                name: 'Reboot to OTA',
+                title: 'Reboot to OTA',
+                message:
+                  'This will reboot the device into OTA (Over The Air) firmware update mode.',
+                confirmLabel: 'Reboot to OTA',
+                action: () => onRebootOta?.(10) ?? Promise.resolve(),
+              })
+            }
+            disabled={!isConnected || !onRebootOta}
+            className="px-4 py-3 bg-secondary-dark text-gray-300 hover:bg-gray-600 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+          >
+            Reboot to OTA
+          </button>
+
+          <button
+            onClick={() =>
+              executeWithConfirmation({
+                name: 'Enter DFU Mode',
+                title: 'Enter DFU Mode',
+                message:
+                  'This will reboot the device into Device Firmware Update (DFU) mode for firmware flashing.',
+                confirmLabel: 'Enter DFU',
+                action: () => onEnterDfu?.() ?? Promise.resolve(),
+              })
+            }
+            disabled={!isConnected || !onEnterDfu}
+            className="px-4 py-3 bg-secondary-dark text-gray-300 hover:bg-gray-600 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+          >
+            Enter DFU Mode
+          </button>
         </div>
       </div>
 
@@ -917,6 +1304,23 @@ export default function RadioPanel({
             className="w-full px-4 py-3 bg-red-900/50 text-red-300 hover:bg-red-900/70 border border-red-800 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
           >
             Factory Reset Device
+          </button>
+          <button
+            onClick={() =>
+              executeWithConfirmation({
+                name: 'Factory Reset Config',
+                title: '⚠ Factory Reset Config',
+                message:
+                  'This will reset device configuration to factory defaults, but preserves your node database. Settings will need to be reconfigured.',
+                confirmLabel: 'Reset Config',
+                danger: true,
+                action: () => onFactoryResetConfig?.() ?? Promise.resolve(),
+              })
+            }
+            disabled={!isConnected || !onFactoryResetConfig}
+            className="w-full px-4 py-3 bg-red-900/40 text-red-300 hover:bg-red-900/60 border border-red-800/60 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+          >
+            Factory Reset Config Only
           </button>
         </div>
       </div>

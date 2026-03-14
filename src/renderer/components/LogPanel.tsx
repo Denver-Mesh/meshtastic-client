@@ -113,10 +113,15 @@ function persistPanelWidth(w: number): void {
   }
 }
 
-export default function LogPanel() {
+export default function LogPanel({
+  deviceLogs = [],
+}: {
+  deviceLogs?: { message: string; time: number; source: string; level: number }[];
+}) {
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [levelFilters, setLevelFiltersState] = useState<LevelFilters>(readLevelFilters);
   const [mainOnly, setMainOnlyState] = useState(readMainOnly);
+  const [logSource, setLogSource] = useState<'app' | 'device'>('app');
   const [panelWidth, setPanelWidth] = useState(readPanelWidth);
   const scrollRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
@@ -317,6 +322,25 @@ export default function LogPanel() {
           <p className="text-[10px] text-muted leading-snug">
             When enabled, only main-process lines are shown (e.g. [Startup], [MQTT], [gps], [IPC]).
           </p>
+          <div className="flex items-center gap-2 border-t border-gray-700 pt-2">
+            <span className="text-[10px] text-muted uppercase tracking-wide">Source</span>
+            <div className="flex gap-1 ml-auto">
+              <button
+                type="button"
+                onClick={() => setLogSource('app')}
+                className={`px-2 py-0.5 text-[10px] rounded ${logSource === 'app' ? 'bg-brand-green/20 text-brand-green border border-brand-green/40' : 'bg-slate-800 text-gray-400 border border-gray-700'}`}
+              >
+                App
+              </button>
+              <button
+                type="button"
+                onClick={() => setLogSource('device')}
+                className={`px-2 py-0.5 text-[10px] rounded ${logSource === 'device' ? 'bg-brand-green/20 text-brand-green border border-brand-green/40' : 'bg-slate-800 text-gray-400 border border-gray-700'}`}
+              >
+                Device ({deviceLogs.length})
+              </button>
+            </div>
+          </div>
           <div className="flex items-center gap-1">
             <button
               type="button"
@@ -362,7 +386,38 @@ export default function LogPanel() {
           aria-live="polite"
           aria-relevant="additions"
         >
-          {visibleLines.length === 0 ? (
+          {logSource === 'device' ? (
+            deviceLogs.length === 0 ? (
+              <span className="text-muted">
+                No device log records yet. Device logs are streamed when connected.
+              </span>
+            ) : (
+              [...deviceLogs].reverse().map((entry, i) => {
+                const ts =
+                  entry.time > 0
+                    ? new Date(entry.time * 1000).toISOString().slice(11, 23)
+                    : '--:--:--.---';
+                const levelColor =
+                  entry.level >= 50
+                    ? 'text-red-400'
+                    : entry.level >= 40
+                      ? 'text-red-400'
+                      : entry.level >= 30
+                        ? 'text-yellow-400'
+                        : entry.level >= 20
+                          ? 'text-blue-400'
+                          : 'text-gray-500';
+                return (
+                  <div
+                    key={`device-${i}-${entry.time}-${entry.message.slice(0, 20)}`}
+                    className={`whitespace-pre-wrap break-all ${levelColor}`}
+                  >
+                    {ts} [{entry.source}] {entry.message}
+                  </div>
+                );
+              })
+            )
+          ) : visibleLines.length === 0 ? (
             <span className="text-muted">
               {entries.length === 0
                 ? 'No log lines yet.'

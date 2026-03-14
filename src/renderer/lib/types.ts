@@ -204,6 +204,31 @@ export interface SerialPortInfo {
   productId?: string;
 }
 
+export interface MeshWaypoint {
+  id: number;
+  latitude: number;
+  longitude: number;
+  name: string;
+  description?: string;
+  icon?: number;
+  lockedTo?: number;
+  expire?: number;
+  from: number;
+  timestamp: number;
+}
+
+export interface MeshNeighbor {
+  nodeId: number;
+  snr: number;
+  lastRxTime: number;
+}
+
+export interface NeighborInfoRecord {
+  nodeId: number;
+  neighbors: MeshNeighbor[];
+  timestamp: number;
+}
+
 // Extend the Window interface for the electron preload bridge
 declare global {
   interface Window {

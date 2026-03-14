@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-import type { MeshNode } from '../lib/types';
+import type { MeshNode, NeighborInfoRecord } from '../lib/types';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
 import NodeInfoBody from './NodeInfoBody';
 
@@ -17,6 +17,7 @@ interface NodeDetailModalProps {
   onToggleFavorite: (nodeId: number, favorited: boolean) => void;
   isConnected: boolean;
   homeNode?: MeshNode | null;
+  neighborInfo?: Map<number, NeighborInfoRecord>;
 }
 
 export default function NodeDetailModal({
@@ -31,6 +32,7 @@ export default function NodeDetailModal({
   onToggleFavorite,
   isConnected,
   homeNode = null,
+  neighborInfo,
 }: NodeDetailModalProps) {
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const [positionRequestedAt, setPositionRequestedAt] = useState<number | null>(null);
@@ -205,6 +207,39 @@ export default function NodeDetailModal({
             nodes={nodes}
           />
         </div>
+
+        {/* Neighbors section */}
+        {neighborInfo &&
+          (() => {
+            const record = neighborInfo.get(node.node_id);
+            if (!record || record.neighbors.length === 0) return null;
+            return (
+              <div className="space-y-2 px-5 pb-2">
+                <h4 className="text-xs font-medium text-muted uppercase tracking-wide">
+                  Neighbors ({record.neighbors.length})
+                </h4>
+                <div className="space-y-1">
+                  {record.neighbors.map((nb) => {
+                    const nbNode = nodes?.get(nb.nodeId);
+                    const label = nbNode?.short_name || `!${nb.nodeId.toString(16)}`;
+                    return (
+                      <div
+                        key={nb.nodeId}
+                        className="flex items-center justify-between text-xs bg-secondary-dark rounded px-2 py-1"
+                      >
+                        <span className="text-gray-300">{label}</span>
+                        <span
+                          className={`font-mono ${nb.snr >= 5 ? 'text-green-400' : nb.snr >= 0 ? 'text-yellow-400' : 'text-red-400'}`}
+                        >
+                          SNR: {nb.snr.toFixed(1)} dB
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
 
         {/* Footer actions — omitted for directly connected node (no position/trace/message to self) */}
         {!isOurNode && (
