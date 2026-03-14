@@ -56,6 +56,52 @@ function StatusBadge({
   );
 }
 
+function TransportBadge({ via }: { via: 'rf' | 'mqtt' | 'both' }) {
+  const rfIcon = (
+    <svg
+      className="w-3 h-3 text-blue-400"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <title>Received via RF</title>
+      <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+      <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+      <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+      <circle cx="12" cy="20" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+  const mqttIcon = (
+    <svg
+      className="w-3 h-3 text-purple-400"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <title>Received via MQTT</title>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M2 12h20" />
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+    </svg>
+  );
+
+  if (via === 'both') {
+    return (
+      <span className="flex flex-col items-center gap-px" title="Received via RF + MQTT">
+        {rfIcon}
+        {mqttIcon}
+      </span>
+    );
+  }
+  return via === 'rf' ? rfIcon : mqttIcon;
+}
+
 // Standard emoji reaction set — Row 1: iMessage Classic, Row 2: WhatsApp/RCS Extended
 const REACTION_EMOJIS = [
   // Row 1 (6)
@@ -134,7 +180,7 @@ interface Props {
   messages: ChatMessage[];
   channels: { index: number; name: string }[];
   myNodeNum: number;
-  onSend: (text: string, channel: number, destination?: number, replyId?: number) => Promise<void>;
+  onSend: (text: string, channel: number, destination?: number, replyId?: number) => void;
   onReact: (emoji: number, replyId: number, channel: number) => Promise<void>;
   onNodeClick: (nodeNum: number) => void;
   isConnected: boolean;
@@ -442,7 +488,7 @@ export default function ChatPanel({
       setPersistedLastRead((prev) => ({ ...prev, [viewKey]: now }));
       setUnreadDividerTimestamp(0);
     } catch (err) {
-      console.error('Send failed:', err);
+      console.error('[ChatPanel] Send failed:', err);
     } finally {
       setSending(false);
     }
@@ -454,7 +500,7 @@ export default function ChatPanel({
       console.debug('[ChatPanel] handleReact', emojiCode, packetId, msgChannel);
       await onReact(emojiCode, packetId, msgChannel);
     } catch (err) {
-      console.error('React failed:', err);
+      console.error('[ChatPanel] React failed:', err);
     }
   };
 
@@ -816,6 +862,13 @@ export default function ChatPanel({
                       <p className="text-sm text-gray-200 break-words leading-relaxed">
                         <HighlightText text={msg.payload} query={searchQuery} />
                       </p>
+
+                      {/* Transport indicator for incoming messages */}
+                      {!isOwn && msg.receivedVia && (
+                        <div className="flex items-center justify-end mt-0.5">
+                          <TransportBadge via={msg.receivedVia} />
+                        </div>
+                      )}
 
                       {/* Delivery status for own messages */}
                       {isOwn && (msg.status || msg.mqttStatus) && (

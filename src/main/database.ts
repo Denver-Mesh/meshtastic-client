@@ -43,7 +43,7 @@ export function initDatabase(): void {
       createBaseTables();
       if (isFreshDb) {
         // Base DDL already includes all columns; stamp current schema version
-        db!.pragma('user_version = 9');
+        db!.pragma('user_version = 10');
       } else {
         runMigrations();
       }
@@ -51,9 +51,9 @@ export function initDatabase(): void {
     setup();
 
     const version = db.pragma('user_version', { simple: true });
-    console.log(`Database initialized at ${dbPath} (user_version = ${version})`);
+    console.log(`[db] Database initialized at ${dbPath} (user_version = ${version})`);
   } catch (error) {
-    console.error('Database init failed:', error);
+    console.error('[db] Database init failed:', error);
     throw error;
   }
 }
@@ -79,7 +79,8 @@ function createBaseTables(): void {
         emoji INTEGER,
         reply_id INTEGER,
         to_node INTEGER,
-        mqtt_status TEXT
+        mqtt_status TEXT,
+        received_via TEXT
       );
 
       CREATE TABLE IF NOT EXISTS nodes (
@@ -229,9 +230,20 @@ function runMigrations(): void {
       db!.prepare('ALTER TABLE nodes ADD COLUMN num_packets_rx INTEGER').run();
       db!.prepare('ALTER TABLE nodes ADD COLUMN num_packets_tx INTEGER').run();
       db!.pragma('user_version = 9');
+      userVersion = 9;
     } catch (e) {
       console.error('[db] migration v9 failed', e);
       throw new Error(`Migration v9 failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  if (userVersion < 10) {
+    try {
+      db!.prepare('ALTER TABLE messages ADD COLUMN received_via TEXT').run();
+      db!.pragma('user_version = 10');
+    } catch (e) {
+      console.error('[db] migration v10 failed', e);
+      throw new Error(`Migration v10 failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 }
@@ -311,7 +323,7 @@ export function mergeDatabase(sourcePath: string) {
 
     return result;
   } catch (err) {
-    console.error('Merge failed:', err);
+    console.error('[db] Merge failed:', err);
     throw err;
   } finally {
     if (sourceDb) sourceDb.close();
@@ -329,7 +341,7 @@ export function closeDatabase(): void {
     try {
       db.close();
     } catch (err) {
-      console.error('Error closing database:', err);
+      console.error('[db] Error closing database:', err);
     } finally {
       db = null;
     }

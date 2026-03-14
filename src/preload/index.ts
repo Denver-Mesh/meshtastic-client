@@ -59,6 +59,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('db:setNodeFavorited', nodeId, favorited),
     deleteNodesBySource: (source: string) => ipcRenderer.invoke('db:deleteNodesBySource', source),
     clearNodePositions: () => ipcRenderer.invoke('db:clearNodePositions'),
+    updateMessageReceivedVia: (packetId: number) =>
+      ipcRenderer.invoke('db:updateMessageReceivedVia', packetId),
   },
 
   // ─── MQTT ──────────────────────────────────────────────────────
@@ -97,6 +99,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       channel: number;
       destination?: number;
       channelName?: string;
+      emoji?: number;
+      replyId?: number;
     }) => ipcRenderer.invoke('mqtt:publish', args),
   },
 

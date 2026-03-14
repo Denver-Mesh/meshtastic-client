@@ -23,6 +23,26 @@ export function sanitizeLogMessage(message: unknown): string {
     .trim();
 }
 
+/**
+ * Strip console %c style directives and their trailing CSS argument strings from messages
+ * captured via Electron's console-message event. tslog (used by @meshtastic/core) emits
+ * styled logs with %c markers; Chrome appends each CSS argument space-separated at the end
+ * of the message string when it is serialized by the console-message event.
+ */
+function stripConsoleStyles(msg: string): string {
+  if (!msg.includes('%c')) return msg;
+  // Remove inline %c format specifiers
+  const withoutMarkers = msg.replace(/%c/g, '');
+  // Strip trailing CSS property declarations appended by Chrome's console-message serialization.
+  // tslog uses: font-weight, color, background, padding, border-radius, font-style, text-decoration.
+  return withoutMarkers
+    .replace(
+      /\s+(?:font-weight|font-style|color|background(?:-color)?|padding|border-radius|text-decoration)\s*:.*$/,
+      '',
+    )
+    .trim();
+}
+
 interface LogEntry {
   ts: number;
   level: LogLevel;
@@ -202,6 +222,11 @@ function stringifyArgs(args: unknown[]): string {
 
 let consolePatched = false;
 
+function resolveMainSource(): 'sdk' | 'main' {
+  const stack = new Error().stack ?? '';
+  return stack.includes('node_modules/@meshtastic') ? 'sdk' : 'main';
+}
+
 /**
  * Route main-process console.* through appendLine and still echo to original console
  * so terminal/devtools behavior is preserved.
@@ -211,23 +236,23 @@ export function patchMainConsole(): void {
   consolePatched = true;
 
   console.log = (...args: unknown[]) => {
-    appendLine('log', 'main', stringifyArgs(args));
+    appendLine('log', resolveMainSource(), stringifyArgs(args));
     original.log(...args);
   };
   console.info = (...args: unknown[]) => {
-    appendLine('info', 'main', stringifyArgs(args));
+    appendLine('info', resolveMainSource(), stringifyArgs(args));
     original.info(...args);
   };
   console.warn = (...args: unknown[]) => {
-    appendLine('warn', 'main', stringifyArgs(args));
+    appendLine('warn', resolveMainSource(), stringifyArgs(args));
     original.warn(...args);
   };
   console.error = (...args: unknown[]) => {
-    appendLine('error', 'main', stringifyArgs(args));
+    appendLine('error', resolveMainSource(), stringifyArgs(args));
     original.error(...args);
   };
   console.debug = (...args: unknown[]) => {
-    appendLine('debug', 'main', stringifyArgs(args));
+    appendLine('debug', resolveMainSource(), stringifyArgs(args));
     original.debug(...args);
   };
 
@@ -270,5 +295,5 @@ export function forwardRendererConsoleMessage(details: {
   const mapped: LogLevel = levelMap[details.level] ?? 'log';
   const line = details.lineNumber;
   const src = details.sourceId ? `renderer:${path.basename(details.sourceId)}:${line}` : 'renderer';
-  appendLine(mapped, src, details.message);
+  appendLine(mapped, src, stripConsoleStyles(details.message));
 }

@@ -55,7 +55,7 @@ let lastSerialPortIds = new Set<string>();
 
 // ─── Global error handlers (prevent silent crashes in packaged app) ──
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught exception:', error);
+  console.error('[main] Uncaught exception:', error);
   try {
     dialog.showErrorBox(
       'Mesh-Client — Unexpected Error',
@@ -71,7 +71,7 @@ let lastUnhandledRejectionDialogAt = 0;
 const UNHANDLED_REJECTION_DIALOG_COOLDOWN_MS = 60_000;
 
 process.on('unhandledRejection', (reason) => {
-  console.error('Unhandled rejection:', reason);
+  console.error('[main] Unhandled rejection:', reason);
   const now = Date.now();
   if (now - lastUnhandledRejectionDialogAt < UNHANDLED_REJECTION_DIALOG_COOLDOWN_MS) return;
   lastUnhandledRejectionDialogAt = now;
@@ -113,6 +113,7 @@ function validateSaveMessage(message: unknown): asserts message is Record<string
   replyId?: number;
   to?: number;
   mqttStatus?: string;
+  receivedVia?: string;
 } {
   if (!message || typeof message !== 'object')
     throw new Error('db:saveMessage: message must be an object');
@@ -197,6 +198,16 @@ function validateMqttPublishArgs(args: unknown): void {
   }
   if (a.channelName != null && typeof a.channelName !== 'string')
     throw new Error('mqtt:publish: channelName must be a string');
+  if (a.emoji != null) {
+    const emoji = Number(a.emoji);
+    if (!Number.isFinite(emoji) || emoji < 0)
+      throw new Error('mqtt:publish: emoji must be a non-negative integer');
+  }
+  if (a.replyId != null) {
+    const replyId = Number(a.replyId);
+    if (!Number.isFinite(replyId) || replyId < 0)
+      throw new Error('mqtt:publish: replyId must be a non-negative integer');
+  }
 }
 
 // Enable Web Bluetooth feature flag
@@ -438,7 +449,7 @@ function createWindow() {
 
   // ─── Renderer crash / load failure detection ──────────────────────
   mainWindow.webContents.on('render-process-gone', (_event, details) => {
-    console.error('Renderer process gone:', details.reason, details.exitCode);
+    console.error('[main] Renderer process gone:', details.reason, details.exitCode);
     try {
       dialog.showErrorBox(
         'Mesh-Client — Renderer Stopped',
@@ -450,7 +461,7 @@ function createWindow() {
   });
 
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDesc, validatedURL) => {
-    console.error('Failed to load:', errorCode, errorDesc, validatedURL);
+    console.error('[main] Failed to load:', errorCode, errorDesc, validatedURL);
     // ERR_ABORTED (-3) often means navigation was cancelled; avoid noisy dialog
     if (errorCode === -3) return;
     try {
@@ -623,6 +634,8 @@ ipcMain.handle('mqtt:publish', async (_event, args) => {
       channel: number;
       destination?: number;
       channelName?: string;
+      emoji?: number;
+      replyId?: number;
     };
     return mqttManager.publish(
       a.text,
@@ -630,6 +643,8 @@ ipcMain.handle('mqtt:publish', async (_event, args) => {
       a.channel,
       a.destination ?? 0xffffffff,
       a.channelName ?? 'LongFast',
+      a.emoji,
+      a.replyId,
     );
   } catch (err) {
     console.error('[IPC] mqtt:publish failed:', err);
@@ -670,9 +685,10 @@ ipcMain.handle('db:saveMessage', (_event, message) => {
     validateSaveMessage(message);
     const db = getDatabase();
     const stmt = db.prepare(`
-      INSERT OR IGNORE INTO messages (sender_id, sender_name, payload, channel, timestamp, packet_id, status, error, emoji, reply_id, to_node, mqtt_status)
-      VALUES (@sender_id, @sender_name, @payload, @channel, @timestamp, @packet_id, @status, @error, @emoji, @reply_id, @to_node, @mqtt_status)
+      INSERT OR IGNORE INTO messages (sender_id, sender_name, payload, channel, timestamp, packet_id, status, error, emoji, reply_id, to_node, mqtt_status, received_via)
+      VALUES (@sender_id, @sender_name, @payload, @channel, @timestamp, @packet_id, @status, @error, @emoji, @reply_id, @to_node, @mqtt_status, @received_via)
     `);
+    const validReceivedVia = ['rf', 'mqtt', 'both'];
     return stmt.run({
       sender_id: safeNonNegativeInt(message.sender_id),
       sender_name: String(message.sender_name),
@@ -686,6 +702,10 @@ ipcMain.handle('db:saveMessage', (_event, message) => {
       reply_id: message.replyId != null ? safeNonNegativeInt(message.replyId) : null,
       to_node: message.to != null ? safeNonNegativeInt(message.to) : null,
       mqtt_status: message.mqttStatus ?? null,
+      received_via:
+        message.receivedVia != null && validReceivedVia.includes(message.receivedVia)
+          ? message.receivedVia
+          : null,
     });
   } catch (err) {
     console.error('[IPC] db:saveMessage failed:', err);
@@ -699,7 +719,7 @@ ipcMain.handle('db:getMessages', (_event, channel?: number, limit = 200) => {
     const db = getDatabase();
     const columns = `id, sender_id, sender_name, payload, channel, timestamp,
          packet_id AS packetId, status, error, emoji, reply_id AS replyId, to_node,
-         mqtt_status AS mqttStatus`;
+         mqtt_status AS mqttStatus, received_via AS receivedVia`;
     let rows: any[];
     if (channel !== undefined && channel !== null) {
       const ch = safeNonNegativeInt(channel);
@@ -954,6 +974,22 @@ ipcMain.handle(
   },
 );
 
+// ─── IPC: Upgrade received_via to 'both' when packet arrives on second transport ─
+ipcMain.handle('db:updateMessageReceivedVia', (_event, packetId: number) => {
+  try {
+    const pid = safeNonNegativeInt(packetId);
+    const db = getDatabase();
+    return db
+      .prepare(
+        "UPDATE messages SET received_via = 'both' WHERE packet_id = ? AND received_via != 'both'",
+      )
+      .run(pid);
+  } catch (err) {
+    console.error('[IPC] db:updateMessageReceivedVia failed:', err);
+    throw err;
+  }
+});
+
 // ─── IPC: Export database ───────────────────────────────────────────
 ipcMain.handle('db:export', async () => {
   try {
@@ -1077,7 +1113,7 @@ app.whenReady().then(() => {
     }
     createWindow();
   } catch (error) {
-    console.error('Fatal startup error:', error);
+    console.error('[main] Fatal startup error:', error);
     const isNativeModuleError =
       error instanceof Error && (error as NodeJS.ErrnoException).code === 'ERR_DLOPEN_FAILED';
     const message = isNativeModuleError
@@ -1093,7 +1129,7 @@ app.whenReady().then(() => {
       try {
         createWindow();
       } catch (error) {
-        console.error('Window creation error:', error);
+        console.error('[main] Window creation error:', error);
       }
     } else {
       mainWindow?.show(); // Restore hidden window on dock click
