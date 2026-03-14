@@ -5,9 +5,20 @@ import { Mesh } from '@meshtastic/protobufs';
 
 import type { WorkerCommand, WorkerEvent } from '../lib/transport/types';
 
+// Only accept messages from our renderer (Electron: file/null in prod, localhost in dev).
+const ALLOWED_ORIGINS = [
+  'null',
+  'file://',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://127.0.0.1:5173',
+];
+
 self.onmessage = (event: MessageEvent<WorkerCommand>) => {
+  if (!event || !ALLOWED_ORIGINS.includes(event.origin)) {
+    return;
+  }
   if (
-    !event ||
     typeof event.data !== 'object' ||
     event.data === null ||
     !('type' in event.data) ||
