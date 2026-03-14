@@ -93,6 +93,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return () => ipcRenderer.off('mqtt:clientId', handler);
     },
     getClientId: (): Promise<string> => ipcRenderer.invoke('mqtt:getClientId'),
+    getCachedNodes: () => ipcRenderer.invoke('mqtt:getCachedNodes'),
     publish: (args: {
       text: string;
       from: number;
@@ -102,6 +103,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
       emoji?: number;
       replyId?: number;
     }) => ipcRenderer.invoke('mqtt:publish', args),
+    publishNodeInfo: (args: {
+      from: number;
+      longName: string;
+      shortName: string;
+      channelName?: string;
+      hwModel?: number;
+    }) => ipcRenderer.invoke('mqtt:publishNodeInfo', args),
+    publishPosition: (args: {
+      from: number;
+      channel: number;
+      channelName: string;
+      latitudeI: number;
+      longitudeI: number;
+      altitude?: number;
+    }) => ipcRenderer.invoke('mqtt:publishPosition', args),
   },
 
   // ─── Bluetooth device selection ─────────────────────────────────

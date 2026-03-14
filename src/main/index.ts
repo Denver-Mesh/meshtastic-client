@@ -651,6 +651,78 @@ ipcMain.handle('mqtt:publish', async (_event, args) => {
     throw err;
   }
 });
+ipcMain.handle('mqtt:getCachedNodes', async () => {
+  try {
+    return mqttManager.getCachedNodes();
+  } catch (err) {
+    console.error('[IPC] mqtt:getCachedNodes failed:', err);
+    throw err;
+  }
+});
+ipcMain.handle('mqtt:publishNodeInfo', async (_event, args) => {
+  try {
+    const a = args as {
+      from: number;
+      longName: string;
+      shortName: string;
+      channelName?: string;
+      hwModel?: number;
+    };
+    if (
+      typeof a.from !== 'number' ||
+      typeof a.longName !== 'string' ||
+      typeof a.shortName !== 'string'
+    ) {
+      throw new Error(
+        'mqtt:publishNodeInfo requires from (number), longName (string), shortName (string)',
+      );
+    }
+    return mqttManager.publishNodeInfo(
+      a.from,
+      a.longName,
+      a.shortName,
+      a.channelName ?? 'LongFast',
+      a.hwModel,
+    );
+  } catch (err) {
+    console.error('[IPC] mqtt:publishNodeInfo failed:', err);
+    throw err;
+  }
+});
+ipcMain.handle('mqtt:publishPosition', async (_event, args) => {
+  try {
+    const a = args as {
+      from: number;
+      channel: number;
+      channelName: string;
+      latitudeI: number;
+      longitudeI: number;
+      altitude?: number;
+    };
+    if (
+      typeof a.from !== 'number' ||
+      typeof a.channel !== 'number' ||
+      typeof a.channelName !== 'string' ||
+      typeof a.latitudeI !== 'number' ||
+      typeof a.longitudeI !== 'number'
+    ) {
+      throw new Error(
+        'mqtt:publishPosition requires from, channel, channelName, latitudeI, longitudeI',
+      );
+    }
+    return mqttManager.publishPosition(
+      a.from,
+      a.channel,
+      a.channelName,
+      a.latitudeI,
+      a.longitudeI,
+      a.altitude,
+    );
+  } catch (err) {
+    console.error('[IPC] mqtt:publishPosition failed:', err);
+    throw err;
+  }
+});
 
 // ─── IPC: GPS fix via main process ──────────────────────────────────
 ipcMain.handle('gps:getFix', async () => {

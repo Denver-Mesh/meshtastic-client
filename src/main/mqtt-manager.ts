@@ -18,6 +18,21 @@ const DEFAULT_PSK = Buffer.from([
 // Dedup window: 10 minutes
 const DEDUP_TTL_MS = 10 * 60 * 1000;
 
+// Active node cache: prune entries not seen in 24 hours
+const NODE_CACHE_PRUNE_MS = 24 * 60 * 60 * 1000;
+const NODE_CACHE_MAX_SIZE = 500;
+
+export interface CachedNode {
+  node_id: number;
+  long_name: string;
+  short_name: string;
+  hw_model: string;
+  last_heard: number;
+  latitude?: number | null;
+  longitude?: number | null;
+  altitude?: number | null;
+}
+
 function coordWarning(lat: number, lon: number): string | null {
   if (lat === 0 && lon === 0) return 'No GPS fix (0°, 0°)';
   if (lat < -90 || lat > 90) return `Latitude out of range: ${lat.toFixed(4)}°`;
@@ -26,10 +41,13 @@ function coordWarning(lat: number, lon: number): string | null {
   return null;
 }
 
+const BROADCAST_ID = 0xffffffff >>> 0;
+
 export class MQTTManager extends EventEmitter {
   private client: mqtt.MqttClient | null = null;
   private status: MQTTStatus = 'disconnected';
   private seenPacketIds = new Map<number, number>(); // packetId → expiry timestamp
+  private nodeCache = new Map<number, CachedNode>();
   private retryCount = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private currentSettings: MQTTSettings | null = null;
@@ -153,51 +171,37 @@ export class MQTTManager extends EventEmitter {
     });
   }
 
-  publish(
-    text: string,
+  /**
+   * Publish an encrypted Data payload as a MeshPacket in a ServiceEnvelope.
+   * Used by publish(), publishNodeInfo(), and publishPosition().
+   */
+  private publishEncryptedData(
     from: number,
+    to: number,
     channel: number,
-    destination: number,
     channelName: string,
-    emoji?: number,
-    replyId?: number,
+    dataBytes: Uint8Array,
   ): number {
     if (!this.client?.connected || !this.currentSettings) {
       throw new Error('MQTT not connected');
     }
-
     const packetId = (Math.random() * 0xffffffff) >>> 0;
-    // Broker echoes our uplink back to the same client; mark seen now so onMessage
-    // drops it before emit + gateway downlink sendText (avoids duplicate chat rows).
     this.seenPacketIds.set(packetId, Date.now() + DEDUP_TTL_MS);
 
-    // Build Data protobuf
-    const data = create(DataSchema, {
-      portnum: PortNum.TEXT_MESSAGE_APP,
-      payload: new TextEncoder().encode(text),
-      ...(emoji ? { emoji } : {}),
-      ...(replyId ? { replyId } : {}),
-    });
-    const dataBytes = toBinary(DataSchema, data);
-
-    // Encrypt with AES-128-CTR using the same nonce convention as decrypt
     const nonce = Buffer.alloc(16, 0);
     nonce.writeUInt32LE(packetId >>> 0, 0);
     nonce.writeUInt32LE(from >>> 0, 4);
     const cipher = createCipheriv('aes-128-ctr', DEFAULT_PSK, nonce);
     const encrypted = Buffer.concat([cipher.update(Buffer.from(dataBytes)), cipher.final()]);
 
-    // Build MeshPacket
     const packet = create(MeshPacketSchema, {
       from,
-      to: destination,
+      to,
       id: packetId,
       channel,
       hopLimit: 3,
       payloadVariant: { case: 'encrypted', value: encrypted },
     });
-
-    // Build ServiceEnvelope and publish
     const gatewayId = `!${from.toString(16).padStart(8, '0')}`;
     const envelope = create(ServiceEnvelopeSchema, {
       packet,
@@ -211,8 +215,91 @@ export class MQTTManager extends EventEmitter {
       `${prefix}2/e/${channelName}/${gatewayId}`,
       Buffer.from(toBinary(ServiceEnvelopeSchema, envelope)),
     );
-
     return packetId;
+  }
+
+  publish(
+    text: string,
+    from: number,
+    channel: number,
+    destination: number,
+    channelName: string,
+    emoji?: number,
+    replyId?: number,
+  ): number {
+    const data = create(DataSchema, {
+      portnum: PortNum.TEXT_MESSAGE_APP,
+      payload: new TextEncoder().encode(text),
+      ...(emoji ? { emoji } : {}),
+      ...(replyId ? { replyId } : {}),
+    });
+    return this.publishEncryptedData(
+      from,
+      destination,
+      channel,
+      channelName,
+      toBinary(DataSchema, data),
+    );
+  }
+
+  /**
+   * Publish a NodeInfo (User) packet to the mesh so other nodes see this client.
+   * Broadcasts to all nodes (to = 0xFFFFFFFF). Call periodically when MQTT-only to announce presence.
+   */
+  publishNodeInfo(
+    from: number,
+    longName: string,
+    shortName: string,
+    channelName: string,
+    hwModel?: number,
+  ): number {
+    const user = create(UserSchema, {
+      id: `!${from.toString(16).padStart(8, '0')}`,
+      longName,
+      shortName,
+      ...(hwModel !== undefined ? { hwModel } : {}),
+    });
+    const data = create(DataSchema, {
+      portnum: PortNum.NODEINFO_APP,
+      payload: toBinary(UserSchema, user),
+    });
+    return this.publishEncryptedData(
+      from,
+      BROADCAST_ID,
+      0,
+      channelName,
+      toBinary(DataSchema, data),
+    );
+  }
+
+  /**
+   * Publish a Position packet to the mesh (optional, for map presence).
+   * Broadcasts to all nodes. latitudeI/longitudeI are in 1e7 units.
+   */
+  publishPosition(
+    from: number,
+    channel: number,
+    channelName: string,
+    latitudeI: number,
+    longitudeI: number,
+    altitude?: number,
+  ): number {
+    const position = create(PositionSchema, {
+      latitudeI,
+      longitudeI,
+      ...(altitude !== undefined ? { altitude } : {}),
+    });
+    const data = create(DataSchema, {
+      portnum: PortNum.POSITION_APP,
+      payload: toBinary(PositionSchema, position),
+    });
+    return this.publishEncryptedData(
+      from,
+      BROADCAST_ID,
+      channel,
+      channelName,
+      toBinary(DataSchema, data),
+    );
   }
 
   disconnect(): void {
@@ -263,6 +350,36 @@ export class MQTTManager extends EventEmitter {
     }
     this.seenPacketIds.set(packetId, now + DEDUP_TTL_MS);
     return false;
+  }
+
+  private pruneNodeCache(): void {
+    const now = Date.now();
+    const cutoff = now - NODE_CACHE_PRUNE_MS;
+    if (this.nodeCache.size <= NODE_CACHE_MAX_SIZE) return;
+    for (const [id, node] of this.nodeCache) {
+      if (node.last_heard < cutoff) this.nodeCache.delete(id);
+    }
+  }
+
+  private upsertNodeCache(update: Partial<CachedNode> & { node_id: number }): void {
+    const { node_id, last_heard = Date.now() } = update;
+    const existing = this.nodeCache.get(node_id);
+    const merged: CachedNode = {
+      node_id,
+      long_name: update.long_name ?? existing?.long_name ?? '',
+      short_name: update.short_name ?? existing?.short_name ?? '',
+      hw_model: update.hw_model ?? existing?.hw_model ?? '',
+      last_heard,
+      latitude: update.latitude !== undefined ? update.latitude : existing?.latitude,
+      longitude: update.longitude !== undefined ? update.longitude : existing?.longitude,
+      altitude: update.altitude !== undefined ? update.altitude : existing?.altitude,
+    };
+    this.nodeCache.set(node_id, merged);
+    this.pruneNodeCache();
+  }
+
+  getCachedNodes(): CachedNode[] {
+    return Array.from(this.nodeCache.values());
   }
 
   private onMessage(payload: Buffer): void {
@@ -320,14 +437,22 @@ export class MQTTManager extends EventEmitter {
     if (portnum === PortNum.NODEINFO_APP && payload) {
       try {
         const user = fromBinary(UserSchema, payload);
+        const now = Date.now();
         const nodeUpdate: Partial<MeshNode> & { node_id: number; from_mqtt: boolean } = {
           node_id: nodeId,
           long_name: user.longName || '',
           short_name: user.shortName || '',
           hw_model: String(user.hwModel ?? ''),
-          last_heard: Date.now(),
+          last_heard: now,
           from_mqtt: true,
         };
+        this.upsertNodeCache({
+          node_id: nodeId,
+          long_name: nodeUpdate.long_name,
+          short_name: nodeUpdate.short_name,
+          hw_model: nodeUpdate.hw_model,
+          last_heard: now,
+        });
         this.emit('nodeUpdate', nodeUpdate);
       } catch (e) {
         console.warn(
@@ -335,6 +460,7 @@ export class MQTTManager extends EventEmitter {
           nodeId,
           e instanceof Error ? e.message : String(e),
         );
+        this.upsertNodeCache({ node_id: nodeId, last_heard: Date.now() });
         this.emitMinimalNodeUpdate(nodeId);
       }
     } else if (portnum === PortNum.POSITION_APP && payload) {
@@ -345,6 +471,7 @@ export class MQTTManager extends EventEmitter {
         const warning = coordWarning(lat, lon);
 
         if (warning) {
+          this.upsertNodeCache({ node_id: nodeId, last_heard: Date.now() });
           this.emit('nodeUpdate', {
             node_id: nodeId,
             positionWarning: warning,
@@ -352,6 +479,14 @@ export class MQTTManager extends EventEmitter {
             from_mqtt: true,
           });
         } else if (pos.latitudeI || pos.longitudeI) {
+          const now = Date.now();
+          this.upsertNodeCache({
+            node_id: nodeId,
+            last_heard: now,
+            latitude: lat,
+            longitude: lon,
+            altitude: pos.altitude ?? undefined,
+          });
           const nodeUpdate: Partial<MeshNode> & {
             node_id: number;
             from_mqtt: boolean;
@@ -361,12 +496,13 @@ export class MQTTManager extends EventEmitter {
             latitude: lat,
             longitude: lon,
             altitude: pos.altitude ?? undefined,
-            last_heard: Date.now(),
+            last_heard: now,
             from_mqtt: true,
             positionWarning: null,
           };
           this.emit('nodeUpdate', nodeUpdate);
         } else {
+          this.upsertNodeCache({ node_id: nodeId, last_heard: Date.now() });
           this.emitMinimalNodeUpdate(nodeId);
         }
       } catch (e) {
@@ -375,6 +511,7 @@ export class MQTTManager extends EventEmitter {
           nodeId,
           e instanceof Error ? e.message : String(e),
         );
+        this.upsertNodeCache({ node_id: nodeId, last_heard: Date.now() });
         this.emitMinimalNodeUpdate(nodeId);
       }
     } else if (portnum === PortNum.TEXT_MESSAGE_APP && (payload?.length || data.emoji)) {
@@ -394,6 +531,7 @@ export class MQTTManager extends EventEmitter {
           replyId,
         };
         this.emit('message', msg);
+        this.upsertNodeCache({ node_id: nodeId, last_heard: Date.now() });
         this.emitMinimalNodeUpdate(nodeId);
       } catch (e) {
         console.warn(
@@ -401,10 +539,12 @@ export class MQTTManager extends EventEmitter {
           nodeId,
           e instanceof Error ? e.message : String(e),
         );
+        this.upsertNodeCache({ node_id: nodeId, last_heard: Date.now() });
         this.emitMinimalNodeUpdate(nodeId);
       }
     } else {
       // Unknown portnum — at least track the node as seen
+      this.upsertNodeCache({ node_id: nodeId, last_heard: Date.now() });
       this.emitMinimalNodeUpdate(nodeId);
     }
   }
