@@ -3,25 +3,14 @@ import { app } from 'electron';
 import fs from 'fs';
 import path from 'path';
 
+import { sanitizeLogMessage } from './sanitize-log-message';
+
+export { sanitizeLogMessage };
+
 const LOG_FILENAME = 'meshtastic-client.log';
 const MAX_LINE_LENGTH = 8192;
 const MAX_IPC_MESSAGE_LENGTH = 4096;
 const RECENT_MAX = 1500;
-
-/**
- * Sanitize untrusted or user-controlled text before it is persisted or forwarded as a log line.
- * Strips control characters (including newlines) and normalizes whitespace so each entry stays
- * one line and log injection is avoided. All paths that write to the log file go through
- * {@link appendLine}, which applies this helper to every message before formatLine/appendFile.
- */
-export function sanitizeLogMessage(message: unknown): string {
-  // Remove control characters (including newlines and carriage returns) and normalize whitespace
-  // to keep each log entry on a single line and prevent log injection.
-  return String(message)
-    .replace(/[\x00-\x1F\x7F\u2028\u2029]+/g, ' ') // eslint-disable-line no-control-regex
-    .replace(/\s+/g, ' ')
-    .trim();
-}
 
 /**
  * Strip console %c style directives and their trailing CSS argument strings from messages

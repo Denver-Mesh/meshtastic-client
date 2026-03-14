@@ -151,6 +151,7 @@ GitHub Code scanning (CodeQL) reports **log injection** when user-controlled or 
 - **Helper:** `sanitizeLogMessage(message: unknown): string` in `src/main/log-service.ts` strips control characters (including newlines) and normalizes whitespace. Use it for every log message and source string that is derived from untrusted input.
 - **Example:** In `patchMainConsole()`, console overrides pass `sanitizeLogMessage(stringifyArgs(args))` into `appendLine()`, not `stringifyArgs(args)` alone.
 - **Checks:** Code scanning runs on push (GitHub default setup). If you add or change code that feeds into the log pipeline, ensure the **first** use of untrusted data in that path is wrapped in `sanitizeLogMessage()` at the call site.
+- **Tests:** When adding or changing code that feeds into the log pipeline (e.g. new call sites of `appendLine`, `console.*` in main, or renderer→main log forwarding), add or extend tests so that log injection is caught by the suite. For example: a test that asserts `sanitizeLogMessage` strips newlines and control characters (see `src/renderer/lib/sanitize-log-message.test.ts`), or that a path which logs user-controlled input does not produce multiple log lines from a single message. AI and reviewers should ensure such tests exist or are added so regressions fail the test run.
 
 ## Commit Style
 
