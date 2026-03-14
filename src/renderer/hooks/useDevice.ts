@@ -110,6 +110,8 @@ export function useDevice() {
   // ─── MQTT session tracking ────────────────────────────────────
   // Tracks current MQTT connection status in a ref for use in callbacks
   const mqttStatusRef = useRef<MQTTStatus>('disconnected');
+  // Periodic NodeInfo broadcast when MQTT-only so other nodes see this client
+  const mqttPresenceIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Mirror channelConfigs state into a ref so MQTT callbacks don't have stale closures
   const channelConfigsRef = useRef<typeof channelConfigs>([]);
   // Nodes heard via RF this session — prevents MQTT-only flag from being set
@@ -407,6 +409,32 @@ export function useDevice() {
           });
           return updated;
         });
+        // Periodic NodeInfo broadcast so other nodes see this client (every 5 min)
+        if (mqttPresenceIntervalRef.current) clearInterval(mqttPresenceIntervalRef.current);
+        const sendPresence = () => {
+          if (deviceRef.current) {
+            if (mqttPresenceIntervalRef.current) {
+              clearInterval(mqttPresenceIntervalRef.current);
+              mqttPresenceIntervalRef.current = null;
+            }
+            return;
+          }
+          window.electronAPI.mqtt
+            .publishNodeInfo({
+              from: getOrCreateVirtualNodeId(),
+              longName: MQTT_ONLY_VIRTUAL_LONG_NAME,
+              shortName: 'MQTT',
+              channelName: 'LongFast',
+            })
+            .catch(() => {});
+        };
+        setTimeout(sendPresence, 10_000);
+        mqttPresenceIntervalRef.current = setInterval(sendPresence, 5 * 60 * 1000);
+      } else if (s !== 'connected') {
+        if (mqttPresenceIntervalRef.current) {
+          clearInterval(mqttPresenceIntervalRef.current);
+          mqttPresenceIntervalRef.current = null;
+        }
       }
     });
 
@@ -537,6 +565,10 @@ export function useDevice() {
       unsubStatus();
       unsubNode();
       unsubMsg();
+      if (mqttPresenceIntervalRef.current) {
+        clearInterval(mqttPresenceIntervalRef.current);
+        mqttPresenceIntervalRef.current = null;
+      }
     };
   }, [updateNodes, isDuplicate, startGpsInterval]);
 

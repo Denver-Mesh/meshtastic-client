@@ -141,6 +141,18 @@ export interface MQTTSettings {
 
 export type MQTTStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
+/** Node record from the main-process MQTT active node cache (getCachedNodes). */
+export interface CachedNode {
+  node_id: number;
+  long_name: string;
+  short_name: string;
+  hw_model: string;
+  last_heard: number;
+  latitude?: number | null;
+  longitude?: number | null;
+  altitude?: number | null;
+}
+
 export interface ChatMessage {
   id?: number;
   sender_id: number;
@@ -231,6 +243,7 @@ declare global {
         onMessage: (cb: (msg: Omit<ChatMessage, 'id'>) => void) => () => void;
         onClientId: (cb: (id: string) => void) => () => void;
         getClientId: () => Promise<string>;
+        getCachedNodes: () => Promise<CachedNode[]>;
         publish: (args: {
           text: string;
           from: number;
@@ -239,6 +252,21 @@ declare global {
           channelName?: string;
           emoji?: number;
           replyId?: number;
+        }) => Promise<number>;
+        publishNodeInfo: (args: {
+          from: number;
+          longName: string;
+          shortName: string;
+          channelName?: string;
+          hwModel?: number;
+        }) => Promise<number>;
+        publishPosition: (args: {
+          from: number;
+          channel: number;
+          channelName: string;
+          latitudeI: number;
+          longitudeI: number;
+          altitude?: number;
         }) => Promise<number>;
       };
       onBluetoothDevicesDiscovered: (cb: (devices: BluetoothDevice[]) => void) => () => void;
