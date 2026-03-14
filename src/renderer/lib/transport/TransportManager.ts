@@ -53,7 +53,7 @@ export class TransportManager {
       window.electronAPI.mqtt
         .publish({
           text,
-          from,
+          from: Number(from),
           channel,
           destination: destination ?? BROADCAST_ADDR,
           channelName: 'LongFast',
