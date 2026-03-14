@@ -39,7 +39,7 @@ The official Meshtastic apps cover the basics, but desktop power users need more
 - **Bluetooth LE** — pair wirelessly; one-click reconnect card remembers your last device (name persists across sessions)
 - **USB Serial** — plug in via USB; auto-reconnects silently on startup
 - **WiFi/HTTP** — connect to network-enabled nodes; saves last address for quick reconnect
-- **MQTT** — subscribe to a broker to receive mesh traffic over the internet; AES-128-CTR decryption, automatic RF deduplication, exponential-backoff reconnect, and an **active node cache** that periodically refreshes presence information so MQTT-only and RF+MQTT nodes stay visible even when your radio is offline.
+- **MQTT** — subscribe to a broker to receive mesh traffic over the internet; AES-128-CTR decryption (nonce and gateway ID derived from the sender node ID so MQTT-only messages decrypt correctly on other nodes), automatic RF deduplication, exponential-backoff reconnect, and an **active node cache** that periodically refreshes presence information so MQTT-only and RF+MQTT nodes stay visible even when your radio is offline.
 
 **Chat**
 

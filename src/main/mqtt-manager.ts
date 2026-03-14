@@ -34,6 +34,16 @@ export interface CachedNode {
   altitude?: number | null;
 }
 
+interface MqttPublishOptions {
+  text: string;
+  from: number;
+  channel: number;
+  destination?: number;
+  channelName?: string;
+  emoji?: number;
+  replyId?: number;
+}
+
 function coordWarning(lat: number, lon: number): string | null {
   if (lat === 0 && lon === 0) return 'No GPS fix (0°, 0°)';
   if (lat < -90 || lat > 90) return `Latitude out of range: ${lat.toFixed(4)}°`;
@@ -192,21 +202,25 @@ export class MQTTManager extends EventEmitter {
     const packetId = (Math.random() * 0xffffffff) >>> 0;
     this.seenPacketIds.set(packetId, Date.now() + DEDUP_TTL_MS);
 
+    const fromId = Number(from) >>> 0;
+    const toId = Number(to) >>> 0;
+    const channelId = Number(channel) >>> 0;
+
     const nonce = Buffer.alloc(16, 0);
     nonce.writeUInt32LE(packetId >>> 0, 0);
-    nonce.writeUInt32LE(from >>> 0, 4);
+    nonce.writeUInt32LE(fromId >>> 0, 4);
     const cipher = createCipheriv('aes-128-ctr', DEFAULT_PSK, nonce);
     const encrypted = Buffer.concat([cipher.update(Buffer.from(dataBytes)), cipher.final()]);
 
     const packet = create(MeshPacketSchema, {
-      from,
-      to,
+      from: fromId,
+      to: toId,
       id: packetId,
-      channel,
+      channel: channelId,
       hopLimit: 3,
       payloadVariant: { case: 'encrypted', value: encrypted },
     });
-    const gatewayId = `!${from.toString(16).padStart(8, '0')}`;
+    const gatewayId = `!${fromId.toString(16).padStart(8, '0')}`;
     const envelope = create(ServiceEnvelopeSchema, {
       packet,
       channelId: channelName,
@@ -222,15 +236,21 @@ export class MQTTManager extends EventEmitter {
     return packetId;
   }
 
-  publish(
-    text: string,
-    from: number,
-    channel: number,
-    destination: number,
-    channelName: string,
-    emoji?: number,
-    replyId?: number,
-  ): number {
+  publish(options: MqttPublishOptions): number {
+    const {
+      text,
+      from,
+      channel,
+      destination = BROADCAST_ID,
+      channelName = 'LongFast',
+      emoji,
+      replyId,
+    } = options;
+
+    const fromId = Number(from) >>> 0;
+    const destId = Number(destination) >>> 0;
+    const channelId = Number(channel) >>> 0;
+
     const data = create(DataSchema, {
       portnum: PortNum.TEXT_MESSAGE_APP,
       payload: new TextEncoder().encode(text),
@@ -238,9 +258,9 @@ export class MQTTManager extends EventEmitter {
       ...(replyId ? { replyId } : {}),
     });
     return this.publishEncryptedData(
-      from,
-      destination,
-      channel,
+      fromId,
+      destId,
+      channelId,
       channelName,
       toBinary(DataSchema, data),
     );

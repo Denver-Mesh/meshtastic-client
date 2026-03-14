@@ -662,15 +662,15 @@ ipcMain.handle('mqtt:publish', async (_event, args) => {
       emoji?: number;
       replyId?: number;
     };
-    return mqttManager.publish(
-      a.text,
-      a.from,
-      a.channel,
-      a.destination ?? 0xffffffff,
-      a.channelName ?? 'LongFast',
-      a.emoji,
-      a.replyId,
-    );
+    return mqttManager.publish({
+      text: a.text,
+      from: a.from,
+      channel: a.channel,
+      destination: a.destination,
+      channelName: a.channelName,
+      emoji: a.emoji,
+      replyId: a.replyId,
+    });
   } catch (err) {
     console.error(
       '[IPC] mqtt:publish failed:',
