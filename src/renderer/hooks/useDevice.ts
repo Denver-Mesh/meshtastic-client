@@ -22,7 +22,9 @@ import type {
   ConnectionType,
   DeviceState,
   MeshNode,
+  MeshWaypoint,
   MQTTStatus,
+  NeighborInfoRecord,
   TelemetryPoint,
 } from '../lib/types';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
@@ -158,6 +160,18 @@ export function useDevice() {
       positionPrecision: number;
     }[]
   >([]);
+
+  const [queueStatus, setQueueStatus] = useState<{
+    free: number;
+    maxlen: number;
+    res: number;
+  } | null>(null);
+  const [deviceLogs, setDeviceLogs] = useState<
+    { message: string; time: number; source: string; level: number }[]
+  >([]);
+  const [neighborInfo, setNeighborInfo] = useState<Map<number, NeighborInfoRecord>>(new Map());
+  const [waypoints, setWaypoints] = useState<Map<number, MeshWaypoint>>(new Map());
+  const [moduleConfigs, setModuleConfigs] = useState<Record<string, unknown>>({});
 
   // Keep nodesRef in sync with state
   const updateNodes = useCallback(
@@ -626,6 +640,11 @@ export function useDevice() {
           cleanupSubscriptions();
           stopPolling();
           setTraceRouteResults(new Map());
+          setQueueStatus(null);
+          setDeviceLogs([]);
+          setNeighborInfo(new Map());
+          setWaypoints(new Map());
+          setModuleConfigs({});
           deviceRef.current = null;
           setState((s) => ({
             ...s,
@@ -1219,6 +1238,106 @@ export function useDevice() {
       });
       unsubscribesRef.current.push(unsubTrace);
 
+      // ─── Queue status ──────────────────────────────────────────
+      const unsubQueue = device.events.onQueueStatus.subscribe((qs) => {
+        setQueueStatus({ free: Number(qs.free), maxlen: Number(qs.maxlen), res: Number(qs.res) });
+      });
+      unsubscribesRef.current.push(unsubQueue);
+
+      // ─── Device log records ────────────────────────────────────
+      const MAX_DEVICE_LOGS = 500;
+      const unsubLog = device.events.onLogRecord.subscribe((record) => {
+        setDeviceLogs((prev) => {
+          const next = prev.length >= MAX_DEVICE_LOGS ? prev.slice(-MAX_DEVICE_LOGS + 1) : prev;
+          return [
+            ...next,
+            {
+              message: record.message,
+              time: Number(record.time),
+              source: record.source,
+              level: record.level,
+            },
+          ];
+        });
+      });
+      unsubscribesRef.current.push(unsubLog);
+
+      // ─── Neighbor info ─────────────────────────────────────────
+      const unsubNeighbor = device.events.onNeighborInfoPacket.subscribe((packet) => {
+        touchLastData();
+        const data = packet.data as {
+          nodeId?: number;
+          neighbors?: { nodeId?: number; snr?: number; lastRxTime?: number }[];
+        };
+        if (!data.nodeId) return;
+        const record: NeighborInfoRecord = {
+          nodeId: data.nodeId,
+          neighbors: (data.neighbors ?? []).map((n) => ({
+            nodeId: n.nodeId ?? 0,
+            snr: n.snr ?? 0,
+            lastRxTime: n.lastRxTime ?? 0,
+          })),
+          timestamp: Date.now(),
+        };
+        setNeighborInfo((prev) => {
+          const updated = new Map(prev);
+          updated.set(record.nodeId, record);
+          return updated;
+        });
+      });
+      unsubscribesRef.current.push(unsubNeighbor);
+
+      // ─── Waypoints ─────────────────────────────────────────────
+      const unsubWaypoint = device.events.onWaypointPacket.subscribe((packet) => {
+        touchLastData();
+        const data = packet.data as {
+          id?: number;
+          latitudeI?: number;
+          longitudeI?: number;
+          name?: string;
+          description?: string;
+          icon?: number;
+          lockedTo?: number;
+          expire?: number;
+        };
+        if (!data.id) return;
+        const waypoint: MeshWaypoint = {
+          id: data.id,
+          latitude: (data.latitudeI ?? 0) / 1e7,
+          longitude: (data.longitudeI ?? 0) / 1e7,
+          name: data.name ?? '',
+          description: data.description,
+          icon: data.icon,
+          lockedTo: data.lockedTo,
+          expire: data.expire,
+          from: packet.from,
+          timestamp: Date.now(),
+        };
+        // expire=1 means deletion
+        setWaypoints((prev) => {
+          const updated = new Map(prev);
+          if (data.expire === 1) {
+            updated.delete(data.id!);
+          } else {
+            updated.set(waypoint.id, waypoint);
+          }
+          return updated;
+        });
+      });
+      unsubscribesRef.current.push(unsubWaypoint);
+
+      // ─── Module config packets ─────────────────────────────────
+      const unsubModuleConfig = device.events.onModuleConfigPacket.subscribe((config) => {
+        const cfg = config as { payloadVariant?: { case?: string; value?: unknown } };
+        if (cfg.payloadVariant?.case) {
+          setModuleConfigs((prev) => ({
+            ...prev,
+            [cfg.payloadVariant!.case!]: cfg.payloadVariant!.value,
+          }));
+        }
+      });
+      unsubscribesRef.current.push(unsubModuleConfig);
+
       // ─── BLE heartbeat with failure detection ──────────────────
       // HTTP transport does not need a heartbeat — the 3s fromradio poll
       // and onMeshHeartbeat keep the connection alive. heartbeat() for HTTP
@@ -1663,6 +1782,55 @@ export function useDevice() {
     await deviceRef.current.resetNodes();
   }, []);
 
+  const rebootOta = useCallback(async (delay = 2) => {
+    if (!deviceRef.current) return;
+    await deviceRef.current.rebootOta(delay);
+  }, []);
+
+  const enterDfuMode = useCallback(async () => {
+    if (!deviceRef.current) return;
+    await deviceRef.current.enterDfuMode();
+  }, []);
+
+  const factoryResetConfig = useCallback(async () => {
+    if (!deviceRef.current) return;
+    await deviceRef.current.factoryResetConfig();
+  }, []);
+
+  const sendWaypoint = useCallback(
+    async (wp: Omit<MeshWaypoint, 'from' | 'timestamp'>, dest = 0xffffffff, channel = 0) => {
+      if (!deviceRef.current) return;
+      const waypoint = create(Mesh.WaypointSchema, {
+        id: wp.id,
+        latitudeI: Math.round(wp.latitude * 1e7),
+        longitudeI: Math.round(wp.longitude * 1e7),
+        name: wp.name,
+        description: wp.description ?? '',
+        icon: wp.icon ?? 0,
+        lockedTo: wp.lockedTo ?? 0,
+        expire: wp.expire ?? 0,
+      });
+      await deviceRef.current.sendWaypoint(waypoint, dest, channel);
+    },
+    [],
+  );
+
+  const deleteWaypoint = useCallback(async (id: number) => {
+    if (!deviceRef.current) return;
+    const waypoint = create(Mesh.WaypointSchema, { id, expire: 1 });
+    await deviceRef.current.sendWaypoint(waypoint, 0xffffffff, 0);
+  }, []);
+
+  const setModuleConfig = useCallback(async (config: unknown) => {
+    if (!deviceRef.current) return;
+    await (deviceRef.current as any).setModuleConfig(config);
+  }, []);
+
+  const setCannedMessages = useCallback(async (messages: string[]) => {
+    if (!deviceRef.current) return;
+    await (deviceRef.current as any).setCannedMessages({ messages: messages.join('\n') });
+  }, []);
+
   const requestPosition = useCallback(async (nodeNum: number) => {
     if (!deviceRef.current) return;
     await deviceRef.current.requestPosition(nodeNum);
@@ -1968,6 +2136,18 @@ export function useDevice() {
     getNodes,
     deviceOwner,
     setOwner,
+    queueStatus,
+    deviceLogs,
+    neighborInfo,
+    waypoints,
+    rebootOta,
+    enterDfuMode,
+    factoryResetConfig,
+    sendWaypoint,
+    deleteWaypoint,
+    moduleConfigs,
+    setModuleConfig,
+    setCannedMessages,
   };
 }
 

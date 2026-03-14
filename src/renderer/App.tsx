@@ -8,6 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import KeyboardShortcutsModal from './components/KeyboardShortcutsModal';
 import LogPanel from './components/LogPanel';
 import MapPanel from './components/MapPanel';
+import ModulePanel from './components/ModulePanel';
 import NodeDetailModal from './components/NodeDetailModal';
 import NodeListPanel from './components/NodeListPanel';
 import RadioPanel from './components/RadioPanel';
@@ -36,8 +37,9 @@ const TAB_NAMES = [
   'Chat',
   'Nodes',
   'Map',
-  'Telemetry',
   'Radio',
+  'Modules',
+  'Telemetry',
   'App',
   'Diagnostics',
 ];
@@ -258,10 +260,10 @@ export default function App() {
     };
   }, []);
 
-  // ─── Keyboard shortcuts: Cmd/Ctrl+1-8 for tabs, ? for help ───────────────
+  // ─── Keyboard shortcuts: Cmd/Ctrl+1-9 for tabs, ? for help ───────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '8') {
+      if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '9') {
         e.preventDefault();
         setActiveTab(parseInt(e.key) - 1);
       } else if (e.key === '?' && !e.metaKey && !e.ctrlKey && !e.altKey) {
@@ -326,6 +328,15 @@ export default function App() {
 
   const statusColor = STATUS_COLOR[device.state.status] ?? 'bg-gray-500';
 
+  const queueUsed = device.queueStatus ? device.queueStatus.maxlen - device.queueStatus.free : 0;
+  const queueShowBadge = device.queueStatus != null && queueUsed > 0;
+  const queueColorClass =
+    queueUsed <= 10
+      ? 'bg-green-900/60 text-green-300 border border-green-700'
+      : queueUsed <= 14
+        ? 'bg-amber-900/60 text-amber-300 border border-amber-700'
+        : 'bg-red-900/60 text-red-300 border border-red-700';
+
   return (
     <ToastProvider>
       {/* Global assertive live region for critical announcements */}
@@ -386,6 +397,15 @@ export default function App() {
               <span className="text-xs text-muted ml-2 whitespace-nowrap">
                 Node: {device.getPickerStyleNodeLabel(device.state.myNodeNum)}
               </span>
+            )}
+            {/* Queue status badge: 0–10 used = green, 11–14 = yellow, 15–16 = red */}
+            {queueShowBadge && device.queueStatus && (
+              <div
+                className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${queueColorClass}`}
+                title={`Queue: ${queueUsed}/${device.queueStatus.maxlen} used`}
+              >
+                Q: {queueUsed}/{device.queueStatus.maxlen}
+              </div>
             )}
           </div>
         </header>
@@ -493,17 +513,12 @@ export default function App() {
                         .refreshOurPosition()
                         .then((p) => (p ? { lat: p.lat, lon: p.lon } : null))
                     }
+                    waypoints={device.waypoints}
+                    onSendWaypoint={device.sendWaypoint}
+                    onDeleteWaypoint={device.deleteWaypoint}
                   />
                 )}
                 {activeTab === 4 && (
-                  <TelemetryPanel
-                    telemetry={device.telemetry}
-                    signalTelemetry={device.signalTelemetry}
-                    onRefresh={device.requestRefresh}
-                    isConnected={isOperational}
-                  />
-                )}
-                {activeTab === 5 && (
                   <RadioPanel
                     onSetConfig={device.setConfig}
                     onCommit={device.commitConfig}
@@ -520,9 +535,29 @@ export default function App() {
                     onSendPositionToDevice={device.sendPositionToDevice}
                     deviceOwner={device.deviceOwner}
                     onSetOwner={device.setOwner}
+                    onRebootOta={device.rebootOta}
+                    onEnterDfu={device.enterDfuMode}
+                    onFactoryResetConfig={device.factoryResetConfig}
+                  />
+                )}
+                {activeTab === 5 && (
+                  <ModulePanel
+                    moduleConfigs={device.moduleConfigs}
+                    onSetModuleConfig={device.setModuleConfig}
+                    onSetCannedMessages={device.setCannedMessages}
+                    onCommit={device.commitConfig}
+                    isConnected={isOperational}
                   />
                 )}
                 {activeTab === 6 && (
+                  <TelemetryPanel
+                    telemetry={device.telemetry}
+                    signalTelemetry={device.signalTelemetry}
+                    onRefresh={device.requestRefresh}
+                    isConnected={isOperational}
+                  />
+                )}
+                {activeTab === 7 && (
                   <AppPanel
                     logPanelVisible={logPanelVisible}
                     onLogPanelVisibleChange={(visible) => {
@@ -546,7 +581,7 @@ export default function App() {
                     onMessagesPruned={device.refreshMessagesFromDb}
                   />
                 )}
-                {activeTab === 7 && (
+                {activeTab === 8 && (
                   <DiagnosticsPanel
                     nodes={device.nodes}
                     myNodeNum={device.selfNodeId}
@@ -601,7 +636,7 @@ export default function App() {
               </span>
             </footer>
           </div>
-          {logPanelVisible && <LogPanel />}
+          {logPanelVisible && <LogPanel deviceLogs={device.deviceLogs} />}
         </div>
 
         {/* Keyboard Shortcuts Modal */}
@@ -625,6 +660,7 @@ export default function App() {
           onToggleFavorite={device.setNodeFavorited}
           isConnected={isOperational}
           homeNode={device.nodes.get(device.state.myNodeNum) ?? null}
+          neighborInfo={device.neighborInfo}
         />
       </div>
     </ToastProvider>

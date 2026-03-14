@@ -16,7 +16,7 @@ import type { LocationFilter } from '../App';
 import { getRoutingRowForNode, routingAnomalyNodeIds } from '../lib/diagnostics/diagnosticRows';
 import type { OurPosition } from '../lib/gpsSource';
 import { getNodeStatus, haversineDistanceKm } from '../lib/nodeStatus';
-import type { MeshNode, NodeAnomaly } from '../lib/types';
+import type { MeshNode, MeshWaypoint, NodeAnomaly } from '../lib/types';
 import { routingRowToNodeAnomaly } from '../lib/types';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
 import { useMapViewportStore } from '../stores/mapViewportStore';
@@ -476,6 +476,13 @@ interface Props {
   locationFilter: LocationFilter;
   ourPosition?: OurPosition | null;
   onLocateMe?: () => Promise<{ lat: number; lon: number } | null>;
+  waypoints?: Map<number, MeshWaypoint>;
+  onSendWaypoint?: (
+    wp: Omit<MeshWaypoint, 'from' | 'timestamp'>,
+    dest?: number,
+    ch?: number,
+  ) => Promise<void>;
+  onDeleteWaypoint?: (id: number) => Promise<void>;
 }
 
 export default function MapPanel({
@@ -484,6 +491,8 @@ export default function MapPanel({
   locationFilter,
   ourPosition,
   onLocateMe,
+  waypoints,
+  onDeleteWaypoint,
 }: Props) {
   const homeNode = nodes.get(myNodeNum) ?? null;
 
@@ -667,6 +676,37 @@ export default function MapPanel({
             nodes={nodes}
           />
         ))}
+        {waypoints &&
+          [...waypoints.values()].map((wp) => (
+            <Marker
+              key={wp.id}
+              position={[wp.latitude, wp.longitude]}
+              icon={L.divIcon({
+                className: '',
+                html: `<div style="background:#f59e0b;border:2px solid #fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;">📍</div>`,
+                iconSize: [18, 18],
+                iconAnchor: [9, 9],
+              })}
+            >
+              <Popup>
+                <div className="p-2 space-y-1">
+                  <div className="font-medium text-gray-100 text-sm">{wp.name || 'Waypoint'}</div>
+                  {wp.description && <div className="text-xs text-gray-400">{wp.description}</div>}
+                  <div className="text-xs text-gray-500 font-mono">
+                    {wp.latitude.toFixed(5)}, {wp.longitude.toFixed(5)}
+                  </div>
+                  {onDeleteWaypoint && (
+                    <button
+                      onClick={() => onDeleteWaypoint(wp.id)}
+                      className="mt-1 w-full px-2 py-1 text-xs bg-red-900/40 hover:bg-red-900/60 text-red-300 rounded border border-red-800/50 transition-colors"
+                    >
+                      Delete Waypoint
+                    </button>
+                  )}
+                </div>
+              </Popup>
+            </Marker>
+          ))}
       </MapContainer>
 
       {nodesToRender.length === 0 && (
