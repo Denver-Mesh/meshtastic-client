@@ -195,6 +195,8 @@ interface DeviceLogEntry {
   message: string;
 }
 
+const LAST_SERIAL_PORT_KEY = 'mesh-client:lastSerialPort';
+
 const INITIAL_STATE: DeviceState = {
   status: 'disconnected',
   myNodeNum: 0,
@@ -617,9 +619,20 @@ export function useMeshCore() {
             });
           });
         } else if (type === 'serial') {
-          conn = (await (
-            WebSerialConnection as unknown as { open(): Promise<unknown> }
-          ).open()) as MeshCoreConnection;
+          if (!navigator.serial?.requestPort) throw new Error('Web Serial API not available');
+          const port = await navigator.serial.requestPort();
+          await (port as any).open({ baudRate: 115200 });
+          const portId = (port as any).portId as string | undefined;
+          if (portId) {
+            try {
+              localStorage.setItem(LAST_SERIAL_PORT_KEY, portId);
+            } catch {
+              /* ignore */
+            }
+          }
+          conn = new (WebSerialConnection as unknown as new (port: unknown) => MeshCoreConnection)(
+            port,
+          );
         } else {
           // tcp
           const host = tcpHost ?? 'localhost';
@@ -663,6 +676,14 @@ export function useMeshCore() {
             port = (ports as any[]).find((p: any) => p.portId === lastSerialPortId);
           }
           port = port ?? ports[0];
+          const portId = (port as any).portId as string | undefined;
+          if (portId) {
+            try {
+              localStorage.setItem(LAST_SERIAL_PORT_KEY, portId);
+            } catch {
+              /* ignore */
+            }
+          }
           await (port as any).open({ baudRate: 115200 });
           const conn = new (WebSerialConnection as unknown as new (
             port: unknown,
