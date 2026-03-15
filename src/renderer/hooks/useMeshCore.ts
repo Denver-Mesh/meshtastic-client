@@ -959,7 +959,13 @@ export function useMeshCore() {
                 await new Promise((r) => setTimeout(r, BLE_RETRY_DELAY_MS));
                 continue;
               }
-              throw bleErr;
+              // Never rethrow undefined so the outer catch always gets a proper Error and message
+              throw bleErr instanceof Error && bleErr.message
+                ? bleErr
+                : new Error(
+                    (bleMsg && bleMsg.trim()) ||
+                      'BLE connection failed (device did not respond in time). Try again or use Serial/USB.',
+                  );
             }
           }
         } else if (type === 'serial') {
@@ -1001,10 +1007,16 @@ export function useMeshCore() {
         const isAlreadyInProgress = /already in progress|Connection already in progress/i.test(
           safeMessage,
         );
+        // When err is missing (e.g. library rejected with no reason), use a BLE-specific hint if we were connecting via BLE
+        const fallbackMessage =
+          type === 'ble' && err == null
+            ? 'BLE connection failed (no error details from device). Try again or use Serial/USB.'
+            : 'Connection failed';
+        const displayMessage = safeMessage !== 'Connection failed' ? safeMessage : fallbackMessage;
         const normalizedErr = new Error(
           isAlreadyInProgress
             ? 'Bluetooth connection already in progress. Wait for it to finish or try Serial/USB instead.'
-            : safeMessage,
+            : displayMessage,
         );
         const errForLog =
           err != null ? (err instanceof Error ? err.message : String(err)) : '(no error object)';

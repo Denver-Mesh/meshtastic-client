@@ -624,7 +624,7 @@ You're missing build tools for the native modules (e.g. `better-sqlite3`, `@seri
 
 - **Web Bluetooth is experimental** on some platforms; you may see a console note linking to [implementation-status](https://github.com/WebBluetoothCG/web-bluetooth/blob/main/implementation-status.md).
 - **"Connection already in progress"** or **GATT init failures** can occur when the first BLE write runs before the connection is fully ready. The app **retries once** automatically after a short delay; if it still fails, wait a few seconds and try again, or use **Serial/USB** instead.
-- If BLE is unreliable on your system, prefer Serial or TCP for a stable connection. Upstream improvements to delay BLE writes until after GATT connect (e.g. in `@liamcottle/meshcore.js`) would address this at the source.
+- If BLE is unreliable on your system, prefer Serial or TCP for a stable connection. The root cause is a race in the MeshCore library: the first BLE write (deviceQuery) can run before `gatt.connect()` completes. An [upstream bug report](https://github.com/meshcore-dev/meshcore.js/issues/22) tracks the fix (await GATT connect before any write); the app’s retry is a workaround until the library is updated.
 
 ### Serial port not detected
 
