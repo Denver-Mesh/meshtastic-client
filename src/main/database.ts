@@ -425,6 +425,10 @@ export function mergeDatabase(sourcePath: string) {
       throw new Error('Merge source must be a file under 500 MB');
     }
   } catch (err) {
+    console.error(
+      '[db] mergeDatabase failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
     if (err instanceof Error && err.message === 'Merge source must be a file under 500 MB')
       throw err;
     throw new Error(

@@ -506,7 +506,7 @@ export class MQTTManager extends EventEmitter {
         console.warn(
           '[MQTT] NodeInfo parse failed for node',
           nodeId,
-          e instanceof Error ? e.message : String(e),
+          sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
         );
         this.upsertNodeCache({ node_id: nodeId, last_heard: Date.now() });
         this.emitMinimalNodeUpdate(nodeId);
@@ -557,7 +557,7 @@ export class MQTTManager extends EventEmitter {
         console.warn(
           '[MQTT] Position parse failed for node',
           nodeId,
-          e instanceof Error ? e.message : String(e),
+          sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
         );
         this.upsertNodeCache({ node_id: nodeId, last_heard: Date.now() });
         this.emitMinimalNodeUpdate(nodeId);
@@ -585,7 +585,7 @@ export class MQTTManager extends EventEmitter {
         console.warn(
           '[MQTT] TextMessage parse failed for node',
           nodeId,
-          e instanceof Error ? e.message : String(e),
+          sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
         );
         this.upsertNodeCache({ node_id: nodeId, last_heard: Date.now() });
         this.emitMinimalNodeUpdate(nodeId);

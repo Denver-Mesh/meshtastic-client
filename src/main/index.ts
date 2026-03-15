@@ -1597,16 +1597,27 @@ ipcMain.handle(
 // ─── MeshCore TCP bridge ───────────────────────────────────────────
 let meshcoreTcpSocket: net.Socket | null = null;
 
+const MAX_TCP_HOST_LENGTH = 253;
+
 ipcMain.handle('meshcore:tcp-connect', (_event, host: string, port: number) => {
   return new Promise<void>((resolve, reject) => {
+    const p = Number(port);
+    if (!Number.isInteger(p) || p < 1 || p > 65535) {
+      reject(new Error('Invalid port'));
+      return;
+    }
+    if (typeof host !== 'string' || host.length === 0 || host.length > MAX_TCP_HOST_LENGTH) {
+      reject(new Error('Invalid host'));
+      return;
+    }
     if (meshcoreTcpSocket) {
       meshcoreTcpSocket.destroy();
       meshcoreTcpSocket = null;
     }
     const socket = new net.Socket();
     meshcoreTcpSocket = socket;
-    socket.connect(port, host, () => {
-      console.log('[IPC] meshcore:tcp-connect connected to', host, port);
+    socket.connect(p, host, () => {
+      console.log('[IPC] meshcore:tcp-connect connected to', host, p);
       resolve();
     });
     socket.on('data', (data) => {

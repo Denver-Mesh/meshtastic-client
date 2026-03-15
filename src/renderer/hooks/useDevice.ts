@@ -456,7 +456,7 @@ export function useDevice() {
               shortName: 'MQTT',
               channelName: 'LongFast',
             })
-            .catch(() => {});
+            .catch((e) => console.debug('[useDevice] MQTT presence publish failed', e));
         };
         setTimeout(sendPresence, 10_000);
         mqttPresenceIntervalRef.current = setInterval(sendPresence, 5 * 60 * 1000);
