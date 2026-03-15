@@ -44,7 +44,17 @@ export function initDatabase(): void {
     const setup = db.transaction(() => {
       createBaseTables();
       if (isFreshDb) {
-        // Base DDL already includes all columns; stamp current schema version
+        // Base DDL already includes all columns; create constraint indexes that
+        // migrations would otherwise add, then stamp current schema version.
+        // idx_msg_packet_dedup is omitted from createBaseTables so that existing
+        // databases can be migrated safely (v12 deduplicates first).
+        db!
+          .prepare(
+            `CREATE UNIQUE INDEX IF NOT EXISTS idx_msg_packet_dedup
+           ON messages(sender_id, packet_id)
+           WHERE packet_id IS NOT NULL`,
+          )
+          .run();
         db!.pragma('user_version = 12');
       } else {
         runMigrations();
@@ -119,9 +129,6 @@ function createBaseTables(): void {
       CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
       CREATE INDEX IF NOT EXISTS idx_messages_channel_ts ON messages(channel, timestamp DESC);
       CREATE INDEX IF NOT EXISTS idx_nodes_last_heard ON nodes(last_heard);
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_msg_packet_dedup
-        ON messages(sender_id, packet_id)
-        WHERE packet_id IS NOT NULL;
 
       CREATE TABLE IF NOT EXISTS meshcore_contacts (
         node_id      INTEGER PRIMARY KEY,
