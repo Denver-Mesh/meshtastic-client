@@ -453,13 +453,16 @@ export default function RadioPanel({
   const [codingRate, setCodingRate] = useState(8);
   const [txPower, setTxPower] = useState(17);
   const [rxBoostedGain, setRxBoostedGain] = useState(false);
-  // MeshCore-specific: frequency in Hz (displayed as MHz)
-  const [radioFreqHz, setRadioFreqHz] = useState(() => loraConfig?.freq ?? 915000000);
+  // MeshCore-specific: frequency in Hz (displayed as MHz). MeshCore getSelfInfo returns freq in MHz.
+  const freqToHz = (f: number) => (f >= 1e6 ? f : Math.round(f * 1e6));
+  const [radioFreqHz, setRadioFreqHz] = useState(() =>
+    loraConfig?.freq != null ? freqToHz(loraConfig.freq) : 915000000,
+  );
 
   // Sync LoRa state from loraConfig prop (MeshCore device info)
   useEffect(() => {
     if (!loraConfig) return;
-    if (loraConfig.freq != null) setRadioFreqHz(loraConfig.freq);
+    if (loraConfig.freq != null) setRadioFreqHz(freqToHz(loraConfig.freq));
     if (loraConfig.bw != null) setBandwidth(loraConfig.bw / 1000);
     if (loraConfig.sf != null) setSpreadFactor(loraConfig.sf);
     if (loraConfig.cr != null) setCodingRate(loraConfig.cr);
