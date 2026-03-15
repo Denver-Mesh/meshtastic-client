@@ -211,6 +211,8 @@ function validateSaveMeshcoreContact(contact: unknown): asserts contact is Recor
   if (c.public_key.length > 128) throw new Error('db:saveMeshcoreContact: public_key too long');
   if (c.adv_name != null && typeof c.adv_name === 'string' && c.adv_name.length > MAX_NODE_STRING)
     throw new Error('db:saveMeshcoreContact: adv_name too long');
+  if (c.nickname != null && typeof c.nickname === 'string' && c.nickname.length > MAX_NODE_STRING)
+    throw new Error('db:saveMeshcoreContact: nickname too long');
 }
 
 function validateMqttSettings(settings: unknown): void {
@@ -1450,9 +1452,10 @@ ipcMain.handle('db:saveMeshcoreContact', (_event, contact) => {
     return db
       .prepare(
         'INSERT OR REPLACE INTO meshcore_contacts ' +
-          '(node_id, public_key, adv_name, contact_type, last_advert, adv_lat, adv_lon, last_snr, last_rssi, favorited) ' +
+          '(node_id, public_key, adv_name, contact_type, last_advert, adv_lat, adv_lon, last_snr, last_rssi, favorited, nickname) ' +
           'VALUES (@node_id, @public_key, @adv_name, @contact_type, @last_advert, @adv_lat, @adv_lon, @last_snr, @last_rssi, ' +
-          'COALESCE((SELECT favorited FROM meshcore_contacts WHERE node_id = @node_id), 0))',
+          'COALESCE((SELECT favorited FROM meshcore_contacts WHERE node_id = @node_id), 0), ' +
+          'COALESCE(@nickname, (SELECT nickname FROM meshcore_contacts WHERE node_id = @node_id)))',
       )
       .run({
         node_id: Number(c.node_id),
@@ -1464,6 +1467,7 @@ ipcMain.handle('db:saveMeshcoreContact', (_event, contact) => {
         adv_lon: c.adv_lon != null ? Number(c.adv_lon) : null,
         last_snr: c.last_snr != null ? Number(c.last_snr) : null,
         last_rssi: c.last_rssi != null ? Number(c.last_rssi) : null,
+        nickname: c.nickname != null ? String(c.nickname) : null,
       });
   } catch (err) {
     console.error(
@@ -1472,6 +1476,39 @@ ipcMain.handle('db:saveMeshcoreContact', (_event, contact) => {
     );
     throw err;
   }
+});
+
+ipcMain.handle(
+  'db:updateMeshcoreContactNickname',
+  (_event, nodeId: number, nickname: string | null) => {
+    try {
+      const id = safeNonNegativeInt(nodeId);
+      if (nickname != null && (typeof nickname !== 'string' || nickname.length > MAX_NODE_STRING))
+        throw new Error('db:updateMeshcoreContactNickname: invalid nickname');
+      getDatabase()
+        .prepare('UPDATE meshcore_contacts SET nickname = ? WHERE node_id = ?')
+        .run(nickname ?? null, id);
+    } catch (err) {
+      console.error(
+        '[IPC] db:updateMeshcoreContactNickname failed:',
+        sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+      );
+      throw err;
+    }
+  },
+);
+
+ipcMain.handle('meshcore:openJsonFile', async () => {
+  if (!mainWindow) return null;
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Import Repeaters JSON',
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+    properties: ['openFile'],
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  const raw = fs.readFileSync(result.filePaths[0], 'utf-8');
+  if (raw.length > 5 * 1024 * 1024) throw new Error('File too large (max 5 MB)');
+  return raw;
 });
 
 ipcMain.handle('db:updateMeshcoreMessageStatus', (_event, packetId: number, status: string) => {

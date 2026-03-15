@@ -315,6 +315,7 @@ declare global {
           adv_lon?: number | null;
           last_snr?: number | null;
           last_rssi?: number | null;
+          nickname?: string | null;
         }) => Promise<unknown>;
         updateMeshcoreMessageStatus: (packetId: number, status: string) => Promise<unknown>;
         updateMeshcoreContactAdvert: (
@@ -328,6 +329,10 @@ declare global {
         deleteMeshcoreContact: (nodeId: number) => Promise<unknown>;
         clearMeshcoreMessages: () => Promise<unknown>;
         clearMeshcoreContacts: () => Promise<unknown>;
+        updateMeshcoreContactNickname: (
+          nodeId: number,
+          nickname: string | null,
+        ) => Promise<unknown>;
       };
       mqtt: {
         connect: (settings: MQTTSettings) => Promise<void>;
@@ -372,6 +377,7 @@ declare global {
           onData: (cb: (bytes: number[]) => void) => () => void;
           onDisconnected: (cb: () => void) => () => void;
         };
+        openJsonFile: () => Promise<string | null>;
       };
       onBluetoothDevicesDiscovered: (cb: (devices: BluetoothDevice[]) => void) => () => void;
       selectBluetoothDevice: (deviceId: string) => void;

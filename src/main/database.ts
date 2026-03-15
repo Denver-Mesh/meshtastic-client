@@ -55,7 +55,7 @@ export function initDatabase(): void {
            WHERE packet_id IS NOT NULL`,
           )
           .run();
-        db!.pragma('user_version = 12');
+        db!.pragma('user_version = 13');
       } else {
         runMigrations();
       }
@@ -140,7 +140,8 @@ function createBaseTables(): void {
         adv_lon      REAL,
         last_snr     REAL,
         last_rssi    REAL,
-        favorited    INTEGER DEFAULT 0
+        favorited    INTEGER DEFAULT 0,
+        nickname     TEXT
       );
 
       CREATE TABLE IF NOT EXISTS meshcore_messages (
@@ -387,6 +388,20 @@ function runMigrations(): void {
         sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
       );
       throw new Error(`Migration v12 failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  if (userVersion < 13) {
+    try {
+      db!.prepare('ALTER TABLE meshcore_contacts ADD COLUMN nickname TEXT').run();
+      db!.pragma('user_version = 13');
+      userVersion = 13;
+    } catch (e) {
+      console.error(
+        '[db] migration v13 failed',
+        sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+      );
+      throw new Error(`Migration v13 failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 }

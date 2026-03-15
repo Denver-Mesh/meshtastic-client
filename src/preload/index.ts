@@ -86,6 +86,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       adv_lon?: number | null;
       last_snr?: number | null;
       last_rssi?: number | null;
+      nickname?: string | null;
     }) => ipcRenderer.invoke('db:saveMeshcoreContact', contact),
     updateMeshcoreContactAdvert: (
       nodeId: number,
@@ -99,6 +100,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('db:deleteMeshcoreContact', nodeId),
     clearMeshcoreMessages: () => ipcRenderer.invoke('db:clearMeshcoreMessages'),
     clearMeshcoreContacts: () => ipcRenderer.invoke('db:clearMeshcoreContacts'),
+    updateMeshcoreContactNickname: (nodeId: number, nickname: string | null) =>
+      ipcRenderer.invoke('db:updateMeshcoreContactNickname', nodeId, nickname),
   },
 
   // ─── MQTT ──────────────────────────────────────────────────────
@@ -273,6 +276,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         return () => ipcRenderer.off('meshcore:tcp-disconnected', handler);
       },
     },
+    openJsonFile: (): Promise<string | null> => ipcRenderer.invoke('meshcore:openJsonFile'),
   },
 
   // ─── Log panel ───────────────────────────────────────────────────

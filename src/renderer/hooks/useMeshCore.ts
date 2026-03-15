@@ -13,9 +13,11 @@ import {
 } from '../lib/meshcoreUtils';
 import type { ChatMessage, DeviceState, MeshNode, TelemetryPoint } from '../lib/types';
 import { usePositionHistoryStore } from '../stores/positionHistoryStore';
+import { useRepeaterSignalStore } from '../stores/repeaterSignalStore';
 
 function contactToDbRow(
   contact: MeshCoreContactRaw,
+  nickname?: string | null,
 ): Parameters<typeof window.electronAPI.db.saveMeshcoreContact>[0] {
   return {
     node_id: pubkeyToNodeId(contact.publicKey),
@@ -27,6 +29,7 @@ function contactToDbRow(
     last_advert: contact.lastAdvert ?? null,
     adv_lat: contact.advLat !== 0 ? contact.advLat / 1e7 : null,
     adv_lon: contact.advLon !== 0 ? contact.advLon / 1e7 : null,
+    nickname: nickname ?? null,
   };
 }
 
@@ -314,6 +317,8 @@ export function useMeshCore() {
   const pubKeyPrefixMapRef = useRef<Map<string, number>>(new Map());
   // Full pubKey → nodeId for sending
   const pubKeyMapRef = useRef<Map<number, Uint8Array>>(new Map());
+  // nodeId → nickname (from JSON import or DB)
+  const nicknameMapRef = useRef<Map<number, string>>(new Map());
   // Stable ref to current nodes so event listeners don't form stale closures
   const nodesRef = useRef<Map<number, MeshNode>>(new Map());
   // Pending ACK tracking: packetId → { nodeId, timeoutId }
@@ -363,12 +368,14 @@ export function useMeshCore() {
         setNodes((prev) => {
           const existing = prev.get(nodeId);
           if (!existing) return prev;
+          const nick = nicknameMapRef.current.get(nodeId);
           const next = new Map(prev);
           next.set(nodeId, {
             ...existing,
             last_heard: d.lastAdvert,
             latitude: d.advLat !== 0 ? d.advLat / 1e7 : existing.latitude,
             longitude: d.advLon !== 0 ? d.advLon / 1e7 : existing.longitude,
+            ...(nick ? { long_name: nick, short_name: nick.slice(0, 4) } : {}),
           });
           return next;
         });
@@ -427,14 +434,20 @@ export function useMeshCore() {
           .map((b) => b.toString(16).padStart(2, '0'))
           .join('');
         pubKeyPrefixMapRef.current.set(prefix, node.node_id);
+        const nick = nicknameMapRef.current.get(node.node_id);
+        const nodeWithNick = nick
+          ? { ...node, long_name: nick, short_name: nick.slice(0, 4) }
+          : node;
         console.log(
           '[useMeshCore] event 138: new contact',
           node.node_id.toString(16).toUpperCase(),
         );
-        updateNode(node);
-        void window.electronAPI.db.saveMeshcoreContact(contactToDbRow(d)).catch((e: unknown) => {
-          console.warn('[useMeshCore] saveMeshcoreContact (event 138) error', e);
-        });
+        updateNode(nodeWithNick);
+        void window.electronAPI.db
+          .saveMeshcoreContact(contactToDbRow(d, nick ?? null))
+          .catch((e: unknown) => {
+            console.warn('[useMeshCore] saveMeshcoreContact (event 138) error', e);
+          });
       });
 
       // Push: message waiting — event 0x83 = 131; fetch all queued messages
@@ -634,13 +647,15 @@ export function useMeshCore() {
           last_snr: number | null;
           last_rssi: number | null;
           favorited: number;
+          nickname: string | null;
         }[];
         for (const row of dbContacts) {
           if (!newNodes.has(row.node_id)) {
             const node: MeshNode = {
               node_id: row.node_id,
-              long_name: row.adv_name ?? `Node-${row.node_id.toString(16).toUpperCase()}`,
-              short_name: '',
+              long_name:
+                row.nickname ?? row.adv_name ?? `Node-${row.node_id.toString(16).toUpperCase()}`,
+              short_name: row.nickname ? row.nickname.slice(0, 4) : '',
               hw_model: CONTACT_TYPE_LABELS[row.contact_type] ?? 'Unknown',
               battery: 0,
               snr: row.last_snr ?? 0,
@@ -652,6 +667,15 @@ export function useMeshCore() {
             };
             newNodes.set(row.node_id, node);
           }
+        }
+        // Seed nicknameMapRef from DB + apply to nodes
+        for (const row of dbContacts) {
+          if (row.nickname) nicknameMapRef.current.set(row.node_id, row.nickname);
+        }
+        for (const [nodeId, node] of newNodes) {
+          const nick = nicknameMapRef.current.get(nodeId);
+          if (nick)
+            newNodes.set(nodeId, { ...node, long_name: nick, short_name: nick.slice(0, 4) });
         }
       } catch (e) {
         console.warn('[useMeshCore] loadContactsFromDb error', e);
@@ -869,6 +893,7 @@ export function useMeshCore() {
     connRef.current = null;
     pubKeyMapRef.current.clear();
     pubKeyPrefixMapRef.current.clear();
+    nicknameMapRef.current.clear();
     setNodes(new Map());
     setMessages([]);
     setChannels([]);
@@ -1129,6 +1154,7 @@ export function useMeshCore() {
       next.set(nodeId, { hops, lastSnr: result.lastSnr * 0.25 });
       return next;
     });
+    useRepeaterSignalStore.getState().recordSignal(nodeId, result.lastSnr * 0.25);
     console.log(
       '[useMeshCore] traceRoute result: hops=',
       hops.length,
@@ -1165,6 +1191,7 @@ export function useMeshCore() {
       next.set(nodeId, status);
       return next;
     });
+    useRepeaterSignalStore.getState().recordSignal(nodeId, status.lastSnr);
   }, []);
 
   const requestTelemetry = useCallback(async (nodeId: number) => {
@@ -1275,6 +1302,110 @@ export function useMeshCore() {
     setChannels((prev) => prev.filter((c) => c.index !== idx));
   }, []);
 
+  const importRepeaters = useCallback(async (): Promise<{
+    imported: number;
+    skipped: number;
+    errors: string[];
+  }> => {
+    const raw = await window.electronAPI.meshcore.openJsonFile();
+    if (raw == null) return { imported: 0, skipped: 0, errors: [] };
+
+    let parsed: unknown[];
+    try {
+      const val = JSON.parse(raw) as unknown;
+      if (!Array.isArray(val)) throw new Error('JSON root must be an array');
+      parsed = val;
+    } catch (e) {
+      return { imported: 0, skipped: 0, errors: [e instanceof Error ? e.message : String(e)] };
+    }
+
+    function parsePublicKey(rawKey: string): Uint8Array | null {
+      const s = rawKey.trim().replace(/-/g, '+').replace(/_/g, '/');
+      if (/^[0-9a-fA-F]{64}$/.test(s)) {
+        const bytes = new Uint8Array(32);
+        for (let i = 0; i < 32; i++) bytes[i] = parseInt(s.slice(i * 2, i * 2 + 2), 16);
+        return bytes;
+      }
+      try {
+        const decoded = atob(s);
+        if (decoded.length === 32) return Uint8Array.from(decoded, (c) => c.charCodeAt(0));
+      } catch {
+        /* fall through */
+      }
+      return null;
+    }
+
+    let skipped = 0;
+    const errors: string[] = [];
+    const validEntries: { nodeId: number; name: string; pubKey: Uint8Array }[] = [];
+
+    for (const r of parsed) {
+      if (!r || typeof r !== 'object') {
+        skipped++;
+        continue;
+      }
+      const rec = r as Record<string, unknown>;
+      const name = String(rec.name ?? rec.label ?? rec.title ?? rec.node_name ?? '').trim();
+      const rawKey = String(rec.public_key ?? rec.pubkey ?? rec.key ?? rec.publicKey ?? '').trim();
+      if (!name || !rawKey) {
+        skipped++;
+        continue;
+      }
+      const pubKey = parsePublicKey(rawKey);
+      if (!pubKey) {
+        errors.push(`Skipped "${name}": invalid public key`);
+        skipped++;
+        continue;
+      }
+      const nodeId = pubkeyToNodeId(pubKey);
+      nicknameMapRef.current.set(nodeId, name);
+      pubKeyMapRef.current.set(nodeId, pubKey);
+      validEntries.push({ nodeId, name, pubKey });
+    }
+
+    if (validEntries.length > 0) {
+      setNodes((prev) => {
+        const next = new Map(prev);
+        for (const { nodeId, name, pubKey } of validEntries) {
+          const existing = next.get(nodeId);
+          if (existing) {
+            next.set(nodeId, { ...existing, long_name: name, short_name: name.slice(0, 4) });
+          } else {
+            // Create a stub node for pre-loaded repeaters
+            const prefix = Array.from(pubKey.slice(0, 6))
+              .map((b) => b.toString(16).padStart(2, '0'))
+              .join('');
+            pubKeyPrefixMapRef.current.set(prefix, nodeId);
+            next.set(nodeId, {
+              node_id: nodeId,
+              long_name: name,
+              short_name: name.slice(0, 4),
+              hw_model: 'Repeater',
+              battery: 0,
+              snr: 0,
+              rssi: 0,
+              last_heard: 0,
+              latitude: null,
+              longitude: null,
+              favorited: false,
+            });
+          }
+        }
+        return next;
+      });
+
+      for (const { nodeId, name } of validEntries) {
+        void window.electronAPI.db
+          .updateMeshcoreContactNickname(nodeId, name)
+          .catch((e: unknown) =>
+            console.warn('[useMeshCore] updateMeshcoreContactNickname error', e),
+          );
+      }
+    }
+
+    return { imported: validEntries.length, skipped, errors };
+  }, []);
+
   // No-op stubs to satisfy the same interface shape used in App.tsx
   const noopAsync = useCallback(async () => {}, []);
   const noopVoid = useCallback(() => {}, []);
@@ -1297,6 +1428,7 @@ export function useMeshCore() {
     requestRepeaterStatus,
     requestTelemetry,
     requestNeighbors,
+    importRepeaters,
     toggleManualAddContacts,
     setMeshcoreChannel,
     deleteMeshcoreChannel,

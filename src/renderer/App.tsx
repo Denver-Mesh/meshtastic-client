@@ -12,6 +12,7 @@ import ModulePanel from './components/ModulePanel';
 import NodeDetailModal from './components/NodeDetailModal';
 import NodeListPanel from './components/NodeListPanel';
 import RadioPanel from './components/RadioPanel';
+import RepeatersPanel from './components/RepeatersPanel';
 import { LinkIcon } from './components/SignalBars';
 import Tabs from './components/Tabs';
 import TelemetryPanel from './components/TelemetryPanel';
@@ -30,7 +31,7 @@ const PROTOCOL_KEY = 'mesh-client:protocol';
 // Tabs (0-indexed) that are disabled in MeshCore mode
 // Tab 6 (Telemetry) re-enabled — capabilities-aware rendering handles battery/signal differences
 // Tab 8 (Diagnostics) disabled — routing anomaly detection and RF diagnostics are Meshtastic-specific
-const MESHCORE_DISABLED_TABS = new Set([5, 8]);
+const MESHCORE_DISABLED_TABS = new Set([8]);
 
 const STATUS_COLOR: Record<string, string> = {
   disconnected: 'bg-red-500',
@@ -182,6 +183,11 @@ export default function App() {
       : meshtasticDevice;
 
   const capabilities = useRadioProvider(protocol);
+
+  const displayTabNames = useMemo(
+    () => TAB_NAMES.map((name, i) => (protocol === 'meshcore' && i === 5 ? 'Repeaters' : name)),
+    [protocol],
+  );
 
   const handleProtocolChange = useCallback(
     (p: MeshProtocol) => {
@@ -558,7 +564,7 @@ export default function App() {
           <div className="flex flex-col flex-1 min-w-0 min-h-0">
             {/* Tabs */}
             <Tabs
-              tabs={TAB_NAMES}
+              tabs={displayTabNames}
               active={activeTab}
               onChange={setActiveTab}
               chatUnread={chatUnread}
@@ -697,7 +703,18 @@ export default function App() {
                     }
                   />
                 )}
-                {activeTab === 5 && (
+                {activeTab === 5 && protocol === 'meshcore' && (
+                  <RepeatersPanel
+                    nodes={meshcoreDevice.nodes}
+                    meshcoreNodeStatus={meshcoreDevice.meshcoreNodeStatus}
+                    meshcoreTraceResults={meshcoreDevice.meshcoreTraceResults}
+                    onRequestRepeaterStatus={meshcoreDevice.requestRepeaterStatus}
+                    onPing={meshcoreDevice.traceRoute}
+                    onImportRepeaters={meshcoreDevice.importRepeaters}
+                    isConnected={isOperational}
+                  />
+                )}
+                {activeTab === 5 && protocol !== 'meshcore' && (
                   <ModulePanel
                     moduleConfigs={device.moduleConfigs}
                     onSetModuleConfig={device.setModuleConfig}
