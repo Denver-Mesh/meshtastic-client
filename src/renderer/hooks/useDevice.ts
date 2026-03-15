@@ -379,7 +379,14 @@ export function useDevice() {
     window.electronAPI.db
       .getMessages(undefined, getMessageLoadLimit())
       .then((msgs) => {
-        setMessages(msgs.reverse());
+        const reversed = msgs.reverse();
+        setMessages(reversed);
+        // Seed dedup map so device config-sync replays are caught immediately
+        for (const m of reversed) {
+          if (m.packetId) {
+            seenPacketIds.current.set(m.packetId, Date.now() + 10 * 60 * 1000);
+          }
+        }
       })
       .catch((err) => {
         console.error('[useDevice] Failed to load messages:', err);
@@ -799,6 +806,10 @@ export function useDevice() {
                 m.sender_id === rfMsg.sender_id,
             );
             if (isDup) return prev;
+          }
+          // Dedup regular messages by packetId (e.g. device config-sync replay)
+          if (!rfMsg.emoji && rfMsg.packetId && prev.some((m) => m.packetId === rfMsg.packetId)) {
+            return prev;
           }
           return [...prev, rfMsg];
         });

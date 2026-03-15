@@ -45,7 +45,7 @@ export function initDatabase(): void {
       createBaseTables();
       if (isFreshDb) {
         // Base DDL already includes all columns; stamp current schema version
-        db!.pragma('user_version = 11');
+        db!.pragma('user_version = 12');
       } else {
         runMigrations();
       }
@@ -119,6 +119,9 @@ function createBaseTables(): void {
       CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
       CREATE INDEX IF NOT EXISTS idx_messages_channel_ts ON messages(channel, timestamp DESC);
       CREATE INDEX IF NOT EXISTS idx_nodes_last_heard ON nodes(last_heard);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_msg_packet_dedup
+        ON messages(sender_id, packet_id)
+        WHERE packet_id IS NOT NULL;
 
       CREATE TABLE IF NOT EXISTS meshcore_contacts (
         node_id      INTEGER PRIMARY KEY,
@@ -345,6 +348,38 @@ function runMigrations(): void {
         sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
       );
       throw new Error(`Migration v11 failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  if (userVersion < 12) {
+    try {
+      // Remove duplicate rows before adding constraint (keep earliest id per sender+packet pair)
+      db!
+        .prepare(
+          `DELETE FROM messages
+         WHERE id NOT IN (
+           SELECT MIN(id) FROM messages
+           GROUP BY sender_id, packet_id
+           HAVING packet_id IS NOT NULL
+         )
+         AND packet_id IS NOT NULL`,
+        )
+        .run();
+      db!
+        .prepare(
+          `CREATE UNIQUE INDEX IF NOT EXISTS idx_msg_packet_dedup
+           ON messages(sender_id, packet_id)
+           WHERE packet_id IS NOT NULL`,
+        )
+        .run();
+      db!.pragma('user_version = 12');
+      userVersion = 12;
+    } catch (e) {
+      console.error(
+        '[db] migration v12 failed',
+        sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+      );
+      throw new Error(`Migration v12 failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 }
