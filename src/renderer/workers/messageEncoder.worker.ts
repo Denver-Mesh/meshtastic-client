@@ -65,6 +65,7 @@ self.onmessage = (event: MessageEvent<WorkerCommand>) => {
     const reply: WorkerEvent = { type: 'ENCODED', id: cmd.id, buffer };
     (self as unknown as Worker).postMessage(reply, [buffer]);
   } catch (err) {
+    console.warn('[messageEncoder.worker] encode failed', err);
     const reply: WorkerEvent = { type: 'ERROR', id: cmd.id, error: String(err) };
     (self as unknown as Worker).postMessage(reply);
   }

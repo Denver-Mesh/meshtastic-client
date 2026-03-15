@@ -1,6 +1,6 @@
 # Mesh-Client
 
-> A cross-platform Meshtastic desktop client for **Mac**, **Linux**, and **Windows** — built for power users who need more than a mobile app.
+> A cross-platform desktop **Meshtastic** client for **Mac**, **Linux**, and **Windows** — built for power users who need more than a mobile app. Also supports **MeshCore** firmware devices.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)
@@ -10,7 +10,7 @@
 
 ## Why
 
-The official Meshtastic apps cover the basics, but desktop power users need more: persistent message history, mesh diagnostics, MQTT integration, and keyboard-driven workflows. Mesh-Client fills that gap — a full-featured desktop client built on Electron with a local SQLite database, routing diagnostics, and multi-transport connectivity.
+The official Meshtastic apps cover the basics, but desktop power users need more: persistent message history, mesh diagnostics, MQTT integration, and keyboard-driven workflows. Mesh-Client fills that gap — a full-featured desktop Meshtastic client built on Electron with a local SQLite database, routing diagnostics, and multi-transport connectivity. It also supports **MeshCore** firmware devices, giving you a single app for both mesh protocols.
 
 ---
 
@@ -34,70 +34,140 @@ The official Meshtastic apps cover the basics, but desktop power users need more
 
 ## Key Features
 
-**Connectivity**
-
-- **Bluetooth LE** — pair wirelessly; one-click reconnect card remembers your last device (name persists across sessions)
-- **USB Serial** — plug in via USB; auto-reconnects silently on startup
-- **WiFi/HTTP** — connect to network-enabled nodes; saves last address for quick reconnect
-- **MQTT** — subscribe to a broker to receive mesh traffic over the internet; AES-128-CTR decryption (nonce and gateway ID derived from the sender node ID so MQTT-only messages decrypt correctly on other nodes), automatic RF deduplication, exponential-backoff reconnect, and an **active node cache** that periodically refreshes presence information so MQTT-only and RF+MQTT nodes stay visible even when your radio is offline.
-
-**Chat**
-
-- Send/receive messages across channels with per-transport delivery badges (BT / USB / WiFi / MQTT) and a **transport indicator (RF / MQTT / both)** on received messages — shows ACK, no-ACK, and failure states independently for each transport
-- Emoji reactions (11 emojis with compose picker) and reply-to-message (quoted preview in bubble)
-- Unread message divider that persists across restarts and auto-scrolls on tab switch
-- Direct messages (DMs) to individual nodes
-
-**Node Management**
-
-- Node list with SNR, battery, GPS, last heard, and packet redundancy score — **signal bars** appear **only for direct (0-hop) RF neighbors**; multi-hop and MQTT-only paths have no client-side signal strength, so bars are omitted there — **last heard** and **hops** stay accurate on BLE connect (replayed device-DB payloads no longer mark long-offline nodes as “just heard” or show stale hop counts; stale entries show **–** for hops where appropriate)
-- Distance filter, favorite/pin nodes, device role icons, signal strength bars where direct RF applies
-- Node Detail Modal: DM, trace route with hop-path display, delete node, Routing Health section with 24-hour sparkline, Connection Health %, and collapsible Path History
+### Meshtastic Features
 
 **Radio & Channel Configuration**
 
 - Edit channels: name, PSK, and role; 18 region presets and 7 modem presets
 - Device roles: Client, Router, Tracker, Sensor, TAK, and more
-- Per-channel MQTT gateway uplink (RF → MQTT); MQTT messages are not retransmitted over RF (see Limitations); device reboot, shutdown, and factory reset
+- Per-channel MQTT gateway uplink (RF → MQTT); device reboot, shutdown, and factory reset
 
-**Diagnostics**
+**MQTT**
 
-- **Network health** is **counts-first** — status band **Healthy / Attention / Degraded** plus error and warning counts and **nodes with telemetry** (aligned with node-list Ch.Util / Air Tx, not hop-map size). The old 0–100 score was removed — it stayed ~99 on large meshes and was misleading. **Degraded** (red) applies only when routing **error** count ≥ 3; fewer errors use **Attention** (orange) so small issues don’t paint the whole panel red.
-- **Single table** from **diagnosticRows** (routing trace rows + RF rows), searchable; **connected node** (your device) section above mesh-wide rows. Rows persist across sessions with an optional **restore banner**; **max age** (1–168 hours) trims stale routing (24 h default) and RF (1 h default) rows.
-- **Mesh congestion attribution** — orange banner when mesh-wide routing stress (e.g. bad_route / hop_goblin) is present; duplicate-traffic copy is scoped as observed at this client. Shared block component also appears in node detail when relevant.
-- Routing anomaly detection: hop_goblin (distance-proven over-hopping only; SNR not used for multi-hop/MQTT), bad_route (high duplication without SNR gating), route_flapping, impossible_hop — with remediation suggestions and severity levels (error / warning / info). RF rows get a **Suggested Fix** column via RemediationEngine.
-- Anomaly badges inline in node list; status aura circles on the map
-- Congestion halos toggle; global and per-node MQTT ignore for fine-grained routing analysis
-- **Environment Profile** segmented control — Standard (3 km), City (1.6× threshold for dense urban RF interference), Canyon (2.6× threshold for mountainous terrain)
-- IP geolocation accuracy warning: when city-level fallback is active, thresholds are doubled automatically and a banner prompts for a more accurate position source
+- Subscribe to a broker to receive mesh traffic over the internet; AES-128-CTR decryption, automatic RF deduplication, exponential-backoff reconnect, and an **active node cache** that periodically refreshes presence information so MQTT-only and RF+MQTT nodes stay visible even when your radio is offline
+- Transport indicator (RF / MQTT / both) on received messages; MQTT messages are shown in chat but not rebroadcast over RF
+- Enter your broker URL, topic, and optional credentials in the MQTT section of the Connection tab; settings persist across sessions
 
-**Where diagnostics UI lives in code**
+**Module Configuration**
 
-- **Node detail** (modal when you open a node): shell is [`src/renderer/components/NodeDetailModal.tsx`](src/renderer/components/NodeDetailModal.tsx); body content and RF findings list are [`src/renderer/components/NodeInfoBody.tsx`](src/renderer/components/NodeInfoBody.tsx) (`RFDiagnosticsSection`, mesh congestion / duplicate-traffic block, Connection Health / Path History when redundant paths exist). Modal body is scrollable (max height); position/trace/message actions are omitted for the home node.
-- **Network diagnostics tab**: [`src/renderer/components/DiagnosticsPanel.tsx`](src/renderer/components/DiagnosticsPanel.tsx) (health band + counts, diagnosticRows table, mesh congestion banner, env profile, halo toggles, diagnostic row max age).
-- **Mesh congestion UI**: [`src/renderer/components/MeshCongestionAttributionBlock.tsx`](src/renderer/components/MeshCongestionAttributionBlock.tsx) (shared between panel and node detail).
-- **Engines**: RF findings [`src/renderer/lib/diagnostics/RFDiagnosticEngine.ts`](src/renderer/lib/diagnostics/RFDiagnosticEngine.ts); routing anomalies [`src/renderer/lib/diagnostics/RoutingDiagnosticEngine.ts`](src/renderer/lib/diagnostics/RoutingDiagnosticEngine.ts) (`computeHealthScore` remains for tests; panel no longer uses it as primary display); row merge/prune [`src/renderer/lib/diagnostics/diagnosticRows.ts`](src/renderer/lib/diagnostics/diagnosticRows.ts); store [`src/renderer/stores/diagnosticsStore.ts`](src/renderer/stores/diagnosticsStore.ts). There is no `NodeDetailPanel.tsx` in this repo—use the paths above if docs or tools refer to a “node detail panel.”
+- Telemetry module (device, environment, air quality intervals), MQTT relay settings, Canned Messages, Serial module, Range Test, Store & Forward, Detection Sensor, and Pax Counter — all editable from the Modules tab
 
-**Map & Telemetry**
+**Network Diagnostics**
 
-- Interactive OpenStreetMap with node positions and your current location
-  (device GPS → browser geolocation → IP-based city-level fallback)
-  — auto-refresh at configurable intervals; manual static position entry; send your position back to your device
-- Battery voltage and signal quality charts (Recharts)
+- **Network health** — status band **Healthy / Attention / Degraded** plus error and warning counts. **Degraded** applies only when routing error count ≥ 3; fewer errors use **Attention** so small issues don't paint the whole panel red
+- **Single table** from `diagnosticRows` (routing trace rows + RF rows), searchable; rows persist across sessions with an optional restore banner; **max age** (1–168 hours) trims stale routing (24 h default) and RF (1 h default) rows
+- **Mesh congestion attribution** — orange banner when mesh-wide routing stress is present; duplicate-traffic block in node detail when relevant
+- Routing anomaly detection: **hop_goblin** (distance-proven over-hopping), **bad_route** (high duplication), **route_flapping**, **impossible_hop** — with remediation suggestions and severity levels
+- Anomaly badges inline in node list; status aura circles on the map; congestion halos toggle; global and per-node MQTT ignore
+- **Environment Profile** segmented control — Standard (3 km), City (1.6× threshold), Canyon (2.6× threshold)
+
+**Environment Telemetry**
+
+- Push-based environment charts (temperature, humidity, pressure, air quality) from Meshtastic telemetry packets, displayed in the Telemetry tab
+
+**Packet Redundancy**
+
+- Per-node redundancy score derived from the last 20 observed packets; `+N` echo count in the node list; collapsible Path History in node detail
+
+---
+
+### Features Available on Both Protocols
+
+**Connectivity**
+
+- **Bluetooth LE** — pair wirelessly; one-click reconnect card remembers your last device (name persists across sessions)
+- **USB Serial** — plug in via USB; auto-reconnects silently on startup
+- **WiFi / HTTP / TCP** — connect to network-enabled nodes; saves last address for quick reconnect
+- Protocol toggle in the Connection tab (**Meshtastic / MeshCore**); each protocol remembers its own last connection and reconnects independently; the active protocol is shown as a badge in the header
+
+**Chat**
+
+- Send/receive messages across channels with per-transport delivery badges and delivery ACK / failure states
+- Emoji reactions (11 emojis with compose picker) and reply-to-message (quoted preview in bubble)
+- Unread message divider that persists across restarts; auto-scrolls on tab switch
+- Direct messages (DMs) to individual nodes
+
+**Node Management**
+
+- Node list with SNR, battery, GPS, last heard — **signal bars** appear only for direct (0-hop) RF neighbors; multi-hop and MQTT-only paths omit bars
+- **Cross-Protocol Signal Analyzer** — foreign LoRa traffic detection (non-mesh packets); shown in Node Detail when present
+- Distance filter, favorite/pin nodes, device role icons
+- Node Detail Modal: DM, trace route with per-hop display, delete node, neighbor info
+
+**Map & Position**
+
+- Interactive OpenStreetMap with node positions and your current location (device GPS → browser geolocation → IP-based city-level fallback)
+- **60-minute position trail** — in-memory path overlay for the last hour of positions; toggle in App tab
+- Auto-refresh at configurable intervals; manual static position entry; send your position back to your device
+
+**Telemetry**
+
+- Battery voltage and signal quality charts (SNR/RSSI) in the Telemetry tab
 
 **Productivity**
 
-- **Log panel** (right rail) — live app log stream from the main process, optional debug logging toggle, export or delete the log file
+- **Log panel** (right rail) — live app log stream, optional debug toggle, export or delete the log file
 - Full keyboard navigation — press `?` for shortcut reference; `Cmd/Ctrl+1–8` switches tabs; `Cmd/Ctrl+F` searches chat
 - Automatic update checking — packaged builds download and install in-app; macOS opens the release page
 - System tray with live unread badge; app stays accessible when window is closed
-- Persistent storage via local SQLite; DB export/import/clear in the App tab; Clear GPS Data and Reset Diagnostics actions available without a full DB wipe
+- Persistent SQLite storage; DB export/import/clear in the App tab; Clear GPS Data and Reset Diagnostics without a full DB wipe
+
+---
+
+### MeshCore Features
+
+MeshCore support is available alongside Meshtastic — switch protocols in the Connection tab. When MeshCore is active, the sixth tab is **Repeaters** (instead of Modules); all other tabs, including Network Diagnostics, are available.
+
+**Contacts & Discovery**
+
+- Contact list with advert-based positions, contact types (Chat, Repeater, Room), and GPS coordinates persisted to SQLite; contacts seed from DB on reconnect as a fallback cache
+- **Refresh Contacts** — pull the full contact list from the device on demand
+- **Send Advert** — broadcast your node's presence (flood advert) to the mesh
+- **Manual Contact Approval** — toggle between auto-add (contacts appear automatically when heard) and manual-add (new contacts require approval before appearing); preference is persisted and re-applied on reconnect
+
+**Messaging**
+
+- Channel messaging and **direct messages (DMs)** with delivery ACK tracking (`expectedAckCrc`) and failure timeout
+- Incoming push events: periodic advert (0x80), path update (0x81), send confirmed (0x82), message waiting (0x83), new contact (0x8A), incoming DM (7), incoming channel message (8)
+- All messages and contacts persisted to SQLite (`meshcore_messages`, `meshcore_contacts` tables)
+
+**Diagnostics & Remote Queries**
+
+- **Trace route** (`tracePath`) — per-hop SNR display; each intermediate hop's SNR is reported individually, unlike Meshtastic's hop-count-only trace
+- **Repeater Status** — on-demand query of noise floor, last RSSI/SNR, packet counts, air time, uptime, TX queue, error events, and duplicate counts; available for any contact
+- **Remote Telemetry** — pull CayenneLPP-encoded environment data (temperature, humidity, barometric pressure, voltage, GPS) from any contact via `getTelemetry`; results shown inline in the node detail modal with fetch timestamp
+- **Neighbor Info** — query a Repeater node's neighbor list via `getNeighbours`; shows each neighbor's name (resolved from contacts or hex prefix), how recently it was heard, and color-coded SNR
+
+**Repeaters**
+
+- **Repeaters panel** (MeshCore-only tab) — list repeaters with on-demand status (noise floor, RSSI/SNR, packet counts, air time, uptime, TX queue); JSON nickname import for bulk contact names
+
+**Radio Parameters**
+
+- Frequency (Hz), bandwidth, spreading factor, coding rate, and TX power — synced from device `selfInfo` and applied live via the Radio tab
+- **Channel display and edit** — view and edit channel list from the device in the Radio tab; **Import Config JSON** (MeshCore) applies name and radio settings to the device and reports what was applied vs. not supported
+
+**Battery & Signal Telemetry**
+
+- Battery voltage from device `selfInfo`; per-packet signal telemetry (SNR/RSSI) from RF event 0x88 — visible in the Telemetry tab
+
+**Transport Notes**
+
+- BLE: waits for GATT init (`connected` event) before issuing commands; includes nudge timeout for stuck `deviceQuery` on some devices
+- Serial: auto-reconnects on startup using saved port ID
+- TCP: connects to MeshCore companion radio on port 4403
 
 ---
 
 ## Limitations
 
-- **MQTT → RF**: Messages received via MQTT are shown in chat but are not rebroadcast over the radio. The underlying Meshtastic libraries cannot reliably relay MQTT-originated messages onto the mesh while preserving correct attribution and delivery state; previous relay behavior caused duplicate or misattributed messages and confused users on the mesh. As a result, MQTT remains receive-only for mesh rebroadcast.
+- **MQTT → RF**: Messages received via MQTT are shown in chat but are not rebroadcast over the radio. Previous relay behavior caused duplicate or misattributed messages.
+- **MeshCore — no MQTT**: MQTT is a Meshtastic-specific feature and is not available in MeshCore mode.
+- **MeshCore — no routing anomaly diagnostics**: Hop anomaly detection (hop_goblin, bad_route, etc.) and RF diagnostics require Meshtastic-specific packets (`hops_away`, LocalStats, NeighborInfo). The Network Diagnostics tab is available in MeshCore for foreign LoRa detection and other shared features.
+- **MeshCore — no channel/device config editing**: MeshCore does not expose a channel-configuration API. Radio parameters (frequency, bandwidth, spreading factor, coding rate, TX power) can be set via the Radio tab.
+- **MeshCore — remote telemetry availability**: `getTelemetry` requires the remote node to have environment sensors. A timeout is returned if the node has no sensor data.
+- **MeshCore — neighbor info availability**: `getNeighbours` is supported only by Repeater-type nodes running firmware v1.9.0+. The button is hidden for Chat and Room contacts.
+- **MeshCore — contact type labels**: MeshCore reports a numeric `type` field (0 = None, 1 = Chat, 2 = Repeater, 3 = Room); displayed in the hw_model field in the node list.
 
 ---
 
@@ -109,7 +179,7 @@ The official Meshtastic apps cover the basics, but desktop power users need more
 
 - **Node.js** 22.12.0+ (matches `@electron/rebuild` / `node-abi`) and **npm** 9+
 - **Native build tools** (for SQLite) — see platform notes below
-- A **Meshtastic device** (any hardware running Meshtastic firmware)
+- A **Meshtastic** or **MeshCore** device
 
 ### Mac & Linux
 
@@ -212,7 +282,7 @@ electron . --no-sandbox
 
 **SIGILL during `npm install`** (`electron exited with signal SIGILL`):
 
-`postinstall` runs `scripts/rebuild-native.mjs`, which invokes electron-builder’s `install-app-deps` — that **executes** the Electron binary. Sandboxed or minimal-CPU environments may not support instructions in the prebuilt Linux binary, so the process dies with SIGILL before the app starts (this is not the same as Chromium’s `--no-sandbox` runtime flag).
+`postinstall` runs `scripts/rebuild-native.mjs`, which invokes electron-builder's `install-app-deps` — that **executes** the Electron binary. Sandboxed or minimal-CPU environments may not support instructions in the prebuilt Linux binary, so the process dies with SIGILL before the app starts (this is not the same as Chromium's `--no-sandbox` runtime flag).
 
 If you see `npm WARN EBADENGINE` for `@electron/rebuild` or `node-abi` (for example `required: { node: '>=22.12.0' }` while your current Node is older), install Node 22+ first (for example via nvm as shown above). Running with an older Node version may appear to work but is unsupported by those tools and more likely to fail during native rebuilds.
 
@@ -259,9 +329,11 @@ winget install openjs.nodejs
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
 
-**3. Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)** with the "Desktop development with C++" workload (required for native SQLite).
+**3. Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/)** with the "Desktop development with C++" workload (required for native SQLite and Serial).
 
-**4. Clone and run:**
+**4. Install Python 3** — node-gyp (used to build native modules including `better-sqlite3` and `@serialport/bindings-cpp`) requires Python on Windows. Install from [python.org](https://www.python.org/downloads/) or `winget install Python.Python.3.12`, and during setup check **"Add Python to PATH"**. If Python is installed but not found, set it explicitly: `npm config set python "C:\Path\To\python.exe"`.
+
+**5. Clone and run:**
 
 ```bash
 git clone https://github.com/Colorado-Mesh/meshtastic-client
@@ -278,23 +350,36 @@ If serial isn't detected, install the correct USB drivers for your device (CP210
 
 ## Usage
 
+### Choosing a Protocol
+
+The **Connection** tab shows a **Meshtastic / MeshCore** toggle at the top. Select the protocol that matches your device firmware before connecting. Each protocol stores its own last-connection and reconnects independently. Switching protocols disconnects the current session.
+
 ### Connecting Your Device
+
+**Meshtastic:**
 
 1. Power on your Meshtastic device
 2. Put it in Bluetooth pairing mode (if connecting via BLE)
-3. Open Mesh-Client and go to the **Connection** tab
+3. Open Mesh-Client and go to the **Connection** tab, ensure **Meshtastic** is selected
 4. Select your connection type (Bluetooth / USB Serial / WiFi / MQTT)
 5. Click **Connect** and select your device from the picker
 6. Wait for status to show **Configured** — you're connected
-7. For best results, keep the **Connection** tab open while the app is discovering and connecting to your device.
+
+**MeshCore:**
+
+1. Power on your MeshCore firmware device
+2. In the Connection tab, select **MeshCore**
+3. Choose **Bluetooth**, **Serial**, or **TCP** (enter the device's IP address for TCP)
+4. Click **Connect** — the app fetches self info, contacts, and channels from the device
+5. Wait for status to show **Configured** — contacts and channels are loaded
 
 ### Auto-Reconnect
 
-After a successful connection, Mesh-Client remembers your last device. On next launch:
+After a successful connection, Mesh-Client remembers your last device per protocol. On next launch:
 
-- **Serial** — auto-connects silently in the background
-- **Bluetooth / WiFi** — a one-click reconnect card appears; click **Reconnect** (BLE requires a user gesture)
-- **MQTT** — auto-reconnects using saved broker settings
+- **Serial** — auto-connects silently in the background (both protocols)
+- **Bluetooth / WiFi / TCP** — a one-click reconnect card appears; click **Reconnect** (BLE requires a user gesture)
+- **MQTT** — auto-reconnects using saved broker settings (Meshtastic only)
 
 ### MQTT
 
@@ -306,24 +391,35 @@ Enter your broker URL, topic, and optional credentials in the MQTT section of th
 
 ### Connection Types
 
+**Meshtastic** supports all four transport types:
+
 | Platform | Bluetooth | Serial | HTTP | MQTT |
 | -------- | --------- | ------ | ---- | ---- |
 | macOS    | Yes       | Yes    | Yes  | Yes  |
 | Windows  | Yes       | Yes    | Yes  | Yes  |
 | Linux    | Yes       | Yes    | Yes  | Yes  |
 
+**MeshCore** supports three transport types (no MQTT):
+
+| Platform | Bluetooth | Serial | TCP |
+| -------- | --------- | ------ | --- |
+| macOS    | Yes       | Yes    | Yes |
+| Windows  | Yes       | Yes    | Yes |
+| Linux    | Yes       | Yes    | Yes |
+
 ### Tech Stack
 
-| Component  | Technology                        |
-| ---------- | --------------------------------- |
-| Desktop    | Electron                          |
-| UI         | React 19 + TypeScript             |
-| Styling    | Tailwind CSS v4                   |
-| Meshtastic | @meshtastic/core (JSR)            |
-| Maps       | Leaflet + OpenStreetMap           |
-| Charts     | Recharts                          |
-| Database   | SQLite (better-sqlite3)           |
-| Build      | esbuild + Vite + electron-builder |
+| Component  | Technology                                                                             |
+| ---------- | -------------------------------------------------------------------------------------- |
+| Desktop    | Electron                                                                               |
+| UI         | React 19 + TypeScript                                                                  |
+| Styling    | Tailwind CSS v4                                                                        |
+| Meshtastic | @meshtastic/core + transport-http, transport-web-bluetooth, transport-web-serial (JSR) |
+| MeshCore   | @liamcottle/meshcore.js (BLE, Web Serial, TCP via main-process IPC)                    |
+| Maps       | Leaflet + OpenStreetMap                                                                |
+| Charts     | Recharts                                                                               |
+| Database   | SQLite (better-sqlite3)                                                                |
+| Build      | esbuild + Vite + electron-builder                                                      |
 
 ### Project Structure
 
@@ -336,49 +432,58 @@ meshtastic-client/
 │   └── dependabot.yml
 ├── src/
 │   ├── main/
-│   │   ├── index.ts              # Window creation, BLE/Serial intercept, all IPC handlers
+│   │   ├── index.ts              # Window creation, BLE/Serial intercept, IPC (incl. meshcore TCP), MQTT
 │   │   ├── log-service.ts        # Log file, console patch, log panel IPC
-│   │   ├── database.ts           # SQLite schema & migrations (WAL mode, user_version 9)
-│   │   ├── mqtt-manager.ts       # MQTT client: AES decrypt, dedup, protobuf decode, pre-parser for firmware trailing padding
+│   │   ├── sanitize-log-message.ts  # Log injection sanitization (CodeQL); use at call sites before appendLine
+│   │   ├── database.ts           # SQLite schema & migrations (WAL mode, user_version 13)
+│   │   ├── mqtt-manager.ts       # MQTT client: AES decrypt, dedup, protobuf decode (Meshtastic only)
 │   │   ├── updater.ts            # Auto-update checks via electron-updater
 │   │   └── gps.ts                # Main-process GPS helper
 │   ├── preload/
-│   │   └── index.ts              # contextBridge: electronAPI (db, mqtt, log, BLE, serial, session)
+│   │   └── index.ts              # contextBridge: electronAPI (db, mqtt, log, BLE, serial, session, meshcore.tcp)
 │   └── renderer/
 │       ├── index.html            # HTML entry
-│       ├── App.tsx               # Shell: 8 tabs, Log panel (right rail), keyboard shortcuts, status header
 │       ├── main.tsx              # React entry point
-│       ├── components/
+│       ├── App.tsx               # Shell: 9 tabs (protocol-dependent: Modules vs Repeaters), Log panel, shortcuts, status
+│       ├── styles.css            # Global styles, theme variables
+│       ├── components/           # Panels and UI (many have co-located *.test.tsx)
 │       │   ├── ChatPanel.tsx         # Chat UI, DMs, emoji reactions, channel switching
 │       │   ├── NodeListPanel.tsx     # Node browser with online/stale/offline/MQTT filter
 │       │   ├── MapPanel.tsx          # Node positions on OpenStreetMap (Leaflet)
 │       │   ├── TelemetryPanel.tsx    # Battery/voltage/SNR charts (Recharts)
 │       │   ├── AdminPanel.tsx        # Reboot, shutdown, factory reset, trace route
-│       │   ├── ConfigPanel.tsx       # Device & channel configuration editor
-│       │   ├── ConnectionPanel.tsx   # BLE/Serial/HTTP/MQTT connection setup
+│       │   ├── ConfigPanel.tsx       # Meshtastic: device & channel configuration editor
+│       │   ├── ModulePanel.tsx       # Meshtastic: modules tab (telemetry, MQTT, etc.)
+│       │   ├── ConnectionPanel.tsx   # BLE/Serial/HTTP/MQTT; protocol toggle; MeshCore manual contact toggle
 │       │   ├── DiagnosticsPanel.tsx  # Health band + counts, diagnosticRows table, halos, max age
 │       │   ├── MeshCongestionAttributionBlock.tsx  # Shared mesh congestion / duplicate-traffic copy
 │       │   ├── LogPanel.tsx          # Live app log, debug toggle, export/delete log file
-│       │   ├── RadioPanel.tsx        # Radio settings, fixed position, GPS send
-│       │   ├── AppPanel.tsx          # App settings, appearance (theme presets), GPS interval, database management
-│       │   ├── NodeDetailModal.tsx   # Detailed node info overlay
+│       │   ├── RadioPanel.tsx        # Radio settings, position, GPS send; MeshCore: channels, Import Config JSON
+│       │   ├── RepeatersPanel.tsx    # MeshCore only: repeater list, status, JSON nickname import
+│       │   ├── AppPanel.tsx          # App settings, theme presets, GPS interval, database management
+│       │   ├── NodeDetailModal.tsx   # Node info overlay; MeshCore: trace, repeater status, telemetry, neighbors
 │       │   ├── NodeInfoBody.tsx      # Shared node info content (modal + map popup)
 │       │   ├── KeyboardShortcutsModal.tsx
 │       │   ├── UpdateBanner.tsx      # In-app update notification
 │       │   ├── ErrorBoundary.tsx     # Top-level React error boundary
-│       │   ├── SignalBars.tsx        # Signal strength → bars for direct (0-hop) RF only; no data → no bars
+│       │   ├── SignalBars.tsx        # Signal strength → bars for direct (0-hop) RF only
 │       │   ├── RefreshButton.tsx
 │       │   ├── Toast.tsx
 │       │   └── Tabs.tsx
 │       ├── hooks/
-│       │   └── useDevice.ts          # Core hook: device lifecycle, 3 transports, auto-reconnect
+│       │   ├── useDevice.ts          # Meshtastic: device lifecycle, 3 transports, auto-reconnect
+│       │   └── useMeshCore.ts        # MeshCore: BLE/Serial/TCP, contacts, messages, ACK, trace, telemetry
 │       ├── stores/
-│       │   ├── diagnosticsStore.ts   # Zustand: anomalies, packet stats, halo flags, MQTT ignore
-│       │   └── mapViewportStore.ts   # Zustand: persisted map center/zoom
+│       │   ├── diagnosticsStore.ts   # Anomalies, halo flags, MQTT ignore, foreign LoRa (both protocols)
+│       │   ├── mapViewportStore.ts   # Persisted map center/zoom
+│       │   ├── positionHistoryStore.ts  # 60-min position trail; path overlay visibility
+│       │   └── repeaterSignalStore.ts    # MeshCore: repeater status cache
 │       ├── lib/
-│       │   ├── types.ts              # TypeScript interfaces: MeshNode, ChatMessage, DeviceState…
-│       │   ├── connection.ts         # Connection factory: BLE/Serial/HTTP transport creation
-│       │   ├── gpsSource.ts          # GPS waterfall: device coords → browser geolocation → null
+│       │   ├── types.ts              # MeshNode, ChatMessage, DeviceState, MeshProtocol, etc.
+│       │   ├── connection.ts         # Meshtastic: createConnection (BLE/Serial/HTTP)
+│       │   ├── foreignLoraDetection.ts   # Cross-protocol: classify payload, foreign LoRa, RSSI/SNR
+│       │   ├── meshcoreUtils.ts      # MeshCore: pubkeyToNodeId, meshcoreContactToMeshNode, contact types
+│       │   ├── gpsSource.ts          # GPS waterfall: device → geolocation → null
 │       │   ├── nodeStatus.ts         # Node freshness: online <30 min, stale <2 h, offline 2 h+
 │       │   ├── coordUtils.ts         # Coordinate conversion helpers
 │       │   ├── reactions.ts          # Emoji reaction helpers
@@ -386,14 +491,22 @@ meshtastic-client/
 │       │   ├── signal.ts             # Signal strength → level for SignalBars (direct RF only)
 │       │   ├── themeColors.ts        # Theme color helpers
 │       │   ├── parseStoredJson.ts    # Safe JSON parse for persisted values
+│       │   ├── radio/
+│       │   │   ├── BaseRadioProvider.ts  # ProtocolCapabilities; MESHTASTIC_CAPABILITIES, MESHCORE_CAPABILITIES
+│       │   │   └── providerFactory.ts    # useRadioProvider(protocol) — memoized capabilities
+│       │   ├── transport/             # Meshtastic: transport abstraction (used by connection.ts)
+│       │   │   ├── TransportManager.ts
+│       │   │   └── types.ts
 │       │   └── diagnostics/
-│       │       ├── RoutingDiagnosticEngine.ts  # Hop anomaly detectors (hop_goblin, bad_route, etc.)
-│       │       ├── RFDiagnosticEngine.ts       # RF-layer signal diagnostics (CU spike, hidden terminal, etc.)
-│       │       ├── diagnosticRows.ts           # Row merge/prune, routing map helper, default ages
-│       │       ├── meshCongestionAttribution.ts # Path mix + RF originator ranking for congestion copy
-│       │       ├── snrMeaningfulForNodeDiagnostics.ts  # SNR relevance for node diagnostics
+│       │       ├── RoutingDiagnosticEngine.ts  # Hop anomalies (Meshtastic); protocol-aware
+│       │       ├── RFDiagnosticEngine.ts       # RF-layer signal diagnostics
+│       │       ├── diagnosticRows.ts           # Row merge/prune, default ages
+│       │       ├── meshCongestionAttribution.ts # Path mix + RF originator for congestion copy
+│       │       ├── snrMeaningfulForNodeDiagnostics.ts
 │       │       └── RemediationEngine.ts        # Suggested fixes for routing + RF rows
-│       └── types/                  # Type declarations (e.g. web-serial.d.ts)
+│       ├── types/                  # Type declarations (web-serial.d.ts, meshcore.d.ts)
+│       └── workers/
+│           └── messageEncoder.worker.ts  # Meshtastic: message encoding worker
 ├── resources/
 │   ├── icons/                    # App icons (linux/, mac/, win/)
 │   ├── entitlements.mac.plist    # macOS signing entitlements (main)
@@ -401,7 +514,8 @@ meshtastic-client/
 ├── scripts/
 │   ├── before-build-native.cjs   # Cleans better-sqlite3 build before dist (Windows EPERM workaround)
 │   ├── rebuild-native.mjs        # Rebuilds better-sqlite3 for Electron ABI (postinstall)
-│   └── wait-for-dev.mjs         # Waits for Vite dev server before launching Electron
+│   ├── wait-for-dev.mjs          # Waits for Vite dev server before launching Electron
+│   └── check-log-injection.mjs   # Pre-commit: ensures log call sites use sanitizeLogMessage (CodeQL)
 ├── patches/                     # patch-package patches (e.g. electron-builder)
 ├── docs/
 │   ├── accessibility-checklist.md
@@ -416,6 +530,13 @@ meshtastic-client/
 ├── postcss.config.cjs
 └── package.json
 ```
+
+**Where diagnostics UI lives in code**
+
+- **Node detail** (modal when you open a node): shell is [`src/renderer/components/NodeDetailModal.tsx`](src/renderer/components/NodeDetailModal.tsx); body content and RF findings list are [`src/renderer/components/NodeInfoBody.tsx`](src/renderer/components/NodeInfoBody.tsx) (`RFDiagnosticsSection`, mesh congestion / duplicate-traffic block, Connection Health / Path History when redundant paths exist). Modal body is scrollable (max height); position/trace/message actions are omitted for the home node.
+- **Network diagnostics tab**: [`src/renderer/components/DiagnosticsPanel.tsx`](src/renderer/components/DiagnosticsPanel.tsx) (health band + counts, diagnosticRows table, mesh congestion banner, env profile, halo toggles, diagnostic row max age).
+- **Mesh congestion UI**: [`src/renderer/components/MeshCongestionAttributionBlock.tsx`](src/renderer/components/MeshCongestionAttributionBlock.tsx) (shared between panel and node detail).
+- **Engines**: RF findings [`src/renderer/lib/diagnostics/RFDiagnosticEngine.ts`](src/renderer/lib/diagnostics/RFDiagnosticEngine.ts); routing anomalies [`src/renderer/lib/diagnostics/RoutingDiagnosticEngine.ts`](src/renderer/lib/diagnostics/RoutingDiagnosticEngine.ts); row merge/prune [`src/renderer/lib/diagnostics/diagnosticRows.ts`](src/renderer/lib/diagnostics/diagnosticRows.ts); store [`src/renderer/stores/diagnosticsStore.ts`](src/renderer/stores/diagnosticsStore.ts).
 
 ---
 
@@ -465,11 +586,32 @@ Join the `#mesh-client-development` channel on Discord for help, feedback, and d
 
 ### `npm install` fails on native module compilation
 
-You're missing build tools for the native SQLite module:
+You're missing build tools for the native modules (e.g. `better-sqlite3`, `@serialport/bindings-cpp`):
 
 - **Mac**: `xcode-select --install`
 - **Linux**: `sudo apt install build-essential python3`
-- **Windows**: Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the "Desktop development with C++" workload
+- **Windows**: Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with the "Desktop development with C++" workload, and **Python 3** (see [Windows — extra notes](#windows--extra-notes) step 4). If you see "Could not find any Python installation to use", see the [Python troubleshooting](#windows-could-not-find-any-python-installation-to-use-eg-when-building-serialportbindings-cpp) section. If you see "Could not find any Visual Studio installation to use", see the [Visual Studio troubleshooting](#windows-could-not-find-any-visual-studio-installation-to-use) section.
+
+### Windows: "Could not find any Visual Studio installation to use"
+
+**Cause**: node-gyp (used to build native modules like `better-sqlite3` and `@serialport/bindings-cpp`) requires Visual Studio Build Tools (or full Visual Studio) with the C++ workload on Windows. The error appears during `npm install` (postinstall) or `npm run dist:win` when no suitable installation is found. **Even when Build Tools are installed**, this often happens when the **project path contains spaces** (e.g. `C:\Users\Joey Stanford\meshcore`) — node-gyp's Visual Studio finder can fail in that case. Fix the path first.
+
+**Fix**:
+
+1. **Use a path without spaces** (do this first, especially if Build Tools are already installed): Clone or move the repo to e.g. `C:\dev\meshcore` or `C:\src\meshcore`, then run `npm install` from there. This resolves the issue in most cases. See [dist:win fails: "space in the path"](#distwin-fails-space-in-the-path-or-eperm-unlink-on-better_sqlite3node) for details.
+2. **Install Visual Studio Build Tools** (if not already): Download [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) and select the **"Desktop development with C++"** workload. After installation, close and reopen your terminal so environment variables are picked up.
+3. **If Build Tools are installed but node-gyp still fails** (and you cannot move the repo): Open **"Developer Command Prompt for VS"** or **"x64 Native Tools Command Prompt for VS"** from the Start menu, `cd` to your project folder, and run `npm install` there so the correct `cl.exe` and paths are in scope. Or set the version explicitly: `npm config set msvs_version 2022` (use your installed year/build).
+
+### Windows: "Could not find any Python installation to use" (e.g. when building `@serialport/bindings-cpp`)
+
+**Cause**: node-gyp (used to compile native addons such as `better-sqlite3` and `@serialport/bindings-cpp`) requires Python on Windows. The build fails during `npm install` (postinstall) or during `npm run dist:win` when Python is not installed or not on PATH.
+
+**Fix**:
+
+1. Install **Python 3** from [python.org](https://www.python.org/downloads/) or run `winget install Python.Python.3.12`.
+2. During installation, enable **"Add Python to PATH"**.
+3. Close and reopen your terminal (or restart the IDE), then run `npm install` or `npm run dist:win` again.
+4. If Python is installed but node-gyp still can't find it, point npm at it: `npm config set python "C:\Users\YourName\AppData\Local\Programs\Python\Python312\python.exe"` (adjust the path to your Python executable).
 
 ### BLE connection fails with "Connection attempt failed"
 
@@ -477,6 +619,12 @@ You're missing build tools for the native SQLite module:
 - On macOS: check **System Settings > Privacy & Security > Bluetooth**
 - Try disconnecting fully first, then reconnecting
 - If the device picker never appears, restart the app
+
+### BLE known issues (Linux / Windows)
+
+- **Web Bluetooth is experimental** on some platforms; you may see a console note linking to [implementation-status](https://github.com/WebBluetoothCG/web-bluetooth/blob/main/implementation-status.md).
+- **"Connection already in progress"** or **GATT init failures** can occur when the first BLE write runs before the connection is fully ready. The app **retries once** automatically after a short delay; if it still fails, wait a few seconds and try again, or use **Serial/USB** instead.
+- If BLE is unreliable on your system, prefer Serial or TCP for a stable connection. The root cause is a race in the MeshCore library: the first BLE write (deviceQuery) can run before `gatt.connect()` completes. An [upstream bug report](https://github.com/meshcore-dev/meshcore.js/issues/22) tracks the fix (await GATT connect before any write); the app’s retry is a workaround until the library is updated.
 
 ### Serial port not detected
 
@@ -500,7 +648,7 @@ You're missing build tools for the native SQLite module:
 
 ### `npm run dist:mac` fails with `GH_TOKEN` / "Cannot cleanup"
 
-electron-builder publishes to GitHub when it thinks it’s in CI. Local builds use `--publish never` so artifacts land in `release/` without a token. Tag releases use `npm run dist:mac:publish` (and `:linux:publish` / `:win:publish`) with `GH_TOKEN` set — see `.github/workflows/release.yaml`.
+electron-builder publishes to GitHub when it thinks it's in CI. Local builds use `--publish never` so artifacts land in `release/` without a token. Tag releases use `npm run dist:mac:publish` (and `:linux:publish` / `:win:publish`) with `GH_TOKEN` set — see `.github/workflows/release.yaml`.
 
 ### `[DEP0190]` when running electron-builder
 
@@ -508,7 +656,7 @@ Node deprecates `spawn(..., { shell: true })` with an args array. This project p
 
 ### `duplicate dependency references` during dist
 
-npm’s JSON tree lists hoisted packages with many duplicate refs (one per edge). That’s expected and not something you need to fix. The **app-builder-lib** patch logs that summary at **debug** only so normal `dist:*` runs stay quiet. To see it: `DEBUG=electron-builder npx electron-builder --mac` (or your usual dist command).
+npm's JSON tree lists hoisted packages with many duplicate refs (one per edge). That's expected and not something you need to fix. The **app-builder-lib** patch logs that summary at **debug** only so normal `dist:*` runs stay quiet. To see it: `DEBUG=electron-builder npx electron-builder --mac` (or your usual dist command).
 
 ### `[DEP0169]` / `url.parse()` deprecation warning
 
@@ -536,14 +684,14 @@ npm run trace-deprecation
 
 **Cause**
 
-1. **Spaces in the project path** — node-gyp and the native rebuild step are unreliable when the repo lives under a path with spaces (e.g. `C:\Users\Joey Stanford\meshtastic-client`). See [node-gyp#65](https://github.com/nodejs/node-gyp/issues/65#issuecomment-368820565).
+1. **Spaces in the project path** — node-gyp and the native rebuild step are unreliable when the repo lives under a path with spaces (e.g. `C:\Users\Joey Stanford\meshtastic-client`). This can surface as "Attempting to build a module with a space in the path", "Could not find any Visual Studio installation to use", or EPERM. See [node-gyp#65](https://github.com/nodejs/node-gyp/issues/65#issuecomment-368820565).
 2. **EPERM on unlink** — Something on Windows still has the `.node` file open (another `node`/`electron` process, antivirus/Windows Defender scanning the file, or a stuck handle), so the rebuild cannot replace it.
 
 3. **Why it used to work** — electron-builder **always runs a second native rebuild** during `dist:win` (after `postinstall` already built `better-sqlite3`). Recent **@electron/rebuild** / node-gyp behavior can hit EPERM when replacing the existing `.node`. The repo now runs a **beforeBuild** hook that deletes `node_modules/better-sqlite3/build` first (with retries) so the packaging rebuild compiles into a clean folder instead of unlinking a locked file. If delete still hits EPERM, the hook **renames** `build` to `build.stale.<timestamp>` (so node-gyp can create a fresh `build`) or tries **`rd /s /q`** before failing.
 
 **Fix**
 
-1. **Try a normal dist again** — `npm run dist:win`. The **beforeBuild** hook removes `better-sqlite3/build` before electron-builder’s rebuild so node-gyp often avoids EPERM unlink.
+1. **Try a normal dist again** — `npm run dist:win`. The **beforeBuild** hook removes `better-sqlite3/build` before electron-builder's rebuild so node-gyp often avoids EPERM unlink.
 2. **Skip the packaging rebuild** — If `npm install` / `npm run rebuild` already produced a good `better_sqlite3.node` for this Electron version:
 
    ```bash
@@ -554,7 +702,7 @@ npm run trace-deprecation
 
 3. **Use a path without spaces** (strongly recommended):
    - Clone or copy the repo to e.g. `C:\dev\meshtastic-client` or `C:\src\meshtastic-client`, then `npm install` and `npm run dist:win` from there.
-   - Alternatively, use a directory junction so the “short” path is what tools see, e.g. `mklink /J C:\dev\mesh C:\Users\YourName\meshtastic-client` and work from `C:\dev\mesh`.
+   - Alternatively, use a directory junction so the "short" path is what tools see, e.g. `mklink /J C:\dev\mesh C:\Users\YourName\meshtastic-client` and work from `C:\dev\mesh`.
 4. **Clear the lock before rebuild**:
    - Quit any running Mesh-client/Electron dev instances and close other terminals that might be using the repo.
    - Manually delete `node_modules\better-sqlite3\build` (whole folder). If delete fails, something is still holding the file — use Task Manager to end stray `node.exe` / `electron.exe`, then retry.
@@ -625,7 +773,7 @@ The app functions fully offline — this is not a critical error. If "Update che
 
 ### Diagnostics panel: "restored from last session" banner
 
-**Cause**: Diagnostic rows (routing + RF) are snapshotted to `localStorage` so a restart doesn’t wipe the table.
+**Cause**: Diagnostic rows (routing + RF) are snapshotted to `localStorage` so a restart doesn't wipe the table.
 
 **Fix**: This is expected — rows refresh as new packets arrive. Use **Stop restoring on next launch** on the banner to clear the snapshot, or use **App** tab → **Reset Diagnostics** to clear in-memory rows and related state.
 
@@ -641,6 +789,18 @@ The app functions fully offline — this is not a critical error. If "Update che
 
 **Fix**: Not a bug — use SNR/last heard and routing diagnostics instead for those paths.
 
+### MeshCore: "Get Telemetry" returns timeout
+
+**Cause**: The remote node has no environment sensors, or the request timed out before the node responded.
+
+**Fix**: Not all nodes support environment telemetry. The error is shown inline in the node detail modal and is safe to ignore.
+
+### MeshCore: "Get Neighbors" button not visible
+
+**Cause**: The button is only shown for **Repeater**-type contacts (contact type 2). Chat and Room contacts do not support the neighbor query command.
+
+**Fix**: Open the node detail modal for a Repeater node (shown as "Repeater" in the hardware model field).
+
 ---
 
 ## License
@@ -649,4 +809,4 @@ MIT — see [LICENSE](LICENSE)
 
 ## Credits
 
-See [CREDITS.md](CREDITS.md). Created by **[Joey (NV0N)](https://github.com/rinchen)** & **[dude.eth](https://github.com/defidude)**. Based on the [original Mac client](https://github.com/Colorado-Mesh/meshtastic_mac_client). Part of **[Colorado Mesh](https://github.com/Colorado-Mesh/meshtastic-client)**.
+See [CREDITS.md](CREDITS.md). Created by **[Joey (NV0N)](https://github.com/rinchen)** & **[dude.eth](https://github.com/defidude)**. Based on the [original Mac client](https://github.com/Colorado-Mesh/meshtastic-client). Part of **[Colorado Mesh](https://github.com/Colorado-Mesh/meshtastic-client)**.

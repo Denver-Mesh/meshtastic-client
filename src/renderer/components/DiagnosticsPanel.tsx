@@ -16,6 +16,7 @@ import {
 } from '../lib/diagnostics/RemediationEngine';
 import { diagnoseConnectedNode, hasLocalStatsData } from '../lib/diagnostics/RFDiagnosticEngine';
 import type { OurPosition } from '../lib/gpsSource';
+import type { ProtocolCapabilities } from '../lib/radio/BaseRadioProvider';
 import type { DiagnosticRow, MeshNode, RfDiagnosticRow, RoutingDiagnosticRow } from '../lib/types';
 import { routingRowToNodeAnomaly } from '../lib/types';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
@@ -40,6 +41,8 @@ interface Props {
   ourPosition?: OurPosition | null;
   /** When set, clicking an anomaly row opens the node detail modal (same as NodeListPanel). */
   onNodeClick?: (node: MeshNode) => void;
+  /** Protocol capabilities — controls which sections are shown (MQTT controls hidden for MeshCore). */
+  capabilities?: ProtocolCapabilities;
 }
 
 function AlertTriangleIcon({ className }: { className?: string }) {
@@ -96,7 +99,9 @@ export default function DiagnosticsPanel({
   getFullNodeLabel,
   ourPosition,
   onNodeClick,
+  capabilities,
 }: Props) {
+  const showMqttControls = capabilities?.hasMqttHybrid !== false;
   const diagnosticRows = useDiagnosticsStore((s) => s.diagnosticRows);
   const diagnosticRowsRestoredAt = useDiagnosticsStore((s) => s.diagnosticRowsRestoredAt);
   const clearDiagnosticRowsSnapshot = useDiagnosticsStore((s) => s.clearDiagnosticRowsSnapshot);
@@ -120,6 +125,7 @@ export default function DiagnosticsPanel({
   const setEnvMode = useDiagnosticsStore((s) => s.setEnvMode);
   const diagnosticRowsMaxAgeHours = useDiagnosticsStore((s) => s.diagnosticRowsMaxAgeHours);
   const setDiagnosticRowsMaxAgeHours = useDiagnosticsStore((s) => s.setDiagnosticRowsMaxAgeHours);
+  const getForeignLoraDetectionsList = useDiagnosticsStore((s) => s.getForeignLoraDetectionsList);
 
   const [search, setSearch] = useState('');
   const [tracePending, setTracePending] = useState<number | null>(null);
@@ -464,7 +470,8 @@ export default function DiagnosticsPanel({
               {anomaly.type.replace(/_/g, ' ')}
             </div>
             <div className="text-xs text-gray-400 max-w-xs">{anomaly.description}</div>
-            {anomaly.type === 'hop_goblin' &&
+            {showMqttControls &&
+              anomaly.type === 'hop_goblin' &&
               node?.heard_via_mqtt === true &&
               !node?.heard_via_mqtt_only && (
                 <div className="text-xs text-yellow-400/70 mt-1">
@@ -553,23 +560,24 @@ export default function DiagnosticsPanel({
                   {isFailed ? 'Retry Trace' : 'Trace Route'}
                 </button>
               )}
-              {mqttIgnoredNodes.has(anomaly.nodeId) ? (
-                <button
-                  onClick={() => setNodeMqttIgnored(anomaly.nodeId, false)}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 hover:bg-yellow-500/30 transition-colors whitespace-nowrap"
-                  title="Click to stop ignoring MQTT for this node"
-                >
-                  MQTT Ignored ✕
-                </button>
-              ) : (
-                <button
-                  onClick={() => setNodeMqttIgnored(anomaly.nodeId, true)}
-                  className="px-2 py-0.5 text-[10px] rounded bg-secondary-dark hover:bg-gray-600 text-muted hover:text-gray-300 transition-colors whitespace-nowrap"
-                  title="Exclude this node's MQTT data from diagnostics"
-                >
-                  Ignore MQTT
-                </button>
-              )}
+              {showMqttControls &&
+                (mqttIgnoredNodes.has(anomaly.nodeId) ? (
+                  <button
+                    onClick={() => setNodeMqttIgnored(anomaly.nodeId, false)}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 hover:bg-yellow-500/30 transition-colors whitespace-nowrap"
+                    title="Click to stop ignoring MQTT for this node"
+                  >
+                    MQTT Ignored ✕
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setNodeMqttIgnored(anomaly.nodeId, true)}
+                    className="px-2 py-0.5 text-[10px] rounded bg-secondary-dark hover:bg-gray-600 text-muted hover:text-gray-300 transition-colors whitespace-nowrap"
+                    title="Exclude this node's MQTT data from diagnostics"
+                  >
+                    Ignore MQTT
+                  </button>
+                ))}
             </div>
           </td>
         </tr>,
@@ -663,6 +671,83 @@ export default function DiagnosticsPanel({
         </div>
       </div>
 
+      {/* Foreign LoRa activity (last 90 min) — connected node only */}
+      {isConnected &&
+        (() => {
+          const foreignList = getForeignLoraDetectionsList(myNodeNum);
+          if (foreignList.length === 0) return null;
+          const classLabels: Record<string, string> = {
+            meshcore: 'MeshCore Activity',
+            meshtastic: 'Meshtastic Traffic',
+            'unknown-lora': 'Unknown LoRa Signal',
+          };
+          const proximityLabels: Record<string, string> = {
+            'very-close': 'Very Close',
+            nearby: 'Nearby',
+            distant: 'Distant',
+            unknown: 'Unknown Distance',
+          };
+          return (
+            <div className="border border-orange-500/30 rounded-xl p-4 bg-orange-500/5 space-y-3">
+              <h3 className="text-sm font-medium text-orange-400 flex items-center gap-1.5">
+                <AlertTriangleIcon className="w-4 h-4 shrink-0" />
+                Foreign LoRa Activity (last 90 min)
+              </h3>
+              <div className="space-y-2">
+                {foreignList.map((d, i) => {
+                  const minutesAgo = Math.floor((Date.now() - d.detectedAt) / 60_000);
+                  const senderName =
+                    d.longName ??
+                    (d.lastSenderId
+                      ? nodes.get(d.lastSenderId)?.long_name ||
+                        nodes.get(d.lastSenderId)?.short_name
+                      : undefined);
+                  return (
+                    <div
+                      key={`${d.packetClass}-${d.lastSenderId ?? 'na'}-${d.detectedAt}-${i}`}
+                      className="bg-secondary-dark rounded p-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs"
+                    >
+                      <div className="text-muted">Class</div>
+                      <div className="text-gray-200">
+                        {classLabels[d.packetClass] ?? d.packetClass}
+                      </div>
+                      <div className="text-muted">Proximity</div>
+                      <div className="text-gray-200">
+                        {proximityLabels[d.proximity] ?? d.proximity}
+                      </div>
+                      <div className="text-muted">Last Seen</div>
+                      <div className="text-gray-200">
+                        {minutesAgo < 1 ? 'Just now' : `${minutesAgo}m ago`}
+                      </div>
+                      <div className="text-muted">Count</div>
+                      <div className="text-gray-200">{d.count}×</div>
+                      {(d.rssi !== undefined || d.snr !== undefined) && (
+                        <>
+                          <div className="text-muted">Signal</div>
+                          <div className="font-mono text-gray-200">
+                            {d.rssi !== undefined ? `RSSI ${d.rssi} dBm` : ''}
+                            {d.rssi !== undefined && d.snr !== undefined ? ', ' : ''}
+                            {d.snr !== undefined ? `SNR ${d.snr.toFixed(1)} dB` : ''}
+                          </div>
+                        </>
+                      )}
+                      {d.lastSenderId != null && (
+                        <>
+                          <div className="text-muted">Sender</div>
+                          <div className="font-mono text-gray-200">
+                            !{d.lastSenderId.toString(16).padStart(8, '0')}
+                            {senderName ? ` (${senderName})` : ''}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
       {/* Settings */}
       <div className="bg-secondary-dark rounded-lg p-4">
         <h3 className="text-sm font-medium text-muted mb-3">Display Settings</h3>
@@ -691,21 +776,23 @@ export default function DiagnosticsPanel({
               Show routing anomaly halos on map
             </label>
           </div>
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="ignoreMqtt"
-              checked={ignoreMqttEnabled}
-              onChange={(e) => setIgnoreMqttEnabled(e.target.checked)}
-              className="accent-brand-green"
-            />
-            <label htmlFor="ignoreMqtt" className="text-sm text-gray-300 cursor-pointer">
-              Ignore MQTT
-            </label>
-            <span className="text-xs text-muted">
-              Gray out MQTT-only nodes and exclude them from diagnostics
-            </span>
-          </div>
+          {showMqttControls && (
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="ignoreMqtt"
+                checked={ignoreMqttEnabled}
+                onChange={(e) => setIgnoreMqttEnabled(e.target.checked)}
+                className="accent-brand-green"
+              />
+              <label htmlFor="ignoreMqtt" className="text-sm text-gray-300 cursor-pointer">
+                Ignore MQTT
+              </label>
+              <span className="text-xs text-muted">
+                Gray out MQTT-only nodes and exclude them from diagnostics
+              </span>
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <div className="text-sm text-gray-300">Environment Profile</div>
             <div className="flex rounded-lg overflow-hidden border border-gray-600/50 w-fit">
@@ -765,7 +852,7 @@ export default function DiagnosticsPanel({
       </div>
 
       {/* Per-Node MQTT Filters */}
-      {mqttIgnoredNodes.size > 0 && (
+      {showMqttControls && mqttIgnoredNodes.size > 0 && (
         <div className="bg-secondary-dark rounded-lg p-3">
           <h3 className="text-xs font-medium text-muted mb-2">Per-Node MQTT Filters</h3>
           <div className="flex flex-wrap gap-1.5">

@@ -523,6 +523,7 @@ function RFDiagnosticsSection({
   const getCuStats24h = useDiagnosticsStore((s) => s.getCuStats24h);
   const packetCache = useDiagnosticsStore((s) => s.packetCache);
   const diagnosticRows = useDiagnosticsStore((s) => s.diagnosticRows);
+  const getForeignLoraDetectionsList = useDiagnosticsStore((s) => s.getForeignLoraDetectionsList);
   const anomaliesMap = diagnosticRowsToRoutingMap(diagnosticRows);
 
   let findings: RFDiagnosis[] | null;
@@ -547,7 +548,14 @@ function RFDiagnosticsSection({
     if (findings === null) noTelemetry = true;
   }
 
-  const flagged = findings?.length ?? 0;
+  // When we have a specific foreign LoRa detection (MeshCore/Meshtastic), don't show the generic "LoRa Collision or Corruption" in the RF list
+  const hasForeignLora = getForeignLoraDetectionsList(node.node_id).length > 0;
+  const findingsToShow =
+    findings != null && hasForeignLora
+      ? findings.filter((f) => f.condition !== 'LoRa Collision or Corruption')
+      : findings;
+
+  const flagged = findingsToShow?.length ?? 0;
   const meshCongestionFinding =
     isOurNode && findings?.find((f) => f.condition === 'Mesh Congestion');
   const attrForOurNode =
@@ -597,7 +605,7 @@ function RFDiagnosticsSection({
           <div className="text-xs text-brand-green">All RF diagnostics OK</div>
         ) : (
           <div className="flex flex-col gap-1.5">
-            {findings!.map((f, i) => (
+            {findingsToShow!.map((f, i) => (
               <div
                 key={i}
                 className={`flex items-start gap-1.5 text-xs ${SEVERITY_STYLES[f.severity]}`}
@@ -613,13 +621,22 @@ function RFDiagnosticsSection({
                     )}
                   </div>
                   <div className="text-gray-400 mt-0.5">— {f.cause}</div>
-                  {f.hints && f.hints.length > 0 && (
+                  {(f.hints?.length ?? 0) > 0 && (
                     <ul className="mt-1.5 pl-3 list-disc text-[10px] text-muted space-y-0.5">
-                      {f.hints.map((h, j) => (
+                      {f.hints!.map((h, j) => (
                         <li key={j}>{h}</li>
                       ))}
                     </ul>
                   )}
+                  {f.condition === 'LoRa Collision or Corruption' &&
+                    isOurNode &&
+                    !hasForeignLora && (
+                      <p className="mt-1.5 text-[10px] text-muted">
+                        To detect MeshCore specifically, the device must log decode failures with
+                        the packet&apos;s first byte (0x3c). Until then only the generic collision
+                        message is available.
+                      </p>
+                    )}
                 </div>
               </div>
             ))}

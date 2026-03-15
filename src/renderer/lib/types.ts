@@ -1,5 +1,7 @@
 export type ConnectionType = 'ble' | 'serial' | 'http';
 
+export type MeshProtocol = 'meshtastic' | 'meshcore';
+
 export type AnomalyType = 'hop_goblin' | 'bad_route' | 'route_flapping' | 'impossible_hop';
 
 /** How confident the detector is: proven uses distance/stats; heuristic is SNR/hops pattern only. */
@@ -85,6 +87,12 @@ export function routingRowToNodeAnomaly(r: RoutingDiagnosticRow): NodeAnomaly {
 export interface HopHistoryPoint {
   t: number; // timestamp ms
   h: number; // hops_away value
+}
+
+export interface PositionPoint {
+  t: number; // Unix ms timestamp
+  lat: number;
+  lon: number;
 }
 
 export interface MeshNode {
@@ -180,6 +188,8 @@ export interface ChatMessage {
   to?: number;
   // Which transport(s) delivered this incoming message
   receivedVia?: 'rf' | 'mqtt' | 'both';
+  // true for backlog messages (e.g. MeshCore MsgWaiting catch-up); excluded from unread counter
+  isHistory?: boolean;
 }
 
 export interface TelemetryPoint {
@@ -282,8 +292,47 @@ declare global {
         getMessageChannels: () => Promise<{ channel: number }[]>;
         setNodeFavorited: (nodeId: number, favorited: boolean) => Promise<unknown>;
         deleteNodesBySource: (source: string) => Promise<number>;
+        deleteNodesWithoutLongname: () => Promise<number>;
         clearNodePositions: () => Promise<unknown>;
         updateMessageReceivedVia: (packetId: number) => Promise<unknown>;
+        saveMeshcoreMessage: (message: {
+          sender_id?: number | null;
+          sender_name?: string | null;
+          payload: string;
+          channel_idx?: number;
+          timestamp: number;
+          status?: string;
+          packet_id?: number | null;
+          to_node?: number | null;
+        }) => Promise<unknown>;
+        saveMeshcoreContact: (contact: {
+          node_id: number;
+          public_key: string;
+          adv_name?: string | null;
+          contact_type?: number;
+          last_advert?: number | null;
+          adv_lat?: number | null;
+          adv_lon?: number | null;
+          last_snr?: number | null;
+          last_rssi?: number | null;
+          nickname?: string | null;
+        }) => Promise<unknown>;
+        updateMeshcoreMessageStatus: (packetId: number, status: string) => Promise<unknown>;
+        updateMeshcoreContactAdvert: (
+          nodeId: number,
+          lastAdvert: number | null,
+          advLat: number | null,
+          advLon: number | null,
+        ) => Promise<unknown>;
+        getMeshcoreMessages: (channelIdx?: number, limit?: number) => Promise<unknown[]>;
+        getMeshcoreContacts: () => Promise<unknown[]>;
+        deleteMeshcoreContact: (nodeId: number) => Promise<unknown>;
+        clearMeshcoreMessages: () => Promise<unknown>;
+        clearMeshcoreContacts: () => Promise<unknown>;
+        updateMeshcoreContactNickname: (
+          nodeId: number,
+          nickname: string | null,
+        ) => Promise<unknown>;
       };
       mqtt: {
         connect: (settings: MQTTSettings) => Promise<void>;
@@ -319,6 +368,16 @@ declare global {
           longitudeI: number;
           altitude?: number;
         }) => Promise<number>;
+      };
+      meshcore: {
+        tcp: {
+          connect: (host: string, port: number) => Promise<void>;
+          write: (bytes: number[]) => Promise<void>;
+          disconnect: () => Promise<void>;
+          onData: (cb: (bytes: number[]) => void) => () => void;
+          onDisconnected: (cb: () => void) => () => void;
+        };
+        openJsonFile: () => Promise<string | null>;
       };
       onBluetoothDevicesDiscovered: (cb: (devices: BluetoothDevice[]) => void) => () => void;
       selectBluetoothDevice: (deviceId: string) => void;

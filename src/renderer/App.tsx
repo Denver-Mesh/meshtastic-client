@@ -12,16 +12,26 @@ import ModulePanel from './components/ModulePanel';
 import NodeDetailModal from './components/NodeDetailModal';
 import NodeListPanel from './components/NodeListPanel';
 import RadioPanel from './components/RadioPanel';
+import RepeatersPanel from './components/RepeatersPanel';
 import { LinkIcon } from './components/SignalBars';
 import Tabs from './components/Tabs';
 import TelemetryPanel from './components/TelemetryPanel';
 import { ToastProvider } from './components/Toast';
 import UpdateBanner from './components/UpdateBanner';
 import { useDevice } from './hooks/useDevice';
+import { useMeshCore } from './hooks/useMeshCore';
 import { parseStoredJson } from './lib/parseStoredJson';
+import { useRadioProvider } from './lib/radio/providerFactory';
 import { applyThemeColors, loadThemeColors } from './lib/themeColors';
-import type { ChatMessage, MQTTSettings } from './lib/types';
+import type { ChatMessage, MeshProtocol, MQTTSettings } from './lib/types';
 import { useDiagnosticsStore } from './stores/diagnosticsStore';
+
+const PROTOCOL_KEY = 'mesh-client:protocol';
+
+// Tabs (0-indexed) that are disabled in MeshCore mode
+// Tab 6 (Telemetry) re-enabled — capabilities-aware rendering handles battery/signal differences
+// Tab 8 (Diagnostics) re-enabled — foreign LoRa detection works in both Meshtastic and MeshCore modes
+const MESHCORE_DISABLED_TABS = new Set<number>([]);
 
 const STATUS_COLOR: Record<string, string> = {
   disconnected: 'bg-red-500',
@@ -161,14 +171,49 @@ export default function App() {
     applyThemeColors(loadThemeColors());
   }, []);
 
-  const device = useDevice();
+  const [protocol, setProtocol] = useState<MeshProtocol>(
+    () => (localStorage.getItem(PROTOCOL_KEY) as MeshProtocol) ?? 'meshtastic',
+  );
+
+  const meshtasticDevice = useDevice();
+  const meshcoreDevice = useMeshCore();
+  const device =
+    protocol === 'meshcore'
+      ? (meshcoreDevice as unknown as typeof meshtasticDevice)
+      : meshtasticDevice;
+
+  const capabilities = useRadioProvider(protocol);
+
+  const displayTabNames = useMemo(
+    () => TAB_NAMES.map((name, i) => (protocol === 'meshcore' && i === 5 ? 'Repeaters' : name)),
+    [protocol],
+  );
+
+  const handleProtocolChange = useCallback(
+    (p: MeshProtocol) => {
+      if (p === protocol) return;
+      localStorage.setItem(PROTOCOL_KEY, p);
+      setProtocol(p);
+      void device.disconnect();
+    },
+    [protocol, device],
+  );
+
   const runReanalysis = useDiagnosticsStore((s) => s.runReanalysis);
   const ignoreMqttEnabled = useDiagnosticsStore((s) => s.ignoreMqttEnabled);
   const envMode = useDiagnosticsStore((s) => s.envMode);
 
   useEffect(() => {
-    runReanalysis(device.getNodes, device.selfNodeId);
-  }, [device.nodes, device.selfNodeId, device.getNodes, runReanalysis, ignoreMqttEnabled, envMode]);
+    runReanalysis(device.getNodes, device.selfNodeId, capabilities);
+  }, [
+    device.nodes,
+    device.selfNodeId,
+    device.getNodes,
+    runReanalysis,
+    ignoreMqttEnabled,
+    envMode,
+    capabilities,
+  ]);
 
   useEffect(() => {
     if (device.state.status === 'disconnected') {
@@ -200,35 +245,75 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- device object ref excluded intentionally; specific stable properties listed instead
   }, [selectedNode, device.traceRouteResults, device.state.myNodeNum, device.getFullNodeLabel]);
 
+  /** In meshcore mode, only show configured channels (key !== all zeros) in chat. */
+  const chatChannels = useMemo(() => {
+    if (protocol !== 'meshcore') return device.channels;
+    const chs = device.channels as { index: number; name: string; secret?: Uint8Array }[];
+    const toHex = (s: Uint8Array) =>
+      Array.from(s)
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+    const unconfiguredKey = '00000000000000000000000000000000';
+    return chs
+      .filter((ch) => ch.secret && ch.secret.length === 16 && toHex(ch.secret) !== unconfiguredKey)
+      .map((ch) => ({ index: ch.index, name: ch.name }));
+  }, [protocol, device.channels]);
+
   // ─── Startup node pruning based on persisted admin settings ─────
+  const { refreshNodesFromDb } = device;
   useEffect(() => {
-    try {
-      const s =
-        parseStoredJson<Record<string, unknown>>(
-          localStorage.getItem('mesh-client:adminSettings'),
-          'App startup node pruning',
-        ) ?? {};
-      if (s.autoPruneEnabled) {
-        const days =
-          typeof s.autoPruneDays === 'number' && s.autoPruneDays > 0 ? s.autoPruneDays : 30;
-        void window.electronAPI.db
+    const s =
+      parseStoredJson<Record<string, unknown>>(
+        localStorage.getItem('mesh-client:adminSettings'),
+        'App startup node pruning',
+      ) ?? {};
+    const ops: Promise<unknown>[] = [];
+    if (s.autoPruneEnabled) {
+      const days =
+        typeof s.autoPruneDays === 'number' && s.autoPruneDays > 0 ? s.autoPruneDays : 30;
+      ops.push(
+        window.electronAPI.db
           .deleteNodesByAge(days)
-          .catch((e) => console.warn('[App] startup deleteNodesByAge failed', e));
-      }
-      if (s.nodeCapEnabled !== false) {
-        const cap =
-          typeof s.nodeCapCount === 'number' && s.nodeCapCount > 0 ? s.nodeCapCount : 10000;
-        void window.electronAPI.db
-          .pruneNodesByCount(cap)
-          .catch((e) => console.warn('[App] startup pruneNodesByCount failed', e));
-      }
-    } catch (e) {
-      console.debug('[App] startup node pruning', e);
+          .catch((e) => console.warn('[App] startup deleteNodesByAge failed', e)),
+      );
     }
-  }, []);
+    if (s.nodeCapEnabled !== false) {
+      const cap = typeof s.nodeCapCount === 'number' && s.nodeCapCount > 0 ? s.nodeCapCount : 10000;
+      ops.push(
+        window.electronAPI.db
+          .pruneNodesByCount(cap)
+          .catch((e) => console.warn('[App] startup pruneNodesByCount failed', e)),
+      );
+    }
+    if (s.pruneEmptyNamesEnabled) {
+      ops.push(
+        window.electronAPI.db
+          .deleteNodesWithoutLongname()
+          .catch((e) => console.warn('[App] startup deleteNodesWithoutLongname failed', e)),
+      );
+    }
+    if (ops.length > 0) {
+      void Promise.all(ops).then(() => refreshNodesFromDb());
+    }
+  }, [refreshNodesFromDb]);
+
+  // ─── Disconnect MQTT when switching to MeshCore mode ─────────────
+  // MQTT is Meshtastic-specific. If it's connected when the user switches to
+  // MeshCore, disconnect it so the window close handler isn't blocked.
+  useEffect(() => {
+    if (protocol === 'meshcore') {
+      void window.electronAPI.mqtt
+        .disconnect()
+        .catch((e) => console.debug('[App] MQTT disconnect on meshcore switch', e));
+    }
+  }, [protocol]);
 
   // ─── MQTT auto-launch on startup ─────────────────────────────────
+  // Skip in MeshCore mode — MQTT is Meshtastic-specific and staying connected
+  // in MeshCore mode prevents the window from closing after device disconnect.
+  // Read protocol from localStorage directly so this one-time effect has no deps.
   useEffect(() => {
+    if ((localStorage.getItem(PROTOCOL_KEY) as MeshProtocol) === 'meshcore') return;
     try {
       const settings = parseStoredJson<MQTTSettings>(
         localStorage.getItem('mesh-client:mqttSettings'),
@@ -295,6 +380,16 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // ─── Reset unread tracking on protocol switch ─────────────────
+  // When switching protocols, messages from the newly-active device's DB load
+  // all at once. Without resetting, the message-count effect treats them all
+  // as new arrivals and shows a spurious unread badge.
+  useEffect(() => {
+    isInitialLoadRef.current = true;
+    prevMsgCountRef.current = 0;
+    setChatUnread(0);
+  }, [protocol]);
+
   // ─── Track messages arriving while Chat tab is inactive ──────────
   useEffect(() => {
     const count = device.messages.length;
@@ -305,7 +400,9 @@ export default function App() {
     }
     if (count > prevMsgCountRef.current && activeTab !== 1) {
       const newMsgs = device.messages.slice(prevMsgCountRef.current);
-      const realNew = newMsgs.filter((m) => m.sender_id !== device.state.myNodeNum && !m.emoji);
+      const realNew = newMsgs.filter(
+        (m) => m.sender_id !== device.state.myNodeNum && !m.emoji && !m.isHistory,
+      );
       if (realNew.length > 0) setChatUnread((prev) => prev + realNew.length);
     }
     prevMsgCountRef.current = count;
@@ -383,20 +480,32 @@ export default function App() {
             </kbd>
           </button>
           <div className="flex items-center gap-2">
-            {/* MQTT status globe */}
-            <div
-              className="flex items-center gap-1.5 mr-3 pr-3 border-r border-gray-700"
-              aria-label={
-                device.mqttStatus === 'connected' ? 'MQTT: connected' : 'MQTT: disconnected'
-              }
+            {/* Protocol badge */}
+            <span
+              className={`text-xs px-2 py-0.5 rounded-full font-mono ${
+                protocol === 'meshcore'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-brand-green/20 text-brand-green'
+              }`}
             >
-              <MqttGlobeIcon connected={device.mqttStatus === 'connected'} />
-              <span
-                className={`text-xs ${device.mqttStatus === 'connected' ? 'text-brand-green' : 'text-gray-500'}`}
+              {protocol === 'meshcore' ? 'MeshCore' : 'Meshtastic'}
+            </span>
+            {/* MQTT status globe — hidden in MeshCore mode */}
+            {protocol === 'meshtastic' && (
+              <div
+                className="flex items-center gap-1.5 mr-3 pr-3 border-r border-gray-700"
+                aria-label={
+                  device.mqttStatus === 'connected' ? 'MQTT: connected' : 'MQTT: disconnected'
+                }
               >
-                MQTT
-              </span>
-            </div>
+                <MqttGlobeIcon connected={device.mqttStatus === 'connected'} />
+                <span
+                  className={`text-xs ${device.mqttStatus === 'connected' ? 'text-brand-green' : 'text-gray-500'}`}
+                >
+                  MQTT
+                </span>
+              </div>
+            )}
             {isConnectedOrOperational && <LinkIcon className="w-4 h-4" aria-hidden="true" />}
             <div
               className={`w-2.5 h-2.5 rounded-full ${statusColor}`}
@@ -469,10 +578,11 @@ export default function App() {
           <div className="flex flex-col flex-1 min-w-0 min-h-0">
             {/* Tabs */}
             <Tabs
-              tabs={TAB_NAMES}
+              tabs={displayTabNames}
               active={activeTab}
               onChange={setActiveTab}
               chatUnread={chatUnread}
+              disabledTabs={protocol === 'meshcore' ? MESHCORE_DISABLED_TABS : undefined}
             />
 
             {/* Content */}
@@ -481,7 +591,15 @@ export default function App() {
                 <div className={activeTab === 0 ? 'contents' : 'hidden'}>
                   <ConnectionPanel
                     state={device.state}
-                    onConnect={device.connect}
+                    onConnect={
+                      protocol === 'meshcore'
+                        ? (type, addr) =>
+                            meshcoreDevice.connect(
+                              type === 'http' ? 'tcp' : (type as 'ble' | 'serial'),
+                              addr,
+                            )
+                        : meshtasticDevice.connect
+                    }
                     onAutoConnect={device.connectAutomatic}
                     onDisconnect={device.disconnect}
                     mqttStatus={device.mqttStatus}
@@ -490,12 +608,24 @@ export default function App() {
                         ? device.getPickerStyleNodeLabel(device.state.myNodeNum)
                         : undefined
                     }
+                    protocol={protocol}
+                    onProtocolChange={handleProtocolChange}
+                    onRefreshContacts={
+                      protocol === 'meshcore' ? meshcoreDevice.refreshContacts : undefined
+                    }
+                    onSendAdvert={protocol === 'meshcore' ? meshcoreDevice.sendAdvert : undefined}
+                    manualAddContacts={
+                      protocol === 'meshcore' ? meshcoreDevice.manualAddContacts : undefined
+                    }
+                    onToggleManualContacts={
+                      protocol === 'meshcore' ? meshcoreDevice.toggleManualAddContacts : undefined
+                    }
                   />
                 </div>
                 <div className={activeTab === 1 ? 'contents' : 'hidden'}>
                   <ChatPanel
                     messages={device.messages}
-                    channels={device.channels}
+                    channels={chatChannels}
                     myNodeNum={device.selfNodeId}
                     onSend={device.sendMessage}
                     onReact={device.sendReaction}
@@ -552,13 +682,57 @@ export default function App() {
                     ourPosition={device.ourPosition}
                     onSendPositionToDevice={device.sendPositionToDevice}
                     deviceOwner={device.deviceOwner}
-                    onSetOwner={device.setOwner}
+                    onSetOwner={
+                      protocol === 'meshcore'
+                        ? async (owner) => meshcoreDevice.setOwner(owner)
+                        : device.setOwner
+                    }
                     onRebootOta={device.rebootOta}
                     onEnterDfu={device.enterDfuMode}
                     onFactoryResetConfig={device.factoryResetConfig}
+                    capabilities={capabilities}
+                    meshcoreChannels={protocol === 'meshcore' ? meshcoreDevice.channels : undefined}
+                    onMeshcoreSetChannel={
+                      protocol === 'meshcore'
+                        ? async (idx, name, secret) =>
+                            meshcoreDevice.setMeshcoreChannel(idx, name, secret)
+                        : undefined
+                    }
+                    onMeshcoreDeleteChannel={
+                      protocol === 'meshcore'
+                        ? async (idx) => meshcoreDevice.deleteMeshcoreChannel(idx)
+                        : undefined
+                    }
+                    onApplyLoraParams={
+                      protocol === 'meshcore'
+                        ? async (p) => meshcoreDevice.setRadioParams(p)
+                        : undefined
+                    }
+                    loraConfig={
+                      protocol === 'meshcore' && meshcoreDevice.selfInfo
+                        ? {
+                            freq: meshcoreDevice.selfInfo.radioFreq,
+                            bw: meshcoreDevice.selfInfo.radioBw,
+                            sf: meshcoreDevice.selfInfo.radioSf,
+                            cr: meshcoreDevice.selfInfo.radioCr,
+                            txPower: meshcoreDevice.selfInfo.txPower,
+                          }
+                        : undefined
+                    }
                   />
                 )}
-                {activeTab === 5 && (
+                {activeTab === 5 && protocol === 'meshcore' && (
+                  <RepeatersPanel
+                    nodes={meshcoreDevice.nodes}
+                    meshcoreNodeStatus={meshcoreDevice.meshcoreNodeStatus}
+                    meshcoreTraceResults={meshcoreDevice.meshcoreTraceResults}
+                    onRequestRepeaterStatus={meshcoreDevice.requestRepeaterStatus}
+                    onPing={meshcoreDevice.traceRoute}
+                    onImportRepeaters={meshcoreDevice.importRepeaters}
+                    isConnected={isOperational}
+                  />
+                )}
+                {activeTab === 5 && protocol !== 'meshcore' && (
                   <ModulePanel
                     moduleConfigs={device.moduleConfigs}
                     onSetModuleConfig={device.setModuleConfig}
@@ -576,6 +750,7 @@ export default function App() {
                     onToggleFahrenheit={toggleFahrenheit}
                     onRefresh={device.requestRefresh}
                     isConnected={isOperational}
+                    capabilities={capabilities}
                   />
                 )}
                 {activeTab === 7 && (
@@ -612,6 +787,7 @@ export default function App() {
                     getFullNodeLabel={device.getFullNodeLabel}
                     ourPosition={device.ourPosition}
                     onNodeClick={(node) => setSelectedNodeId(node.node_id)}
+                    capabilities={capabilities}
                   />
                 )}
               </ErrorBoundary>
@@ -668,7 +844,12 @@ export default function App() {
         )}
 
         {/* Keyboard Shortcuts Modal */}
-        {showShortcuts && <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />}
+        {showShortcuts && (
+          <KeyboardShortcutsModal
+            onClose={() => setShowShortcuts(false)}
+            tabNames={displayTabNames}
+          />
+        )}
 
         {/* Node Detail Modal — rendered outside main for proper z-indexing */}
         <NodeDetailModal
@@ -690,6 +871,32 @@ export default function App() {
           homeNode={device.nodes.get(device.state.myNodeNum) ?? null}
           neighborInfo={device.neighborInfo}
           useFahrenheit={useFahrenheit}
+          protocol={protocol}
+          meshcoreTraceResult={
+            protocol === 'meshcore' && selectedNode
+              ? meshcoreDevice.meshcoreTraceResults.get(selectedNode.node_id)
+              : undefined
+          }
+          meshcoreRepeaterStatus={
+            protocol === 'meshcore' && selectedNode
+              ? meshcoreDevice.meshcoreNodeStatus.get(selectedNode.node_id)
+              : undefined
+          }
+          onRequestRepeaterStatus={
+            protocol === 'meshcore' ? meshcoreDevice.requestRepeaterStatus : undefined
+          }
+          meshcoreNodeTelemetry={
+            protocol === 'meshcore' && selectedNode
+              ? meshcoreDevice.meshcoreNodeTelemetry.get(selectedNode.node_id)
+              : undefined
+          }
+          onRequestTelemetry={protocol === 'meshcore' ? meshcoreDevice.requestTelemetry : undefined}
+          meshcoreNeighbors={
+            protocol === 'meshcore' && selectedNode
+              ? meshcoreDevice.meshcoreNeighbors.get(selectedNode.node_id)
+              : undefined
+          }
+          onRequestNeighbors={protocol === 'meshcore' ? meshcoreDevice.requestNeighbors : undefined}
         />
       </div>
     </ToastProvider>

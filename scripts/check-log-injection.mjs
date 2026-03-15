@@ -3,7 +3,8 @@
  * Pre-commit / CI check for log injection in main process.
  *
  * Flags console.log/warn/error in src/main that pass raw error-like variables
- * (err, e, error, reason) without sanitizeLogMessage() at the call site.
+ * (err, e, error, reason) or error-derived content (e.message, String(e), etc.)
+ * without sanitizeLogMessage() at the call site.
  * See CONTRIBUTING.md § Log injection (CodeQL js/log-injection).
  *
  * To suppress a false positive, add // log-injection-ok with a short reason
@@ -21,6 +22,9 @@ const MAIN_DIR = path.resolve(__dirname, "..", "src", "main");
 const CONSOLE_CALL =
   /console\.(log|warn|error|info|debug)\s*\(/;
 const RAW_ERROR_ARG = /,\s*\b(err|e|error|reason)\b\s*\)/;
+// Error-derived content (e.message, String(e), etc.) must also be sanitized at call site.
+const ERROR_DERIVED_ARG =
+  /\b(err|e|error|reason)\.message|String\s*\(\s*(err|e|error|reason)\s*\)/;
 const HAS_SANITIZED = /sanitizeLogMessage\s*\(/;
 const SUPPRESSED = /\/\/\s*log-injection-ok\b/;
 
@@ -34,7 +38,9 @@ function checkFile(filePath) {
     const line = lines[i];
     const lineNum = i + 1;
     if (!CONSOLE_CALL.test(line)) continue;
-    if (!RAW_ERROR_ARG.test(line)) continue;
+    const hasRawError = RAW_ERROR_ARG.test(line);
+    const hasErrorDerived = ERROR_DERIVED_ARG.test(line);
+    if (!hasRawError && !hasErrorDerived) continue;
     if (HAS_SANITIZED.test(line)) continue;
     if (SUPPRESSED.test(line)) continue;
     violations.push({ relPath, lineNum, line: line.trim() });

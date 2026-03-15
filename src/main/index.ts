@@ -1,10 +1,12 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Tray } from 'electron';
 import fs from 'fs';
+import net from 'net';
 import path from 'path';
 
 import {
   closeDatabase,
   deleteNodesBySource,
+  deleteNodesWithoutLongname,
   exportDatabase,
   getDatabase,
   initDatabase,
@@ -166,6 +168,51 @@ function validateSaveNode(
   checkStr('short_name', 64);
   checkStr('hw_model', MAX_HW_MODEL);
   checkStr('source', 64);
+}
+
+function validateSaveMeshcoreMessage(msg: unknown): asserts msg is Record<string, unknown> & {
+  payload: string;
+  timestamp: number;
+} {
+  if (!msg || typeof msg !== 'object')
+    throw new Error('db:saveMeshcoreMessage: message must be an object');
+  const m = msg as Record<string, unknown>;
+  if (typeof m.payload !== 'string')
+    throw new Error('db:saveMeshcoreMessage: payload must be a string');
+  if (m.payload.length > MAX_PAYLOAD_LENGTH)
+    throw new Error('db:saveMeshcoreMessage: payload too long');
+  if (typeof m.timestamp !== 'number' || !Number.isFinite(m.timestamp))
+    throw new Error('db:saveMeshcoreMessage: timestamp must be a finite number');
+  if (
+    m.sender_name != null &&
+    typeof m.sender_name === 'string' &&
+    m.sender_name.length > MAX_NODE_STRING
+  )
+    throw new Error('db:saveMeshcoreMessage: sender_name too long');
+  if (m.status != null && typeof m.status === 'string' && m.status.length > MAX_STATUS_STRING)
+    throw new Error('db:saveMeshcoreMessage: status too long');
+}
+
+function validateSaveMeshcoreContact(contact: unknown): asserts contact is Record<
+  string,
+  unknown
+> & {
+  node_id: number;
+  public_key: string;
+} {
+  if (!contact || typeof contact !== 'object')
+    throw new Error('db:saveMeshcoreContact: contact must be an object');
+  const c = contact as Record<string, unknown>;
+  const nodeId = Number(c.node_id);
+  if (!Number.isFinite(nodeId) || nodeId < 0)
+    throw new Error('db:saveMeshcoreContact: node_id must be a finite non-negative number');
+  if (typeof c.public_key !== 'string')
+    throw new Error('db:saveMeshcoreContact: public_key must be a string');
+  if (c.public_key.length > 128) throw new Error('db:saveMeshcoreContact: public_key too long');
+  if (c.adv_name != null && typeof c.adv_name === 'string' && c.adv_name.length > MAX_NODE_STRING)
+    throw new Error('db:saveMeshcoreContact: adv_name too long');
+  if (c.nickname != null && typeof c.nickname === 'string' && c.nickname.length > MAX_NODE_STRING)
+    throw new Error('db:saveMeshcoreContact: nickname too long');
 }
 
 function validateMqttSettings(settings: unknown): void {
@@ -716,6 +763,10 @@ ipcMain.handle('mqtt:publishNodeInfo', async (_event, args) => {
       a.hwModel,
     );
   } catch (err) {
+    // Presence broadcast is fire-and-forget; silently ignore if MQTT just disconnected
+    if (err instanceof Error && err.message === 'MQTT not connected') {
+      return null;
+    }
     console.error(
       '[IPC] mqtt:publishNodeInfo failed:',
       sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
@@ -957,7 +1008,9 @@ ipcMain.handle('db:getNodes', () => {
 ipcMain.handle('db:clearMessages', () => {
   try {
     const db = getDatabase();
-    return db.prepare('DELETE FROM messages').run();
+    const result = db.prepare('DELETE FROM messages').run();
+    console.log(`[IPC] db:clearMessages: deleted ${result.changes} messages`);
+    return result;
   } catch (err) {
     console.error(
       '[IPC] db:clearMessages failed:',
@@ -970,7 +1023,9 @@ ipcMain.handle('db:clearMessages', () => {
 ipcMain.handle('db:clearNodes', () => {
   try {
     const db = getDatabase();
-    return db.prepare('DELETE FROM nodes').run();
+    const result = db.prepare('DELETE FROM nodes').run();
+    console.log(`[IPC] db:clearNodes: deleted ${result.changes} nodes`);
+    return result;
   } catch (err) {
     console.error(
       '[IPC] db:clearNodes failed:',
@@ -983,7 +1038,11 @@ ipcMain.handle('db:clearNodes', () => {
 ipcMain.handle('db:clearNodePositions', () => {
   try {
     const db = getDatabase();
-    return db.prepare('UPDATE nodes SET latitude = NULL, longitude = NULL, altitude = NULL').run();
+    const result = db
+      .prepare('UPDATE nodes SET latitude = NULL, longitude = NULL, altitude = NULL')
+      .run();
+    console.log(`[IPC] db:clearNodePositions: cleared positions for ${result.changes} nodes`);
+    return result;
   } catch (err) {
     console.error(
       '[IPC] db:clearNodePositions failed:',
@@ -997,7 +1056,11 @@ ipcMain.handle('db:deleteNode', (_event, nodeId: number) => {
   try {
     const id = safeNonNegativeInt(nodeId);
     const db = getDatabase();
-    return db.prepare('DELETE FROM nodes WHERE node_id = ?').run(id);
+    const result = db.prepare('DELETE FROM nodes WHERE node_id = ?').run(id);
+    console.log(
+      `[IPC] db:deleteNode: deleted node 0x${id.toString(16).toUpperCase()} (${result.changes} rows)`,
+    );
+    return result;
   } catch (err) {
     console.error(
       '[IPC] db:deleteNode failed:',
@@ -1011,7 +1074,9 @@ ipcMain.handle('db:deleteNodesByAge', (_event, days: number) => {
   try {
     if (typeof days !== 'number' || days < 1 || !isFinite(days)) return { changes: 0 };
     const cutoff = Math.floor(Date.now() / 1000) - days * 86400;
-    return getDatabase().prepare('DELETE FROM nodes WHERE last_heard < ?').run(cutoff);
+    const result = getDatabase().prepare('DELETE FROM nodes WHERE last_heard < ?').run(cutoff);
+    console.log(`[IPC] db:deleteNodesByAge: pruned ${result.changes} nodes older than ${days}d`);
+    return result;
   } catch (err) {
     console.error(
       '[IPC] db:deleteNodesByAge failed:',
@@ -1024,11 +1089,15 @@ ipcMain.handle('db:deleteNodesByAge', (_event, days: number) => {
 ipcMain.handle('db:pruneNodesByCount', (_event, maxCount: number) => {
   try {
     if (typeof maxCount !== 'number' || maxCount < 1 || !isFinite(maxCount)) return { changes: 0 };
-    return getDatabase()
+    const result = getDatabase()
       .prepare(
         'DELETE FROM nodes WHERE node_id NOT IN (SELECT node_id FROM nodes ORDER BY last_heard DESC LIMIT ?)',
       )
       .run(maxCount);
+    console.log(
+      `[IPC] db:pruneNodesByCount: pruned ${result.changes} nodes, keeping top ${maxCount}`,
+    );
+    return result;
   } catch (err) {
     console.error(
       '[IPC] db:pruneNodesByCount failed:',
@@ -1049,6 +1118,7 @@ ipcMain.handle('db:deleteNodesBatch', (_event, nodeIds: number[]) => {
     const result = getDatabase()
       .prepare(`DELETE FROM nodes WHERE node_id IN (${placeholders})`)
       .run(...safe);
+    console.log(`[IPC] db:deleteNodesBatch: deleted ${result.changes} nodes`);
     return result.changes;
   } catch (err) {
     console.error(
@@ -1062,7 +1132,11 @@ ipcMain.handle('db:deleteNodesBatch', (_event, nodeIds: number[]) => {
 ipcMain.handle('db:clearMessagesByChannel', (_event, channel: number) => {
   try {
     const ch = safeNonNegativeInt(channel);
-    return getDatabase().prepare('DELETE FROM messages WHERE channel = ?').run(ch);
+    const result = getDatabase().prepare('DELETE FROM messages WHERE channel = ?').run(ch);
+    console.log(
+      `[IPC] db:clearMessagesByChannel: deleted ${result.changes} messages from channel ${ch}`,
+    );
+    return result;
   } catch (err) {
     console.error(
       '[IPC] db:clearMessagesByChannel failed:',
@@ -1089,10 +1163,28 @@ ipcMain.handle('db:deleteNodesBySource', (_event, source: string) => {
     if (typeof source !== 'string')
       throw new Error('db:deleteNodesBySource: source must be a string');
     if (source.length > 64) throw new Error('db:deleteNodesBySource: source string too long');
-    return deleteNodesBySource(source);
+    const changes = deleteNodesBySource(source);
+    console.log(
+      `[IPC] db:deleteNodesBySource(${sanitizeLogMessage(source)}): pruned ${changes} nodes`,
+    );
+    return changes;
   } catch (err) {
     console.error(
       '[IPC] db:deleteNodesBySource failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+ipcMain.handle('db:deleteNodesWithoutLongname', () => {
+  try {
+    const changes = deleteNodesWithoutLongname();
+    console.log(`[IPC] db:deleteNodesWithoutLongname: pruned ${changes} unnamed nodes`);
+    return changes;
+  } catch (err) {
+    console.error(
+      '[IPC] db:deleteNodesWithoutLongname failed:',
       sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
     );
     throw err;
@@ -1282,6 +1374,282 @@ ipcMain.handle('log:export', async () => {
       sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
     );
     throw err;
+  }
+});
+
+// ─── IPC: MeshCore database operations ──────────────────────────────
+ipcMain.handle('db:getMeshcoreMessages', (_event, channelIdx?: number, limit = 200) => {
+  try {
+    const safeLimit = Math.min(Math.max(1, Number(limit) || 200), 10000);
+    const db = getDatabase();
+    if (channelIdx !== undefined && channelIdx !== null) {
+      const ch = typeof channelIdx === 'number' ? Math.trunc(channelIdx) : 0;
+      return db
+        .prepare(
+          'SELECT * FROM meshcore_messages WHERE channel_idx = ? ORDER BY timestamp ASC LIMIT ?',
+        )
+        .all(ch, safeLimit);
+    }
+    return db
+      .prepare('SELECT * FROM meshcore_messages ORDER BY timestamp ASC LIMIT ?')
+      .all(safeLimit);
+  } catch (err) {
+    console.error(
+      '[IPC] db:getMeshcoreMessages failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+ipcMain.handle('db:getMeshcoreContacts', () => {
+  try {
+    return getDatabase().prepare('SELECT * FROM meshcore_contacts').all();
+  } catch (err) {
+    console.error(
+      '[IPC] db:getMeshcoreContacts failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+ipcMain.handle('db:saveMeshcoreMessage', (_event, message) => {
+  try {
+    validateSaveMeshcoreMessage(message);
+    const m = message as Record<string, unknown>;
+    const db = getDatabase();
+    return db
+      .prepare(
+        'INSERT OR IGNORE INTO meshcore_messages ' +
+          '(sender_id, sender_name, payload, channel_idx, timestamp, status, packet_id, to_node) ' +
+          'VALUES (@sender_id, @sender_name, @payload, @channel_idx, @timestamp, @status, @packet_id, @to_node)',
+      )
+      .run({
+        sender_id: m.sender_id != null ? Number(m.sender_id) : null,
+        sender_name: m.sender_name != null ? String(m.sender_name) : null,
+        payload: m.payload as string,
+        channel_idx: m.channel_idx != null ? Math.trunc(Number(m.channel_idx)) : 0,
+        timestamp: Number(m.timestamp),
+        status: m.status != null ? String(m.status) : 'acked',
+        packet_id: m.packet_id != null ? Number(m.packet_id) : null,
+        to_node: m.to_node != null ? Number(m.to_node) : null,
+      });
+  } catch (err) {
+    console.error(
+      '[IPC] db:saveMeshcoreMessage failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+ipcMain.handle('db:saveMeshcoreContact', (_event, contact) => {
+  try {
+    validateSaveMeshcoreContact(contact);
+    const c = contact as Record<string, unknown>;
+    const db = getDatabase();
+    return db
+      .prepare(
+        'INSERT OR REPLACE INTO meshcore_contacts ' +
+          '(node_id, public_key, adv_name, contact_type, last_advert, adv_lat, adv_lon, last_snr, last_rssi, favorited, nickname) ' +
+          'VALUES (@node_id, @public_key, @adv_name, @contact_type, @last_advert, @adv_lat, @adv_lon, @last_snr, @last_rssi, ' +
+          'COALESCE((SELECT favorited FROM meshcore_contacts WHERE node_id = @node_id), 0), ' +
+          'COALESCE(@nickname, (SELECT nickname FROM meshcore_contacts WHERE node_id = @node_id)))',
+      )
+      .run({
+        node_id: Number(c.node_id),
+        public_key: c.public_key as string,
+        adv_name: c.adv_name != null ? String(c.adv_name) : null,
+        contact_type: c.contact_type != null ? Number(c.contact_type) : 0,
+        last_advert: c.last_advert != null ? Number(c.last_advert) : null,
+        adv_lat: c.adv_lat != null ? Number(c.adv_lat) : null,
+        adv_lon: c.adv_lon != null ? Number(c.adv_lon) : null,
+        last_snr: c.last_snr != null ? Number(c.last_snr) : null,
+        last_rssi: c.last_rssi != null ? Number(c.last_rssi) : null,
+        nickname: c.nickname != null ? String(c.nickname) : null,
+      });
+  } catch (err) {
+    console.error(
+      '[IPC] db:saveMeshcoreContact failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+ipcMain.handle(
+  'db:updateMeshcoreContactNickname',
+  (_event, nodeId: number, nickname: string | null) => {
+    try {
+      const id = safeNonNegativeInt(nodeId);
+      if (nickname != null && (typeof nickname !== 'string' || nickname.length > MAX_NODE_STRING))
+        throw new Error('db:updateMeshcoreContactNickname: invalid nickname');
+      getDatabase()
+        .prepare('UPDATE meshcore_contacts SET nickname = ? WHERE node_id = ?')
+        .run(nickname ?? null, id);
+    } catch (err) {
+      console.error(
+        '[IPC] db:updateMeshcoreContactNickname failed:',
+        sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+      );
+      throw err;
+    }
+  },
+);
+
+ipcMain.handle('meshcore:openJsonFile', async () => {
+  if (!mainWindow) return null;
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Import Repeaters JSON',
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+    properties: ['openFile'],
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  try {
+    const raw = fs.readFileSync(result.filePaths[0], 'utf-8');
+    if (raw.length > 5 * 1024 * 1024) throw new Error('File too large (max 5 MB)');
+    return raw;
+  } catch (err) {
+    console.error(
+      '[IPC] meshcore:openJsonFile failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+ipcMain.handle('db:updateMeshcoreMessageStatus', (_event, packetId: number, status: string) => {
+  try {
+    const pid = Number(packetId);
+    if (!Number.isFinite(pid)) throw new Error('db:updateMeshcoreMessageStatus: invalid packetId');
+    if (typeof status !== 'string' || status.length > MAX_STATUS_STRING)
+      throw new Error('db:updateMeshcoreMessageStatus: invalid status');
+    return getDatabase()
+      .prepare('UPDATE meshcore_messages SET status = ? WHERE packet_id = ?')
+      .run(status, pid);
+  } catch (err) {
+    console.error(
+      '[IPC] db:updateMeshcoreMessageStatus failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+ipcMain.handle('db:deleteMeshcoreContact', (_event, nodeId: number) => {
+  try {
+    const id = safeNonNegativeInt(nodeId);
+    return getDatabase().prepare('DELETE FROM meshcore_contacts WHERE node_id = ?').run(id);
+  } catch (err) {
+    console.error(
+      '[IPC] db:deleteMeshcoreContact failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+ipcMain.handle('db:clearMeshcoreMessages', () => {
+  try {
+    return getDatabase().prepare('DELETE FROM meshcore_messages').run();
+  } catch (err) {
+    console.error(
+      '[IPC] db:clearMeshcoreMessages failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+ipcMain.handle('db:clearMeshcoreContacts', () => {
+  try {
+    return getDatabase().prepare('DELETE FROM meshcore_contacts').run();
+  } catch (err) {
+    console.error(
+      '[IPC] db:clearMeshcoreContacts failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+ipcMain.handle(
+  'db:updateMeshcoreContactAdvert',
+  (_e, nodeId: number, lastAdvert: number | null, advLat: number | null, advLon: number | null) => {
+    try {
+      const safeNodeId = safeNonNegativeInt(nodeId);
+      getDatabase()
+        .prepare(
+          'UPDATE meshcore_contacts SET last_advert = ?, adv_lat = ?, adv_lon = ? WHERE node_id = ?',
+        )
+        .run(lastAdvert, advLat, advLon, safeNodeId);
+    } catch (err) {
+      console.error(
+        '[IPC] db:updateMeshcoreContactAdvert error:',
+        sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+      );
+      throw err;
+    }
+  },
+);
+
+// ─── MeshCore TCP bridge ───────────────────────────────────────────
+let meshcoreTcpSocket: net.Socket | null = null;
+
+const MAX_TCP_HOST_LENGTH = 253;
+
+ipcMain.handle('meshcore:tcp-connect', (_event, host: string, port: number) => {
+  return new Promise<void>((resolve, reject) => {
+    const p = Number(port);
+    if (!Number.isInteger(p) || p < 1 || p > 65535) {
+      reject(new Error('Invalid port'));
+      return;
+    }
+    if (typeof host !== 'string' || host.length === 0 || host.length > MAX_TCP_HOST_LENGTH) {
+      reject(new Error('Invalid host'));
+      return;
+    }
+    if (meshcoreTcpSocket) {
+      meshcoreTcpSocket.destroy();
+      meshcoreTcpSocket = null;
+    }
+    const socket = new net.Socket();
+    meshcoreTcpSocket = socket;
+    socket.connect(p, host, () => {
+      console.log('[IPC] meshcore:tcp-connect connected to', host, p);
+      resolve();
+    });
+    socket.on('data', (data) => {
+      mainWindow?.webContents.send('meshcore:tcp-data', Array.from(data));
+    });
+    socket.on('close', () => {
+      mainWindow?.webContents.send('meshcore:tcp-disconnected');
+      if (meshcoreTcpSocket === socket) meshcoreTcpSocket = null;
+    });
+    socket.on('error', (err) => {
+      console.error('[IPC] meshcore:tcp-connect error:', sanitizeLogMessage(err.message));
+      reject(err);
+      if (meshcoreTcpSocket === socket) meshcoreTcpSocket = null;
+    });
+  });
+});
+
+ipcMain.handle('meshcore:tcp-write', (_event, bytes: number[]) => {
+  if (!meshcoreTcpSocket) {
+    console.warn('[IPC] meshcore:tcp-write: no active socket, dropping write');
+    return;
+  }
+  meshcoreTcpSocket.write(new Uint8Array(bytes), (err) => {
+    if (err) console.error('[IPC] meshcore:tcp-write error:', sanitizeLogMessage(err.message));
+  });
+});
+
+ipcMain.handle('meshcore:tcp-disconnect', () => {
+  if (meshcoreTcpSocket) {
+    console.log('[IPC] meshcore:tcp-disconnect');
+    meshcoreTcpSocket.destroy();
+    meshcoreTcpSocket = null;
   }
 });
 

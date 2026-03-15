@@ -44,8 +44,18 @@ export function initDatabase(): void {
     const setup = db.transaction(() => {
       createBaseTables();
       if (isFreshDb) {
-        // Base DDL already includes all columns; stamp current schema version
-        db!.pragma('user_version = 10');
+        // Base DDL already includes all columns; create constraint indexes that
+        // migrations would otherwise add, then stamp current schema version.
+        // idx_msg_packet_dedup is omitted from createBaseTables so that existing
+        // databases can be migrated safely (v12 deduplicates first).
+        db!
+          .prepare(
+            `CREATE UNIQUE INDEX IF NOT EXISTS idx_msg_packet_dedup
+           ON messages(sender_id, packet_id)
+           WHERE packet_id IS NOT NULL`,
+          )
+          .run();
+        db!.pragma('user_version = 13');
       } else {
         runMigrations();
       }
@@ -119,6 +129,37 @@ function createBaseTables(): void {
       CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
       CREATE INDEX IF NOT EXISTS idx_messages_channel_ts ON messages(channel, timestamp DESC);
       CREATE INDEX IF NOT EXISTS idx_nodes_last_heard ON nodes(last_heard);
+
+      CREATE TABLE IF NOT EXISTS meshcore_contacts (
+        node_id      INTEGER PRIMARY KEY,
+        public_key   TEXT NOT NULL,
+        adv_name     TEXT,
+        contact_type INTEGER DEFAULT 0,
+        last_advert  INTEGER,
+        adv_lat      REAL,
+        adv_lon      REAL,
+        last_snr     REAL,
+        last_rssi    REAL,
+        favorited    INTEGER DEFAULT 0,
+        nickname     TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS meshcore_messages (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        sender_id   INTEGER,
+        sender_name TEXT,
+        payload     TEXT NOT NULL,
+        channel_idx INTEGER DEFAULT 0,
+        timestamp   INTEGER NOT NULL,
+        status      TEXT DEFAULT 'acked',
+        packet_id   INTEGER,
+        to_node     INTEGER
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_mc_msgs_ts ON meshcore_messages(timestamp);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_mc_msg_dedup
+        ON meshcore_messages(sender_id, timestamp, channel_idx)
+        WHERE sender_id IS NOT NULL;
     `);
   } catch (error) {
     console.error(
@@ -278,12 +319,94 @@ function runMigrations(): void {
     try {
       db!.prepare('ALTER TABLE messages ADD COLUMN received_via TEXT').run();
       db!.pragma('user_version = 10');
+      userVersion = 10;
     } catch (e) {
       console.error(
         '[db] migration v10 failed',
         sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
       );
       throw new Error(`Migration v10 failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  if (userVersion < 11) {
+    try {
+      db!.exec(
+        'CREATE TABLE IF NOT EXISTS meshcore_contacts (' +
+          'node_id INTEGER PRIMARY KEY, public_key TEXT NOT NULL, adv_name TEXT,' +
+          'contact_type INTEGER DEFAULT 0, last_advert INTEGER,' +
+          'adv_lat REAL, adv_lon REAL, last_snr REAL, last_rssi REAL, favorited INTEGER DEFAULT 0)',
+      );
+      db!.exec(
+        'CREATE TABLE IF NOT EXISTS meshcore_messages (' +
+          'id INTEGER PRIMARY KEY AUTOINCREMENT, sender_id INTEGER, sender_name TEXT,' +
+          'payload TEXT NOT NULL, channel_idx INTEGER DEFAULT 0, timestamp INTEGER NOT NULL,' +
+          "status TEXT DEFAULT 'acked', packet_id INTEGER, to_node INTEGER)",
+      );
+      db!.exec('CREATE INDEX IF NOT EXISTS idx_mc_msgs_ts ON meshcore_messages(timestamp)');
+      db!.exec(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_mc_msg_dedup ' +
+          'ON meshcore_messages(sender_id, timestamp, channel_idx) ' +
+          'WHERE sender_id IS NOT NULL',
+      );
+      db!.pragma('user_version = 11');
+    } catch (e) {
+      console.error(
+        '[db] migration v11 failed',
+        sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+      );
+      throw new Error(`Migration v11 failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  if (userVersion < 12) {
+    try {
+      // Remove duplicate rows before adding constraint (keep earliest id per sender+packet pair)
+      db!
+        .prepare(
+          `DELETE FROM messages
+         WHERE id NOT IN (
+           SELECT MIN(id) FROM messages
+           GROUP BY sender_id, packet_id
+           HAVING packet_id IS NOT NULL
+         )
+         AND packet_id IS NOT NULL`,
+        )
+        .run();
+      db!
+        .prepare(
+          `CREATE UNIQUE INDEX IF NOT EXISTS idx_msg_packet_dedup
+           ON messages(sender_id, packet_id)
+           WHERE packet_id IS NOT NULL`,
+        )
+        .run();
+      db!.pragma('user_version = 12');
+      userVersion = 12;
+    } catch (e) {
+      console.error(
+        '[db] migration v12 failed',
+        sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+      );
+      throw new Error(`Migration v12 failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  if (userVersion < 13) {
+    try {
+      const columns = db!.prepare('PRAGMA table_info(meshcore_contacts)').all() as {
+        name: string;
+      }[];
+      if (!columns.some((c) => c.name === 'nickname')) {
+        db!.prepare('ALTER TABLE meshcore_contacts ADD COLUMN nickname TEXT').run();
+      }
+      db!.pragma('user_version = 13');
+      userVersion = 13;
+    } catch (e) {
+      console.error(
+        '[db] migration v13 failed',
+        sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+      );
+      throw new Error(`Migration v13 failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 }
@@ -302,6 +425,10 @@ export function mergeDatabase(sourcePath: string) {
       throw new Error('Merge source must be a file under 500 MB');
     }
   } catch (err) {
+    console.error(
+      '[db] mergeDatabase failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
     if (err instanceof Error && err.message === 'Merge source must be a file under 500 MB')
       throw err;
     throw new Error(
@@ -376,6 +503,14 @@ export function mergeDatabase(sourcePath: string) {
 export function deleteNodesBySource(source: string): number {
   const db = getDatabase();
   const result = db.prepare('DELETE FROM nodes WHERE source = ?').run(source);
+  return result.changes;
+}
+
+export function deleteNodesWithoutLongname(): number {
+  const db = getDatabase();
+  const result = db
+    .prepare("DELETE FROM nodes WHERE long_name IS NULL OR TRIM(long_name) = ''")
+    .run();
   return result.changes;
 }
 

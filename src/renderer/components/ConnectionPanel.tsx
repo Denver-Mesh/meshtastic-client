@@ -5,6 +5,7 @@ import type {
   BluetoothDevice,
   ConnectionType,
   DeviceState,
+  MeshProtocol,
   MQTTSettings,
   MQTTStatus,
   SerialPortInfo,
@@ -18,28 +19,31 @@ interface LastConnection {
   serialPortId?: string;
 }
 
-const LAST_CONNECTION_KEY = 'mesh-client:lastConnection';
 const LAST_BLE_DEVICE_KEY = 'mesh-client:lastBleDevice';
 const LAST_SERIAL_PORT_KEY = 'mesh-client:lastSerialPort';
 
-function loadLastConnection(): LastConnection | null {
+function lastConnectionKey(p: MeshProtocol) {
+  return `mesh-client:lastConnection:${p}`;
+}
+
+function loadLastConnection(p: MeshProtocol): LastConnection | null {
   return parseStoredJson<LastConnection>(
-    localStorage.getItem(LAST_CONNECTION_KEY),
+    localStorage.getItem(lastConnectionKey(p)),
     'ConnectionPanel loadLastConnection',
   );
 }
 
-function saveLastConnection(c: LastConnection) {
+function saveLastConnection(p: MeshProtocol, c: LastConnection) {
   try {
-    localStorage.setItem(LAST_CONNECTION_KEY, JSON.stringify(c));
+    localStorage.setItem(lastConnectionKey(p), JSON.stringify(c));
   } catch (e) {
     console.debug('[ConnectionPanel] saveLastConnection', e);
   }
 }
 
-function clearLastConnection() {
+function clearLastConnection(p: MeshProtocol) {
   try {
-    localStorage.removeItem(LAST_CONNECTION_KEY);
+    localStorage.removeItem(lastConnectionKey(p));
   } catch (e) {
     console.debug('[ConnectionPanel] clearLastConnection', e);
   }
@@ -174,6 +178,8 @@ function MqttGlobeIcon({ connected }: { connected: boolean }) {
 interface Props {
   state: DeviceState;
   onConnect: (type: ConnectionType, httpAddress?: string) => Promise<void>;
+  onRefreshContacts?: () => Promise<void>;
+  onSendAdvert?: () => Promise<void>;
   onAutoConnect: (
     type: ConnectionType,
     httpAddress?: string,
@@ -182,21 +188,32 @@ interface Props {
   onDisconnect: () => Promise<void>;
   mqttStatus: MQTTStatus;
   myNodeLabel?: string;
+  protocol: MeshProtocol;
+  onProtocolChange: (p: MeshProtocol) => void;
+  manualAddContacts?: boolean;
+  onToggleManualContacts?: (manual: boolean) => Promise<void>;
 }
 
 export default function ConnectionPanel({
   state,
   onConnect,
+  onRefreshContacts,
+  onSendAdvert,
   onAutoConnect,
   onDisconnect,
   mqttStatus,
   myNodeLabel,
+  protocol,
+  onProtocolChange,
+  manualAddContacts,
+  onToggleManualContacts,
 }: Props) {
   const [connectionType, setConnectionType] = useState<ConnectionType>('ble');
   const [httpAddress, setHttpAddress] = useState(() => {
-    const last = loadLastConnection();
+    const last = loadLastConnection(protocol);
     return last?.type === 'http' && last.httpAddress ? last.httpAddress : 'meshtastic.local';
   });
+  const [tcpHost, setTcpHost] = useState('localhost');
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [connectionStage, setConnectionStage] = useState('');
@@ -247,13 +264,20 @@ export default function ConnectionPanel({
   const [showSerialPicker, setShowSerialPicker] = useState(false);
 
   // ─── Last connection + auto-connect state ─────────────────────
-  const [lastConnection, setLastConnection] = useState<LastConnection | null>(loadLastConnection);
+  const [lastConnection, setLastConnection] = useState<LastConnection | null>(() =>
+    loadLastConnection(protocol),
+  );
   const autoConnectFiredRef = useRef(false);
   const autoConnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isAutoConnectingRef = useRef(false);
   const [isAutoConnecting, setIsAutoConnecting] = useState(false);
   // Tracks BLE device name at selection time, used when saving LastConnection
   const lastSelectedBleNameRef = useRef<string | null>(null);
+
+  // Reload last connection when protocol switches (each protocol has its own key)
+  useEffect(() => {
+    setLastConnection(loadLastConnection(protocol));
+  }, [protocol]);
 
   // Update connection stage based on state transitions, and save last connection on success
   useEffect(() => {
@@ -293,7 +317,7 @@ export default function ConnectionPanel({
           const serialId = loadLastSerialPort();
           if (serialId) conn.serialPortId = serialId;
         }
-        saveLastConnection(conn);
+        saveLastConnection(protocol, conn);
         setLastConnection(conn);
       }
     } else if (state.status === 'disconnected') {
@@ -310,6 +334,7 @@ export default function ConnectionPanel({
     showSerialPicker,
     httpAddress,
     connectionType,
+    protocol,
   ]);
 
   // Listen for BLE devices discovered by main process
@@ -558,6 +583,27 @@ export default function ConnectionPanel({
     state.status === 'stale' ||
     state.status === 'reconnecting';
 
+  // ─── Protocol toggle (shown in both connected and disconnected views) ──
+  const protocolToggle = (
+    <div className="flex rounded-lg overflow-hidden border border-gray-700 bg-deep-black">
+      {(['meshtastic', 'meshcore'] as const).map((p) => (
+        <button
+          key={p}
+          onClick={() => onProtocolChange(p)}
+          className={`flex-1 py-2 text-sm font-medium transition-colors ${
+            protocol === p
+              ? p === 'meshcore'
+                ? 'bg-purple-600 text-white'
+                : 'bg-brand-green/20 text-brand-green border-brand-green'
+              : 'text-muted hover:text-gray-200 hover:bg-secondary-dark'
+          }`}
+        >
+          {p === 'meshtastic' ? 'Meshtastic' : 'MeshCore'}
+        </button>
+      ))}
+    </div>
+  );
+
   // ─── Connecting Progress View ───────────────────────────────────
   if (connecting && !isConnected) {
     return (
@@ -590,7 +636,7 @@ export default function ConnectionPanel({
               {bleDevices.length === 0 ? (
                 <div className="px-4 py-6 text-center text-muted text-sm">
                   <Spinner className="w-5 h-5 text-muted mx-auto mb-2" />
-                  Scanning for Meshtastic devices...
+                  Scanning for {protocol === 'meshcore' ? 'MeshCore' : 'Meshtastic'} devices...
                 </div>
               ) : (
                 bleDevices.map((device) => {
@@ -895,6 +941,7 @@ export default function ConnectionPanel({
   if (isConnected) {
     return (
       <div className="max-w-lg mx-auto space-y-6">
+        {protocolToggle}
         <button
           onClick={async () => {
             await onDisconnect();
@@ -963,10 +1010,51 @@ export default function ConnectionPanel({
             >
               Disconnect
             </button>
+            {onRefreshContacts && (
+              <button
+                onClick={onRefreshContacts}
+                className="w-full px-4 py-2.5 border border-purple-600 text-purple-400 hover:bg-purple-900/30 hover:text-purple-300 text-sm font-medium rounded-lg transition-colors"
+              >
+                Refresh Contacts
+              </button>
+            )}
+            {onSendAdvert && (
+              <button
+                onClick={onSendAdvert}
+                className="w-full px-4 py-2.5 border border-gray-600 text-gray-300 hover:bg-secondary-dark hover:text-gray-100 text-sm font-medium rounded-lg transition-colors"
+              >
+                Send Advert
+              </button>
+            )}
           </div>
         </div>
 
-        {mqttSection}
+        {onToggleManualContacts !== undefined && (
+          <div className="border border-gray-700 rounded-xl p-4 flex items-center justify-between gap-4">
+            <div>
+              <div className="text-sm font-medium text-gray-200">Manual Contact Approval</div>
+              <div className="text-xs text-muted mt-0.5">
+                Require manual approval before new contacts appear
+              </div>
+            </div>
+            <button
+              onClick={() => onToggleManualContacts(!manualAddContacts)}
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${
+                manualAddContacts ? 'bg-purple-500' : 'bg-gray-600'
+              }`}
+              role="switch"
+              aria-checked={manualAddContacts}
+            >
+              <span
+                className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                  manualAddContacts ? 'translate-x-4' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+        )}
+
+        {protocol === 'meshtastic' && mqttSection}
       </div>
     );
   }
@@ -974,6 +1062,7 @@ export default function ConnectionPanel({
   // ─── Disconnected View ─────────────────────────────────────────
   return (
     <div className="max-w-lg mx-auto space-y-6">
+      {protocolToggle}
       {mqttStatus === 'connected' && (
         <button
           onClick={() => {
@@ -1013,7 +1102,7 @@ export default function ConnectionPanel({
           </div>
           <button
             onClick={() => {
-              clearLastConnection();
+              clearLastConnection(protocol);
               setLastConnection(null);
             }}
             className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
@@ -1046,29 +1135,51 @@ export default function ConnectionPanel({
           {/* Connection type selector */}
           <div className="space-y-2">
             <label className="text-xs text-muted">Connection Type</label>
-            <div className="grid grid-cols-3 gap-2">
-              {(['ble', 'serial', 'http'] as const).map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setConnectionType(type)}
-                  className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
-                    connectionType === type
-                      ? 'text-white ring-2 ring-bright-green'
-                      : 'bg-secondary-dark text-gray-300 hover:bg-gray-600'
-                  }`}
-                  style={connectionType === type ? { backgroundColor: '#4CAF50' } : undefined}
-                >
-                  <ConnectionIcon type={type} />
-                  {type === 'ble' && 'Bluetooth'}
-                  {type === 'serial' && 'USB Serial'}
-                  {type === 'http' && 'WiFi/HTTP'}
-                </button>
-              ))}
-            </div>
+            {protocol === 'meshtastic' ? (
+              <div className="grid grid-cols-3 gap-2">
+                {(['ble', 'serial', 'http'] as const).map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => setConnectionType(type)}
+                    className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+                      connectionType === type
+                        ? 'text-white ring-2 ring-bright-green'
+                        : 'bg-secondary-dark text-gray-300 hover:bg-gray-600'
+                    }`}
+                    style={connectionType === type ? { backgroundColor: '#4CAF50' } : undefined}
+                  >
+                    <ConnectionIcon type={type} />
+                    {type === 'ble' && 'Bluetooth'}
+                    {type === 'serial' && 'USB Serial'}
+                    {type === 'http' && 'WiFi/HTTP'}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                {(['ble', 'serial', 'http'] as const).map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => setConnectionType(type)}
+                    className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+                      connectionType === type
+                        ? 'text-white ring-2 ring-purple-500'
+                        : 'bg-secondary-dark text-gray-300 hover:bg-gray-600'
+                    }`}
+                    style={connectionType === type ? { backgroundColor: '#7c3aed' } : undefined}
+                  >
+                    <ConnectionIcon type={type} />
+                    {type === 'ble' && 'Bluetooth'}
+                    {type === 'serial' && 'USB Serial'}
+                    {type === 'http' && 'TCP/IP'}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* HTTP address input */}
-          {connectionType === 'http' && (
+          {/* HTTP / TCP address input */}
+          {connectionType === 'http' && protocol === 'meshtastic' && (
             <div className="space-y-1">
               <label className="text-xs text-muted">Device Address</label>
               <input
@@ -1081,10 +1192,25 @@ export default function ConnectionPanel({
               <p className="text-xs text-muted">Enter hostname or IP address (without http://)</p>
             </div>
           )}
+          {connectionType === 'http' && protocol === 'meshcore' && (
+            <div className="space-y-1">
+              <label className="text-xs text-muted">Host (port 4403)</label>
+              <input
+                type="text"
+                value={tcpHost}
+                onChange={(e) => setTcpHost(e.target.value)}
+                placeholder="localhost or 192.168.1.x"
+                className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-purple-500 focus:outline-none text-sm"
+              />
+              <p className="text-xs text-muted">
+                MeshCore companion radio host (connects on port 4403)
+              </p>
+            </div>
+          )}
 
           {/* Connection hints */}
           <div className="text-xs text-muted bg-secondary-dark rounded-lg p-3 space-y-1">
-            {connectionType === 'ble' && (
+            {connectionType === 'ble' && protocol === 'meshtastic' && (
               <>
                 <p>Ensure your Meshtastic device has Bluetooth enabled and is in range.</p>
                 <p>
@@ -1093,13 +1219,25 @@ export default function ConnectionPanel({
                 </p>
               </>
             )}
-            {connectionType === 'serial' && (
+            {connectionType === 'ble' && protocol === 'meshcore' && (
+              <>
+                <p>Ensure your MeshCore device has Bluetooth enabled and is in range.</p>
+                <p>Click Connect to scan for nearby MeshCore devices.</p>
+              </>
+            )}
+            {connectionType === 'serial' && protocol === 'meshtastic' && (
               <>
                 <p>Connect your Meshtastic device via USB cable.</p>
                 <p>Click Connect — a port picker will appear with available serial ports.</p>
               </>
             )}
-            {connectionType === 'http' && (
+            {connectionType === 'serial' && protocol === 'meshcore' && (
+              <>
+                <p>Connect your MeshCore device via USB cable.</p>
+                <p>Click Connect — a port picker will appear with available serial ports.</p>
+              </>
+            )}
+            {connectionType === 'http' && protocol === 'meshtastic' && (
               <>
                 <p>
                   Enter the IP address or hostname of a WiFi-connected Meshtastic node. The device
@@ -1111,13 +1249,21 @@ export default function ConnectionPanel({
                 </p>
               </>
             )}
+            {connectionType === 'http' && protocol === 'meshcore' && (
+              <p>
+                Enter the hostname or IP address of your MeshCore companion radio. It must be
+                reachable on port 4403.
+              </p>
+            )}
           </div>
 
           {/* Connect button */}
           <div className="pt-1">
             <button
+              type="button"
               onClick={handleConnect}
-              className="w-full px-4 py-2.5 text-white text-sm font-medium rounded-lg transition-colors"
+              disabled={connecting || state.status === 'connecting'}
+              className="w-full px-4 py-2.5 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ backgroundColor: '#4CAF50' }}
             >
               Connect
@@ -1126,7 +1272,7 @@ export default function ConnectionPanel({
         </div>
       </div>
 
-      {mqttSection}
+      {protocol === 'meshtastic' && mqttSection}
     </div>
   );
 }

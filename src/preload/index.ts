@@ -58,9 +58,50 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setNodeFavorited: (nodeId: number, favorited: boolean) =>
       ipcRenderer.invoke('db:setNodeFavorited', nodeId, favorited),
     deleteNodesBySource: (source: string) => ipcRenderer.invoke('db:deleteNodesBySource', source),
+    deleteNodesWithoutLongname: () => ipcRenderer.invoke('db:deleteNodesWithoutLongname'),
     clearNodePositions: () => ipcRenderer.invoke('db:clearNodePositions'),
     updateMessageReceivedVia: (packetId: number) =>
       ipcRenderer.invoke('db:updateMessageReceivedVia', packetId),
+
+    getMeshcoreMessages: (channelIdx?: number, limit?: number) =>
+      ipcRenderer.invoke('db:getMeshcoreMessages', channelIdx, limit),
+    getMeshcoreContacts: () => ipcRenderer.invoke('db:getMeshcoreContacts'),
+    saveMeshcoreMessage: (message: {
+      sender_id?: number | null;
+      sender_name?: string | null;
+      payload: string;
+      channel_idx?: number;
+      timestamp: number;
+      status?: string;
+      packet_id?: number | null;
+      to_node?: number | null;
+    }) => ipcRenderer.invoke('db:saveMeshcoreMessage', message),
+    saveMeshcoreContact: (contact: {
+      node_id: number;
+      public_key: string;
+      adv_name?: string | null;
+      contact_type?: number;
+      last_advert?: number | null;
+      adv_lat?: number | null;
+      adv_lon?: number | null;
+      last_snr?: number | null;
+      last_rssi?: number | null;
+      nickname?: string | null;
+    }) => ipcRenderer.invoke('db:saveMeshcoreContact', contact),
+    updateMeshcoreContactAdvert: (
+      nodeId: number,
+      lastAdvert: number | null,
+      advLat: number | null,
+      advLon: number | null,
+    ) => ipcRenderer.invoke('db:updateMeshcoreContactAdvert', nodeId, lastAdvert, advLat, advLon),
+    updateMeshcoreMessageStatus: (packetId: number, status: string) =>
+      ipcRenderer.invoke('db:updateMeshcoreMessageStatus', packetId, status),
+    deleteMeshcoreContact: (nodeId: number) =>
+      ipcRenderer.invoke('db:deleteMeshcoreContact', nodeId),
+    clearMeshcoreMessages: () => ipcRenderer.invoke('db:clearMeshcoreMessages'),
+    clearMeshcoreContacts: () => ipcRenderer.invoke('db:clearMeshcoreContacts'),
+    updateMeshcoreContactNickname: (nodeId: number, nickname: string | null) =>
+      ipcRenderer.invoke('db:updateMeshcoreContactNickname', nodeId, nickname),
   },
 
   // ─── MQTT ──────────────────────────────────────────────────────
@@ -216,6 +257,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
   notifyDeviceDisconnected: () => ipcRenderer.send('device-disconnected'),
   setTrayUnread: (count: number) => ipcRenderer.send('set-tray-unread', count),
   quitApp: () => ipcRenderer.invoke('app:quit'),
+
+  // ─── MeshCore TCP bridge ────────────────────────────────────────
+  meshcore: {
+    tcp: {
+      connect: (host: string, port: number) =>
+        ipcRenderer.invoke('meshcore:tcp-connect', host, port),
+      write: (bytes: number[]) => ipcRenderer.invoke('meshcore:tcp-write', bytes),
+      disconnect: () => ipcRenderer.invoke('meshcore:tcp-disconnect'),
+      onData: (cb: (bytes: number[]) => void) => {
+        const handler = (_: unknown, bytes: number[]) => cb(bytes);
+        ipcRenderer.on('meshcore:tcp-data', handler);
+        return () => ipcRenderer.off('meshcore:tcp-data', handler);
+      },
+      onDisconnected: (cb: () => void) => {
+        const handler = () => cb();
+        ipcRenderer.on('meshcore:tcp-disconnected', handler);
+        return () => ipcRenderer.off('meshcore:tcp-disconnected', handler);
+      },
+    },
+    openJsonFile: (): Promise<string | null> => ipcRenderer.invoke('meshcore:openJsonFile'),
+  },
 
   // ─── Log panel ───────────────────────────────────────────────────
   log: {

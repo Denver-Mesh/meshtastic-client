@@ -10,6 +10,7 @@ import {
   YAxis,
 } from 'recharts';
 
+import type { ProtocolCapabilities } from '../lib/radio/BaseRadioProvider';
 import type { EnvironmentTelemetryPoint, TelemetryPoint } from '../lib/types';
 import RefreshButton from './RefreshButton';
 
@@ -25,6 +26,8 @@ interface Props {
   onToggleFahrenheit: () => void;
   onRefresh: () => Promise<void>;
   isConnected: boolean;
+  /** Protocol capabilities — hides environment section when not supported. */
+  capabilities?: ProtocolCapabilities;
 }
 
 export default function TelemetryPanel({
@@ -35,7 +38,9 @@ export default function TelemetryPanel({
   onToggleFahrenheit,
   onRefresh,
   isConnected,
+  capabilities,
 }: Props) {
+  const showEnvironment = capabilities?.hasEnvironmentTelemetry !== false;
   const chartData = useMemo(
     () =>
       telemetry.map((t, i) => ({
@@ -173,7 +178,7 @@ export default function TelemetryPanel({
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold text-gray-200">Telemetry</h2>
         <div className="flex items-center gap-2">
-          {hasTemp && (
+          {showEnvironment && hasTemp && (
             <button
               onClick={onToggleFahrenheit}
               title="Toggle temperature unit"
@@ -214,7 +219,9 @@ export default function TelemetryPanel({
       signalTelemetry.length === 0 &&
       environmentTelemetry.length === 0 ? (
         <div className="text-center text-muted py-12">
-          No telemetry data yet. Connect to a device to see real-time metrics.
+          {isConnected
+            ? 'No telemetry data yet. Waiting for data from device…'
+            : 'No telemetry data yet. Connect to a device to see real-time metrics.'}
         </div>
       ) : (
         <>
@@ -349,7 +356,7 @@ export default function TelemetryPanel({
           )}
 
           {/* Temperature & Humidity Chart */}
-          {(hasTemp || hasHumidity) && (
+          {showEnvironment && (hasTemp || hasHumidity) && (
             <div className="bg-deep-black rounded-lg p-4">
               <h3 className="text-sm font-medium text-muted mb-3">
                 Temperature {hasHumidity ? '& Humidity' : ''}
@@ -424,7 +431,7 @@ export default function TelemetryPanel({
           )}
 
           {/* Barometric Pressure Chart */}
-          {hasPressure && (
+          {showEnvironment && hasPressure && (
             <div className="bg-deep-black rounded-lg p-4">
               <h3 className="text-sm font-medium text-muted mb-3">Barometric Pressure</h3>
               <ResponsiveContainer width="100%" height={250}>
@@ -466,7 +473,7 @@ export default function TelemetryPanel({
           )}
 
           {/* Air Quality (IAQ) Chart */}
-          {hasIaq && (
+          {showEnvironment && hasIaq && (
             <div className="bg-deep-black rounded-lg p-4">
               <h3 className="text-sm font-medium text-muted mb-3">Air Quality (IAQ)</h3>
               <ResponsiveContainer width="100%" height={250}>

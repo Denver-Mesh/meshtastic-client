@@ -16,6 +16,7 @@ import {
 } from '../lib/themeColors';
 import type { MeshNode } from '../lib/types';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
+import { usePositionHistoryStore } from '../stores/positionHistoryStore';
 import { useToast } from './Toast';
 
 // ─── Confirmation Modal ─────────────────────────────────────────
@@ -67,6 +68,7 @@ function ConfirmModal({
 interface AdminSettings {
   autoPruneEnabled: boolean;
   autoPruneDays: number;
+  pruneEmptyNamesEnabled: boolean;
   nodeCapEnabled: boolean;
   nodeCapCount: number;
   distanceFilterEnabled: boolean;
@@ -80,6 +82,7 @@ interface AdminSettings {
 const DEFAULT_SETTINGS: AdminSettings = {
   autoPruneEnabled: false,
   autoPruneDays: 30,
+  pruneEmptyNamesEnabled: true,
   nodeCapEnabled: true,
   nodeCapCount: 10000,
   distanceFilterEnabled: false,
@@ -141,6 +144,8 @@ export default function AppPanel({
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const { addToast } = useToast();
   const clearDiagnostics = useDiagnosticsStore((s) => s.clearDiagnostics);
+  const showPaths = usePositionHistoryStore((s) => s.showPaths);
+  const setShowPaths = usePositionHistoryStore((s) => s.setShowPaths);
 
   // ─── Node retention settings ────────────────────────────────
   const [settings, setSettings] = useState<AdminSettings>(loadSettings);
@@ -334,6 +339,7 @@ export default function AppPanel({
       const nodeActions = [
         'Delete Old Nodes',
         'Prune MQTT-only Nodes',
+        'Prune Unnamed Nodes',
         'Prune Zero Island Nodes',
         'Prune Distant Nodes',
         'Clear Nodes',
@@ -633,6 +639,18 @@ export default function AppPanel({
               Hide MQTT-only nodes from map and node list
             </label>
           </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="showMovementPaths"
+              checked={showPaths}
+              onChange={(e) => setShowPaths(e.target.checked)}
+              className="accent-brand-green"
+            />
+            <label htmlFor="showMovementPaths" className="text-sm text-gray-300 cursor-pointer">
+              Show movement paths (last 60 min)
+            </label>
+          </div>
         </div>
       </div>
 
@@ -665,6 +683,23 @@ export default function AppPanel({
               className="w-20 px-2 py-1 bg-deep-black border border-gray-600 rounded text-gray-200 text-sm text-right focus:border-brand-green focus:outline-none disabled:opacity-40"
             />
             <span className="text-sm text-gray-300">days</span>
+          </div>
+
+          {/* Prune unnamed nodes on startup */}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="pruneEmptyNames"
+              checked={settings.pruneEmptyNamesEnabled}
+              onChange={(e) => updateSetting('pruneEmptyNamesEnabled', e.target.checked)}
+              className="accent-brand-green"
+            />
+            <label
+              htmlFor="pruneEmptyNames"
+              className="text-sm text-gray-300 flex-1 cursor-pointer"
+            >
+              Remove unnamed nodes on startup
+            </label>
           </div>
 
           {/* Node cap */}
@@ -909,6 +944,25 @@ export default function AppPanel({
               className="w-full px-4 py-2.5 bg-red-900/50 text-red-300 hover:bg-red-900/70 border border-red-800 rounded-lg text-sm font-medium transition-colors text-left"
             >
               Prune MQTT-only Nodes
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                executeWithConfirmation({
+                  name: 'Prune Unnamed Nodes',
+                  title: 'Prune Unnamed Nodes',
+                  message:
+                    'This will permanently delete all nodes without a long name. They will be re-discovered when they broadcast again.',
+                  confirmLabel: 'Prune Unnamed Nodes',
+                  danger: true,
+                  action: async () => {
+                    await window.electronAPI.db.deleteNodesWithoutLongname();
+                  },
+                })
+              }
+              className="w-full px-4 py-2.5 bg-red-900/50 text-red-300 hover:bg-red-900/70 border border-red-800 rounded-lg text-sm font-medium transition-colors text-left"
+            >
+              Prune Unnamed Nodes
             </button>
             <button
               type="button"

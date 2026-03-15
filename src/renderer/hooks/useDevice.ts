@@ -11,9 +11,11 @@ import {
   safeDisconnect,
 } from '../lib/connection';
 import { validateCoords } from '../lib/coordUtils';
+import { containsMeshCorePattern, extractRssiSnr } from '../lib/foreignLoraDetection';
 import type { OurPosition } from '../lib/gpsSource';
 import { resolveOurPosition } from '../lib/gpsSource';
 import { parseStoredJson } from '../lib/parseStoredJson';
+import { MESHTASTIC_CAPABILITIES } from '../lib/radio/BaseRadioProvider';
 import { normalizeReactionEmoji } from '../lib/reactions';
 import { TransportManager } from '../lib/transport/TransportManager';
 import type { StatusUpdateEvent } from '../lib/transport/types';
@@ -29,6 +31,7 @@ import type {
   TelemetryPoint,
 } from '../lib/types';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
+import { usePositionHistoryStore } from '../stores/positionHistoryStore';
 
 function getMessageLoadLimit(): number {
   const s = parseStoredJson<{
@@ -105,6 +108,9 @@ export function useDevice() {
   const onStatusUpdateRef = useRef<(event: StatusUpdateEvent) => void>(() => {});
   // Tracks the tempId of an in-flight optimistic message (device path) so the echo can be skipped
   const pendingTempIdRef = useRef<number | undefined>(undefined);
+  // True while the device is in the configuring phase (replaying queued packets); messages
+  // received during this window are historical and should not increment the unread counter.
+  const isConfiguringRef = useRef<boolean>(false);
 
   // ─── GPS tracking ─────────────────────────────────────────────
   const deviceGpsModeRef = useRef<number>(0); // 0=DISABLED,1=ENABLED,2=NOT_PRESENT
@@ -374,7 +380,14 @@ export function useDevice() {
     window.electronAPI.db
       .getMessages(undefined, getMessageLoadLimit())
       .then((msgs) => {
-        setMessages(msgs.reverse());
+        const reversed = msgs.reverse();
+        setMessages(reversed);
+        // Seed dedup map so device config-sync replays are caught immediately
+        for (const m of reversed) {
+          if (m.packetId) {
+            seenPacketIds.current.set(m.packetId, Date.now() + 10 * 60 * 1000);
+          }
+        }
       })
       .catch((err) => {
         console.error('[useDevice] Failed to load messages:', err);
@@ -429,7 +442,7 @@ export function useDevice() {
         // Periodic NodeInfo broadcast so other nodes see this client (every 5 min)
         if (mqttPresenceIntervalRef.current) clearInterval(mqttPresenceIntervalRef.current);
         const sendPresence = () => {
-          if (deviceRef.current) {
+          if (deviceRef.current || mqttStatusRef.current !== 'connected') {
             if (mqttPresenceIntervalRef.current) {
               clearInterval(mqttPresenceIntervalRef.current);
               mqttPresenceIntervalRef.current = null;
@@ -443,7 +456,7 @@ export function useDevice() {
               shortName: 'MQTT',
               channelName: 'LongFast',
             })
-            .catch(() => {});
+            .catch((e) => console.debug('[useDevice] MQTT presence publish failed', e));
         };
         setTimeout(sendPresence, 10_000);
         mqttPresenceIntervalRef.current = setInterval(sendPresence, 5 * 60 * 1000);
@@ -513,7 +526,15 @@ export function useDevice() {
             updatedMqttNode,
             nodesRef.current.get(myNodeNumRef.current) ?? null,
             myNodeNumRef.current,
+            MESHTASTIC_CAPABILITIES,
           );
+      }
+      if (nodeUpdate.latitude != null && nodeUpdate.longitude != null) {
+        if (validateCoords(nodeUpdate.latitude, nodeUpdate.longitude).valid) {
+          usePositionHistoryStore
+            .getState()
+            .recordPosition(nodeUpdate.node_id, nodeUpdate.latitude, nodeUpdate.longitude);
+        }
       }
     });
 
@@ -635,8 +656,14 @@ export function useDevice() {
         const mapped = statusMap[status] ?? 'connected';
         setState((s) => ({ ...s, status: mapped }));
 
+        // Track configuring phase so packet replays are marked as historical
+        if (status === 3 || status === 5 || status === 6) {
+          isConfiguringRef.current = true;
+        }
+
         // Start polling + watchdog when configured
         if (status === 7) {
+          isConfiguringRef.current = false;
           lastDataReceivedRef.current = Date.now();
           startPolling(type);
           startWatchdog();
@@ -646,6 +673,7 @@ export function useDevice() {
 
         // Always clean up on disconnect, even if we never reached configured
         if (status === 2) {
+          isConfiguringRef.current = false;
           stopBleHeartbeat();
           stopWatchdog();
           stopGpsInterval();
@@ -654,6 +682,7 @@ export function useDevice() {
           setTraceRouteResults(new Map());
           setQueueStatus(null);
           setDeviceLogs([]);
+          usePositionHistoryStore.getState().clearHistory();
           setNeighborInfo(new Map());
           setWaypoints(new Map());
           setModuleConfigs({});
@@ -678,6 +707,7 @@ export function useDevice() {
           });
         }
         myNodeNumRef.current = info.myNodeNum;
+        useDiagnosticsStore.getState().migrateForeignLoraFromZero(info.myNodeNum);
         setState((s) => ({ ...s, myNodeNum: info.myNodeNum }));
         updateNodes((prev) => {
           const updated = new Map(prev);
@@ -761,7 +791,13 @@ export function useDevice() {
           return;
         }
 
-        const rfMsg: ChatMessage = isEcho ? msg : { ...msg, receivedVia: 'rf' as const };
+        const rfMsg: ChatMessage = isEcho
+          ? msg
+          : {
+              ...msg,
+              receivedVia: 'rf' as const,
+              isHistory: isConfiguringRef.current || undefined,
+            };
         setMessages((prev) => {
           // Dedup reaction retransmissions before the DB write completes
           if (rfMsg.emoji && rfMsg.replyId) {
@@ -772,6 +808,10 @@ export function useDevice() {
                 m.sender_id === rfMsg.sender_id,
             );
             if (isDup) return prev;
+          }
+          // Dedup regular messages by packetId (e.g. device config-sync replay)
+          if (!rfMsg.emoji && rfMsg.packetId && prev.some((m) => m.packetId === rfMsg.packetId)) {
+            return prev;
           }
           return [...prev, rfMsg];
         });
@@ -950,7 +990,15 @@ export function useDevice() {
               updatedRfNode,
               nodesRef.current.get(myNodeNumRef.current) ?? null,
               myNodeNumRef.current,
+              MESHTASTIC_CAPABILITIES,
             );
+        }
+        if (info.position?.latitudeI != null || info.position?.longitudeI != null) {
+          const lat = (info.position.latitudeI ?? 0) / 1e7;
+          const lon = (info.position.longitudeI ?? 0) / 1e7;
+          if (validateCoords(lat, lon).valid) {
+            usePositionHistoryStore.getState().recordPosition(nodeNum, lat, lon);
+          }
         }
         if (type === 'ble' && nodeNum === myNodeNumRef.current) {
           const btDevice = (device.transport as any)?.__bluetoothDevice;
@@ -1020,6 +1068,7 @@ export function useDevice() {
           window.electronAPI.db.saveNode(node);
           return updated;
         });
+        usePositionHistoryStore.getState().recordPosition(packet.from, lat, lon);
       });
       unsubscribesRef.current.push(unsub6);
 
@@ -1334,6 +1383,12 @@ export function useDevice() {
             },
           ];
         });
+        if (containsMeshCorePattern(record.message) && myNodeNumRef.current !== 0) {
+          const { rssi, snr } = extractRssiSnr(record.message);
+          useDiagnosticsStore
+            .getState()
+            .recordForeignLora(myNodeNumRef.current, 'meshcore', rssi, snr);
+        }
       });
       unsubscribesRef.current.push(unsubLog);
 
@@ -1478,6 +1533,7 @@ export function useDevice() {
   // ─── Connection lost handler ──────────────────────────────────
   const handleConnectionLost = useCallback(() => {
     if (isReconnectingRef.current) return;
+    console.warn('[useDevice] Connection lost — initiating reconnect');
     isReconnectingRef.current = true;
 
     // Clean up existing connection
@@ -1545,6 +1601,7 @@ export function useDevice() {
       device.configure();
 
       // Success
+      console.log(`[useDevice] Reconnect succeeded on attempt ${reconnectAttemptRef.current}`);
       reconnectAttemptRef.current = 0;
       isReconnectingRef.current = false;
     } catch (err) {
@@ -1919,6 +1976,9 @@ export function useDevice() {
   const deleteNode = useCallback(
     async (nodeId: number) => {
       await window.electronAPI.db.deleteNode(nodeId);
+      console.log(
+        `[useDevice] deleteNode: removed 0x${nodeId.toString(16).toUpperCase()} from memory`,
+      );
       updateNodes((prev) => {
         const updated = new Map(prev);
         updated.delete(nodeId);
@@ -1940,6 +2000,7 @@ export function useDevice() {
             favorited: Boolean(n.favorited),
           });
         }
+        console.log(`[useDevice] refreshNodesFromDb: loaded ${nodeMap.size} nodes`);
         nodesRef.current = nodeMap;
         setNodes(nodeMap);
       })
@@ -1952,6 +2013,7 @@ export function useDevice() {
     window.electronAPI.db
       .getMessages(undefined, getMessageLoadLimit())
       .then((msgs) => {
+        console.log(`[useDevice] refreshMessagesFromDb: loaded ${msgs.length} messages`);
         setMessages(msgs.reverse());
       })
       .catch((err) => {
