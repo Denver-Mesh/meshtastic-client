@@ -190,6 +190,8 @@ interface Props {
   myNodeLabel?: string;
   protocol: MeshProtocol;
   onProtocolChange: (p: MeshProtocol) => void;
+  manualAddContacts?: boolean;
+  onToggleManualContacts?: (manual: boolean) => Promise<void>;
 }
 
 export default function ConnectionPanel({
@@ -203,6 +205,8 @@ export default function ConnectionPanel({
   myNodeLabel,
   protocol,
   onProtocolChange,
+  manualAddContacts,
+  onToggleManualContacts,
 }: Props) {
   const [connectionType, setConnectionType] = useState<ConnectionType>('ble');
   const [httpAddress, setHttpAddress] = useState(() => {
@@ -1024,6 +1028,31 @@ export default function ConnectionPanel({
             )}
           </div>
         </div>
+
+        {onToggleManualContacts !== undefined && (
+          <div className="border border-gray-700 rounded-xl p-4 flex items-center justify-between gap-4">
+            <div>
+              <div className="text-sm font-medium text-gray-200">Manual Contact Approval</div>
+              <div className="text-xs text-muted mt-0.5">
+                Require manual approval before new contacts appear
+              </div>
+            </div>
+            <button
+              onClick={() => onToggleManualContacts(!manualAddContacts)}
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${
+                manualAddContacts ? 'bg-purple-500' : 'bg-gray-600'
+              }`}
+              role="switch"
+              aria-checked={manualAddContacts}
+            >
+              <span
+                className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                  manualAddContacts ? 'translate-x-4' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+        )}
 
         {protocol === 'meshtastic' && mqttSection}
       </div>

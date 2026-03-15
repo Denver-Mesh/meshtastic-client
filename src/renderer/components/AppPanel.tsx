@@ -81,7 +81,7 @@ interface AdminSettings {
 const DEFAULT_SETTINGS: AdminSettings = {
   autoPruneEnabled: false,
   autoPruneDays: 30,
-  pruneEmptyNamesEnabled: false,
+  pruneEmptyNamesEnabled: true,
   nodeCapEnabled: true,
   nodeCapCount: 10000,
   distanceFilterEnabled: false,
@@ -928,6 +928,25 @@ export default function AppPanel({
               className="w-full px-4 py-2.5 bg-red-900/50 text-red-300 hover:bg-red-900/70 border border-red-800 rounded-lg text-sm font-medium transition-colors text-left"
             >
               Prune MQTT-only Nodes
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                executeWithConfirmation({
+                  name: 'Prune Unnamed Nodes',
+                  title: 'Prune Unnamed Nodes',
+                  message:
+                    'This will permanently delete all nodes without a long name. They will be re-discovered when they broadcast again.',
+                  confirmLabel: 'Prune Unnamed Nodes',
+                  danger: true,
+                  action: async () => {
+                    await window.electronAPI.db.deleteNodesWithoutLongname();
+                  },
+                })
+              }
+              className="w-full px-4 py-2.5 bg-red-900/50 text-red-300 hover:bg-red-900/70 border border-red-800 rounded-lg text-sm font-medium transition-colors text-left"
+            >
+              Prune Unnamed Nodes
             </button>
             <button
               type="button"

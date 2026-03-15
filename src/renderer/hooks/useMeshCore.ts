@@ -1,4 +1,9 @@
-import { SerialConnection, WebBleConnection, WebSerialConnection } from '@liamcottle/meshcore.js';
+import {
+  CayenneLpp,
+  SerialConnection,
+  WebBleConnection,
+  WebSerialConnection,
+} from '@liamcottle/meshcore.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
@@ -125,6 +130,36 @@ export interface MeshCoreRepeaterStatus {
   currTxQueueLen: number;
 }
 
+export interface CayenneLppEntry {
+  channel: number;
+  type: number;
+  value: number | { latitude: number; longitude: number; altitude: number };
+}
+
+export interface MeshCoreNodeTelemetry {
+  fetchedAt: number;
+  entries: CayenneLppEntry[];
+  temperature?: number;
+  relativeHumidity?: number;
+  barometricPressure?: number;
+  voltage?: number;
+  gps?: { latitude: number; longitude: number; altitude: number };
+}
+
+export interface MeshCoreNeighborEntry {
+  publicKeyPrefix: Uint8Array;
+  prefixHex: string;
+  resolvedNodeId: number;
+  heardSecondsAgo: number;
+  snr: number;
+}
+
+export interface MeshCoreNeighborResult {
+  totalNeighboursCount: number;
+  neighbours: MeshCoreNeighborEntry[];
+  fetchedAt: number;
+}
+
 // The connection object returned by meshcore.js is typed loosely — use unknown and cast
 interface MeshCoreConnection {
   on(event: string | number, cb: (...args: unknown[]) => void): void;
@@ -176,6 +211,23 @@ interface MeshCoreConnection {
     n_direct_dups: number;
     n_flood_dups: number;
   }>;
+  getTelemetry(
+    contactPublicKey: Uint8Array,
+    extraTimeoutMillis?: number,
+  ): Promise<{ reserved: number; pubKeyPrefix: Uint8Array; lppSensorData: Uint8Array }>;
+  getNeighbours(
+    publicKey: Uint8Array,
+    count?: number,
+    offset?: number,
+    orderBy?: number,
+    pubKeyPrefixLength?: number,
+  ): Promise<{
+    totalNeighboursCount: number;
+    neighbours: { publicKeyPrefix: Uint8Array; heardSecondsAgo: number; snr: number }[];
+  }>;
+  setOtherParams(manualAddContacts: boolean): Promise<void>;
+  setAutoAddContacts(): Promise<void>;
+  setManualAddContacts(): Promise<void>;
 }
 
 interface MeshCoreContactRaw {
@@ -200,6 +252,7 @@ interface DeviceLogEntry {
 }
 
 const LAST_SERIAL_PORT_KEY = 'mesh-client:lastSerialPort';
+const MANUAL_CONTACTS_KEY = 'mesh-client:meshcoreManualContacts';
 
 const INITIAL_STATE: DeviceState = {
   status: 'disconnected',
@@ -234,6 +287,19 @@ export function useMeshCore() {
   const [meshcoreNodeStatus, setMeshcoreNodeStatus] = useState<Map<number, MeshCoreRepeaterStatus>>(
     new Map(),
   );
+  const [meshcoreNodeTelemetry, setMeshcoreNodeTelemetry] = useState<
+    Map<number, MeshCoreNodeTelemetry>
+  >(new Map());
+  const [meshcoreNeighbors, setMeshcoreNeighbors] = useState<Map<number, MeshCoreNeighborResult>>(
+    new Map(),
+  );
+  const [manualAddContacts, setManualAddContacts] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(MANUAL_CONTACTS_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
 
   const connRef = useRef<MeshCoreConnection | null>(null);
   const ipcTcpRef = useRef<IpcTcpConnection | null>(null);
@@ -589,6 +655,16 @@ export function useMeshCore() {
       console.log('[useMeshCore] initConn: channels=', rawChannels.length);
 
       // Post-init side-effects — fire-and-forget after full handshake to avoid request conflicts
+      // Apply saved manual contacts preference
+      try {
+        const savedManual = localStorage.getItem(MANUAL_CONTACTS_KEY) === 'true';
+        if (savedManual) {
+          await conn.setManualAddContacts();
+        }
+      } catch (e) {
+        console.warn('[useMeshCore] setManualAddContacts (init) error', e);
+      }
+
       void conn.syncDeviceTime().catch((e) => {
         console.warn('[useMeshCore] syncDeviceTime error', e);
       });
@@ -790,6 +866,8 @@ export function useMeshCore() {
     setSignalTelemetry([]);
     setMeshcoreTraceResults(new Map());
     setMeshcoreNodeStatus(new Map());
+    setMeshcoreNodeTelemetry(new Map());
+    setMeshcoreNeighbors(new Map());
     setState(INITIAL_STATE);
   }, []);
 
@@ -1068,6 +1146,99 @@ export function useMeshCore() {
     });
   }, []);
 
+  const requestTelemetry = useCallback(async (nodeId: number) => {
+    const pubKey = pubKeyMapRef.current.get(nodeId);
+    if (!pubKey || !connRef.current) return;
+    console.log('[useMeshCore] requestTelemetry nodeId=', nodeId.toString(16).toUpperCase());
+    const raw = await connRef.current.getTelemetry(pubKey);
+    const entries = CayenneLpp.parse(raw.lppSensorData) as CayenneLppEntry[];
+    const result: MeshCoreNodeTelemetry = { fetchedAt: Date.now(), entries };
+    for (const entry of entries) {
+      if (entry.type === CayenneLpp.LPP_TEMPERATURE && typeof entry.value === 'number') {
+        result.temperature = entry.value;
+      } else if (
+        entry.type === CayenneLpp.LPP_RELATIVE_HUMIDITY &&
+        typeof entry.value === 'number'
+      ) {
+        result.relativeHumidity = entry.value;
+      } else if (
+        entry.type === CayenneLpp.LPP_BAROMETRIC_PRESSURE &&
+        typeof entry.value === 'number'
+      ) {
+        result.barometricPressure = entry.value;
+      } else if (entry.type === CayenneLpp.LPP_VOLTAGE && typeof entry.value === 'number') {
+        result.voltage = entry.value;
+      } else if (
+        entry.type === CayenneLpp.LPP_GPS &&
+        typeof entry.value === 'object' &&
+        entry.value !== null
+      ) {
+        result.gps = entry.value as { latitude: number; longitude: number; altitude: number };
+      }
+    }
+    setMeshcoreNodeTelemetry((prev) => {
+      const next = new Map(prev);
+      next.set(nodeId, result);
+      return next;
+    });
+    console.log('[useMeshCore] requestTelemetry result:', result);
+  }, []);
+
+  const requestNeighbors = useCallback(async (nodeId: number) => {
+    const pubKey = pubKeyMapRef.current.get(nodeId);
+    if (!pubKey || !connRef.current) return;
+    console.log('[useMeshCore] requestNeighbors nodeId=', nodeId.toString(16).toUpperCase());
+    const raw = await connRef.current.getNeighbours(pubKey, 10, 0, 0, 6);
+    const neighbours: MeshCoreNeighborEntry[] = raw.neighbours.map((nb) => {
+      const prefixHex = Array.from(nb.publicKeyPrefix)
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+      const resolvedNodeId = pubKeyPrefixMapRef.current.get(prefixHex) ?? 0;
+      return {
+        publicKeyPrefix: nb.publicKeyPrefix,
+        prefixHex,
+        resolvedNodeId,
+        heardSecondsAgo: nb.heardSecondsAgo,
+        snr: nb.snr,
+      };
+    });
+    const result: MeshCoreNeighborResult = {
+      totalNeighboursCount: raw.totalNeighboursCount,
+      neighbours,
+      fetchedAt: Date.now(),
+    };
+    setMeshcoreNeighbors((prev) => {
+      const next = new Map(prev);
+      next.set(nodeId, result);
+      return next;
+    });
+    console.log(
+      '[useMeshCore] requestNeighbors result: total=',
+      raw.totalNeighboursCount,
+      'fetched=',
+      neighbours.length,
+    );
+  }, []);
+
+  const toggleManualAddContacts = useCallback(async (manual: boolean) => {
+    if (!connRef.current) return;
+    try {
+      if (manual) {
+        await connRef.current.setManualAddContacts();
+      } else {
+        await connRef.current.setAutoAddContacts();
+      }
+      setManualAddContacts(manual);
+      try {
+        localStorage.setItem(MANUAL_CONTACTS_KEY, String(manual));
+      } catch {
+        /* ignore */
+      }
+    } catch (e) {
+      console.warn('[useMeshCore] toggleManualAddContacts error', e);
+    }
+  }, []);
+
   // No-op stubs to satisfy the same interface shape used in App.tsx
   const noopAsync = useCallback(async () => {}, []);
   const noopVoid = useCallback(() => {}, []);
@@ -1088,9 +1259,15 @@ export function useMeshCore() {
     setOwner,
     traceRoute,
     requestRepeaterStatus,
+    requestTelemetry,
+    requestNeighbors,
+    toggleManualAddContacts,
     deviceLogs,
     meshcoreTraceResults,
     meshcoreNodeStatus,
+    meshcoreNodeTelemetry,
+    meshcoreNeighbors,
+    manualAddContacts,
     // Stubs for interface compatibility
     mqttStatus: 'disconnected' as const,
     selfNodeId: state.myNodeNum,

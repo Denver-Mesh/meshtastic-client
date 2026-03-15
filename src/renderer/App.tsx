@@ -588,6 +588,12 @@ export default function App() {
                       protocol === 'meshcore' ? meshcoreDevice.refreshContacts : undefined
                     }
                     onSendAdvert={protocol === 'meshcore' ? meshcoreDevice.sendAdvert : undefined}
+                    manualAddContacts={
+                      protocol === 'meshcore' ? meshcoreDevice.manualAddContacts : undefined
+                    }
+                    onToggleManualContacts={
+                      protocol === 'meshcore' ? meshcoreDevice.toggleManualAddContacts : undefined
+                    }
                   />
                 </div>
                 <div className={activeTab === 1 ? 'contents' : 'hidden'}>
@@ -821,6 +827,18 @@ export default function App() {
           onRequestRepeaterStatus={
             protocol === 'meshcore' ? meshcoreDevice.requestRepeaterStatus : undefined
           }
+          meshcoreNodeTelemetry={
+            protocol === 'meshcore' && selectedNode
+              ? meshcoreDevice.meshcoreNodeTelemetry.get(selectedNode.node_id)
+              : undefined
+          }
+          onRequestTelemetry={protocol === 'meshcore' ? meshcoreDevice.requestTelemetry : undefined}
+          meshcoreNeighbors={
+            protocol === 'meshcore' && selectedNode
+              ? meshcoreDevice.meshcoreNeighbors.get(selectedNode.node_id)
+              : undefined
+          }
+          onRequestNeighbors={protocol === 'meshcore' ? meshcoreDevice.requestNeighbors : undefined}
         />
       </div>
     </ToastProvider>

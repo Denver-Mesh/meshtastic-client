@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 
-import type { MeshCoreRepeaterStatus } from '../hooks/useMeshCore';
+import type {
+  MeshCoreNeighborResult,
+  MeshCoreNodeTelemetry,
+  MeshCoreRepeaterStatus,
+} from '../hooks/useMeshCore';
 import type { MeshNode, MeshProtocol, NeighborInfoRecord } from '../lib/types';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
 import NodeInfoBody from './NodeInfoBody';
@@ -24,6 +28,10 @@ interface NodeDetailModalProps {
   meshcoreTraceResult?: { hops: { snr: number }[]; lastSnr: number };
   meshcoreRepeaterStatus?: MeshCoreRepeaterStatus;
   onRequestRepeaterStatus?: (nodeId: number) => Promise<void>;
+  meshcoreNodeTelemetry?: MeshCoreNodeTelemetry;
+  onRequestTelemetry?: (nodeId: number) => Promise<void>;
+  meshcoreNeighbors?: MeshCoreNeighborResult;
+  onRequestNeighbors?: (nodeId: number) => Promise<void>;
 }
 
 export default function NodeDetailModal({
@@ -44,6 +52,10 @@ export default function NodeDetailModal({
   meshcoreTraceResult,
   meshcoreRepeaterStatus,
   onRequestRepeaterStatus,
+  meshcoreNodeTelemetry,
+  onRequestTelemetry,
+  meshcoreNeighbors,
+  onRequestNeighbors,
 }: NodeDetailModalProps) {
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const [repeaterStatusPending, setRepeaterStatusPending] = useState(false);
@@ -51,6 +63,10 @@ export default function NodeDetailModal({
   const [positionRequestedAt, setPositionRequestedAt] = useState<number | null>(null);
   const [traceRoutePending, setTraceRoutePending] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [telemetryPending, setTelemetryPending] = useState(false);
+  const [showTelemetry, setShowTelemetry] = useState(false);
+  const [neighborsPending, setNeighborsPending] = useState(false);
+  const [showMeshcoreNeighbors, setShowMeshcoreNeighbors] = useState(false);
   const mqttIgnoredNodes = useDiagnosticsStore((s) => s.mqttIgnoredNodes);
   const setNodeMqttIgnored = useDiagnosticsStore((s) => s.setNodeMqttIgnored);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -84,6 +100,10 @@ export default function NodeDetailModal({
     setShowDeleteConfirm(false);
     setRepeaterStatusPending(false);
     setShowRepeaterStats(false);
+    setTelemetryPending(false);
+    setShowTelemetry(false);
+    setNeighborsPending(false);
+    setShowMeshcoreNeighbors(false);
   }, [node?.node_id]);
 
   // Detect position update after a request was sent
@@ -117,6 +137,22 @@ export default function NodeDetailModal({
       setShowRepeaterStats(true);
     }
   }, [meshcoreRepeaterStatus]);
+
+  // Auto-show telemetry when it arrives
+  useEffect(() => {
+    if (meshcoreNodeTelemetry) {
+      setTelemetryPending(false);
+      setShowTelemetry(true);
+    }
+  }, [meshcoreNodeTelemetry]);
+
+  // Auto-show neighbors when they arrive
+  useEffect(() => {
+    if (meshcoreNeighbors) {
+      setNeighborsPending(false);
+      setShowMeshcoreNeighbors(true);
+    }
+  }, [meshcoreNeighbors]);
 
   // 60-second timeout for trace route
   useEffect(() => {
@@ -258,6 +294,119 @@ export default function NodeDetailModal({
             </div>
           )}
 
+          {/* MeshCore: telemetry */}
+          {protocol === 'meshcore' && !isOurNode && meshcoreNodeTelemetry && showTelemetry && (
+            <div className="mt-3 space-y-1">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-medium text-muted uppercase tracking-wide">
+                  Telemetry
+                </h4>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted">
+                    {new Date(meshcoreNodeTelemetry.fetchedAt).toLocaleTimeString()}
+                  </span>
+                  <button
+                    onClick={() => setShowTelemetry(false)}
+                    className="text-xs text-muted hover:text-gray-300"
+                  >
+                    Hide
+                  </button>
+                </div>
+              </div>
+              <div className="bg-secondary-dark rounded p-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                {meshcoreNodeTelemetry.temperature !== undefined && (
+                  <>
+                    <div className="text-muted">Temperature</div>
+                    <div className="font-mono text-gray-200">
+                      {meshcoreNodeTelemetry.temperature.toFixed(1)} °C
+                    </div>
+                  </>
+                )}
+                {meshcoreNodeTelemetry.relativeHumidity !== undefined && (
+                  <>
+                    <div className="text-muted">Humidity</div>
+                    <div className="font-mono text-gray-200">
+                      {meshcoreNodeTelemetry.relativeHumidity.toFixed(1)} %
+                    </div>
+                  </>
+                )}
+                {meshcoreNodeTelemetry.barometricPressure !== undefined && (
+                  <>
+                    <div className="text-muted">Pressure</div>
+                    <div className="font-mono text-gray-200">
+                      {meshcoreNodeTelemetry.barometricPressure.toFixed(1)} hPa
+                    </div>
+                  </>
+                )}
+                {meshcoreNodeTelemetry.voltage !== undefined && (
+                  <>
+                    <div className="text-muted">Voltage</div>
+                    <div className="font-mono text-gray-200">
+                      {meshcoreNodeTelemetry.voltage.toFixed(2)} V
+                    </div>
+                  </>
+                )}
+                {meshcoreNodeTelemetry.gps && (
+                  <>
+                    <div className="text-muted">GPS</div>
+                    <div className="font-mono text-gray-200">
+                      {meshcoreNodeTelemetry.gps.latitude.toFixed(5)},{' '}
+                      {meshcoreNodeTelemetry.gps.longitude.toFixed(5)}
+                    </div>
+                  </>
+                )}
+                {meshcoreNodeTelemetry.entries.length === 0 && (
+                  <div className="col-span-2 text-muted italic">No telemetry data</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* MeshCore: neighbors (from Repeater) */}
+          {protocol === 'meshcore' && !isOurNode && meshcoreNeighbors && showMeshcoreNeighbors && (
+            <div className="mt-3 space-y-1">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-medium text-muted uppercase tracking-wide">
+                  Neighbors ({meshcoreNeighbors.totalNeighboursCount})
+                </h4>
+                <button
+                  onClick={() => setShowMeshcoreNeighbors(false)}
+                  className="text-xs text-muted hover:text-gray-300"
+                >
+                  Hide
+                </button>
+              </div>
+              <div className="space-y-1">
+                {meshcoreNeighbors.neighbours.map((nb, i) => {
+                  const label =
+                    nb.resolvedNodeId !== 0
+                      ? (nodes?.get(nb.resolvedNodeId)?.long_name ??
+                        `!${nb.resolvedNodeId.toString(16)}`)
+                      : nb.prefixHex;
+                  return (
+                    <div
+                      key={i}
+                      className="flex items-center justify-between text-xs bg-secondary-dark rounded px-2 py-1"
+                    >
+                      <div>
+                        <span className="text-gray-300">{label}</span>
+                        <span className="text-muted ml-2">{nb.heardSecondsAgo}s ago</span>
+                      </div>
+                      <span
+                        className={`font-mono ${nb.snr >= 5 ? 'text-green-400' : nb.snr >= 0 ? 'text-yellow-400' : 'text-red-400'}`}
+                      >
+                        {nb.snr.toFixed(1)} dB
+                      </span>
+                    </div>
+                  );
+                })}
+                {meshcoreNeighbors.neighbours.length === 0 && (
+                  <div className="text-xs text-muted italic px-2">No neighbors reported</div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* MeshCore: repeater status */}
           {protocol === 'meshcore' && !isOurNode && meshcoreRepeaterStatus && showRepeaterStats && (
             <div className="mt-3 space-y-1">
@@ -392,6 +541,46 @@ export default function NodeDetailModal({
                 className="flex-1 min-w-[8rem] px-3 py-2 text-sm font-medium bg-secondary-dark hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-gray-200 rounded-lg transition-colors"
               >
                 📊 {repeaterStatusPending ? 'Requesting...' : 'Request Status'}
+              </button>
+            )}
+            {protocol === 'meshcore' && onRequestTelemetry && (
+              <button
+                onClick={async () => {
+                  setTelemetryPending(true);
+                  setActionStatus('Requesting telemetry...');
+                  try {
+                    await onRequestTelemetry(node.node_id);
+                    setActionStatus(null);
+                  } catch (e) {
+                    console.warn('[NodeDetailModal] requestTelemetry failed', e);
+                    setTelemetryPending(false);
+                    setActionStatus(`Telemetry failed: ${String(e)}`);
+                  }
+                }}
+                disabled={!isConnected || telemetryPending}
+                className="flex-1 min-w-[8rem] px-3 py-2 text-sm font-medium bg-secondary-dark hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-gray-200 rounded-lg transition-colors"
+              >
+                🌡 {telemetryPending ? 'Requesting...' : 'Get Telemetry'}
+              </button>
+            )}
+            {protocol === 'meshcore' && onRequestNeighbors && node.hw_model === 'Repeater' && (
+              <button
+                onClick={async () => {
+                  setNeighborsPending(true);
+                  setActionStatus('Requesting neighbors...');
+                  try {
+                    await onRequestNeighbors(node.node_id);
+                    setActionStatus(null);
+                  } catch (e) {
+                    console.warn('[NodeDetailModal] requestNeighbors failed', e);
+                    setNeighborsPending(false);
+                    setActionStatus(`Neighbors failed: ${String(e)}`);
+                  }
+                }}
+                disabled={!isConnected || neighborsPending}
+                className="flex-1 min-w-[8rem] px-3 py-2 text-sm font-medium bg-secondary-dark hover:bg-gray-600 disabled:opacity-40 disabled:cursor-not-allowed text-gray-200 rounded-lg transition-colors"
+              >
+                🔗 {neighborsPending ? 'Requesting...' : 'Get Neighbors'}
               </button>
             )}
             {onMessageNode && (
