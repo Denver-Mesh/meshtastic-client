@@ -336,6 +336,7 @@ export default function AppPanel({
       const nodeActions = [
         'Delete Old Nodes',
         'Prune MQTT-only Nodes',
+        'Prune Unnamed Nodes',
         'Prune Zero Island Nodes',
         'Prune Distant Nodes',
         'Clear Nodes',

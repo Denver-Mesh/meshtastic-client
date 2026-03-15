@@ -240,36 +240,42 @@ export default function App() {
   }, [selectedNode, device.traceRouteResults, device.state.myNodeNum, device.getFullNodeLabel]);
 
   // ─── Startup node pruning based on persisted admin settings ─────
+  const { refreshNodesFromDb } = device;
   useEffect(() => {
-    try {
-      const s =
-        parseStoredJson<Record<string, unknown>>(
-          localStorage.getItem('mesh-client:adminSettings'),
-          'App startup node pruning',
-        ) ?? {};
-      if (s.autoPruneEnabled) {
-        const days =
-          typeof s.autoPruneDays === 'number' && s.autoPruneDays > 0 ? s.autoPruneDays : 30;
-        void window.electronAPI.db
+    const s =
+      parseStoredJson<Record<string, unknown>>(
+        localStorage.getItem('mesh-client:adminSettings'),
+        'App startup node pruning',
+      ) ?? {};
+    const ops: Promise<unknown>[] = [];
+    if (s.autoPruneEnabled) {
+      const days =
+        typeof s.autoPruneDays === 'number' && s.autoPruneDays > 0 ? s.autoPruneDays : 30;
+      ops.push(
+        window.electronAPI.db
           .deleteNodesByAge(days)
-          .catch((e) => console.warn('[App] startup deleteNodesByAge failed', e));
-      }
-      if (s.nodeCapEnabled !== false) {
-        const cap =
-          typeof s.nodeCapCount === 'number' && s.nodeCapCount > 0 ? s.nodeCapCount : 10000;
-        void window.electronAPI.db
-          .pruneNodesByCount(cap)
-          .catch((e) => console.warn('[App] startup pruneNodesByCount failed', e));
-      }
-      if (s.pruneEmptyNamesEnabled) {
-        void window.electronAPI.db
-          .deleteNodesWithoutLongname()
-          .catch((e) => console.warn('[App] startup deleteNodesWithoutLongname failed', e));
-      }
-    } catch (e) {
-      console.debug('[App] startup node pruning', e);
+          .catch((e) => console.warn('[App] startup deleteNodesByAge failed', e)),
+      );
     }
-  }, []);
+    if (s.nodeCapEnabled !== false) {
+      const cap = typeof s.nodeCapCount === 'number' && s.nodeCapCount > 0 ? s.nodeCapCount : 10000;
+      ops.push(
+        window.electronAPI.db
+          .pruneNodesByCount(cap)
+          .catch((e) => console.warn('[App] startup pruneNodesByCount failed', e)),
+      );
+    }
+    if (s.pruneEmptyNamesEnabled) {
+      ops.push(
+        window.electronAPI.db
+          .deleteNodesWithoutLongname()
+          .catch((e) => console.warn('[App] startup deleteNodesWithoutLongname failed', e)),
+      );
+    }
+    if (ops.length > 0) {
+      void Promise.all(ops).then(() => refreshNodesFromDb());
+    }
+  }, [refreshNodesFromDb]);
 
   // ─── Disconnect MQTT when switching to MeshCore mode ─────────────
   // MQTT is Meshtastic-specific. If it's connected when the user switches to
