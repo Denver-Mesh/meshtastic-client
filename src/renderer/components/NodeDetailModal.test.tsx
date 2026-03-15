@@ -40,6 +40,7 @@ vi.mock('../stores/diagnosticsStore', () => ({
       mqttIgnoredNodes: new Set<number>(),
       setNodeMqttIgnored: vi.fn(),
       getCuStats24h: () => null,
+      getForeignLoraDetectionsList: () => [],
     };
     return selector(store);
   },

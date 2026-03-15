@@ -57,6 +57,8 @@ export interface NodeRedundancy {
   recentPackets: PacketRecord[]; // last 20 packets
 }
 
+export const FOREIGN_LORA_WINDOW_MS = 90 * 60 * 1000; // 90 minutes
+
 export interface ForeignLoraDetection {
   detectedAt: number;
   rssi?: number;
@@ -65,6 +67,14 @@ export interface ForeignLoraDetection {
   packetClass: PacketClass;
   count: number;
   lastSenderId?: number;
+  longName?: string;
+}
+
+/** Key for per-sender detection: "meshtastic:<id>", "meshcore", or "unknown". */
+function foreignLoraSenderKey(packetClass: PacketClass, senderId?: number): string {
+  if (packetClass === 'meshtastic' && senderId != null) return `meshtastic:${senderId}`;
+  if (packetClass === 'meshcore') return 'meshcore';
+  return 'unknown';
 }
 
 /** Foreign LoRa condition strings — used to surgically replace only these rows. */
@@ -249,8 +259,10 @@ interface DiagnosticsState {
   mqttIgnoredNodes: Set<number>;
   ourPositionSource: GpsSource | null;
   envMode: EnvMode;
-  /** Session-only: cross-protocol foreign LoRa detections keyed by connected device nodeId. */
-  foreignLoraDetections: Map<number, ForeignLoraDetection>;
+  /** Session-only: cross-protocol foreign LoRa detections. nodeId -> senderKey -> detection (90-min window). */
+  foreignLoraDetections: Map<number, Map<string, ForeignLoraDetection>>;
+  /** Detections for a node in the last 90 minutes, sorted by detectedAt desc. */
+  getForeignLoraDetectionsList(nodeId: number): ForeignLoraDetection[];
   processNodeUpdate(
     node: MeshNode,
     homeNode: MeshNode | null,
@@ -356,6 +368,15 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
   envMode: loadEnvMode(),
   diagnosticRowsMaxAgeHours: loadDiagnosticRowsMaxAgeHours(),
   foreignLoraDetections: new Map(),
+
+  getForeignLoraDetectionsList(nodeId: number) {
+    const bySender = get().foreignLoraDetections.get(nodeId);
+    if (!bySender) return [];
+    const cutoff = Date.now() - FOREIGN_LORA_WINDOW_MS;
+    const list = [...bySender.values()].filter((d) => d.detectedAt >= cutoff);
+    list.sort((a, b) => b.detectedAt - a.detectedAt);
+    return list;
+  },
 
   processNodeUpdate(
     node: MeshNode,
@@ -476,10 +497,15 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
   ) {
     const now = Date.now();
     const proximity = classifyProximity(rssi, snr);
+    const senderKey = foreignLoraSenderKey(packetClass, senderId);
+    const longName =
+      senderId != null
+        ? (getNodes?.()?.get(senderId)?.long_name ?? getNodes?.()?.get(senderId)?.short_name)
+        : undefined;
 
-    // Always update detection summary
     set((state) => {
-      const existing = state.foreignLoraDetections.get(nodeId);
+      const bySender = new Map(state.foreignLoraDetections.get(nodeId) ?? []);
+      const existing = bySender.get(senderKey);
       const updated: ForeignLoraDetection = {
         detectedAt: now,
         rssi,
@@ -488,9 +514,16 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
         packetClass,
         count: (existing?.count ?? 0) + 1,
         lastSenderId: senderId ?? existing?.lastSenderId,
+        longName: longName ?? existing?.longName,
       };
+      bySender.set(senderKey, updated);
+      // Prune entries older than 90 minutes
+      const cutoff = now - FOREIGN_LORA_WINDOW_MS;
+      for (const [k, d] of bySender.entries()) {
+        if (d.detectedAt < cutoff) bySender.delete(k);
+      }
       const next = new Map(state.foreignLoraDetections);
-      next.set(nodeId, updated);
+      next.set(nodeId, bySender);
       return { foreignLoraDetections: next };
     });
 
@@ -782,11 +815,11 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
   migrateForeignLoraFromZero(toNodeId: number) {
     if (toNodeId === 0) return;
     set((state) => {
-      const detectionAtZero = state.foreignLoraDetections.get(0);
-      if (!detectionAtZero) return state;
+      const bySenderAtZero = state.foreignLoraDetections.get(0);
+      if (!bySenderAtZero) return state;
       const nextDetections = new Map(state.foreignLoraDetections);
       nextDetections.delete(0);
-      nextDetections.set(toNodeId, detectionAtZero);
+      nextDetections.set(toNodeId, new Map(bySenderAtZero));
       const diagnosticRows = state.diagnosticRows.map((r) => {
         if (r.kind === 'rf' && r.nodeId === 0 && FOREIGN_LORA_CONDITIONS.has(r.condition)) {
           return { ...r, nodeId: toNodeId, id: rfRowId(toNodeId, r.condition) };

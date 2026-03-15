@@ -39,6 +39,7 @@ vi.mock('../stores/diagnosticsStore', () => ({
       runReanalysis: vi.fn(),
       diagnosticRowsMaxAgeHours: 24,
       setDiagnosticRowsMaxAgeHours: vi.fn(),
+      getForeignLoraDetectionsList: () => [],
     };
     return selector(store);
   },

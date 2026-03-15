@@ -523,7 +523,7 @@ function RFDiagnosticsSection({
   const getCuStats24h = useDiagnosticsStore((s) => s.getCuStats24h);
   const packetCache = useDiagnosticsStore((s) => s.packetCache);
   const diagnosticRows = useDiagnosticsStore((s) => s.diagnosticRows);
-  const foreignLoraDetections = useDiagnosticsStore((s) => s.foreignLoraDetections);
+  const getForeignLoraDetectionsList = useDiagnosticsStore((s) => s.getForeignLoraDetectionsList);
   const anomaliesMap = diagnosticRowsToRoutingMap(diagnosticRows);
 
   let findings: RFDiagnosis[] | null;
@@ -549,7 +549,7 @@ function RFDiagnosticsSection({
   }
 
   // When we have a specific foreign LoRa detection (MeshCore/Meshtastic), don't show the generic "LoRa Collision or Corruption" in the RF list
-  const hasForeignLora = foreignLoraDetections?.has(node.node_id) ?? false;
+  const hasForeignLora = getForeignLoraDetectionsList(node.node_id).length > 0;
   const findingsToShow =
     findings != null && hasForeignLora
       ? findings.filter((f) => f.condition !== 'LoRa Collision or Corruption')

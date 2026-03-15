@@ -125,6 +125,7 @@ export default function DiagnosticsPanel({
   const setEnvMode = useDiagnosticsStore((s) => s.setEnvMode);
   const diagnosticRowsMaxAgeHours = useDiagnosticsStore((s) => s.diagnosticRowsMaxAgeHours);
   const setDiagnosticRowsMaxAgeHours = useDiagnosticsStore((s) => s.setDiagnosticRowsMaxAgeHours);
+  const getForeignLoraDetectionsList = useDiagnosticsStore((s) => s.getForeignLoraDetectionsList);
 
   const [search, setSearch] = useState('');
   const [tracePending, setTracePending] = useState<number | null>(null);
@@ -669,6 +670,83 @@ export default function DiagnosticsPanel({
             )}
         </div>
       </div>
+
+      {/* Foreign LoRa activity (last 90 min) — connected node only */}
+      {isConnected &&
+        (() => {
+          const foreignList = getForeignLoraDetectionsList(myNodeNum);
+          if (foreignList.length === 0) return null;
+          const classLabels: Record<string, string> = {
+            meshcore: 'MeshCore Activity',
+            meshtastic: 'Meshtastic Traffic',
+            'unknown-lora': 'Unknown LoRa Signal',
+          };
+          const proximityLabels: Record<string, string> = {
+            'very-close': 'Very Close',
+            nearby: 'Nearby',
+            distant: 'Distant',
+            unknown: 'Unknown Distance',
+          };
+          return (
+            <div className="border border-orange-500/30 rounded-xl p-4 bg-orange-500/5 space-y-3">
+              <h3 className="text-sm font-medium text-orange-400 flex items-center gap-1.5">
+                <AlertTriangleIcon className="w-4 h-4 shrink-0" />
+                Foreign LoRa Activity (last 90 min)
+              </h3>
+              <div className="space-y-2">
+                {foreignList.map((d, i) => {
+                  const minutesAgo = Math.floor((Date.now() - d.detectedAt) / 60_000);
+                  const senderName =
+                    d.longName ??
+                    (d.lastSenderId
+                      ? nodes.get(d.lastSenderId)?.long_name ||
+                        nodes.get(d.lastSenderId)?.short_name
+                      : undefined);
+                  return (
+                    <div
+                      key={`${d.packetClass}-${d.lastSenderId ?? 'na'}-${d.detectedAt}-${i}`}
+                      className="bg-secondary-dark rounded p-2 grid grid-cols-2 gap-x-4 gap-y-1 text-xs"
+                    >
+                      <div className="text-muted">Class</div>
+                      <div className="text-gray-200">
+                        {classLabels[d.packetClass] ?? d.packetClass}
+                      </div>
+                      <div className="text-muted">Proximity</div>
+                      <div className="text-gray-200">
+                        {proximityLabels[d.proximity] ?? d.proximity}
+                      </div>
+                      <div className="text-muted">Last Seen</div>
+                      <div className="text-gray-200">
+                        {minutesAgo < 1 ? 'Just now' : `${minutesAgo}m ago`}
+                      </div>
+                      <div className="text-muted">Count</div>
+                      <div className="text-gray-200">{d.count}×</div>
+                      {(d.rssi !== undefined || d.snr !== undefined) && (
+                        <>
+                          <div className="text-muted">Signal</div>
+                          <div className="font-mono text-gray-200">
+                            {d.rssi !== undefined ? `RSSI ${d.rssi} dBm` : ''}
+                            {d.rssi !== undefined && d.snr !== undefined ? ', ' : ''}
+                            {d.snr !== undefined ? `SNR ${d.snr.toFixed(1)} dB` : ''}
+                          </div>
+                        </>
+                      )}
+                      {d.lastSenderId != null && (
+                        <>
+                          <div className="text-muted">Sender</div>
+                          <div className="font-mono text-gray-200">
+                            !{d.lastSenderId.toString(16).padStart(8, '0')}
+                            {senderName ? ` (${senderName})` : ''}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
 
       {/* Settings */}
       <div className="bg-secondary-dark rounded-lg p-4">
