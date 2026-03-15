@@ -1497,6 +1497,7 @@ export function useDevice() {
   // ─── Connection lost handler ──────────────────────────────────
   const handleConnectionLost = useCallback(() => {
     if (isReconnectingRef.current) return;
+    console.warn('[useDevice] Connection lost — initiating reconnect');
     isReconnectingRef.current = true;
 
     // Clean up existing connection
@@ -1564,6 +1565,7 @@ export function useDevice() {
       device.configure();
 
       // Success
+      console.log(`[useDevice] Reconnect succeeded on attempt ${reconnectAttemptRef.current}`);
       reconnectAttemptRef.current = 0;
       isReconnectingRef.current = false;
     } catch (err) {
@@ -1938,6 +1940,9 @@ export function useDevice() {
   const deleteNode = useCallback(
     async (nodeId: number) => {
       await window.electronAPI.db.deleteNode(nodeId);
+      console.log(
+        `[useDevice] deleteNode: removed 0x${nodeId.toString(16).toUpperCase()} from memory`,
+      );
       updateNodes((prev) => {
         const updated = new Map(prev);
         updated.delete(nodeId);
@@ -1959,6 +1964,7 @@ export function useDevice() {
             favorited: Boolean(n.favorited),
           });
         }
+        console.log(`[useDevice] refreshNodesFromDb: loaded ${nodeMap.size} nodes`);
         nodesRef.current = nodeMap;
         setNodes(nodeMap);
       })
@@ -1971,6 +1977,7 @@ export function useDevice() {
     window.electronAPI.db
       .getMessages(undefined, getMessageLoadLimit())
       .then((msgs) => {
+        console.log(`[useDevice] refreshMessagesFromDb: loaded ${msgs.length} messages`);
         setMessages(msgs.reverse());
       })
       .catch((err) => {

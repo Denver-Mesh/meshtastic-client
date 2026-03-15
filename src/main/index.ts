@@ -1006,7 +1006,9 @@ ipcMain.handle('db:getNodes', () => {
 ipcMain.handle('db:clearMessages', () => {
   try {
     const db = getDatabase();
-    return db.prepare('DELETE FROM messages').run();
+    const result = db.prepare('DELETE FROM messages').run();
+    console.log(`[IPC] db:clearMessages: deleted ${result.changes} messages`);
+    return result;
   } catch (err) {
     console.error(
       '[IPC] db:clearMessages failed:',
@@ -1019,7 +1021,9 @@ ipcMain.handle('db:clearMessages', () => {
 ipcMain.handle('db:clearNodes', () => {
   try {
     const db = getDatabase();
-    return db.prepare('DELETE FROM nodes').run();
+    const result = db.prepare('DELETE FROM nodes').run();
+    console.log(`[IPC] db:clearNodes: deleted ${result.changes} nodes`);
+    return result;
   } catch (err) {
     console.error(
       '[IPC] db:clearNodes failed:',
@@ -1032,7 +1036,11 @@ ipcMain.handle('db:clearNodes', () => {
 ipcMain.handle('db:clearNodePositions', () => {
   try {
     const db = getDatabase();
-    return db.prepare('UPDATE nodes SET latitude = NULL, longitude = NULL, altitude = NULL').run();
+    const result = db
+      .prepare('UPDATE nodes SET latitude = NULL, longitude = NULL, altitude = NULL')
+      .run();
+    console.log(`[IPC] db:clearNodePositions: cleared positions for ${result.changes} nodes`);
+    return result;
   } catch (err) {
     console.error(
       '[IPC] db:clearNodePositions failed:',
@@ -1046,7 +1054,11 @@ ipcMain.handle('db:deleteNode', (_event, nodeId: number) => {
   try {
     const id = safeNonNegativeInt(nodeId);
     const db = getDatabase();
-    return db.prepare('DELETE FROM nodes WHERE node_id = ?').run(id);
+    const result = db.prepare('DELETE FROM nodes WHERE node_id = ?').run(id);
+    console.log(
+      `[IPC] db:deleteNode: deleted node 0x${id.toString(16).toUpperCase()} (${result.changes} rows)`,
+    );
+    return result;
   } catch (err) {
     console.error(
       '[IPC] db:deleteNode failed:',
@@ -1060,7 +1072,9 @@ ipcMain.handle('db:deleteNodesByAge', (_event, days: number) => {
   try {
     if (typeof days !== 'number' || days < 1 || !isFinite(days)) return { changes: 0 };
     const cutoff = Math.floor(Date.now() / 1000) - days * 86400;
-    return getDatabase().prepare('DELETE FROM nodes WHERE last_heard < ?').run(cutoff);
+    const result = getDatabase().prepare('DELETE FROM nodes WHERE last_heard < ?').run(cutoff);
+    console.log(`[IPC] db:deleteNodesByAge: pruned ${result.changes} nodes older than ${days}d`);
+    return result;
   } catch (err) {
     console.error(
       '[IPC] db:deleteNodesByAge failed:',
@@ -1073,11 +1087,15 @@ ipcMain.handle('db:deleteNodesByAge', (_event, days: number) => {
 ipcMain.handle('db:pruneNodesByCount', (_event, maxCount: number) => {
   try {
     if (typeof maxCount !== 'number' || maxCount < 1 || !isFinite(maxCount)) return { changes: 0 };
-    return getDatabase()
+    const result = getDatabase()
       .prepare(
         'DELETE FROM nodes WHERE node_id NOT IN (SELECT node_id FROM nodes ORDER BY last_heard DESC LIMIT ?)',
       )
       .run(maxCount);
+    console.log(
+      `[IPC] db:pruneNodesByCount: pruned ${result.changes} nodes, keeping top ${maxCount}`,
+    );
+    return result;
   } catch (err) {
     console.error(
       '[IPC] db:pruneNodesByCount failed:',
@@ -1098,6 +1116,7 @@ ipcMain.handle('db:deleteNodesBatch', (_event, nodeIds: number[]) => {
     const result = getDatabase()
       .prepare(`DELETE FROM nodes WHERE node_id IN (${placeholders})`)
       .run(...safe);
+    console.log(`[IPC] db:deleteNodesBatch: deleted ${result.changes} nodes`);
     return result.changes;
   } catch (err) {
     console.error(
@@ -1111,7 +1130,11 @@ ipcMain.handle('db:deleteNodesBatch', (_event, nodeIds: number[]) => {
 ipcMain.handle('db:clearMessagesByChannel', (_event, channel: number) => {
   try {
     const ch = safeNonNegativeInt(channel);
-    return getDatabase().prepare('DELETE FROM messages WHERE channel = ?').run(ch);
+    const result = getDatabase().prepare('DELETE FROM messages WHERE channel = ?').run(ch);
+    console.log(
+      `[IPC] db:clearMessagesByChannel: deleted ${result.changes} messages from channel ${ch}`,
+    );
+    return result;
   } catch (err) {
     console.error(
       '[IPC] db:clearMessagesByChannel failed:',
@@ -1138,7 +1161,11 @@ ipcMain.handle('db:deleteNodesBySource', (_event, source: string) => {
     if (typeof source !== 'string')
       throw new Error('db:deleteNodesBySource: source must be a string');
     if (source.length > 64) throw new Error('db:deleteNodesBySource: source string too long');
-    return deleteNodesBySource(source);
+    const changes = deleteNodesBySource(source);
+    console.log(
+      `[IPC] db:deleteNodesBySource(${sanitizeLogMessage(source)}): pruned ${changes} nodes`,
+    );
+    return changes;
   } catch (err) {
     console.error(
       '[IPC] db:deleteNodesBySource failed:',
@@ -1150,7 +1177,9 @@ ipcMain.handle('db:deleteNodesBySource', (_event, source: string) => {
 
 ipcMain.handle('db:deleteNodesWithoutLongname', () => {
   try {
-    return deleteNodesWithoutLongname();
+    const changes = deleteNodesWithoutLongname();
+    console.log(`[IPC] db:deleteNodesWithoutLongname: pruned ${changes} unnamed nodes`);
+    return changes;
   } catch (err) {
     console.error(
       '[IPC] db:deleteNodesWithoutLongname failed:',
