@@ -621,13 +621,22 @@ function RFDiagnosticsSection({
                     )}
                   </div>
                   <div className="text-gray-400 mt-0.5">— {f.cause}</div>
-                  {f.hints && f.hints.length > 0 && (
+                  {(f.hints?.length ?? 0) > 0 && (
                     <ul className="mt-1.5 pl-3 list-disc text-[10px] text-muted space-y-0.5">
-                      {f.hints.map((h, j) => (
+                      {f.hints!.map((h, j) => (
                         <li key={j}>{h}</li>
                       ))}
                     </ul>
                   )}
+                  {f.condition === 'LoRa Collision or Corruption' &&
+                    isOurNode &&
+                    !hasForeignLora && (
+                      <p className="mt-1.5 text-[10px] text-muted">
+                        To detect MeshCore specifically, the device must log decode failures with
+                        the packet&apos;s first byte (0x3c). Until then only the generic collision
+                        message is available.
+                      </p>
+                    )}
                 </div>
               </div>
             ))}
