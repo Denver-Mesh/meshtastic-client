@@ -399,6 +399,53 @@ export function useMeshCore() {
     [addMessage, updateNode],
   );
 
+  /** Shared post-connection handshake: wire events, fetch self info, contacts, channels. */
+  const initConn = useCallback(
+    async (conn: MeshCoreConnection) => {
+      connRef.current = conn;
+      setupEventListeners(conn);
+
+      setState((prev) => ({ ...prev, status: 'connected' }));
+
+      // Fetch self info, contacts, channels (sequential — device handles one request at a time)
+      const info = await conn.getSelfInfo(5000);
+      setSelfInfo(info);
+
+      const myNodeId = pubkeyToNodeId(info.publicKey);
+      setState((prev) => ({ ...prev, myNodeNum: myNodeId, status: 'configured' }));
+
+      const contacts = await conn.getContacts();
+      const newNodes = new Map<number, MeshNode>();
+      for (const contact of contacts) {
+        const node = meshcoreContactToMeshNode(contact);
+        newNodes.set(node.node_id, node);
+        pubKeyMapRef.current.set(node.node_id, contact.publicKey);
+        const prefix = Array.from(contact.publicKey.slice(0, 6))
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join('');
+        pubKeyPrefixMapRef.current.set(prefix, node.node_id);
+      }
+      setNodes(newNodes);
+
+      const rawChannels = await conn.getChannels();
+      setChannels(rawChannels.map((c) => ({ index: c.channelIdx, name: c.name })));
+
+      // Post-init side-effects — fire-and-forget after full handshake to avoid request conflicts
+      void conn.syncDeviceTime().catch((e) => {
+        console.warn('[useMeshCore] syncDeviceTime error', e);
+      });
+      void conn
+        .getBatteryVoltage()
+        .then(({ batteryMilliVolts }) => {
+          setSelfInfo((prev) => (prev ? { ...prev, batteryMilliVolts } : prev));
+        })
+        .catch((e) => {
+          console.warn('[useMeshCore] getBatteryVoltage error', e);
+        });
+    },
+    [setupEventListeners],
+  );
+
   const connect = useCallback(
     async (type: 'ble' | 'serial' | 'tcp', tcpHost?: string) => {
       setState({
@@ -414,6 +461,24 @@ export function useMeshCore() {
           conn = (await (
             WebBleConnection as unknown as { open(): Promise<unknown> }
           ).open()) as MeshCoreConnection;
+          // WebBleConnection.open() returns before init() finishes — init() calls
+          // gatt.connect() + startNotifications() async in the constructor without
+          // awaiting.  'connected' is emitted at the end of init() via onConnected().
+          // We must wait for it before sending any commands or rxCharacteristic is null.
+          await new Promise<void>((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error('BLE GATT init timed out')), 15_000);
+            interface EventSource {
+              once(event: string, fn: () => void): void;
+            }
+            (conn as unknown as EventSource).once('connected', () => {
+              clearTimeout(timeout);
+              resolve();
+            });
+            (conn as unknown as EventSource).once('disconnected', () => {
+              clearTimeout(timeout);
+              reject(new Error('BLE disconnected during GATT init'));
+            });
+          });
         } else if (type === 'serial') {
           conn = (await (
             WebSerialConnection as unknown as { open(): Promise<unknown> }
@@ -427,46 +492,7 @@ export function useMeshCore() {
           conn = tcpConn.connection as unknown as MeshCoreConnection;
         }
 
-        connRef.current = conn;
-        setupEventListeners(conn);
-
-        setState((prev) => ({ ...prev, status: 'connected' }));
-
-        // Fetch self info, contacts, channels (sequential — device handles one request at a time)
-        const info = await conn.getSelfInfo(5000);
-        setSelfInfo(info);
-
-        const myNodeId = pubkeyToNodeId(info.publicKey);
-        setState((prev) => ({ ...prev, myNodeNum: myNodeId, status: 'configured' }));
-
-        const contacts = await conn.getContacts();
-        const newNodes = new Map<number, MeshNode>();
-        for (const contact of contacts) {
-          const node = meshcoreContactToMeshNode(contact);
-          newNodes.set(node.node_id, node);
-          pubKeyMapRef.current.set(node.node_id, contact.publicKey);
-          const prefix = Array.from(contact.publicKey.slice(0, 6))
-            .map((b) => b.toString(16).padStart(2, '0'))
-            .join('');
-          pubKeyPrefixMapRef.current.set(prefix, node.node_id);
-        }
-        setNodes(newNodes);
-
-        const rawChannels = await conn.getChannels();
-        setChannels(rawChannels.map((c) => ({ index: c.channelIdx, name: c.name })));
-
-        // Post-init side-effects — fire-and-forget after full handshake to avoid request conflicts
-        void conn.syncDeviceTime().catch((e) => {
-          console.warn('[useMeshCore] syncDeviceTime error', e);
-        });
-        void conn
-          .getBatteryVoltage()
-          .then(({ batteryMilliVolts }) => {
-            setSelfInfo((prev) => (prev ? { ...prev, batteryMilliVolts } : prev));
-          })
-          .catch((e) => {
-            console.warn('[useMeshCore] getBatteryVoltage error', e);
-          });
+        await initConn(conn);
       } catch (err) {
         console.error('[useMeshCore] connect error', err);
         setState({ status: 'disconnected', myNodeNum: 0, connectionType: null });
@@ -474,7 +500,48 @@ export function useMeshCore() {
         ipcTcpRef.current = null;
       }
     },
-    [setupEventListeners],
+    [initConn],
+  );
+
+  /**
+   * Gesture-free reconnect — called on startup when a last connection is remembered.
+   * Serial: uses navigator.serial.getPorts() to find the previously granted port by ID.
+   * HTTP: delegates to connect() directly.
+   * BLE: requires a user gesture, not supported here.
+   */
+  const connectAutomatic = useCallback(
+    async (
+      type: 'ble' | 'serial' | 'http',
+      httpAddress?: string,
+      lastSerialPortId?: string | null,
+    ) => {
+      if (type === 'serial') {
+        setState({ status: 'connecting', myNodeNum: 0, connectionType: 'serial' });
+        try {
+          if (!navigator.serial?.getPorts) throw new Error('Web Serial API not available');
+          const ports = await navigator.serial.getPorts();
+          if (ports.length === 0) throw new Error('No previously granted serial ports found');
+          let port: SerialPort | undefined;
+          if (lastSerialPortId) {
+            port = (ports as any[]).find((p: any) => p.portId === lastSerialPortId);
+          }
+          port = port ?? ports[0];
+          await (port as any).open({ baudRate: 115200 });
+          const conn = new (WebSerialConnection as unknown as new (
+            port: unknown,
+          ) => MeshCoreConnection)(port);
+          await initConn(conn);
+        } catch (err) {
+          console.error('[useMeshCore] connectAutomatic serial error', err);
+          setState({ status: 'disconnected', myNodeNum: 0, connectionType: null });
+          throw err;
+        }
+      } else if (type === 'http') {
+        await connect('tcp', httpAddress);
+      }
+      // BLE: requires user gesture — not supported for auto-connect
+    },
+    [initConn, connect],
   );
 
   const disconnect = useCallback(async () => {
@@ -765,7 +832,7 @@ export function useMeshCore() {
     updateGpsInterval: noopVoid,
     refreshNodesFromDb: noopAsync,
     refreshMessagesFromDb: noopAsync,
-    connectAutomatic: noopAsync,
+    connectAutomatic,
     telemetryDeviceUpdateInterval: undefined as number | undefined,
   };
 }
