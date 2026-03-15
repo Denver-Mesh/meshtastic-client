@@ -58,7 +58,11 @@ class IpcTcpConnection {
     // Create a subclass that wires write → IPC
     class TcpOverIpc extends (SerialConnection as unknown as new () => SerialConnectionInstance) {
       async write(bytes: Uint8Array) {
-        await window.electronAPI.meshcore.tcp.write(Array.from(bytes));
+        try {
+          await window.electronAPI.meshcore.tcp.write(Array.from(bytes));
+        } catch (e) {
+          console.error('[IpcTcpConnection] write error', e);
+        }
       }
       async close() {
         await window.electronAPI.meshcore.tcp.disconnect();
@@ -206,6 +210,15 @@ const INITIAL_STATE: DeviceState = {
 const MAX_DEVICE_LOGS = 500;
 const MAX_TELEMETRY_POINTS = 50;
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+    ),
+  ]);
+}
+
 export function useMeshCore() {
   const [state, setState] = useState<DeviceState>(INITIAL_STATE);
   const [nodes, setNodes] = useState<Map<number, MeshNode>>(new Map());
@@ -273,6 +286,7 @@ export function useMeshCore() {
           lastAdvert: number;
         };
         const nodeId = pubkeyToNodeId(d.publicKey);
+        console.log('[useMeshCore] event 128: advert from', nodeId.toString(16).toUpperCase());
         setNodes((prev) => {
           const existing = prev.get(nodeId);
           if (!existing) return prev;
@@ -287,17 +301,14 @@ export function useMeshCore() {
         });
         // Persist updated advert position to DB
         void window.electronAPI.db
-          .saveMeshcoreContact({
-            node_id: nodeId,
-            public_key: Array.from(d.publicKey)
-              .map((b) => b.toString(16).padStart(2, '0'))
-              .join(''),
-            last_advert: d.lastAdvert ?? null,
-            adv_lat: d.advLat !== 0 ? d.advLat / 1e7 : null,
-            adv_lon: d.advLon !== 0 ? d.advLon / 1e7 : null,
-          })
+          .updateMeshcoreContactAdvert(
+            nodeId,
+            d.lastAdvert ?? null,
+            d.advLat !== 0 ? d.advLat / 1e7 : null,
+            d.advLon !== 0 ? d.advLon / 1e7 : null,
+          )
           .catch((e: unknown) => {
-            console.warn('[useMeshCore] saveMeshcoreContact (advert) error', e);
+            console.warn('[useMeshCore] updateMeshcoreContactAdvert error', e);
           });
       });
 
@@ -340,6 +351,10 @@ export function useMeshCore() {
           .map((b) => b.toString(16).padStart(2, '0'))
           .join('');
         pubKeyPrefixMapRef.current.set(prefix, node.node_id);
+        console.log(
+          '[useMeshCore] event 138: new contact',
+          node.node_id.toString(16).toUpperCase(),
+        );
         updateNode(node);
         void window.electronAPI.db.saveMeshcoreContact(contactToDbRow(d)).catch((e: unknown) => {
           console.warn('[useMeshCore] saveMeshcoreContact (event 138) error', e);
@@ -417,6 +432,7 @@ export function useMeshCore() {
             return next;
           });
         }
+        console.log('[useMeshCore] event 7: DM from', senderId.toString(16).toUpperCase());
         addMessage({
           sender_id: senderId,
           sender_name: sender?.long_name ?? `Node-${senderId.toString(16).toUpperCase()}`,
@@ -430,6 +446,7 @@ export function useMeshCore() {
       // Incoming channel message — event 8
       conn.on(8, (data: unknown) => {
         const d = data as { channelIdx: number; text: string; senderTimestamp: number };
+        console.log('[useMeshCore] event 8: channel msg idx=', d.channelIdx);
         addMessage({
           sender_id: 0, // unknown sender in channel mode
           sender_name: 'Unknown',
@@ -473,8 +490,6 @@ export function useMeshCore() {
       connRef.current = conn;
       setupEventListeners(conn);
 
-      setState((prev) => ({ ...prev, status: 'connected' }));
-
       // Load persisted messages from DB before device's MsgWaiting fires
       try {
         const dbMsgs = (await window.electronAPI.db.getMeshcoreMessages(undefined, 500)) as {
@@ -501,6 +516,7 @@ export function useMeshCore() {
             isHistory: true,
           }));
           setMessages(mapped);
+          console.log('[useMeshCore] initConn: loaded', mapped.length, 'messages from DB');
         }
       } catch (e) {
         console.warn('[useMeshCore] loadMessagesFromDb error', e);
@@ -509,11 +525,12 @@ export function useMeshCore() {
       // Fetch self info, contacts, channels (sequential — device handles one request at a time)
       const info = await conn.getSelfInfo(5000);
       setSelfInfo(info);
+      setState((prev) => ({ ...prev, status: 'connected' }));
 
       const myNodeId = pubkeyToNodeId(info.publicKey);
       setState((prev) => ({ ...prev, myNodeNum: myNodeId, status: 'configured' }));
 
-      const contacts = await conn.getContacts();
+      const contacts = await withTimeout(conn.getContacts(), 10_000, 'getContacts');
       const newNodes = new Map<number, MeshNode>();
       for (const contact of contacts) {
         const node = meshcoreContactToMeshNode(contact);
@@ -565,9 +582,11 @@ export function useMeshCore() {
       }
 
       setNodes(newNodes);
+      console.log('[useMeshCore] initConn: contacts loaded, device=', contacts.length);
 
-      const rawChannels = await conn.getChannels();
+      const rawChannels = await withTimeout(conn.getChannels(), 10_000, 'getChannels');
       setChannels(rawChannels.map((c) => ({ index: c.channelIdx, name: c.name })));
+      console.log('[useMeshCore] initConn: channels=', rawChannels.length);
 
       // Post-init side-effects — fire-and-forget after full handshake to avoid request conflicts
       void conn.syncDeviceTime().catch((e) => {
@@ -597,6 +616,7 @@ export function useMeshCore() {
         let conn: MeshCoreConnection;
 
         if (type === 'ble') {
+          console.log('[useMeshCore] connect: BLE opening...');
           conn = (await (
             WebBleConnection as unknown as { open(): Promise<unknown> }
           ).open()) as MeshCoreConnection;
@@ -604,21 +624,59 @@ export function useMeshCore() {
           // gatt.connect() + startNotifications() async in the constructor without
           // awaiting.  'connected' is emitted at the end of init() via onConnected().
           // We must wait for it before sending any commands or rxCharacteristic is null.
+          //
+          // Two failure modes we guard against:
+          // 1. init() throws before onConnected() (no try/catch in the lib) → unhandledrejection
+          // 2. deviceQuery() inside onConnected() hangs because the device never responds
+          //    (BLE write can silently fail with "GATT operation already in progress").
+          //    onConnected() catches deviceQuery errors and emits 'connected' regardless,
+          //    so we unblock it by emitting ResponseCodes.Err (1) after a nudge timeout.
           await new Promise<void>((resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error('BLE GATT init timed out')), 15_000);
+            const NUDGE_MS = 10_000; // emit Err to unblock hanging deviceQuery
+            const TIMEOUT_MS = 20_000; // hard timeout after nudge attempt
+
             interface EventSource {
               once(event: string, fn: () => void): void;
+              emit(event: string | number, ...args: unknown[]): void;
             }
-            (conn as unknown as EventSource).once('connected', () => {
+
+            const cleanup = () => {
+              clearTimeout(nudge);
               clearTimeout(timeout);
+              window.removeEventListener('unhandledrejection', onUnhandledRejection);
+            };
+
+            // Catch errors thrown inside init() (no try/catch in WebBleConnection.init())
+            const onUnhandledRejection = (event: PromiseRejectionEvent) => {
+              cleanup();
+              reject(event.reason ?? new Error('BLE init failed'));
+            };
+            window.addEventListener('unhandledrejection', onUnhandledRejection, { once: true });
+
+            // If deviceQuery hangs (device doesn't respond), nudge it by emitting Err.
+            // onConnected() wraps deviceQuery in try/catch and ignores errors, so it will
+            // proceed to emit 'connected' after we force-reject the deviceQuery promise.
+            const nudge = setTimeout(() => {
+              console.warn('[useMeshCore] BLE deviceQuery appears stuck — nudging with Err event');
+              (conn as unknown as EventSource).emit(1 /* ResponseCodes.Err */);
+            }, NUDGE_MS);
+
+            const timeout = setTimeout(() => {
+              cleanup();
+              reject(new Error('BLE GATT init timed out'));
+            }, TIMEOUT_MS);
+
+            (conn as unknown as EventSource).once('connected', () => {
+              cleanup();
               resolve();
             });
             (conn as unknown as EventSource).once('disconnected', () => {
-              clearTimeout(timeout);
+              cleanup();
               reject(new Error('BLE disconnected during GATT init'));
             });
           });
         } else if (type === 'serial') {
+          console.log('[useMeshCore] connect: serial requesting port...');
           if (!navigator.serial?.requestPort) throw new Error('Web Serial API not available');
           const port = await navigator.serial.requestPort();
           await (port as any).open({ baudRate: 115200 });
@@ -636,6 +694,7 @@ export function useMeshCore() {
         } else {
           // tcp
           const host = tcpHost ?? 'localhost';
+          console.log('[useMeshCore] connect: TCP to', host);
           const tcpConn = new IpcTcpConnection(host, 4403);
           ipcTcpRef.current = tcpConn;
           await tcpConn.connect();
@@ -643,6 +702,7 @@ export function useMeshCore() {
         }
 
         await initConn(conn);
+        console.log('[useMeshCore] connect: handshake complete, type=', type);
       } catch (err) {
         console.error('[useMeshCore] connect error', err);
         setState({ status: 'disconnected', myNodeNum: 0, connectionType: null });
@@ -689,6 +749,7 @@ export function useMeshCore() {
             port: unknown,
           ) => MeshCoreConnection)(port);
           await initConn(conn);
+          console.log('[useMeshCore] connectAutomatic serial: connected');
         } catch (err) {
           console.error('[useMeshCore] connectAutomatic serial error', err);
           setState({ status: 'disconnected', myNodeNum: 0, connectionType: null });
@@ -703,6 +764,7 @@ export function useMeshCore() {
   );
 
   const disconnect = useCallback(async () => {
+    console.log('[useMeshCore] disconnect');
     // Cancel all pending ACK timers
     for (const { timeoutId } of pendingAcksRef.current.values()) {
       clearTimeout(timeoutId);
@@ -834,16 +896,20 @@ export function useMeshCore() {
           );
         }
       } else {
-        await connRef.current.sendChannelTextMessage(channelIdx, text);
-        // Channel messages resolve with Ok — add as acked immediately
-        addMessage({
-          sender_id: 0,
-          sender_name: selfInfo?.name ?? 'Me',
-          payload: text,
-          channel: channelIdx,
-          timestamp: Date.now(),
-          status: 'acked',
-        });
+        try {
+          await connRef.current.sendChannelTextMessage(channelIdx, text);
+          // Channel messages resolve with Ok — add as acked immediately
+          addMessage({
+            sender_id: 0,
+            sender_name: selfInfo?.name ?? 'Me',
+            payload: text,
+            channel: channelIdx,
+            timestamp: Date.now(),
+            status: 'acked',
+          });
+        } catch (e) {
+          console.warn('[useMeshCore] sendChannelTextMessage error', e);
+        }
       }
     },
     [addMessage, selfInfo],
@@ -851,24 +917,29 @@ export function useMeshCore() {
 
   const refreshContacts = useCallback(async () => {
     if (!connRef.current) return;
-    const contacts = await connRef.current.getContacts();
-    const newNodes = new Map<number, MeshNode>();
-    pubKeyMapRef.current.clear();
-    pubKeyPrefixMapRef.current.clear();
-    for (const contact of contacts) {
-      const node = meshcoreContactToMeshNode(contact);
-      newNodes.set(node.node_id, node);
-      pubKeyMapRef.current.set(node.node_id, contact.publicKey);
-      const prefix = Array.from(contact.publicKey.slice(0, 6))
-        .map((b) => b.toString(16).padStart(2, '0'))
-        .join('');
-      pubKeyPrefixMapRef.current.set(prefix, node.node_id);
+    try {
+      const contacts = await connRef.current.getContacts();
+      const newNodes = new Map<number, MeshNode>();
+      pubKeyMapRef.current.clear();
+      pubKeyPrefixMapRef.current.clear();
+      for (const contact of contacts) {
+        const node = meshcoreContactToMeshNode(contact);
+        newNodes.set(node.node_id, node);
+        pubKeyMapRef.current.set(node.node_id, contact.publicKey);
+        const prefix = Array.from(contact.publicKey.slice(0, 6))
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join('');
+        pubKeyPrefixMapRef.current.set(prefix, node.node_id);
+      }
+      setNodes(newNodes);
+    } catch (e) {
+      console.error('[useMeshCore] refreshContacts error', e);
     }
-    setNodes(newNodes);
   }, []);
 
   const sendAdvert = useCallback(async () => {
     if (!connRef.current) return;
+    console.log('[useMeshCore] sendAdvert');
     await connRef.current.sendFloodAdvert();
   }, []);
 
@@ -885,7 +956,12 @@ export function useMeshCore() {
   const deleteNode = useCallback(async (nodeId: number) => {
     const pubKey = pubKeyMapRef.current.get(nodeId);
     if (!pubKey || !connRef.current) return;
-    await connRef.current.removeContact(pubKey);
+    console.log('[useMeshCore] deleteNode:', nodeId.toString(16).toUpperCase());
+    try {
+      await connRef.current.removeContact(pubKey);
+    } catch (e) {
+      console.warn('[useMeshCore] removeContact error', e);
+    }
     pubKeyMapRef.current.delete(nodeId);
     // Remove the 6-byte prefix mapping too
     for (const [prefix, id] of pubKeyPrefixMapRef.current) {
@@ -942,6 +1018,7 @@ export function useMeshCore() {
   const traceRoute = useCallback(async (nodeId: number) => {
     const pubKey = pubKeyMapRef.current.get(nodeId);
     if (!pubKey || !connRef.current) return;
+    console.log('[useMeshCore] traceRoute nodeId=', nodeId.toString(16).toUpperCase());
     const result = await connRef.current.tracePath([pubKey]);
     // pathSnrs are signed bytes in 0.25dB units
     const hops = result.pathSnrs.map((raw) => {
@@ -953,11 +1030,18 @@ export function useMeshCore() {
       next.set(nodeId, { hops, lastSnr: result.lastSnr * 0.25 });
       return next;
     });
+    console.log(
+      '[useMeshCore] traceRoute result: hops=',
+      hops.length,
+      'lastSnr=',
+      result.lastSnr * 0.25,
+    );
   }, []);
 
   const requestRepeaterStatus = useCallback(async (nodeId: number) => {
     const pubKey = pubKeyMapRef.current.get(nodeId);
     if (!pubKey || !connRef.current) return;
+    console.log('[useMeshCore] requestRepeaterStatus nodeId=', nodeId.toString(16).toUpperCase());
     const raw = await connRef.current.getStatus(pubKey);
     const status: MeshCoreRepeaterStatus = {
       battMilliVolts: raw.batt_milli_volts,

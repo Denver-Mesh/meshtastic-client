@@ -1483,6 +1483,22 @@ ipcMain.handle('db:clearMeshcoreContacts', () => {
   }
 });
 
+ipcMain.handle(
+  'db:updateMeshcoreContactAdvert',
+  (_e, nodeId: number, lastAdvert: number | null, advLat: number | null, advLon: number | null) => {
+    try {
+      const safeNodeId = safeNonNegativeInt(nodeId);
+      getDatabase()
+        .prepare(
+          'UPDATE meshcore_contacts SET last_advert = ?, adv_lat = ?, adv_lon = ? WHERE node_id = ?',
+        )
+        .run(lastAdvert, advLat, advLon, safeNodeId);
+    } catch (e: any) {
+      console.error('[IPC] db:updateMeshcoreContactAdvert error:', e.message);
+    }
+  },
+);
+
 // ─── MeshCore TCP bridge ───────────────────────────────────────────
 let meshcoreTcpSocket: net.Socket | null = null;
 
@@ -1494,7 +1510,10 @@ ipcMain.handle('meshcore:tcp-connect', (_event, host: string, port: number) => {
     }
     const socket = new net.Socket();
     meshcoreTcpSocket = socket;
-    socket.connect(port, host, () => resolve());
+    socket.connect(port, host, () => {
+      console.log('[IPC] meshcore:tcp-connect connected to', host, port);
+      resolve();
+    });
     socket.on('data', (data) => {
       mainWindow?.webContents.send('meshcore:tcp-data', Array.from(data));
     });
@@ -1503,6 +1522,7 @@ ipcMain.handle('meshcore:tcp-connect', (_event, host: string, port: number) => {
       if (meshcoreTcpSocket === socket) meshcoreTcpSocket = null;
     });
     socket.on('error', (err) => {
+      console.error('[IPC] meshcore:tcp-connect error:', sanitizeLogMessage(err.message));
       reject(err);
       if (meshcoreTcpSocket === socket) meshcoreTcpSocket = null;
     });
@@ -1510,7 +1530,13 @@ ipcMain.handle('meshcore:tcp-connect', (_event, host: string, port: number) => {
 });
 
 ipcMain.handle('meshcore:tcp-write', (_event, bytes: number[]) => {
-  meshcoreTcpSocket?.write(new Uint8Array(bytes));
+  if (!meshcoreTcpSocket) {
+    console.warn('[IPC] meshcore:tcp-write: no active socket, dropping write');
+    return;
+  }
+  meshcoreTcpSocket.write(new Uint8Array(bytes), (err) => {
+    if (err) console.error('[IPC] meshcore:tcp-write error:', sanitizeLogMessage(err.message));
+  });
 });
 
 ipcMain.handle('meshcore:tcp-disconnect', () => {

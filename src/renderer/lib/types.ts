@@ -310,6 +310,12 @@ declare global {
           last_rssi?: number | null;
         }) => Promise<unknown>;
         updateMeshcoreMessageStatus: (packetId: number, status: string) => Promise<unknown>;
+        updateMeshcoreContactAdvert: (
+          nodeId: number,
+          lastAdvert: number | null,
+          advLat: number | null,
+          advLon: number | null,
+        ) => Promise<unknown>;
         getMeshcoreMessages: (channelIdx?: number, limit?: number) => Promise<unknown[]>;
         getMeshcoreContacts: () => Promise<unknown[]>;
         deleteMeshcoreContact: (nodeId: number) => Promise<unknown>;
