@@ -266,8 +266,23 @@ export default function App() {
     }
   }, []);
 
-  // ─── MQTT auto-launch on startup ─────────────────────────────────
+  // ─── Disconnect MQTT when switching to MeshCore mode ─────────────
+  // MQTT is Meshtastic-specific. If it's connected when the user switches to
+  // MeshCore, disconnect it so the window close handler isn't blocked.
   useEffect(() => {
+    if (protocol === 'meshcore') {
+      void window.electronAPI.mqtt
+        .disconnect()
+        .catch((e) => console.debug('[App] MQTT disconnect on meshcore switch', e));
+    }
+  }, [protocol]);
+
+  // ─── MQTT auto-launch on startup ─────────────────────────────────
+  // Skip in MeshCore mode — MQTT is Meshtastic-specific and staying connected
+  // in MeshCore mode prevents the window from closing after device disconnect.
+  // Read protocol from localStorage directly so this one-time effect has no deps.
+  useEffect(() => {
+    if ((localStorage.getItem(PROTOCOL_KEY) as MeshProtocol) === 'meshcore') return;
     try {
       const settings = parseStoredJson<MQTTSettings>(
         localStorage.getItem('mesh-client:mqttSettings'),
