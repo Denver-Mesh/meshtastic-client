@@ -27,7 +27,7 @@ import { useDiagnosticsStore } from './stores/diagnosticsStore';
 const PROTOCOL_KEY = 'mesh-client:protocol';
 
 // Tabs (0-indexed) that are disabled in MeshCore mode
-const MESHCORE_DISABLED_TABS = new Set([3, 4, 5, 6, 8]);
+const MESHCORE_DISABLED_TABS = new Set([4, 5, 6, 8]);
 
 const STATUS_COLOR: Record<string, string> = {
   disconnected: 'bg-red-500',
@@ -539,6 +539,10 @@ export default function App() {
                     }
                     protocol={protocol}
                     onProtocolChange={handleProtocolChange}
+                    onRefreshContacts={
+                      protocol === 'meshcore' ? meshcoreDevice.refreshContacts : undefined
+                    }
+                    onSendAdvert={protocol === 'meshcore' ? meshcoreDevice.sendAdvert : undefined}
                   />
                 </div>
                 <div className={activeTab === 1 ? 'contents' : 'hidden'}>

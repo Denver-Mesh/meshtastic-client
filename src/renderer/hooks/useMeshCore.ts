@@ -1,5 +1,5 @@
 import { SerialConnection, WebBleConnection, WebSerialConnection } from '@liamcottle/meshcore.js';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { meshcoreContactToMeshNode, pubkeyToNodeId } from '../lib/meshcoreUtils';
 import type { ChatMessage, DeviceState, MeshNode } from '../lib/types';
@@ -65,14 +65,15 @@ export interface MeshCoreSelfInfo {
 
 // The connection object returned by meshcore.js is typed loosely — use unknown and cast
 interface MeshCoreConnection {
-  on(event: string, cb: (...args: unknown[]) => void): void;
-  off(event: string, cb: (...args: unknown[]) => void): void;
-  once(event: string, cb: (...args: unknown[]) => void): void;
-  emit(event: string, ...args: unknown[]): void;
+  on(event: string | number, cb: (...args: unknown[]) => void): void;
+  off(event: string | number, cb: (...args: unknown[]) => void): void;
+  once(event: string | number, cb: (...args: unknown[]) => void): void;
+  emit(event: string | number, ...args: unknown[]): void;
   close(): Promise<void>;
   getSelfInfo(timeout?: number): Promise<MeshCoreSelfInfo>;
   getContacts(): Promise<MeshCoreContactRaw[]>;
   getChannels(): Promise<MeshCoreChannelRaw[]>;
+  getWaitingMessages(): Promise<unknown[]>;
   sendFloodAdvert(): Promise<void>;
   sendTextMessage(pubKey: Uint8Array, text: string, type?: number): Promise<unknown>;
   sendChannelTextMessage(channelIdx: number, text: string): Promise<void>;
@@ -111,6 +112,11 @@ export function useMeshCore() {
   const pubKeyPrefixMapRef = useRef<Map<string, number>>(new Map());
   // Full pubKey → nodeId for sending
   const pubKeyMapRef = useRef<Map<number, Uint8Array>>(new Map());
+  // Stable ref to current nodes so event listeners don't form stale closures
+  const nodesRef = useRef<Map<number, MeshNode>>(new Map());
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
 
   const addMessage = useCallback((msg: ChatMessage) => {
     setMessages((prev) => [...prev, msg]);
@@ -126,8 +132,8 @@ export function useMeshCore() {
 
   const setupEventListeners = useCallback(
     (conn: MeshCoreConnection) => {
-      // Push: periodic advert (auto-add mode)
-      conn.on('0x80', (data: unknown) => {
+      // Push: periodic advert — event 0x80 = 128
+      conn.on(128, (data: unknown) => {
         const d = data as {
           publicKey: Uint8Array;
           advLat: number;
@@ -149,8 +155,8 @@ export function useMeshCore() {
         });
       });
 
-      // Push: new contact discovered (manual-add mode)
-      conn.on('0x8A', (data: unknown) => {
+      // Push: new contact discovered — event 0x8A = 138
+      conn.on(138, (data: unknown) => {
         const d = data as MeshCoreContactRaw;
         const node = meshcoreContactToMeshNode(d);
         pubKeyMapRef.current.set(node.node_id, d.publicKey);
@@ -161,28 +167,75 @@ export function useMeshCore() {
         updateNode(node);
       });
 
-      // Push: message waiting — fetch it
-      conn.on('0x83', () => {
-        // Trigger sync of next waiting message
+      // Push: message waiting — event 0x83 = 131; fetch all queued messages
+      conn.on(131, () => {
         void (async () => {
           try {
-            // sendCommandSyncNextMessage equivalent — use the raw command via connection internals
-            // meshcore.js doesn't expose a high-level waitingMessages() fetch, so we listen on
-            // ContactMsgRecv / ChannelMsgRecv which fire when the device pushes a message.
+            const msgs = await conn.getWaitingMessages();
+            for (const m of msgs as {
+              contactMessage?: { pubKeyPrefix: Uint8Array; senderTimestamp: number; text: string };
+              channelMessage?: { channelIdx: number; senderTimestamp: number; text: string };
+            }[]) {
+              if (m.contactMessage) {
+                const d = m.contactMessage;
+                const prefix = Array.from(d.pubKeyPrefix)
+                  .map((b) => b.toString(16).padStart(2, '0'))
+                  .join('');
+                const senderId = pubKeyPrefixMapRef.current.get(prefix) ?? 0;
+                const sender = nodesRef.current.get(senderId);
+                if (senderId !== 0) {
+                  setNodes((prev) => {
+                    const node = prev.get(senderId);
+                    if (!node) return prev;
+                    const next = new Map(prev);
+                    next.set(senderId, { ...node, last_heard: d.senderTimestamp });
+                    return next;
+                  });
+                }
+                addMessage({
+                  sender_id: senderId,
+                  sender_name: sender?.long_name ?? `Node-${senderId.toString(16).toUpperCase()}`,
+                  payload: d.text,
+                  channel: -1,
+                  timestamp: d.senderTimestamp * 1000,
+                  status: 'acked',
+                });
+              }
+              if (m.channelMessage) {
+                const d = m.channelMessage;
+                addMessage({
+                  sender_id: 0,
+                  sender_name: 'Unknown',
+                  payload: d.text,
+                  channel: d.channelIdx,
+                  timestamp: d.senderTimestamp * 1000,
+                  status: 'acked',
+                });
+              }
+            }
           } catch (e) {
-            console.warn('[useMeshCore] MsgWaiting sync error', e);
+            console.warn('[useMeshCore] getWaitingMessages error', e);
           }
         })();
       });
 
-      // Incoming DM
-      conn.on('7', (data: unknown) => {
+      // Incoming DM — event 7
+      conn.on(7, (data: unknown) => {
         const d = data as { pubKeyPrefix: Uint8Array; text: string; senderTimestamp: number };
         const prefix = Array.from(d.pubKeyPrefix)
           .map((b) => b.toString(16).padStart(2, '0'))
           .join('');
         const senderId = pubKeyPrefixMapRef.current.get(prefix) ?? 0;
-        const sender = nodes.get(senderId);
+        const sender = nodesRef.current.get(senderId);
+        if (senderId !== 0) {
+          setNodes((prev) => {
+            const node = prev.get(senderId);
+            if (!node) return prev;
+            const next = new Map(prev);
+            next.set(senderId, { ...node, last_heard: d.senderTimestamp });
+            return next;
+          });
+        }
         addMessage({
           sender_id: senderId,
           sender_name: sender?.long_name ?? `Node-${senderId.toString(16).toUpperCase()}`,
@@ -193,8 +246,8 @@ export function useMeshCore() {
         });
       });
 
-      // Incoming channel message
-      conn.on('8', (data: unknown) => {
+      // Incoming channel message — event 8
+      conn.on(8, (data: unknown) => {
         const d = data as { channelIdx: number; text: string; senderTimestamp: number };
         addMessage({
           sender_id: 0, // unknown sender in channel mode
@@ -210,7 +263,7 @@ export function useMeshCore() {
         setState((prev) => ({ ...prev, status: 'disconnected' }));
       });
     },
-    [addMessage, updateNode, nodes],
+    [addMessage, updateNode],
   );
 
   const connect = useCallback(
@@ -323,6 +376,24 @@ export function useMeshCore() {
     [addMessage, selfInfo, state.myNodeNum],
   );
 
+  const refreshContacts = useCallback(async () => {
+    if (!connRef.current) return;
+    const contacts = await connRef.current.getContacts();
+    const newNodes = new Map<number, MeshNode>();
+    pubKeyMapRef.current.clear();
+    pubKeyPrefixMapRef.current.clear();
+    for (const contact of contacts) {
+      const node = meshcoreContactToMeshNode(contact);
+      newNodes.set(node.node_id, node);
+      pubKeyMapRef.current.set(node.node_id, contact.publicKey);
+      const prefix = Array.from(contact.publicKey.slice(0, 6))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+      pubKeyPrefixMapRef.current.set(prefix, node.node_id);
+    }
+    setNodes(newNodes);
+  }, []);
+
   const sendAdvert = useCallback(async () => {
     if (!connRef.current) return;
     await connRef.current.sendFloodAdvert();
@@ -342,6 +413,7 @@ export function useMeshCore() {
     disconnect,
     sendMessage,
     sendAdvert,
+    refreshContacts,
     // Stubs for interface compatibility
     mqttStatus: 'disconnected' as const,
     selfNodeId: state.myNodeNum,

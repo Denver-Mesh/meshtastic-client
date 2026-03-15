@@ -175,6 +175,8 @@ function MqttGlobeIcon({ connected }: { connected: boolean }) {
 interface Props {
   state: DeviceState;
   onConnect: (type: ConnectionType, httpAddress?: string) => Promise<void>;
+  onRefreshContacts?: () => Promise<void>;
+  onSendAdvert?: () => Promise<void>;
   onAutoConnect: (
     type: ConnectionType,
     httpAddress?: string,
@@ -190,6 +192,8 @@ interface Props {
 export default function ConnectionPanel({
   state,
   onConnect,
+  onRefreshContacts,
+  onSendAdvert,
   onAutoConnect,
   onDisconnect,
   mqttStatus,
@@ -617,7 +621,7 @@ export default function ConnectionPanel({
               {bleDevices.length === 0 ? (
                 <div className="px-4 py-6 text-center text-muted text-sm">
                   <Spinner className="w-5 h-5 text-muted mx-auto mb-2" />
-                  Scanning for Meshtastic devices...
+                  Scanning for {protocol === 'meshcore' ? 'MeshCore' : 'Meshtastic'} devices...
                 </div>
               ) : (
                 bleDevices.map((device) => {
@@ -991,6 +995,22 @@ export default function ConnectionPanel({
             >
               Disconnect
             </button>
+            {onRefreshContacts && (
+              <button
+                onClick={onRefreshContacts}
+                className="w-full px-4 py-2.5 border border-purple-600 text-purple-400 hover:bg-purple-900/30 hover:text-purple-300 text-sm font-medium rounded-lg transition-colors"
+              >
+                Refresh Contacts
+              </button>
+            )}
+            {onSendAdvert && (
+              <button
+                onClick={onSendAdvert}
+                className="w-full px-4 py-2.5 border border-gray-600 text-gray-300 hover:bg-secondary-dark hover:text-gray-100 text-sm font-medium rounded-lg transition-colors"
+              >
+                Send Advert
+              </button>
+            )}
           </div>
         </div>
 
