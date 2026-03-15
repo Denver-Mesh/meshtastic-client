@@ -105,6 +105,9 @@ export function useDevice() {
   const onStatusUpdateRef = useRef<(event: StatusUpdateEvent) => void>(() => {});
   // Tracks the tempId of an in-flight optimistic message (device path) so the echo can be skipped
   const pendingTempIdRef = useRef<number | undefined>(undefined);
+  // True while the device is in the configuring phase (replaying queued packets); messages
+  // received during this window are historical and should not increment the unread counter.
+  const isConfiguringRef = useRef<boolean>(false);
 
   // ─── GPS tracking ─────────────────────────────────────────────
   const deviceGpsModeRef = useRef<number>(0); // 0=DISABLED,1=ENABLED,2=NOT_PRESENT
@@ -635,8 +638,14 @@ export function useDevice() {
         const mapped = statusMap[status] ?? 'connected';
         setState((s) => ({ ...s, status: mapped }));
 
+        // Track configuring phase so packet replays are marked as historical
+        if (status === 3 || status === 5 || status === 6) {
+          isConfiguringRef.current = true;
+        }
+
         // Start polling + watchdog when configured
         if (status === 7) {
+          isConfiguringRef.current = false;
           lastDataReceivedRef.current = Date.now();
           startPolling(type);
           startWatchdog();
@@ -646,6 +655,7 @@ export function useDevice() {
 
         // Always clean up on disconnect, even if we never reached configured
         if (status === 2) {
+          isConfiguringRef.current = false;
           stopBleHeartbeat();
           stopWatchdog();
           stopGpsInterval();
@@ -761,7 +771,13 @@ export function useDevice() {
           return;
         }
 
-        const rfMsg: ChatMessage = isEcho ? msg : { ...msg, receivedVia: 'rf' as const };
+        const rfMsg: ChatMessage = isEcho
+          ? msg
+          : {
+              ...msg,
+              receivedVia: 'rf' as const,
+              isHistory: isConfiguringRef.current || undefined,
+            };
         setMessages((prev) => {
           // Dedup reaction retransmissions before the DB write completes
           if (rfMsg.emoji && rfMsg.replyId) {
