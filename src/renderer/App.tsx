@@ -331,7 +331,9 @@ export default function App() {
     }
     if (count > prevMsgCountRef.current && activeTab !== 1) {
       const newMsgs = device.messages.slice(prevMsgCountRef.current);
-      const realNew = newMsgs.filter((m) => m.sender_id !== device.state.myNodeNum && !m.emoji);
+      const realNew = newMsgs.filter(
+        (m) => m.sender_id !== device.state.myNodeNum && !m.emoji && !m.isHistory,
+      );
       if (realNew.length > 0) setChatUnread((prev) => prev + realNew.length);
     }
     prevMsgCountRef.current = count;

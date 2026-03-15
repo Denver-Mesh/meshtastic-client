@@ -182,6 +182,8 @@ export interface ChatMessage {
   to?: number;
   // Which transport(s) delivered this incoming message
   receivedVia?: 'rf' | 'mqtt' | 'both';
+  // true for backlog messages (e.g. MeshCore MsgWaiting catch-up); excluded from unread counter
+  isHistory?: boolean;
 }
 
 export interface TelemetryPoint {

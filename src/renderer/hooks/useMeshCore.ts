@@ -199,6 +199,7 @@ export function useMeshCore() {
                   channel: -1,
                   timestamp: d.senderTimestamp * 1000,
                   status: 'acked',
+                  isHistory: true,
                 });
               }
               if (m.channelMessage) {
@@ -210,6 +211,7 @@ export function useMeshCore() {
                   channel: d.channelIdx,
                   timestamp: d.senderTimestamp * 1000,
                   status: 'acked',
+                  isHistory: true,
                 });
               }
             }
