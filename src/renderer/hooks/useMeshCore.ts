@@ -936,7 +936,7 @@ export function useMeshCore() {
 
   const sendPositionToDeviceMeshCore = useCallback(async (lat: number, lon: number) => {
     if (!connRef.current) return;
-    await connRef.current.setAdvertLatLong(lat, lon);
+    await connRef.current.setAdvertLatLong(Math.round(lat * 1e7), Math.round(lon * 1e7));
   }, []);
 
   const traceRoute = useCallback(async (nodeId: number) => {
