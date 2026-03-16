@@ -918,8 +918,8 @@ export default function AppPanel({
               Position History
             </div>
             <p className="text-xs text-muted leading-relaxed">
-              Clears all persisted movement trail data. In-memory paths and future positions are
-              unaffected.
+              Clears all persisted movement trail data and the current in-memory path overlay. New
+              positions will resume tracking immediately.
             </p>
             <button
               type="button"

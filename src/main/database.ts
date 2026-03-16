@@ -69,8 +69,11 @@ export function initDatabase(): void {
       if (pruned.changes > 0) {
         console.log(`[db] Pruned ${pruned.changes} old position_history rows`);
       }
-    } catch {
-      /* non-fatal */
+    } catch (e) {
+      console.warn(
+        '[db] position_history prune failed (non-fatal):',
+        sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+      );
     }
 
     const version = db.pragma('user_version', { simple: true });

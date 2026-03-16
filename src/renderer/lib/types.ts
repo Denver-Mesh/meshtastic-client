@@ -329,6 +329,7 @@ declare global {
         deleteMeshcoreContact: (nodeId: number) => Promise<unknown>;
         clearMeshcoreMessages: () => Promise<unknown>;
         clearMeshcoreContacts: () => Promise<unknown>;
+        clearMeshcoreRepeaters: () => Promise<unknown>;
         updateMeshcoreContactNickname: (
           nodeId: number,
           nickname: string | null,

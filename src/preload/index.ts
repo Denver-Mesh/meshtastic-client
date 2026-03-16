@@ -100,6 +100,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('db:deleteMeshcoreContact', nodeId),
     clearMeshcoreMessages: () => ipcRenderer.invoke('db:clearMeshcoreMessages'),
     clearMeshcoreContacts: () => ipcRenderer.invoke('db:clearMeshcoreContacts'),
+    clearMeshcoreRepeaters: () => ipcRenderer.invoke('db:clearMeshcoreRepeaters'),
     updateMeshcoreContactNickname: (nodeId: number, nickname: string | null) =>
       ipcRenderer.invoke('db:updateMeshcoreContactNickname', nodeId, nickname),
     savePositionHistory: (

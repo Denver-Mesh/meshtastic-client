@@ -67,8 +67,8 @@ export const usePositionHistoryStore = create<PositionHistoryState>((set, get) =
       window.electronAPI.db.clearPositionHistory().catch((err) => {
         console.warn('[positionHistory] clearPositionHistory DB failed:', err);
       });
-    } catch {
-      /* non-electron context */
+    } catch (e) {
+      console.warn('[positionHistory] clearPositionHistory IPC bridge error:', e);
     }
   },
 

@@ -456,6 +456,19 @@ function createWindow() {
       console.warn('[IPC] select-bluetooth-device: replacing stale pendingBluetoothCallback');
       pendingBluetoothCallback = callback;
       bluetoothDiscoveryDevices.clear();
+      // Safety: start a fresh 60s auto-cancel for the replacement callback.
+      // The old timer references the stale callback reference so it will not fire.
+      setTimeout(() => {
+        if (pendingBluetoothCallback === callback) {
+          console.warn(
+            '[IPC] BLE discovery replacement callback stale after 60s — auto-cancelling',
+          );
+          pendingBluetoothCallback('');
+          pendingBluetoothCallback = null;
+          lastBluetoothDeviceIds.clear();
+          bluetoothDiscoveryDevices.clear();
+        }
+      }, 60_000);
     }
     // Merge new devices into the accumulated list for this discovery session
     for (const d of devices) {
@@ -1639,6 +1652,19 @@ ipcMain.handle('db:clearMeshcoreContacts', () => {
   } catch (err) {
     console.error(
       '[IPC] db:clearMeshcoreContacts failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+// Deletes only Repeater-type contacts (contact_type = 2), leaving Chat and Room contacts intact.
+ipcMain.handle('db:clearMeshcoreRepeaters', () => {
+  try {
+    return getDatabase().prepare('DELETE FROM meshcore_contacts WHERE contact_type = 2').run();
+  } catch (err) {
+    console.error(
+      '[IPC] db:clearMeshcoreRepeaters failed:',
       sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
     );
     throw err;
