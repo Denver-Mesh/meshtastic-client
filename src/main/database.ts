@@ -358,14 +358,14 @@ function runMigrations(): void {
     try {
       db!.exec(
         'CREATE TABLE IF NOT EXISTS meshcore_contacts (' +
-          'node_id INTEGER PRIMARY KEY, public_key TEXT NOT NULL, adv_name TEXT,' +
-          'contact_type INTEGER DEFAULT 0, last_advert INTEGER,' +
+          'node_id INTEGER PRIMARY KEY, public_key TEXT NOT NULL, adv_name TEXT, ' +
+          'contact_type INTEGER DEFAULT 0, last_advert INTEGER, ' +
           'adv_lat REAL, adv_lon REAL, last_snr REAL, last_rssi REAL, favorited INTEGER DEFAULT 0)',
       );
       db!.exec(
         'CREATE TABLE IF NOT EXISTS meshcore_messages (' +
-          'id INTEGER PRIMARY KEY AUTOINCREMENT, sender_id INTEGER, sender_name TEXT,' +
-          'payload TEXT NOT NULL, channel_idx INTEGER DEFAULT 0, timestamp INTEGER NOT NULL,' +
+          'id INTEGER PRIMARY KEY AUTOINCREMENT, sender_id INTEGER, sender_name TEXT, ' +
+          'payload TEXT NOT NULL, channel_idx INTEGER DEFAULT 0, timestamp INTEGER NOT NULL, ' +
           "status TEXT DEFAULT 'acked', packet_id INTEGER, to_node INTEGER)",
       );
       db!.exec('CREATE INDEX IF NOT EXISTS idx_mc_msgs_ts ON meshcore_messages(timestamp)');
@@ -528,13 +528,46 @@ export function mergeDatabase(sourcePath: string) {
       `);
 
       for (const node of sourceNodes) {
-        if (insertNode.run(node).changes > 0) nodesAdded++;
+        try {
+          // Basic shape validation: must have a finite node_id; ignore obviously malformed rows.
+          const nodeId = Number((node as { node_id?: unknown }).node_id);
+          if (!Number.isFinite(nodeId)) {
+            console.warn(
+              '[db] mergeDatabase: skipping node row with invalid node_id:',
+              sanitizeLogMessage(String((node as { node_id?: unknown }).node_id)),
+            );
+            continue;
+          }
+          if (insertNode.run(node).changes > 0) nodesAdded++;
+        } catch (e) {
+          console.warn(
+            '[db] mergeDatabase: skipping node row due to error:',
+            sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+          );
+        }
       }
 
       for (const msg of sourceMessages) {
-        if (!checkMessage.get(msg.sender_id, msg.timestamp, msg.payload)) {
-          insertMessage.run(msg);
-          messagesAdded++;
+        try {
+          const senderId = (msg as { sender_id?: unknown }).sender_id;
+          const timestamp = (msg as { timestamp?: unknown }).timestamp;
+          const payload = (msg as { payload?: unknown }).payload;
+          if (!Number.isFinite(Number(timestamp)) || typeof payload !== 'string') {
+            console.warn(
+              '[db] mergeDatabase: skipping message row with invalid timestamp/payload:',
+              sanitizeLogMessage(JSON.stringify({ senderId, timestamp })),
+            );
+            continue;
+          }
+          if (!checkMessage.get(senderId, timestamp, payload)) {
+            insertMessage.run(msg);
+            messagesAdded++;
+          }
+        } catch (e) {
+          console.warn(
+            '[db] mergeDatabase: skipping message row due to error:',
+            sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+          );
         }
       }
 
