@@ -93,9 +93,22 @@ export async function createConnection(
       break;
     }
 
-    case 'serial':
-      transport = await TransportWebSerial.create(115200);
+    case 'serial': {
+      console.debug('[connection] createConnection: serial');
+      const SERIAL_CONNECT_TIMEOUT_MS = 15_000;
+      const serialPromise = TransportWebSerial.create(115200);
+      const serialTimeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              new Error(`Serial connection timed out after ${SERIAL_CONNECT_TIMEOUT_MS / 1000}s`),
+            ),
+          SERIAL_CONNECT_TIMEOUT_MS,
+        ),
+      );
+      transport = await Promise.race([serialPromise, serialTimeoutPromise]);
       break;
+    }
 
     case 'http': {
       if (!httpAddress) throw new Error('HTTP address required');
@@ -107,6 +120,11 @@ export async function createConnection(
       host = host.replace(/^https?:\/\//, '');
       // Strip trailing slashes
       host = host.replace(/\/+$/, '');
+      // Normalize bare IPv6 addresses — browsers require brackets: [fe80::1]
+      if (host.includes(':') && !host.startsWith('[')) {
+        host = `[${host}]`;
+      }
+      console.debug(`[connection] createConnection: http address=${host} tls=${useTls}`);
       const connectionUrl = `${useTls ? 'https' : 'http'}://${host}`;
       await httpPreflightWithRetries(connectionUrl);
       const createPromise = TransportHTTP.create(host, useTls);
@@ -230,6 +248,9 @@ export async function reconnectSerial(lastPortId?: string | null): Promise<MeshD
     throw new Error('Web Serial API not available');
   }
   const ports = await navigator.serial.getPorts();
+  console.debug(
+    `[connection] reconnectSerial: getPorts returned ${ports.length} port(s), lastPortId=${lastPortId ?? 'none'}`,
+  );
   if (ports.length === 0) {
     throw new Error('No previously granted serial ports found');
   }
@@ -238,7 +259,13 @@ export async function reconnectSerial(lastPortId?: string | null): Promise<MeshD
   if (lastPortId) {
     port = (ports as any[]).find((p: any) => p.portId === lastPortId);
   }
+  if (lastPortId && !port) {
+    console.warn(
+      `[connection] reconnectSerial: portId ${lastPortId} not found — falling back to first port`,
+    );
+  }
   port = port ?? ports[0];
+  console.debug(`[connection] reconnectSerial: using port ${(port as any)?.portId ?? 'unknown'}`);
 
   const transport = await TransportWebSerial.createFromPort(port, 115200);
   const device = new MeshDevice(transport as any);
@@ -265,6 +292,13 @@ export async function safeDisconnect(device: MeshDevice): Promise<void> {
         await device.transport.toDevice.close();
       } catch (e) {
         console.debug('[connection] safeDisconnect toDevice.close', e);
+      }
+
+      // Close fromDevice stream to prevent GC leaks and lingering fetches (HTTP)
+      try {
+        await (device.transport.fromDevice as ReadableStream).cancel();
+      } catch (e) {
+        console.debug('[connection] safeDisconnect fromDevice.cancel', e);
       }
 
       // For BLE: disconnect the GATT server

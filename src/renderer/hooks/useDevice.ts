@@ -1501,7 +1501,11 @@ export function useDevice() {
 
       // ─── Serial heartbeat (existing behavior, keeps device alive)
       if (type === 'serial') {
-        device.setHeartbeatInterval(60_000);
+        try {
+          device.setHeartbeatInterval(60_000);
+        } catch (e) {
+          console.warn('[useDevice] serial: setHeartbeatInterval failed', e);
+        }
       }
 
       // ─── GATT disconnection event (Layer 3) ────────────────────

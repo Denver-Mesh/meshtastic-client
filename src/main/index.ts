@@ -479,8 +479,25 @@ function createWindow() {
     (event, portList, _webContents, callback) => {
       event.preventDefault();
 
+      // Warn if a previous callback is being replaced (renderer re-triggered before resolving)
+      if (pendingSerialCallback) {
+        console.warn('[IPC] select-serial-port: replacing stale pendingSerialCallback');
+      }
+
       // Store callback so we can resolve it when the user picks a port
       pendingSerialCallback = callback;
+
+      console.debug(`[IPC] select-serial-port: discovered ${portList.length} port(s)`);
+
+      // Auto-cancel after 60s to prevent indefinite block if renderer unmounts mid-flow
+      setTimeout(() => {
+        if (pendingSerialCallback === callback) {
+          console.warn('[IPC] Serial port selection callback stale after 60s — auto-cancelling');
+          pendingSerialCallback('');
+          pendingSerialCallback = null;
+          lastSerialPortIds.clear();
+        }
+      }, 60_000);
 
       lastSerialPortIds = new Set(portList.map((p) => p.portId));
       // Send port list to renderer for selection

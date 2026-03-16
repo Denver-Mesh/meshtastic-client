@@ -26,6 +26,41 @@ function lastConnectionKey(p: MeshProtocol) {
   return `mesh-client:lastConnection:${p}`;
 }
 
+function humanizeSerialError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/access denied|permission|not allowed/i.test(msg)) {
+    return `${msg} — On Linux, add your user to the dialout group: sudo usermod -aG dialout $USER (then log out and back in)`;
+  }
+  if (/no port|not found|disconnected|device not found/i.test(msg)) {
+    return `${msg} — Ensure the USB cable is connected and the device is powered on.`;
+  }
+  if (/timed out/i.test(msg)) {
+    return `${msg} — If the port appeared briefly, try reconnecting the USB cable.`;
+  }
+  return msg;
+}
+
+function humanizeHttpError(address: string, err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  const isMdns = address.toLowerCase().includes('meshtastic.local');
+  if (/timed out|timeout|aborted/i.test(msg)) {
+    const hint = isMdns
+      ? "mDNS may not resolve — try the device's IP address instead."
+      : 'Ensure the device is powered on and reachable.';
+    return `${msg} — ${hint}`;
+  }
+  if (/401|403|unauthorized/i.test(msg)) {
+    return `${msg} — Check device authentication settings.`;
+  }
+  if (/econnrefused|connection refused|failed to fetch|network/i.test(msg)) {
+    return `${msg} — Ensure the device is powered on and connected to the same network.`;
+  }
+  if (isMdns) {
+    return `${msg} — mDNS may not resolve on your network; try the device's IP address instead.`;
+  }
+  return msg;
+}
+
 function humanizeBleError(err: unknown): string {
   const msg = err instanceof Error ? err.message : String(err);
   if (msg.includes('Bluetooth adapter not found') || msg.includes('adapter is not available')) {
@@ -416,13 +451,17 @@ export default function ConnectionPanel({
       await onConnect(connectionType, httpAddress);
     } catch (err) {
       console.warn('[ConnectionPanel] handleConnect failed', err);
-      setError(
-        connectionType === 'ble'
-          ? humanizeBleError(err)
-          : err instanceof Error
-            ? err.message
-            : 'Connection failed',
-      );
+      let errorMsg: string;
+      if (connectionType === 'ble') {
+        errorMsg = humanizeBleError(err);
+      } else if (connectionType === 'serial') {
+        errorMsg = humanizeSerialError(err);
+      } else if (connectionType === 'http') {
+        errorMsg = humanizeHttpError(httpAddress, err);
+      } else {
+        errorMsg = err instanceof Error ? err.message : 'Connection failed';
+      }
+      setError(errorMsg);
       setConnecting(false);
       setConnectionStage('');
     }
@@ -579,7 +618,7 @@ export default function ConnectionPanel({
       setShowSerialPicker(false);
       setConnectionStage('Please wait...');
       onConnect('http', addr).catch((err) => {
-        setError(err instanceof Error ? err.message : 'Reconnect failed');
+        setError(humanizeHttpError(addr, err));
         setConnecting(false);
         setConnectionStage('');
       });
@@ -592,7 +631,7 @@ export default function ConnectionPanel({
       onAutoConnect('serial', undefined, lastConnection.serialPortId).catch((err) => {
         isAutoConnectingRef.current = false;
         setIsAutoConnecting(false);
-        setError(err instanceof Error ? err.message : 'Reconnect failed');
+        setError(humanizeSerialError(err));
         setConnecting(false);
         setConnectionStage('');
       });
@@ -1284,7 +1323,11 @@ export default function ConnectionPanel({
             <button
               type="button"
               onClick={handleConnect}
-              disabled={connecting || state.status === 'connecting'}
+              disabled={
+                connecting ||
+                state.status === 'connecting' ||
+                (connectionType === 'http' && !httpAddress.trim())
+              }
               className="w-full px-4 py-2.5 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ backgroundColor: '#4CAF50' }}
             >
