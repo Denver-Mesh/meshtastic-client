@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { emptyNode } from './useDevice';
+import { createChatStubNode, emptyNode } from './useDevice';
 
 describe('emptyNode', () => {
   it('generates a long_name as the hex node ID with ! prefix', () => {
@@ -44,5 +44,26 @@ describe('emptyNode', () => {
     const b = emptyNode(0xbbbbbbbb);
     expect(a.long_name).not.toBe(b.long_name);
     expect(a.short_name).not.toBe(b.short_name);
+  });
+
+  it('chat stub nodes use a non-pruned long_name format', () => {
+    const nodeId = 0x6985e7fc;
+    const stub = createChatStubNode(nodeId, 'rf');
+    // deleteNodesWithoutLongname prunes NULL, empty, or exact "!%08x" names.
+    // Our stub must use a different pattern so chat-only nodes are preserved.
+    expect(stub.long_name).toBe('RF !6985e7fc');
+    expect(stub.long_name).not.toBe('!6985e7fc');
+  });
+
+  it('chat stub nodes mark mqtt-only source correctly', () => {
+    const nodeId = 0x12345678;
+    const rfStub = createChatStubNode(nodeId, 'rf');
+    const mqttStub = createChatStubNode(nodeId, 'mqtt');
+
+    expect(rfStub.source).toBe('rf');
+    expect(rfStub.heard_via_mqtt_only).toBe(false);
+
+    expect(mqttStub.source).toBe('mqtt');
+    expect(mqttStub.heard_via_mqtt_only).toBe(true);
   });
 });

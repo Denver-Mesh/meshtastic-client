@@ -199,18 +199,7 @@ export function useDevice() {
       if (nodesRef.current.has(nodeNum) || nodeNum === 0) return;
       updateNodes((prev) => {
         if (prev.has(nodeNum)) return prev;
-        const base = emptyNode(nodeNum);
-        const hex = nodeNum.toString(16).padStart(8, '0');
-        const created: MeshNode = {
-          ...base,
-          // Use a non-pruned placeholder name so startup pruning
-          // (deleteNodesWithoutLongname) does not immediately remove
-          // chat-only nodes that have never sent NodeInfo.
-          long_name: `RF !${hex}`,
-          source,
-          heard_via_mqtt_only: source === 'mqtt',
-          last_heard: Date.now(),
-        };
+        const created = createChatStubNode(nodeNum, source);
         const next = new Map(prev);
         next.set(nodeNum, created);
         window.electronAPI.db.saveNode(created);
@@ -2382,5 +2371,20 @@ export function emptyNode(nodeId: number): MeshNode {
     last_heard: 0,
     latitude: 0,
     longitude: 0,
+  };
+}
+
+export function createChatStubNode(nodeId: number, source: 'rf' | 'mqtt'): MeshNode {
+  const base = emptyNode(nodeId);
+  const hex = nodeId.toString(16).padStart(8, '0');
+  return {
+    ...base,
+    // Use a non-pruned placeholder name so startup pruning
+    // (deleteNodesWithoutLongname) does not immediately remove
+    // chat-only nodes that have never sent NodeInfo.
+    long_name: `RF !${hex}`,
+    source,
+    heard_via_mqtt_only: source === 'mqtt',
+    last_heard: Date.now(),
   };
 }
