@@ -194,6 +194,21 @@ export function useDevice() {
     [],
   );
 
+  const ensureNodeExists = useCallback(
+    (nodeNum: number, source: 'rf' | 'mqtt') => {
+      if (nodesRef.current.has(nodeNum) || nodeNum === 0) return;
+      updateNodes((prev) => {
+        if (prev.has(nodeNum)) return prev;
+        const created = createChatStubNode(nodeNum, source);
+        const next = new Map(prev);
+        next.set(nodeNum, created);
+        window.electronAPI.db.saveNode(created);
+        return next;
+      });
+    },
+    [updateNodes],
+  );
+
   // Keep channelConfigsRef in sync so MQTT callbacks always see current config
   useEffect(() => {
     channelConfigsRef.current = channelConfigs;
@@ -573,6 +588,10 @@ export function useDevice() {
               emoji: normalizeReactionEmoji(baseMsg.emoji, baseMsg.payload) ?? baseMsg.emoji,
             }
           : baseMsg;
+
+      if (msg.sender_id) {
+        ensureNodeExists(msg.sender_id, 'mqtt');
+      }
       // Record MQTT path before dedup check (captures all copies, new and duplicate). Skip packetId 0 (no unique id per protobuf).
       const rawPacketId = Number(msg.packetId);
       const packetId = rawPacketId >>> 0;
@@ -622,7 +641,7 @@ export function useDevice() {
         mqttPresenceIntervalRef.current = null;
       }
     };
-  }, [updateNodes, isDuplicate, startGpsInterval]);
+  }, [updateNodes, isDuplicate, startGpsInterval, ensureNodeExists]);
 
   // Cleanup on unmount — stop all intervals and subscriptions
   useEffect(() => {
@@ -743,6 +762,8 @@ export function useDevice() {
         if (meshPacket.payloadVariant.case !== 'decoded') return;
         const dataPacket = meshPacket.payloadVariant.value;
         if (dataPacket.portnum !== Portnums.PortNum.TEXT_MESSAGE_APP) return;
+
+        ensureNodeExists(meshPacket.from, 'rf');
 
         touchLastData();
         const isEcho = meshPacket.from === myNodeNumRef.current;
@@ -1546,6 +1567,7 @@ export function useDevice() {
       startGpsInterval,
       stopGpsInterval,
       isDuplicate,
+      ensureNodeExists,
     ],
   );
 
@@ -2349,5 +2371,20 @@ export function emptyNode(nodeId: number): MeshNode {
     last_heard: 0,
     latitude: 0,
     longitude: 0,
+  };
+}
+
+export function createChatStubNode(nodeId: number, source: 'rf' | 'mqtt'): MeshNode {
+  const base = emptyNode(nodeId);
+  const hex = nodeId.toString(16).padStart(8, '0');
+  return {
+    ...base,
+    // Use a non-pruned placeholder name so startup pruning
+    // (deleteNodesWithoutLongname) does not immediately remove
+    // chat-only nodes that have never sent NodeInfo.
+    long_name: `RF !${hex}`,
+    source,
+    heard_via_mqtt_only: source === 'mqtt',
+    last_heard: Date.now(),
   };
 }
