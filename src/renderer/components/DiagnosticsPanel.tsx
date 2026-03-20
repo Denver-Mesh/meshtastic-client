@@ -588,7 +588,17 @@ export default function DiagnosticsPanel({
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      <h2 className="text-xl font-semibold text-gray-200">Network Diagnostics</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-gray-200">Network Diagnostics</h2>
+        <a
+          href="https://github.com/Colorado-Mesh/meshtastic-client/blob/main/DIAGNOSTICS.md"
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs text-muted hover:text-brand-green transition-colors"
+        >
+          Docs ↗
+        </a>
+      </div>
 
       {diagnosticRowsRestoredAt != null && diagnosticRows.length > 0 && (
         <div className="flex items-start justify-between gap-3 rounded-lg border border-blue-500/40 bg-blue-500/10 px-4 py-3 text-sm text-blue-200">
