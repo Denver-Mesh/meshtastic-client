@@ -339,6 +339,13 @@ export default function ConnectionPanel({
   const lastSelectedBleNameRef = useRef<string | null>(null);
   const lastConnectionBleDeviceNameFallbackRef = useRef(lastConnection?.bleDeviceName);
   lastConnectionBleDeviceNameFallbackRef.current = lastConnection?.bleDeviceName;
+  /** Mount-only auto-connect reads latest props/state via refs so the effect can stay `[]`. */
+  const deviceStateRef = useRef(state);
+  deviceStateRef.current = state;
+  const lastConnectionRef = useRef(lastConnection);
+  lastConnectionRef.current = lastConnection;
+  const onAutoConnectRef = useRef(onAutoConnect);
+  onAutoConnectRef.current = onAutoConnect;
 
   // Reload last connection when protocol switches (each protocol has its own key)
   useEffect(() => {
@@ -538,8 +545,9 @@ export default function ConnectionPanel({
   // HTTP still uses the one-click reconnect card (no autoconnect on mount).
   useEffect(() => {
     if (autoConnectFiredRef.current) return;
-    if (state.status !== 'disconnected') return;
-    if (!lastConnection) return;
+    if (deviceStateRef.current.status !== 'disconnected') return;
+    const lc = lastConnectionRef.current;
+    if (!lc) return;
 
     autoConnectFiredRef.current = true;
 
@@ -567,22 +575,23 @@ export default function ConnectionPanel({
       setConnectionStage('');
     };
 
-    if (lastConnection.type === 'serial') {
+    if (lc.type === 'serial') {
       setConnectionType('serial');
       isAutoConnectingRef.current = true;
       setIsAutoConnecting(true);
       setConnecting(true);
       setConnectionStage('Please wait...');
       startAutoConnectTimeout();
-      onAutoConnect('serial', undefined, lastConnection.serialPortId).catch(onAutoConnectFailed);
-    } else if (lastConnection.type === 'ble') {
+      void onAutoConnectRef
+        .current('serial', undefined, lc.serialPortId)
+        .catch(onAutoConnectFailed);
+    } else if (lc.type === 'ble') {
       // BLE: navigator.bluetooth.getDevices() is empty on this Electron build after
       // grant (logs: all retries count 0). requestDevice() requires a user gesture,
       // so no mount autoconnect — user taps Reconnect/Connect to open the picker.
       return;
     }
     // HTTP: do not auto-trigger — show one-click reconnect card instead
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only: uses lastConnection/onAutoConnect from first paint; deps would re-fire auto-connect
   }, []);
 
   // Cleanup timeout on unmount
