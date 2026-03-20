@@ -66,6 +66,8 @@ The official Meshtastic apps cover the basics, but desktop power users need more
 - Anomaly badges inline in node list; status aura circles on the map; congestion halos toggle; global and per-node MQTT ignore
 - **Environment Profile** segmented control — Standard (3 km), City (1.6× threshold), Canyon (2.6× threshold)
 
+> See [DIAGNOSTICS.md](DIAGNOSTICS.md) for a full reference on what triggers each finding and how to interpret it.
+
 **Environment Telemetry**
 
 - Push-based environment charts (temperature, humidity, pressure, air quality) from Meshtastic telemetry packets, displayed in the Telemetry tab
@@ -545,6 +547,10 @@ meshtastic-client/
 - **Network diagnostics tab**: [`src/renderer/components/DiagnosticsPanel.tsx`](src/renderer/components/DiagnosticsPanel.tsx) (health band + counts, diagnosticRows table, mesh congestion banner, env profile, halo toggles, diagnostic row max age).
 - **Mesh congestion UI**: [`src/renderer/components/MeshCongestionAttributionBlock.tsx`](src/renderer/components/MeshCongestionAttributionBlock.tsx) (shared between panel and node detail).
 - **Engines**: RF findings [`src/renderer/lib/diagnostics/RFDiagnosticEngine.ts`](src/renderer/lib/diagnostics/RFDiagnosticEngine.ts); routing anomalies [`src/renderer/lib/diagnostics/RoutingDiagnosticEngine.ts`](src/renderer/lib/diagnostics/RoutingDiagnosticEngine.ts); row merge/prune [`src/renderer/lib/diagnostics/diagnosticRows.ts`](src/renderer/lib/diagnostics/diagnosticRows.ts); store [`src/renderer/stores/diagnosticsStore.ts`](src/renderer/stores/diagnosticsStore.ts).
+
+### Diagnostics Reference
+
+For a detailed explanation of every diagnostic output — routing anomalies, RF findings, packet redundancy scores, map halos, and MQTT filtering — see [DIAGNOSTICS.md](DIAGNOSTICS.md).
 
 ---
 
