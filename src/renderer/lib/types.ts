@@ -311,6 +311,7 @@ declare global {
           emoji?: number | null;
           reply_id?: number | null;
           to_node?: number | null;
+          received_via?: string | null;
         }) => Promise<unknown>;
         saveMeshcoreContact: (contact: {
           node_id: number;

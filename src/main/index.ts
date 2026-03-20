@@ -198,6 +198,13 @@ function validateSaveMeshcoreMessage(msg: unknown): asserts msg is Record<string
     throw new Error('db:saveMeshcoreMessage: sender_name too long');
   if (m.status != null && typeof m.status === 'string' && m.status.length > MAX_STATUS_STRING)
     throw new Error('db:saveMeshcoreMessage: status too long');
+  const validReceivedVia = ['rf', 'mqtt', 'both'];
+  if (m.received_via != null) {
+    if (typeof m.received_via !== 'string' || m.received_via.length > 8)
+      throw new Error('db:saveMeshcoreMessage: received_via invalid');
+    if (!validReceivedVia.includes(m.received_via))
+      throw new Error('db:saveMeshcoreMessage: received_via must be rf, mqtt, or both');
+  }
 }
 
 function validateSaveMeshcoreContact(contact: unknown): asserts contact is Record<
@@ -1556,11 +1563,18 @@ ipcMain.handle('db:saveMeshcoreMessage', (_event, message) => {
       throw new Error('db:saveMeshcoreMessage: reply_id must be a non-negative finite number');
     }
     const db = getDatabase();
+    const validReceivedVia = ['rf', 'mqtt', 'both'] as const;
+    const receivedViaRaw = m.received_via;
+    const received_via =
+      typeof receivedViaRaw === 'string' &&
+      (validReceivedVia as readonly string[]).includes(receivedViaRaw)
+        ? receivedViaRaw
+        : null;
     return db
       .prepare(
         'INSERT OR IGNORE INTO meshcore_messages ' +
-          '(sender_id, sender_name, payload, channel_idx, timestamp, status, packet_id, emoji, reply_id, to_node) ' +
-          'VALUES (@sender_id, @sender_name, @payload, @channel_idx, @timestamp, @status, @packet_id, @emoji, @reply_id, @to_node)',
+          '(sender_id, sender_name, payload, channel_idx, timestamp, status, packet_id, emoji, reply_id, to_node, received_via) ' +
+          'VALUES (@sender_id, @sender_name, @payload, @channel_idx, @timestamp, @status, @packet_id, @emoji, @reply_id, @to_node, @received_via)',
       )
       .run({
         sender_id: m.sender_id != null ? Number(m.sender_id) : null,
@@ -1573,6 +1587,7 @@ ipcMain.handle('db:saveMeshcoreMessage', (_event, message) => {
         emoji: m.emoji != null ? safeNonNegativeInt(m.emoji) : null,
         reply_id: replyId,
         to_node: m.to_node != null ? Number(m.to_node) : null,
+        received_via,
       });
   } catch (err) {
     console.error(

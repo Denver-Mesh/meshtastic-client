@@ -169,7 +169,8 @@ function createBaseTables(): void {
         packet_id   INTEGER,
         emoji       INTEGER,
         reply_id    INTEGER,
-        to_node     INTEGER
+        to_node     INTEGER,
+        received_via TEXT
       );
 
       CREATE INDEX IF NOT EXISTS idx_mc_msgs_ts ON meshcore_messages(timestamp);
@@ -483,6 +484,24 @@ function runMigrations(): void {
         sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
       );
       throw new Error(`Migration v15 failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  if (userVersion < 16) {
+    try {
+      const columns = db!.prepare('PRAGMA table_info(meshcore_messages)').all() as {
+        name: string;
+      }[];
+      if (!columns.some((c) => c.name === 'received_via')) {
+        db!.prepare('ALTER TABLE meshcore_messages ADD COLUMN received_via TEXT').run();
+      }
+      db!.pragma('user_version = 16');
+    } catch (e) {
+      console.error(
+        '[db] migration v16 failed',
+        sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+      );
+      throw new Error(`Migration v16 failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 }

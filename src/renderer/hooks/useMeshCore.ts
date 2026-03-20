@@ -44,9 +44,18 @@ function contactToDbRow(
   };
 }
 
+function meshcoreReceivedViaFromDb(raw: unknown): NonNullable<ChatMessage['receivedVia']> {
+  if (raw === 'mqtt' || raw === 'both') return raw;
+  return 'rf';
+}
+
 function messageToDbRow(
   msg: ChatMessage,
 ): Parameters<typeof window.electronAPI.db.saveMeshcoreMessage>[0] {
+  const received_via =
+    msg.receivedVia === 'rf' || msg.receivedVia === 'mqtt' || msg.receivedVia === 'both'
+      ? msg.receivedVia
+      : null;
   return {
     sender_id: msg.sender_id !== 0 ? msg.sender_id : null,
     sender_name: msg.sender_name ?? null,
@@ -58,6 +67,7 @@ function messageToDbRow(
     emoji: msg.emoji ?? null,
     reply_id: msg.replyId ?? null,
     to_node: msg.to ?? null,
+    received_via,
   };
 }
 
@@ -723,6 +733,7 @@ export function useMeshCore() {
                   channel: -1,
                   timestamp: d.senderTimestamp * 1000,
                   status: 'acked',
+                  receivedVia: 'rf',
                   isHistory: true,
                 });
               }
@@ -736,6 +747,7 @@ export function useMeshCore() {
                   channel: d.channelIdx,
                   timestamp: d.senderTimestamp * 1000,
                   status: 'acked',
+                  receivedVia: 'rf',
                   isHistory: true,
                 });
               }
@@ -776,6 +788,7 @@ export function useMeshCore() {
           channel: -1, // DM channel sentinel
           timestamp: d.senderTimestamp * 1000,
           status: 'acked',
+          receivedVia: 'rf',
         });
       });
 
@@ -791,6 +804,7 @@ export function useMeshCore() {
           channel: d.channelIdx,
           timestamp: d.senderTimestamp * 1000,
           status: 'acked',
+          receivedVia: 'rf',
         });
       });
 
@@ -860,6 +874,7 @@ export function useMeshCore() {
           emoji: number | null;
           reply_id: number | null;
           to_node: number | null;
+          received_via?: string | null;
         }[];
         if (dbMsgs.length > 0) {
           const seen = new Set<string>();
@@ -880,6 +895,7 @@ export function useMeshCore() {
               emoji: r.emoji ?? undefined,
               replyId: r.reply_id ?? undefined,
               to: r.to_node ?? undefined,
+              receivedVia: meshcoreReceivedViaFromDb(r.received_via),
               isHistory: true,
             };
             const key = meshcoreMessageDedupeKey(msg);

@@ -78,7 +78,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
       timestamp: number;
       status?: string;
       packet_id?: number | null;
+      emoji?: number | null;
+      reply_id?: number | null;
       to_node?: number | null;
+      received_via?: string | null;
     }) => ipcRenderer.invoke('db:saveMeshcoreMessage', message),
     saveMeshcoreContact: (contact: {
       node_id: number;
