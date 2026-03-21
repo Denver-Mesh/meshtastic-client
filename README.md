@@ -608,6 +608,12 @@ Join the `#mesh-client-development` channel on Discord for help, feedback, and d
 
 ## Troubleshooting
 
+### npm 11: `Unknown env config "devdir"`
+
+**Cause:** npm 11+ rejects configuration keys it does not define. `devdir` is a legacy node-gyp-related value; it may be set in `~/.npmrc` or via `npm_config_devdir` / `NPM_CONFIG_DEVDIR` (some editors or sandboxes inject it).
+
+**Fix:** Run `npm config delete devdir` and `npm config delete devdir --global` if present; optionally `unset npm_config_devdir NPM_CONFIG_DEVDIR` in your shell. The project’s pre-commit hook unsets these before running npm. See [CONTRIBUTING.md](CONTRIBUTING.md) (Getting Started).
+
 ### `npm install` fails on native module compilation
 
 You're missing build tools for the native modules (e.g. `better-sqlite3`, `@serialport/bindings-cpp`):

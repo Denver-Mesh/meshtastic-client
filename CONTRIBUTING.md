@@ -42,6 +42,13 @@ If `better-sqlite3` or other native addons fail after changing Node or Electron 
 
 **Linux sandbox / SIGILL**: If `npm install` fails with `electron exited with signal SIGILL`, use `MESHTASTIC_SKIP_ELECTRON_REBUILD=1 npm install`, then run `npm run rebuild` where the Electron binary runs (see README Linux troubleshooting).
 
+**npm 11 — `Unknown env config "devdir"`:** npm only recognizes its own config keys. `devdir` is a legacy node-gyp setting; if it appears in `~/.npmrc` or as `npm_config_devdir` / `NPM_CONFIG_DEVDIR` in the environment (some IDEs or sandboxes inject it), npm 11 prints a warning. Fix:
+
+1. Remove from npm user config if saved there: `npm config delete devdir` and `npm config delete devdir --global`.
+2. Optionally unset in your shell profile: `unset npm_config_devdir NPM_CONFIG_DEVDIR 2>/dev/null || true`.
+
+The repo’s **pre-commit** hook unsets those variables before running npm so local commits are quiet when the environment sets `devdir`.
+
 ## Code style
 
 Run `npm run lint` before pushing. ESLint is configured with:
