@@ -1427,7 +1427,7 @@ export function useDevice() {
             ...next,
             {
               message: record.message,
-              time: Number(record.time),
+              time: Date.now(),
               source: record.source,
               level: record.level,
             },

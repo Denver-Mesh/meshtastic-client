@@ -68,9 +68,11 @@ function levelVisible(level: string, f: LevelFilters): boolean {
   return true;
 }
 
-function isAppLog(entry: LogEntry): boolean {
-  // Main-process patched console uses source "main". Renderer/Chromium uses "renderer:...".
-  return entry.source === 'main';
+function deviceLevelToString(level: number): string {
+  if (level >= 40) return 'error'; // CRITICAL(50) / ERROR(40)
+  if (level >= 30) return 'warn'; // WARNING(30)
+  if (level >= 20) return 'log'; // INFO(20)
+  return 'debug'; // DEBUG(10) / TRACE/UNSET(0)
 }
 
 function formatEntry(entry: LogEntry): string {
@@ -101,6 +103,7 @@ type LogPanelVariant = 'sidebar' | 'overlay';
 export default function LogPanel({
   variant = 'sidebar',
   onClose,
+  deviceLogs,
 }: {
   deviceLogs?: { message: string; time: number; source: string; level: number }[];
   variant?: LogPanelVariant;
@@ -180,11 +183,17 @@ export default function LogPanel({
     setEntries([]);
   }, []);
 
-  const visibleLines = entries.filter((e) => {
-    if (logSource === 'app' && !isAppLog(e)) return false;
-    if (logSource === 'device' && isAppLog(e)) return false;
-    return levelVisible(e.level, levelFilters);
-  });
+  const visibleLines: LogEntry[] =
+    logSource === 'device'
+      ? (deviceLogs ?? [])
+          .map((d) => ({
+            ts: d.time,
+            level: deviceLevelToString(d.level),
+            source: d.source,
+            message: d.message,
+          }))
+          .filter((e) => levelVisible(e.level, levelFilters))
+      : entries.filter((e) => levelVisible(e.level, levelFilters));
 
   const onResizeMouseDown = useCallback(
     (e: ReactMouseEvent) => {
@@ -303,10 +312,10 @@ export default function LogPanel({
             <button
               type="button"
               onClick={() => setLogSource('device')}
-              aria-label={`Device (${entries.filter((e) => !isAppLog(e)).length})`}
+              aria-label={`Device (${deviceLogs?.length ?? 0})`}
               className={`px-2 py-0.5 text-[10px] rounded ${logSource === 'device' ? 'bg-brand-green/20 text-brand-green border border-brand-green/40' : 'bg-slate-800 text-gray-400 border border-gray-700'}`}
             >
-              Device ({entries.filter((e) => !isAppLog(e)).length})
+              Device ({deviceLogs?.length ?? 0})
             </button>
           </div>
         </div>
@@ -362,17 +371,15 @@ export default function LogPanel({
           <span className="text-muted">
             {logSource === 'app'
               ? entries.length === 0
-                ? 'No main-process log lines yet.'
-                : entries.filter(isAppLog).length === 0
-                  ? 'No main-process lines yet.'
-                  : !levelFilters.logInfo && !levelFilters.warnError && !levelFilters.debug
-                    ? 'All level filters are off. Enable at least one under Show levels.'
-                    : 'No main-process lines match the current filters.'
-              : entries.filter((e) => !isAppLog(e)).length === 0
-                ? 'No renderer/device log lines yet.'
+                ? 'No app log lines yet.'
                 : !levelFilters.logInfo && !levelFilters.warnError && !levelFilters.debug
                   ? 'All level filters are off. Enable at least one under Show levels.'
-                  : 'No non-main lines match the current filters.'}
+                  : 'No app lines match the current filters.'
+              : (deviceLogs?.length ?? 0) === 0
+                ? 'No device log lines yet.'
+                : !levelFilters.logInfo && !levelFilters.warnError && !levelFilters.debug
+                  ? 'All level filters are off. Enable at least one under Show levels.'
+                  : 'No device lines match the current filters.'}
           </span>
         ) : (
           visibleLines.map((entry, i) => {
