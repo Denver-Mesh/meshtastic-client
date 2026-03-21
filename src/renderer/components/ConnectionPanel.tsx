@@ -1093,15 +1093,10 @@ export default function ConnectionPanel({
                     onClick={() => {
                       setMeshtasticPreset(id);
                       if (id === 'official') {
-                        setMqttSettings((prev) => ({
-                          ...prev,
-                          server: MQTT_DEFAULTS.server,
-                          port: MQTT_DEFAULTS.port,
-                          username: MQTT_DEFAULTS.username,
-                          password: MQTT_DEFAULTS.password,
-                          tlsInsecure: false,
-                          useWebSocket: false,
-                        }));
+                        setMqttSettings({
+                          ...MQTT_DEFAULTS,
+                          topicPrefix: mqttSettings.topicPrefix,
+                        });
                       }
                     }}
                     className={`flex-1 px-2 py-1.5 text-xs font-medium rounded border transition-colors ${
