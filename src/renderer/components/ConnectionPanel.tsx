@@ -351,7 +351,11 @@ export default function ConnectionPanel({
   const [mqttClientId, setMqttClientId] = useState('');
   const mqttSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const meshcoreMqttSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [meshcorePreset, setMeshcorePreset] = useState<'letsmesh' | 'ripple' | 'custom'>('custom');
+  const [meshcorePreset, setMeshcorePreset] = useState<'letsmesh' | 'ripple' | 'custom'>(() => {
+    const saved = localStorage.getItem('mesh-client:mqttPreset:meshcore');
+    if (saved === 'letsmesh' || saved === 'ripple') return saved;
+    return 'custom';
+  });
   const [meshtasticPreset, setMeshtasticPreset] = useState<'official' | 'custom'>(() => {
     const s = loadMqttSettings();
     return s.server === MQTT_DEFAULTS.server ? 'official' : 'custom';
@@ -367,6 +371,11 @@ export default function ConnectionPanel({
       if (mqttSaveTimerRef.current) clearTimeout(mqttSaveTimerRef.current);
     };
   }, [mqttSettings]);
+
+  // Persist MeshCore preset selection
+  useEffect(() => {
+    localStorage.setItem('mesh-client:mqttPreset:meshcore', meshcorePreset);
+  }, [meshcorePreset]);
 
   // Persist MeshCore MQTT settings with debounce
   useEffect(() => {
@@ -401,9 +410,15 @@ export default function ConnectionPanel({
   const activeMqttSettings = protocol === 'meshcore' ? meshcoreMqttSettings : mqttSettings;
   const setActiveMqttSettings = protocol === 'meshcore' ? setMeshcoreMqttSettings : setMqttSettings;
 
-  const updateMqtt = <K extends keyof MQTTSettings>(key: K, value: MQTTSettings[K]) => {
-    setMeshcorePreset('custom');
-    setMeshtasticPreset('custom');
+  const updateMqtt = <K extends keyof MQTTSettings>(
+    key: K,
+    value: MQTTSettings[K],
+    affectsPreset = true,
+  ) => {
+    if (affectsPreset) {
+      setMeshcorePreset('custom');
+      setMeshtasticPreset('custom');
+    }
     setActiveMqttSettings((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -1271,7 +1286,7 @@ export default function ConnectionPanel({
               min={1}
               max={20}
               value={activeMqttSettings.maxRetries ?? 5}
-              onChange={(e) => updateMqtt('maxRetries', parseInt(e.target.value) || 5)}
+              onChange={(e) => updateMqtt('maxRetries', parseInt(e.target.value) || 5, false)}
               className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
             />
           </div>
@@ -1297,7 +1312,7 @@ export default function ConnectionPanel({
                     .split('\n')
                     .map((s) => s.trim())
                     .filter(Boolean);
-                  updateMqtt('channelPsks', lines.length > 0 ? lines : undefined);
+                  updateMqtt('channelPsks', lines.length > 0 ? lines : undefined, false);
                 }}
                 className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm font-mono resize-none"
                 placeholder={'1PG7OiApB1nwvP+rz05pAQ==\n(one key per line)'}
@@ -1310,7 +1325,7 @@ export default function ConnectionPanel({
               type="checkbox"
               id="mqttAutoLaunch"
               checked={activeMqttSettings.autoLaunch}
-              onChange={(e) => updateMqtt('autoLaunch', e.target.checked)}
+              onChange={(e) => updateMqtt('autoLaunch', e.target.checked, false)}
               className="accent-brand-green"
             />
             <label htmlFor="mqttAutoLaunch" className="text-sm text-gray-300 cursor-pointer">
