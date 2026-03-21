@@ -325,12 +325,14 @@ export default function App() {
   // Read protocol from localStorage directly so this one-time effect has no deps.
   useEffect(() => {
     try {
+      const prot = (localStorage.getItem(PROTOCOL_KEY) as MeshProtocol) ?? 'meshtastic';
+      const key =
+        prot === 'meshcore' ? 'mesh-client:mqttSettings:meshcore' : 'mesh-client:mqttSettings';
       const settings = parseStoredJson<MQTTSettings>(
-        localStorage.getItem('mesh-client:mqttSettings'),
+        localStorage.getItem(key),
         'App MQTT auto-launch',
       );
       if (settings?.autoLaunch) {
-        const prot = (localStorage.getItem(PROTOCOL_KEY) as MeshProtocol) ?? 'meshtastic';
         void window.electronAPI.mqtt
           .connect({
             ...settings,

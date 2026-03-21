@@ -217,10 +217,29 @@ const MQTT_DEFAULTS: MQTTSettings = {
   maxRetries: 5,
 };
 
+const MESHCORE_MQTT_DEFAULTS: MQTTSettings = {
+  server: '',
+  port: 1883,
+  username: '',
+  password: '',
+  topicPrefix: 'meshcore',
+  autoLaunch: false,
+  maxRetries: 5,
+};
+
 function loadMqttSettings(): MQTTSettings {
   const raw = localStorage.getItem('mesh-client:mqttSettings');
   const parsed = parseStoredJson<Partial<MQTTSettings>>(raw, 'ConnectionPanel loadMqttSettings');
   return parsed ? { ...MQTT_DEFAULTS, ...parsed } : MQTT_DEFAULTS;
+}
+
+function loadMeshcoreMqttSettings(): MQTTSettings {
+  const raw = localStorage.getItem('mesh-client:mqttSettings:meshcore');
+  const parsed = parseStoredJson<Partial<MQTTSettings>>(
+    raw,
+    'ConnectionPanel loadMeshcoreMqttSettings',
+  );
+  return parsed ? { ...MESHCORE_MQTT_DEFAULTS, ...parsed } : MESHCORE_MQTT_DEFAULTS;
 }
 
 function MqttGlobeIcon({ connected }: { connected: boolean }) {
@@ -284,12 +303,16 @@ export default function ConnectionPanel({
 
   // ─── MQTT settings state ───────────────────────────────────────
   const [mqttSettings, setMqttSettings] = useState<MQTTSettings>(loadMqttSettings);
+  const [meshcoreMqttSettings, setMeshcoreMqttSettings] =
+    useState<MQTTSettings>(loadMeshcoreMqttSettings);
   const [showMqttPassword, setShowMqttPassword] = useState(false);
   const [mqttError, setMqttError] = useState<string | null>(null);
   const [mqttClientId, setMqttClientId] = useState('');
   const mqttSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const meshcoreMqttSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [meshcorePreset, setMeshcorePreset] = useState<'letsmesh' | 'ripple' | 'custom'>('custom');
 
-  // Persist MQTT settings with debounce
+  // Persist Meshtastic MQTT settings with debounce
   useEffect(() => {
     if (mqttSaveTimerRef.current) clearTimeout(mqttSaveTimerRef.current);
     mqttSaveTimerRef.current = setTimeout(() => {
@@ -299,6 +322,20 @@ export default function ConnectionPanel({
       if (mqttSaveTimerRef.current) clearTimeout(mqttSaveTimerRef.current);
     };
   }, [mqttSettings]);
+
+  // Persist MeshCore MQTT settings with debounce
+  useEffect(() => {
+    if (meshcoreMqttSaveTimerRef.current) clearTimeout(meshcoreMqttSaveTimerRef.current);
+    meshcoreMqttSaveTimerRef.current = setTimeout(() => {
+      localStorage.setItem(
+        'mesh-client:mqttSettings:meshcore',
+        JSON.stringify(meshcoreMqttSettings),
+      );
+    }, 300);
+    return () => {
+      if (meshcoreMqttSaveTimerRef.current) clearTimeout(meshcoreMqttSaveTimerRef.current);
+    };
+  }, [meshcoreMqttSettings]);
 
   // Listen for MQTT events from main process
   useEffect(() => window.electronAPI.mqtt.onError(setMqttError), []);
@@ -316,8 +353,13 @@ export default function ConnectionPanel({
     if (mqttStatus === 'disconnected') setMqttClientId('');
   }, [mqttStatus]);
 
-  const updateMqtt = <K extends keyof MQTTSettings>(key: K, value: MQTTSettings[K]) =>
-    setMqttSettings((prev) => ({ ...prev, [key]: value }));
+  const activeMqttSettings = protocol === 'meshcore' ? meshcoreMqttSettings : mqttSettings;
+  const setActiveMqttSettings = protocol === 'meshcore' ? setMeshcoreMqttSettings : setMqttSettings;
+
+  const updateMqtt = <K extends keyof MQTTSettings>(key: K, value: MQTTSettings[K]) => {
+    setMeshcorePreset('custom');
+    setActiveMqttSettings((prev) => ({ ...prev, [key]: value }));
+  };
 
   // ─── BLE device picker state ──────────────────────────────────
   const [bleDevices, setBleDevices] = useState<BluetoothDevice[]>([]);
@@ -855,7 +897,7 @@ export default function ConnectionPanel({
           <div className="flex justify-between text-sm">
             <span className="text-muted">Server</span>
             <span className="text-gray-200">
-              {mqttSettings.server}:{mqttSettings.port}
+              {activeMqttSettings.server}:{activeMqttSettings.port}
             </span>
           </div>
           {mqttClientId && (
@@ -867,9 +909,9 @@ export default function ConnectionPanel({
           <div className="flex justify-between text-sm">
             <span className="text-muted">Topic</span>
             <span className="text-gray-200 font-mono text-xs">
-              {mqttSettings.topicPrefix.endsWith('/')
-                ? mqttSettings.topicPrefix
-                : `${mqttSettings.topicPrefix}/`}
+              {activeMqttSettings.topicPrefix.endsWith('/')
+                ? activeMqttSettings.topicPrefix
+                : `${activeMqttSettings.topicPrefix}/`}
               #
             </span>
           </div>
@@ -890,6 +932,52 @@ export default function ConnectionPanel({
           </div>
         )}
         <div className="p-4 space-y-3">
+          {protocol === 'meshcore' && (
+            <div className="space-y-1">
+              <label className="text-xs text-muted">Network Preset</label>
+              <div className="flex gap-2">
+                {(
+                  [
+                    { id: 'letsmesh', label: 'LetsMesh' },
+                    { id: 'ripple', label: 'Ripple Networks' },
+                    { id: 'custom', label: 'Custom' },
+                  ] as const
+                ).map(({ id, label }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => {
+                      setMeshcorePreset(id);
+                      if (id === 'letsmesh') {
+                        setMeshcoreMqttSettings((prev) => ({
+                          ...prev,
+                          server: 'mqtt-us-v1.letsmesh.net',
+                          port: 443,
+                          topicPrefix: 'meshcore',
+                          useWebSocket: true,
+                        }));
+                      } else if (id === 'ripple') {
+                        setMeshcoreMqttSettings((prev) => ({
+                          ...prev,
+                          server: 'mqtt.ripplenetworks.com.au',
+                          port: 8883,
+                          topicPrefix: 'meshcore',
+                          useWebSocket: false,
+                        }));
+                      }
+                    }}
+                    className={`flex-1 px-2 py-1.5 text-xs font-medium rounded border transition-colors ${
+                      meshcorePreset === id
+                        ? 'bg-brand-green/20 border-brand-green text-brand-green'
+                        : 'bg-secondary-dark border-gray-600 text-gray-400 hover:border-gray-400 hover:text-gray-200'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-3 gap-2">
             <div className="col-span-2 space-y-1">
               <label htmlFor="mqtt-server" className="text-xs text-muted">
@@ -898,7 +986,7 @@ export default function ConnectionPanel({
               <input
                 id="mqtt-server"
                 type="text"
-                value={mqttSettings.server}
+                value={activeMqttSettings.server}
                 onChange={(e) => updateMqtt('server', e.target.value)}
                 className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
               />
@@ -910,18 +998,18 @@ export default function ConnectionPanel({
               <input
                 id="mqtt-port"
                 type="number"
-                value={mqttSettings.port}
+                value={activeMqttSettings.port}
                 onChange={(e) => updateMqtt('port', parseInt(e.target.value) || 1883)}
                 className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
               />
             </div>
           </div>
-          {mqttSettings.port === 8883 && (
+          {activeMqttSettings.port === 8883 && (
             <div className="flex items-center gap-2 rounded border border-amber-700/50 bg-amber-900/20 px-2 py-2">
               <input
                 type="checkbox"
                 id="mqtt-tls-insecure"
-                checked={mqttSettings.tlsInsecure ?? false}
+                checked={activeMqttSettings.tlsInsecure ?? false}
                 onChange={(e) => updateMqtt('tlsInsecure', e.target.checked)}
                 className="accent-brand-green"
               />
@@ -934,6 +1022,18 @@ export default function ConnectionPanel({
               </label>
             </div>
           )}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="mqtt-websocket"
+              checked={activeMqttSettings.useWebSocket ?? false}
+              onChange={(e) => updateMqtt('useWebSocket', e.target.checked)}
+              className="accent-brand-green"
+            />
+            <label htmlFor="mqtt-websocket" className="text-xs text-gray-300 cursor-pointer">
+              Use WebSocket transport <span className="text-gray-500">(required for port 443)</span>
+            </label>
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <label htmlFor="mqtt-username" className="text-xs text-muted">
@@ -942,7 +1042,7 @@ export default function ConnectionPanel({
               <input
                 id="mqtt-username"
                 type="text"
-                value={mqttSettings.username}
+                value={activeMqttSettings.username}
                 onChange={(e) => updateMqtt('username', e.target.value)}
                 className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
               />
@@ -955,7 +1055,7 @@ export default function ConnectionPanel({
                 <input
                   id="mqtt-password"
                   type={showMqttPassword ? 'text' : 'password'}
-                  value={mqttSettings.password}
+                  value={activeMqttSettings.password}
                   onChange={(e) => updateMqtt('password', e.target.value)}
                   className="w-full px-2 py-1.5 pr-8 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
                 />
@@ -985,7 +1085,7 @@ export default function ConnectionPanel({
             <input
               id="mqtt-topic-prefix"
               type="text"
-              value={mqttSettings.topicPrefix}
+              value={activeMqttSettings.topicPrefix}
               onChange={(e) => updateMqtt('topicPrefix', e.target.value)}
               className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
               placeholder="msh/US/"
@@ -1000,44 +1100,46 @@ export default function ConnectionPanel({
               type="number"
               min={1}
               max={20}
-              value={mqttSettings.maxRetries ?? 5}
+              value={activeMqttSettings.maxRetries ?? 5}
               onChange={(e) => updateMqtt('maxRetries', parseInt(e.target.value) || 5)}
               className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
             />
           </div>
-          <div className="space-y-1">
-            <div className="flex items-center gap-1.5">
-              <label htmlFor="mqtt-channel-psks" className="text-xs text-muted">
-                Channel PSKs
-              </label>
-              <span
-                title="Base64-encoded AES-128 keys for custom channels, one per line. The default LongFast key is always tried automatically."
-                className="text-xs text-gray-500 cursor-help"
-              >
-                ⓘ
-              </span>
+          {protocol !== 'meshcore' && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-1.5">
+                <label htmlFor="mqtt-channel-psks" className="text-xs text-muted">
+                  Channel PSKs
+                </label>
+                <span
+                  title="Base64-encoded AES-128 keys for custom channels, one per line. The default LongFast key is always tried automatically."
+                  className="text-xs text-gray-500 cursor-help"
+                >
+                  ⓘ
+                </span>
+              </div>
+              <textarea
+                id="mqtt-channel-psks"
+                rows={3}
+                value={(activeMqttSettings.channelPsks ?? []).join('\n')}
+                onChange={(e) => {
+                  const lines = e.target.value
+                    .split('\n')
+                    .map((s) => s.trim())
+                    .filter(Boolean);
+                  updateMqtt('channelPsks', lines.length > 0 ? lines : undefined);
+                }}
+                className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm font-mono resize-none"
+                placeholder={'1PG7OiApB1nwvP+rz05pAQ==\n(one key per line)'}
+                spellCheck={false}
+              />
             </div>
-            <textarea
-              id="mqtt-channel-psks"
-              rows={3}
-              value={(mqttSettings.channelPsks ?? []).join('\n')}
-              onChange={(e) => {
-                const lines = e.target.value
-                  .split('\n')
-                  .map((s) => s.trim())
-                  .filter(Boolean);
-                updateMqtt('channelPsks', lines.length > 0 ? lines : undefined);
-              }}
-              className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm font-mono resize-none"
-              placeholder={'1PG7OiApB1nwvP+rz05pAQ==\n(one key per line)'}
-              spellCheck={false}
-            />
-          </div>
+          )}
           <div className="flex items-center gap-2">
             <input
               type="checkbox"
               id="mqttAutoLaunch"
-              checked={mqttSettings.autoLaunch}
+              checked={activeMqttSettings.autoLaunch}
               onChange={(e) => updateMqtt('autoLaunch', e.target.checked)}
               className="accent-brand-green"
             />
@@ -1049,7 +1151,7 @@ export default function ConnectionPanel({
             <button
               onClick={() =>
                 window.electronAPI.mqtt.connect({
-                  ...mqttSettings,
+                  ...activeMqttSettings,
                   mqttTransportProtocol: protocol === 'meshcore' ? 'meshcore' : 'meshtastic',
                 })
               }

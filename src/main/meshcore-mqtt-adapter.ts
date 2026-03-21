@@ -13,6 +13,17 @@ function normalizePrefix(prefix: string): string {
   return p.endsWith('/') ? p.slice(0, -1) : p;
 }
 
+function buildMeshcoreUrl(settings: MQTTSettings): string {
+  const host = settings.server.trim();
+  if (settings.useWebSocket) {
+    const scheme = settings.port === 443 || settings.tlsInsecure !== true ? 'wss' : 'ws';
+    return `${scheme}://${host}:${settings.port}/mqtt`;
+  }
+  return settings.port === 8883
+    ? `mqtts://${host}:${settings.port}`
+    : `mqtt://${host}:${settings.port}`;
+}
+
 export class MeshcoreMqttAdapter extends EventEmitter {
   private client: mqtt.MqttClient | null = null;
   private status: MQTTStatus = 'disconnected';
@@ -47,9 +58,7 @@ export class MeshcoreMqttAdapter extends EventEmitter {
   connect(settings: MQTTSettings): void {
     this.disconnect();
     this.lastSettings = settings;
-    const protocol = settings.port === 8883 ? 'mqtts' : 'mqtt';
-    const host = settings.server.trim();
-    const url = `${protocol}://${host}:${settings.port}`;
+    const url = buildMeshcoreUrl(settings);
     const opts: mqtt.IClientOptions = {
       username: settings.username || undefined,
       password: settings.password || undefined,

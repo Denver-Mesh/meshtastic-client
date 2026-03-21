@@ -160,6 +160,8 @@ export interface MQTTSettings {
   channelPsks?: string[];
   /** Broker codec: Meshtastic protobuf vs MeshCore JSON adapter (main process). */
   mqttTransportProtocol?: 'meshtastic' | 'meshcore';
+  /** Use ws:// or wss:// transport instead of mqtt:// / mqtts:// (required for port 443 on LetsMesh). */
+  useWebSocket?: boolean;
 }
 
 export type MQTTStatus = 'disconnected' | 'connecting' | 'connected' | 'error';

@@ -253,6 +253,8 @@ function validateMqttSettings(settings: unknown): void {
     throw new Error('mqtt:connect: password must be a string');
   if (s.tlsInsecure != null && typeof s.tlsInsecure !== 'boolean')
     throw new Error('mqtt:connect: tlsInsecure must be a boolean');
+  if (s.useWebSocket != null && typeof s.useWebSocket !== 'boolean')
+    throw new Error('mqtt:connect: useWebSocket must be a boolean');
   if (s.mqttTransportProtocol != null) {
     if (s.mqttTransportProtocol !== 'meshtastic' && s.mqttTransportProtocol !== 'meshcore') {
       throw new Error('mqtt:connect: mqttTransportProtocol must be meshtastic or meshcore');
