@@ -25,7 +25,7 @@ import { generateLetsMeshJwt, isLetsMeshSettings, readMeshcoreIdentity } from '.
 import { parseStoredJson } from './lib/parseStoredJson';
 import { useRadioProvider } from './lib/radio/providerFactory';
 import { applyThemeColors, loadThemeColors } from './lib/themeColors';
-import type { ChatMessage, MeshProtocol, MQTTSettings } from './lib/types';
+import type { ChatMessage, DeviceState, MeshProtocol, MQTTSettings } from './lib/types';
 import { useDiagnosticsStore } from './stores/diagnosticsStore';
 
 const PROTOCOL_KEY = 'mesh-client:protocol';
@@ -341,43 +341,44 @@ export default function App() {
   // No automatic MQTT disconnect on context switch.
 
   // ─── MQTT auto-launch on startup ─────────────────────────────────
-  // Read protocol from localStorage directly so this one-time effect has no deps.
+  // Run for both protocols so dual-mode auto-launches MQTT on each side independently.
   useEffect(() => {
-    try {
-      const prot = (localStorage.getItem(PROTOCOL_KEY) as MeshProtocol) ?? 'meshtastic';
-      const key =
-        prot === 'meshcore' ? 'mesh-client:mqttSettings:meshcore' : 'mesh-client:mqttSettings';
-      const settings = parseStoredJson<MQTTSettings>(
-        localStorage.getItem(key),
-        'App MQTT auto-launch',
-      );
-      if (settings?.autoLaunch) {
-        const connectSettings = {
-          ...settings,
-          mqttTransportProtocol: (prot === 'meshcore' ? 'meshcore' : 'meshtastic') as
-            | 'meshcore'
-            | 'meshtastic',
-        };
-        const tryConnect = async () => {
-          if (prot === 'meshcore' && isLetsMeshSettings(connectSettings.server)) {
-            const identity = readMeshcoreIdentity();
-            if (identity?.private_key && connectSettings.username) {
-              try {
-                connectSettings.password = await generateLetsMeshJwt(
-                  identity.private_key,
-                  connectSettings.username,
-                );
-              } catch (e) {
-                console.warn('[App] LetsMesh JWT auto-launch generation failed', e);
+    for (const prot of ['meshtastic', 'meshcore'] as MeshProtocol[]) {
+      try {
+        const key =
+          prot === 'meshcore' ? 'mesh-client:mqttSettings:meshcore' : 'mesh-client:mqttSettings';
+        const settings = parseStoredJson<MQTTSettings>(
+          localStorage.getItem(key),
+          'App MQTT auto-launch',
+        );
+        if (settings?.autoLaunch) {
+          const connectSettings = {
+            ...settings,
+            mqttTransportProtocol: (prot === 'meshcore' ? 'meshcore' : 'meshtastic') as
+              | 'meshcore'
+              | 'meshtastic',
+          };
+          const tryConnect = async () => {
+            if (prot === 'meshcore' && isLetsMeshSettings(connectSettings.server)) {
+              const identity = readMeshcoreIdentity();
+              if (identity?.private_key && connectSettings.username) {
+                try {
+                  connectSettings.password = await generateLetsMeshJwt(
+                    identity.private_key,
+                    connectSettings.username,
+                  );
+                } catch (e) {
+                  console.warn('[App] LetsMesh JWT auto-launch generation failed', e);
+                }
               }
             }
-          }
-          await window.electronAPI.mqtt.connect(connectSettings);
-        };
-        void tryConnect().catch((e) => console.warn('[App] MQTT auto-launch connect failed', e));
+            await window.electronAPI.mqtt.connect(connectSettings);
+          };
+          void tryConnect().catch((e) => console.warn('[App] MQTT auto-launch connect failed', e));
+        }
+      } catch (e) {
+        console.debug('[App] MQTT auto-launch startup', e);
       }
-    } catch (e) {
-      console.debug('[App] MQTT auto-launch startup', e);
     }
   }, []);
 
@@ -724,39 +725,53 @@ export default function App() {
             <main className="flex-1 overflow-auto p-4 min-h-0">
               <ErrorBoundary>
                 <div id="panel-0" role="tabpanel" aria-labelledby="tab-0" hidden={activeTab !== 0}>
-                  <ConnectionPanel
-                    state={device.state}
-                    onConnect={
-                      protocol === 'meshcore'
-                        ? (type, addr, blePeripheralId) =>
-                            meshcoreDevice.connect(
-                              type === 'http' ? 'tcp' : (type as 'ble' | 'serial'),
-                              addr,
-                              blePeripheralId,
+                  {/* Both panels are always mounted so each protocol auto-connects at startup */}
+                  <div hidden={protocol !== 'meshtastic'}>
+                    <ConnectionPanel
+                      state={meshtasticDevice.state}
+                      onConnect={meshtasticDevice.connect}
+                      onAutoConnect={meshtasticDevice.connectAutomatic}
+                      onDisconnect={meshtasticDevice.disconnect}
+                      mqttStatus={meshtasticDevice.mqttStatus}
+                      myNodeLabel={
+                        meshtasticDevice.state.myNodeNum > 0
+                          ? meshtasticDevice.getPickerStyleNodeLabel(
+                              meshtasticDevice.state.myNodeNum,
                             )
-                        : meshtasticDevice.connect
-                    }
-                    onAutoConnect={device.connectAutomatic}
-                    onDisconnect={device.disconnect}
-                    mqttStatus={device.mqttStatus}
-                    myNodeLabel={
-                      device.state.myNodeNum > 0
-                        ? device.getPickerStyleNodeLabel(device.state.myNodeNum)
-                        : undefined
-                    }
-                    protocol={protocol}
-                    onProtocolChange={handleProtocolChange}
-                    onRefreshContacts={
-                      protocol === 'meshcore' ? meshcoreDevice.refreshContacts : undefined
-                    }
-                    onSendAdvert={protocol === 'meshcore' ? meshcoreDevice.sendAdvert : undefined}
-                    manualAddContacts={
-                      protocol === 'meshcore' ? meshcoreDevice.manualAddContacts : undefined
-                    }
-                    onToggleManualContacts={
-                      protocol === 'meshcore' ? meshcoreDevice.toggleManualAddContacts : undefined
-                    }
-                  />
+                          : undefined
+                      }
+                      protocol="meshtastic"
+                      onProtocolChange={handleProtocolChange}
+                    />
+                  </div>
+                  <div hidden={protocol !== 'meshcore'}>
+                    <ConnectionPanel
+                      state={meshcoreDevice.state as DeviceState}
+                      onConnect={(type, addr, blePeripheralId) =>
+                        meshcoreDevice.connect(
+                          type === 'http' ? 'tcp' : (type as 'ble' | 'serial'),
+                          addr,
+                          blePeripheralId,
+                        )
+                      }
+                      onAutoConnect={
+                        meshcoreDevice.connectAutomatic as unknown as typeof meshtasticDevice.connectAutomatic
+                      }
+                      onDisconnect={meshcoreDevice.disconnect}
+                      mqttStatus={meshcoreDevice.mqttStatus}
+                      myNodeLabel={
+                        meshcoreDevice.state.myNodeNum > 0
+                          ? meshcoreDevice.getPickerStyleNodeLabel(meshcoreDevice.state.myNodeNum)
+                          : undefined
+                      }
+                      protocol="meshcore"
+                      onProtocolChange={handleProtocolChange}
+                      onRefreshContacts={meshcoreDevice.refreshContacts}
+                      onSendAdvert={meshcoreDevice.sendAdvert}
+                      manualAddContacts={meshcoreDevice.manualAddContacts}
+                      onToggleManualContacts={meshcoreDevice.toggleManualAddContacts}
+                    />
+                  </div>
                 </div>
                 <div id="panel-1" role="tabpanel" aria-labelledby="tab-1" hidden={activeTab !== 1}>
                   <ChatPanel
