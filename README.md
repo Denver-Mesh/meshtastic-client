@@ -115,7 +115,7 @@ The official Meshtastic apps cover the basics, but desktop power users need more
 
 - **Log panel** (right rail) — live app log stream, optional debug toggle, export or delete the log file
 - Full keyboard navigation — press `?` for shortcut reference; `Cmd/Ctrl+1–8` switches tabs; `Cmd/Ctrl+F` opens **chat search** across all channels (optional `user:name` and `channel:name` filters)
-- Automatic update checking — packaged builds download and install in-app; macOS opens the release page
+- **Update notifications** — checks for new releases on startup (toggleable in App tab); shows "You're up to date" confirmation on manual check; dismissed versions are remembered across restarts; "Check for Updates…" in the macOS app menu; Windows/Linux download and install in-app, macOS opens the release page
 - System tray with live unread badge; app stays accessible when window is closed
 - Persistent SQLite storage; DB export/import/clear in the App tab; Clear GPS Data and Reset Diagnostics without a full DB wipe
 
