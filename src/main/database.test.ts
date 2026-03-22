@@ -104,3 +104,20 @@ describe('placeholder name format', () => {
     expect('MyNode').not.toMatch(/^![0-9a-f]{8}$/);
   });
 });
+
+/**
+ * MeshCore message dedup + fresh-install stamp — INSERT OR IGNORE must not drop
+ * distinct lines that share sender + second-resolution timestamp + channel only.
+ * Fresh installs skip runMigrations(), so base DDL + user_version must match v17.
+ */
+describe('meshcore_messages dedup index and fresh DB version', () => {
+  it('createBaseTables defines idx_mc_msg_dedup including payload', () => {
+    expect(DB_SOURCE).toMatch(
+      /CREATE UNIQUE INDEX IF NOT EXISTS idx_mc_msg_dedup\s+ON meshcore_messages\(sender_id, timestamp, channel_idx, payload\)/s,
+    );
+  });
+
+  it('fresh DB init stamps user_version 17 inside isFreshDb', () => {
+    expect(DB_SOURCE).toMatch(/if \(isFreshDb\) \{[\s\S]*?pragma\('user_version = 17'\)/);
+  });
+});
