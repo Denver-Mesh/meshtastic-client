@@ -472,6 +472,7 @@ interface MeshcoreMessageDbRow {
 function mapMeshcoreDbRowsToChatMessages(rows: MeshcoreMessageDbRow[]): ChatMessage[] {
   const mapped: ChatMessage[] = [];
   for (const r of rows) {
+    if (isMeshcoreTransportStatusChatLine(r.payload)) continue;
     const normalized = normalizeMeshcoreIncomingText(r.payload);
     const displayName =
       r.sender_name && r.sender_name !== 'Unknown'
