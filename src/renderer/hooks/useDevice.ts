@@ -359,7 +359,9 @@ export function useDevice() {
       const intervalSecs = gpsParsed?.refreshInterval ?? 0;
       if (intervalSecs > 0) {
         gpsIntervalRef.current = setInterval(() => {
-          refreshOurPositionRef.current();
+          refreshOurPositionRef.current().catch((err) => {
+            console.error('[useDevice] GPS interval refresh error:', err);
+          });
         }, intervalSecs * 1000);
       }
     } catch {
@@ -944,7 +946,8 @@ export function useDevice() {
       // ─── Node info packets ─────────────────────────────────────
       const unsub5 = device.events.onNodeInfoPacket.subscribe((packet) => {
         touchLastData();
-        rfHeardNodeIds.current.add((packet as any).num ?? (packet as any).from);
+        const rfNodeId = (packet as any).num ?? (packet as any).from;
+        if (rfNodeId != null) rfHeardNodeIds.current.add(rfNodeId);
         const info = packet as {
           num?: number;
           user?: {
@@ -2176,7 +2179,9 @@ export function useDevice() {
       stopGpsInterval();
       if (secs > 0) {
         gpsIntervalRef.current = setInterval(() => {
-          refreshOurPositionRef.current();
+          refreshOurPositionRef.current().catch((err) => {
+            console.error('[useDevice] GPS interval refresh error:', err);
+          });
         }, secs * 1000);
       }
     },

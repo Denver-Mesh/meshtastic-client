@@ -1187,7 +1187,9 @@ export default function ConnectionPanel({
                 id="mqtt-port"
                 type="number"
                 value={activeMqttSettings.port}
-                onChange={(e) => updateMqtt('port', parseInt(e.target.value) || 1883)}
+                onChange={(e) =>
+                  updateMqtt('port', Math.max(1, Math.min(65535, parseInt(e.target.value) || 1883)))
+                }
                 className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
               />
             </div>
