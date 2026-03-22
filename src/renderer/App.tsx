@@ -663,7 +663,7 @@ export default function App() {
       <div className="flex flex-col h-screen">
         {/* Header */}
         <header
-          className={`relative flex items-center px-4 py-2 bg-deep-black border-b ${
+          className={`relative flex flex-row items-center gap-2 px-4 py-2 bg-deep-black border-b xl:grid xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:items-center xl:gap-0 ${
             isConfigured
               ? protocol === 'meshcore'
                 ? 'border-cyan-500/20'
@@ -671,17 +671,19 @@ export default function App() {
               : 'border-gray-700'
           }`}
         >
-          <div className="flex flex-1 min-w-0 items-center justify-start gap-3">
-            <h1 className="text-lg font-bold text-bright-green tracking-wide">Colorado Mesh</h1>
-            <span className="text-xs text-muted">Mesh Client</span>
+          <div className="flex min-w-0 items-center gap-3 xl:justify-self-start">
+            <h1 className="min-w-0 truncate text-lg font-bold text-bright-green tracking-wide">
+              Colorado Mesh
+            </h1>
+            <span className="shrink-0 text-xs text-muted">Mesh Client</span>
           </div>
 
-          <div className="flex shrink-0 items-center justify-center px-2">
-            {/* Protocol context switcher */}
+          <div className="flex min-w-0 flex-1 justify-center xl:flex-none xl:justify-self-center">
+            {/* Protocol context switcher — centered in the gap (narrow) or viewport (xl+ grid) */}
             <div
               role="group"
               aria-label="Protocol switcher"
-              className="flex items-center rounded-full overflow-hidden border border-gray-600 text-xs font-mono"
+              className="flex shrink-0 items-center rounded-full overflow-hidden border border-gray-600 text-xs font-mono"
             >
               <button
                 type="button"
@@ -723,7 +725,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex flex-1 min-w-0 items-center justify-end gap-2">
+          <div className="flex min-w-0 shrink-0 items-center justify-end gap-2 xl:justify-self-end">
             <div className="flex items-center gap-1.5 mr-3 pr-3 border-r border-gray-700">
               <MqttGlobeIcon connected={device.mqttStatus === 'connected'} />
               <span
