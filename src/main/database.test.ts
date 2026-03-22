@@ -46,6 +46,34 @@ describe('deleteNodesWithoutLongname SQL', () => {
 });
 
 /**
+ * Tests for migrateRfStubNodes — verifies the one-time migration that renames
+ * legacy "RF !xxxxxxxx" stub nodes to the standard "!xxxxxxxx" format.
+ */
+describe('migrateRfStubNodes SQL', () => {
+  it('targets only nodes matching the legacy RF !xxxxxxxx pattern', () => {
+    expect(DB_SOURCE).toMatch(/UPDATE nodes[^;]*LIKE 'RF !________'/s);
+  });
+
+  it('strips the 3-char "RF " prefix via substr(long_name, 4)', () => {
+    const match = DB_SOURCE.match(/UPDATE nodes[^;]*RF[^;]*/s);
+    expect(match).not.toBeNull();
+    expect(match![0]).toContain('substr(long_name, 4)');
+  });
+
+  it('clears short_name on migrated stub nodes', () => {
+    const match = DB_SOURCE.match(/UPDATE nodes[^;]*RF[^;]*/s);
+    expect(match).not.toBeNull();
+    expect(match![0]).toContain("short_name = ''");
+  });
+
+  it('JS substr equivalent strips "RF " correctly', () => {
+    // Verifies the 3-char prefix arithmetic: SQLite substr(str, 4) = JS slice(3)
+    const legacy = 'RF !be1f4697';
+    expect(legacy.slice(3)).toBe('!be1f4697');
+  });
+});
+
+/**
  * Verify the placeholder format that SQLite's printf('!%08x', node_id) produces.
  * This matches what emptyNode() generates in useDevice.ts.
  */

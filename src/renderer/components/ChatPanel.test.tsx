@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
 
+import type { MeshNode } from '../lib/types';
 import ChatPanel from './ChatPanel';
 import { ToastProvider } from './Toast';
 
@@ -67,6 +68,47 @@ describe('ChatPanel accessibility', () => {
     await user.click(reactButtons[1]);
     // Picker should be visible — emoji buttons are titled 'Like', 'Love', etc.
     expect(screen.getByTitle('Like')).toBeInTheDocument();
+  });
+
+  it('displays full hex ID for stub nodes with no short_name', () => {
+    // Regression: stub nodes (chat-only, no NodeInfo) were shown with only
+    // the last 4 hex chars of their ID (e.g. "4697") instead of the full
+    // "!be1f4697". This happened because short_name was set to hex.slice(-4)
+    // and ChatPanel preferred short_name over long_name.
+    const stubId = 0xbe1f4697;
+    const stubNode: MeshNode = {
+      node_id: stubId,
+      long_name: '!be1f4697',
+      short_name: '',
+      hw_model: '',
+      snr: 0,
+      battery: 0,
+      last_heard: Date.now(),
+      latitude: null,
+      longitude: null,
+    };
+    render(
+      <ToastProvider>
+        <ChatPanel
+          {...defaultProps}
+          myNodeNum={1}
+          nodes={new Map([[stubId, stubNode]])}
+          messages={[
+            {
+              sender_id: stubId,
+              sender_name: '!be1f4697',
+              payload: 'Hello',
+              channel: 0,
+              timestamp: Date.now(),
+              status: 'acked',
+            },
+          ]}
+        />
+      </ToastProvider>,
+    );
+    expect(screen.getByText('!be1f4697')).toBeInTheDocument();
+    // The 4-char suffix should not appear as a standalone sender label
+    expect(screen.queryByText('4697')).not.toBeInTheDocument();
   });
 
   it('shows RF transport badge for incoming messages with receivedVia rf', () => {
