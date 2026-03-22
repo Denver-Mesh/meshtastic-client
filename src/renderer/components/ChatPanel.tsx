@@ -840,7 +840,7 @@ export default function ChatPanel({
             const isOwn = msg.sender_id === myNodeNum;
             const isDm = !!msg.to;
             const reactions = getGroupedReactions(msg.packetId ?? msg.timestamp);
-            const showPicker = pickerOpenFor === (msg.packetId ?? -(i + 1));
+            const showPicker = pickerOpenFor === (msg.packetId ?? msg.timestamp);
             const pickerOpensAbove = i >= filteredMessages.length - 3;
 
             const senderNode = nodes.get(msg.sender_id);
@@ -1030,7 +1030,7 @@ export default function ChatPanel({
                         {/* React */}
                         <button
                           onClick={() =>
-                            setPickerOpenFor(showPicker ? null : (msg.packetId ?? -(i + 1)))
+                            setPickerOpenFor(showPicker ? null : (msg.packetId ?? msg.timestamp))
                           }
                           className="text-gray-600 hover:text-gray-300 text-xs p-1 rounded"
                           aria-label="Add reaction"

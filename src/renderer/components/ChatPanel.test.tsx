@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
 
@@ -27,6 +28,45 @@ describe('ChatPanel accessibility', () => {
     );
     const results = await axe(container);
     expect(results).toHaveNoViolations();
+  });
+
+  it('emoji picker opens for the correct message when messages have no packetId', async () => {
+    // Messages without packetId must use timestamp as picker key so re-renders
+    // don't shift the picker to a different message (regression: was using -(i+1)).
+    const now = Date.now();
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <ChatPanel
+          {...defaultProps}
+          isConnected
+          myNodeNum={999}
+          messages={[
+            {
+              sender_id: 1,
+              sender_name: 'A',
+              payload: 'first',
+              channel: 0,
+              timestamp: now - 2000,
+              status: 'acked',
+            },
+            {
+              sender_id: 1,
+              sender_name: 'A',
+              payload: 'second',
+              channel: 0,
+              timestamp: now - 1000,
+              status: 'acked',
+            },
+          ]}
+        />
+      </ToastProvider>,
+    );
+    // Open picker for the second message
+    const reactButtons = screen.getAllByTitle('React');
+    await user.click(reactButtons[1]);
+    // Picker should be visible — emoji buttons are titled 'Like', 'Love', etc.
+    expect(screen.getByTitle('Like')).toBeInTheDocument();
   });
 
   it('shows RF transport badge for incoming messages with receivedVia rf', () => {

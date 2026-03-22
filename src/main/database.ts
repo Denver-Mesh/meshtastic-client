@@ -30,8 +30,11 @@ export function initDatabase(): void {
     // Restrict DB file to owner-only access (no-op on Windows)
     try {
       fs.chmodSync(dbPath, 0o600);
-    } catch {
-      /* Windows */
+    } catch (e) {
+      console.debug(
+        '[db] chmod failed (non-fatal, expected on Windows):',
+        e instanceof Error ? e.message : e,
+      ); // log-injection-ok OS-level error from fs.chmodSync, not user input
     }
     db.pragma('journal_mode = WAL');
     db.pragma('synchronous = NORMAL');
@@ -68,7 +71,7 @@ export function initDatabase(): void {
       const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
       const pruned = db.prepare('DELETE FROM position_history WHERE recorded_at < ?').run(cutoff);
       if (pruned.changes > 0) {
-        console.log(`[db] Pruned ${pruned.changes} old position_history rows`);
+        console.debug(`[db] Pruned ${pruned.changes} old position_history rows`);
       }
     } catch (e) {
       console.warn(
@@ -78,7 +81,7 @@ export function initDatabase(): void {
     }
 
     const version = db.pragma('user_version', { simple: true });
-    console.log(
+    console.debug(
       `[db] Database initialized at ${sanitizeLogMessage(dbPath)} (user_version = ${version})`,
     );
   } catch (error) {

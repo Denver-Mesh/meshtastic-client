@@ -41,7 +41,7 @@ import {
 import { MeshcoreMqttAdapter } from './meshcore-mqtt-adapter';
 import { MQTTManager } from './mqtt-manager';
 import { NobleBleManager, type NobleSessionId } from './noble-ble-manager';
-import { initUpdater } from './updater';
+import { getCheckNow, initUpdater } from './updater';
 
 // Route main-process console through log file + Log panel (must run before other code logs)
 patchMainConsole();
@@ -91,7 +91,7 @@ process.on('uncaughtException', (error) => {
       `${error.message}\n\n${error.stack ?? ''}`,
     );
   } catch {
-    /* dialog may not be available during early startup */
+    // catch-no-log-ok dialog unavailable during early startup; error already logged above
   }
 });
 
@@ -115,7 +115,7 @@ process.on('unhandledRejection', (reason) => {
       `A promise rejected without a handler. Check the main process terminal for full details.\n\n${message.slice(0, 1500)}${message.length > 1500 ? '…' : ''}`,
     );
   } catch {
-    /* dialog may not be available during early startup */
+    // catch-no-log-ok dialog unavailable during early startup; rejection already logged above
   }
 });
 
@@ -372,7 +372,11 @@ function buildTrayIcon(hasUnread: boolean): Electron.NativeImage {
     try {
       base = nativeImage.createFromPath(trayIconPath).resize({ width: 22, height: 22 });
     } catch (e) {
-      console.error('[main] tray icon load failed', e); // log-injection-ok: e is a local Error from nativeImage, not user input
+      console.error(
+        '[main] tray icon load failed:',
+        trayIconPath,
+        e instanceof Error ? e.message : e,
+      ); // log-injection-ok: e is a local Error from nativeImage, not user input
       base = nativeImage.createEmpty();
     }
   }
@@ -466,6 +470,11 @@ function setupAppMenu() {
             if (w) void dialog.showMessageBox(w, opts);
             else void dialog.showMessageBox(opts);
           },
+        },
+        { type: 'separator' as const },
+        {
+          label: 'Check for Updates\u2026',
+          click: () => getCheckNow()?.(),
         },
         { type: 'separator' as const },
         {
@@ -714,7 +723,7 @@ function createWindow() {
         `The renderer process ended unexpectedly (${details.reason}, exit ${details.exitCode ?? 'n/a'}).\n\nRestart the application. If this keeps happening, export the log from the app (if still usable) or check the log file in your userData folder.`,
       );
     } catch {
-      /* dialog unavailable */
+      // catch-no-log-ok dialog unavailable; renderer-process-gone already logged
     }
   });
 
@@ -737,7 +746,7 @@ function createWindow() {
         `Could not load the application UI (code ${errorCode}: ${errorDesc}).\n\n${hint}\n\nURL: ${validatedURL}`,
       );
     } catch {
-      /* dialog unavailable */
+      // catch-no-log-ok dialog unavailable; did-fail-load already logged above
     }
   });
 
@@ -1754,7 +1763,7 @@ ipcMain.handle('db:getMeshcoreMessages', (_event, channelIdx?: number, limit = 2
 
 ipcMain.handle('db:searchMessages', (_event, query: string, limit?: number) => {
   try {
-    if (typeof query !== 'string') return [];
+    if (typeof query !== 'string' || query.length > 500) return [];
     return searchMessages(query, Math.min(limit ?? 50, 200));
   } catch (err) {
     console.error(
@@ -1767,7 +1776,7 @@ ipcMain.handle('db:searchMessages', (_event, query: string, limit?: number) => {
 
 ipcMain.handle('db:searchMeshcoreMessages', (_event, query: string, limit?: number) => {
   try {
-    if (typeof query !== 'string') return [];
+    if (typeof query !== 'string' || query.length > 500) return [];
     return searchMeshcoreMessages(query, Math.min(limit ?? 50, 200));
   } catch (err) {
     console.error(
@@ -2255,14 +2264,20 @@ app.on('will-quit', () => {
   try {
     mqttManager.disconnect();
     meshcoreMqttAdapter.disconnect();
-  } catch {
-    /* ignore */
+  } catch (err) {
+    console.debug(
+      '[main] MQTT disconnect during will-quit (ignored):',
+      err instanceof Error ? err.message : err,
+    ); // log-injection-ok internal library error during cleanup
   }
   if (meshcoreTcpSocket) {
     try {
       meshcoreTcpSocket.destroy();
-    } catch {
-      /* ignore */
+    } catch (err) {
+      console.debug(
+        '[main] TCP socket destroy during will-quit (ignored):',
+        err instanceof Error ? err.message : err,
+      ); // log-injection-ok internal Node.js socket error during cleanup
     }
     meshcoreTcpSocket = null;
   }

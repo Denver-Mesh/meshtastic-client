@@ -170,7 +170,7 @@ export class MQTTManager extends EventEmitter {
         } else {
           // Only reset retry count after a fully stable connection + subscribe
           this.retryCount = 0;
-          console.log('[MQTT] Subscribed to', topic);
+          console.debug('[MQTT] Subscribed to', topic);
         }
       });
     });
@@ -457,7 +457,11 @@ export class MQTTManager extends EventEmitter {
         const parsed = JSON.parse(new TextDecoder().decode(cleanBytes));
         this.handleJsonMessage(parsed, topic);
       } catch {
-        // Silent: not valid JSON, skip
+        console.debug(
+          '[MQTT] non-JSON payload ignored, topic=%s bytes=%d',
+          topic,
+          cleanBytes.length,
+        );
       }
       return;
     }
@@ -663,6 +667,7 @@ export class MQTTManager extends EventEmitter {
       const decipher = createDecipheriv('aes-128-ctr', key, nonce);
       return Buffer.concat([decipher.update(Buffer.from(encrypted)), decipher.final()]);
     } catch {
+      // catch-no-log-ok AES decrypt failed with this key — caller tries next key
       return null;
     }
   }
@@ -689,6 +694,7 @@ export class MQTTManager extends EventEmitter {
         };
       } catch {
         // Wrong PSK produces garbage bytes that fail protobuf decode — try next key
+        console.debug('[MQTT] decrypt attempt failed (wrong key), trying next');
       }
     }
     return null;

@@ -7,6 +7,12 @@ import { sanitizeLogMessage } from './log-service';
 // We do a dynamic require so the dev path still works without it installed
 
 let autoUpdater: any = null;
+let checkNow: (() => void) | null = null;
+
+/** Returns the current update-check function (set after initUpdater runs). Used by native menu. */
+export function getCheckNow(): (() => void) | null {
+  return checkNow;
+}
 
 const REPO = 'Colorado-Mesh/meshtastic-client';
 const RELEASES_URL = `https://github.com/${REPO}/releases`;
@@ -73,22 +79,19 @@ export function initUpdater(win: BrowserWindow): void {
       send('update:error', { message: err.message });
     });
 
-    // Delay the initial check so the window has time to fully mount
-    setTimeout(() => {
-      autoUpdater.checkForUpdates().catch((e: Error) => {
-        console.error('[updater] checkForUpdates failed:', sanitizeLogMessage(e.message));
-      });
-    }, 5000);
-
-    ipcMain.handle('update:check', async () => {
+    const doCheck = async () => {
       try {
         await autoUpdater.checkForUpdates();
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
-        console.warn('[updater] update:check failed:', sanitizeLogMessage(msg));
+        console.warn('[updater] checkForUpdates failed:', sanitizeLogMessage(msg));
         send('update:error', { message: msg });
       }
-    });
+    };
+    checkNow = doCheck;
+
+    // Auto-check on startup is triggered from the renderer (respects user preference).
+    ipcMain.handle('update:check', doCheck);
 
     ipcMain.handle('update:download', async () => {
       if (process.platform === 'darwin') return; // macOS: open releases page instead
@@ -107,14 +110,22 @@ export function initUpdater(win: BrowserWindow): void {
     });
   } else {
     // ── Dev / git-clone path: GitHub Releases API ────────────────────
-    setTimeout(async () => {
+    const doCheck = async () => {
       try {
         const res = await fetch(API_URL, {
           headers: { 'User-Agent': `mesh-client/${app.getVersion()}` },
         });
         if (!res.ok) {
           console.warn('[updater] GitHub API responded with', String(res.status));
+          send('update:error', { message: 'Update check failed — check network connection' });
           return;
+        }
+        if (res.redirected) {
+          console.warn(
+            '[updater] GitHub API redirected to',
+            res.url,
+            '— API_URL may need updating',
+          );
         }
         const data = (await res.json()) as { tag_name: string; html_url: string };
         const remoteVersion = data.tag_name.replace(/^v/, '');
@@ -130,42 +141,18 @@ export function initUpdater(win: BrowserWindow): void {
           send('update:not-available');
         }
       } catch (e) {
-        // Network unreachable — silently skip, don't crash or show error
         console.warn(
           '[updater] GitHub API fetch failed:',
           sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
         );
-      }
-    }, 5000);
-
-    // In dev mode, download/install are no-ops; just expose the handlers
-    ipcMain.handle('update:check', async () => {
-      try {
-        const res = await fetch(API_URL, {
-          headers: { 'User-Agent': `mesh-client/${app.getVersion()}` },
-        });
-        if (!res.ok) return;
-        const data = (await res.json()) as { tag_name: string; html_url: string };
-        const remoteVersion = data.tag_name.replace(/^v/, '');
-        const localVersion = app.getVersion();
-        if (semverGt(remoteVersion, localVersion)) {
-          send('update:available', {
-            version: remoteVersion,
-            releaseUrl: data.html_url,
-            isPackaged: false,
-            isMac: process.platform === 'darwin',
-          });
-        } else {
-          send('update:not-available');
-        }
-      } catch (e) {
-        console.warn(
-          '[updater] manual check failed:',
-          sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
-        );
         send('update:error', { message: 'Update check failed — check network connection' });
       }
-    });
+    };
+    checkNow = doCheck;
+
+    // Auto-check on startup is triggered from the renderer (respects user preference).
+    // In dev mode, download/install are no-ops; just expose the handlers.
+    ipcMain.handle('update:check', doCheck);
 
     ipcMain.handle('update:download', () => {
       /* no-op in dev */
