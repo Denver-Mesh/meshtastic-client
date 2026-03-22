@@ -67,6 +67,7 @@
     "@meshtastic/transport-web-serial": "npm:@jsr/meshtastic__transport-web-serial@^0.2.5",
     "@michaelhart/meshcore-decoder": "^0.2.7",
     "@tailwindcss/postcss": "^4.2.0",
+    "@tanstack/react-virtual": "^3.13.23",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",

@@ -70,20 +70,6 @@ export function initDatabase(): void {
     });
     setup();
 
-    // Prune position_history rows older than 30 days on startup
-    try {
-      const cutoff = Date.now() - POSITION_HISTORY_PRUNE_MS;
-      const pruned = db.prepare('DELETE FROM position_history WHERE recorded_at < ?').run(cutoff);
-      if (pruned.changes > 0) {
-        console.debug(`[db] Pruned ${pruned.changes} old position_history rows`);
-      }
-    } catch (e) {
-      console.warn(
-        '[db] position_history prune failed (non-fatal):',
-        sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
-      );
-    }
-
     const version = db.pragma('user_version', { simple: true });
     console.debug(
       `[db] Database initialized at ${sanitizeLogMessage(dbPath)} (user_version = ${version})`,
@@ -101,6 +87,23 @@ export function getDatabase(): NodeSqliteDB {
   if (!db) initDatabase();
   if (!db) throw new Error('[db] Database failed to initialize');
   return db;
+}
+
+/** Run after first paint so startup does not block on large DELETE scans. */
+export function runDeferredPositionHistoryPrune(): void {
+  try {
+    const d = getDatabase();
+    const cutoff = Date.now() - POSITION_HISTORY_PRUNE_MS;
+    const pruned = d.prepareOnce('DELETE FROM position_history WHERE recorded_at < ?').run(cutoff);
+    if (pruned.changes > 0) {
+      console.debug(`[db] Pruned ${pruned.changes} old position_history rows`);
+    }
+  } catch (e) {
+    console.warn(
+      '[db] position_history prune failed (non-fatal):',
+      sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+    );
+  }
 }
 
 function createBaseTables(): void {
@@ -151,6 +154,7 @@ function createBaseTables(): void {
 
       CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
       CREATE INDEX IF NOT EXISTS idx_messages_channel_ts ON messages(channel, timestamp DESC);
+      CREATE INDEX IF NOT EXISTS idx_messages_packet_id ON messages(packet_id);
       CREATE INDEX IF NOT EXISTS idx_nodes_last_heard ON nodes(last_heard);
 
       CREATE TABLE IF NOT EXISTS meshcore_contacts (
@@ -183,6 +187,7 @@ function createBaseTables(): void {
       );
 
       CREATE INDEX IF NOT EXISTS idx_mc_msgs_ts ON meshcore_messages(timestamp);
+      CREATE INDEX IF NOT EXISTS idx_mc_msgs_channel_id ON meshcore_messages(channel_idx, id DESC);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_mc_msg_dedup
         ON meshcore_messages(sender_id, timestamp, channel_idx, payload)
         WHERE sender_id IS NOT NULL;
@@ -197,6 +202,7 @@ function createBaseTables(): void {
       );
       CREATE INDEX IF NOT EXISTS idx_position_history_node_time
         ON position_history(node_id, recorded_at);
+      CREATE INDEX IF NOT EXISTS idx_position_history_time ON position_history(recorded_at);
     `);
   } catch (error) {
     console.error(

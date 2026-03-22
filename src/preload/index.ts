@@ -381,8 +381,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         ipcRenderer.invoke('meshcore:tcp-connect', host, port),
       write: (bytes: number[]) => ipcRenderer.invoke('meshcore:tcp-write', bytes),
       disconnect: () => ipcRenderer.invoke('meshcore:tcp-disconnect'),
-      onData: (cb: (bytes: number[]) => void) => {
-        const handler = (_: unknown, bytes: number[]) => cb(bytes);
+      onData: (cb: (bytes: Uint8Array) => void) => {
+        const handler = (_: unknown, bytes: Uint8Array) => cb(bytes);
         ipcRenderer.on('meshcore:tcp-data', handler);
         return () => ipcRenderer.off('meshcore:tcp-data', handler);
       },

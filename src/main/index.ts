@@ -30,6 +30,7 @@ import {
   initDatabase,
   mergeDatabase,
   migrateRfStubNodes,
+  runDeferredPositionHistoryPrune,
   searchMeshcoreMessages,
   searchMessages,
 } from './database';
@@ -746,6 +747,9 @@ function createWindow() {
   configureRendererSpellcheck(win.webContents.session);
   win.webContents.once('did-finish-load', () => {
     configureRendererSpellcheck(win.webContents.session);
+    setImmediate(() => {
+      runDeferredPositionHistoryPrune();
+    });
   });
 
   // Electron does not show any context menu by default — we must call menu.popup().
@@ -990,10 +994,19 @@ function createWindow() {
 
 // ─── Tray unread badge ──────────────────────────────────────────────
 let _cachedBadgeIcon: ReturnType<typeof nativeImage.createFromBuffer> | null = null;
+let _cachedTrayIconUnread: Electron.NativeImage | null = null;
+let _cachedTrayIconRead: Electron.NativeImage | null = null;
+let _lastTrayUnreadVariant: boolean | null = null;
 ipcMain.on('set-tray-unread', (_event, count: unknown) => {
   const n = Math.max(0, Math.min(Math.floor(Number(count)) || 0, 99999));
   const hasUnread = n > 0;
-  tray?.setImage(buildTrayIcon(hasUnread));
+  if (_lastTrayUnreadVariant !== hasUnread) {
+    _lastTrayUnreadVariant = hasUnread;
+    const img = hasUnread
+      ? (_cachedTrayIconUnread ??= buildTrayIcon(true))
+      : (_cachedTrayIconRead ??= buildTrayIcon(false));
+    tray?.setImage(img);
+  }
   tray?.setToolTip(hasUnread ? `Mesh-Client (${n} unread)` : 'Mesh-Client');
   if (process.platform === 'darwin') {
     app.dock?.setBadge(hasUnread ? String(n) : '');
@@ -1481,7 +1494,7 @@ ipcMain.handle('db:saveMessage', (_event, message) => {
   try {
     validateSaveMessage(message);
     const db = getDatabase();
-    const stmt = db.prepare(`
+    const stmt = db.prepareOnce(`
       INSERT OR IGNORE INTO messages (sender_id, sender_name, payload, channel, timestamp, packet_id, status, error, emoji, reply_id, to_node, mqtt_status, received_via)
       VALUES (@sender_id, @sender_name, @payload, @channel, @timestamp, @packet_id, @status, @error, @emoji, @reply_id, @to_node, @mqtt_status, @received_via)
     `);
@@ -1524,13 +1537,13 @@ ipcMain.handle('db:getMessages', (_event, channel?: number, limit = 200) => {
     if (channel !== undefined && channel !== null) {
       const ch = safeNonNegativeInt(channel);
       rows = db
-        .prepare(
+        .prepareOnce(
           `SELECT ${columns} FROM messages WHERE channel = ? ORDER BY timestamp DESC LIMIT ?`,
         )
         .all(ch, safeLimit);
     } else {
       rows = db
-        .prepare(`SELECT ${columns} FROM messages ORDER BY timestamp DESC LIMIT ?`)
+        .prepareOnce(`SELECT ${columns} FROM messages ORDER BY timestamp DESC LIMIT ?`)
         .all(safeLimit);
     }
 
@@ -1552,7 +1565,7 @@ ipcMain.handle('db:saveNode', (_event, node) => {
   try {
     validateSaveNode(node);
     const db = getDatabase();
-    const stmt = db.prepare(`
+    const stmt = db.prepareOnce(`
       INSERT INTO nodes (node_id, long_name, short_name, hw_model, snr, rssi, battery, last_heard, latitude, longitude, role, hops_away, via_mqtt, voltage, channel_utilization, air_util_tx, altitude, favorited, source, num_packets_rx_bad, num_rx_dupe, num_packets_rx, num_packets_tx)
       VALUES (@node_id, @long_name, @short_name, @hw_model, @snr, @rssi, @battery, @last_heard, @latitude, @longitude, @role, @hops_away, @via_mqtt, @voltage, @channel_utilization, @air_util_tx, @altitude,
         COALESCE((SELECT favorited FROM nodes WHERE node_id = @node_id), 0),
@@ -1612,7 +1625,7 @@ ipcMain.handle('db:setNodeFavorited', (_event, nodeId: number, favorited: boolea
       throw new Error('db:setNodeFavorited: favorited must be a boolean');
     const db = getDatabase();
     return db
-      .prepare('UPDATE nodes SET favorited = ? WHERE node_id = ?')
+      .prepareOnce('UPDATE nodes SET favorited = ? WHERE node_id = ?')
       .run(favorited ? 1 : 0, id);
   } catch (err) {
     console.error(
@@ -1626,7 +1639,7 @@ ipcMain.handle('db:setNodeFavorited', (_event, nodeId: number, favorited: boolea
 ipcMain.handle('db:getNodes', () => {
   try {
     const db = getDatabase();
-    return db.prepare('SELECT * FROM nodes ORDER BY last_heard DESC').all();
+    return db.prepareOnce('SELECT * FROM nodes ORDER BY last_heard DESC').all();
   } catch (err) {
     console.error(
       '[IPC] db:getNodes failed:',
@@ -1639,7 +1652,7 @@ ipcMain.handle('db:getNodes', () => {
 ipcMain.handle('db:clearMessages', () => {
   try {
     const db = getDatabase();
-    const result = db.prepare('DELETE FROM messages').run();
+    const result = db.prepareOnce('DELETE FROM messages').run();
     console.debug(`[IPC] db:clearMessages: deleted ${result.changes} messages`);
     return result;
   } catch (err) {
@@ -1654,7 +1667,7 @@ ipcMain.handle('db:clearMessages', () => {
 ipcMain.handle('db:clearNodes', () => {
   try {
     const db = getDatabase();
-    const result = db.prepare('DELETE FROM nodes').run();
+    const result = db.prepareOnce('DELETE FROM nodes').run();
     console.debug(`[IPC] db:clearNodes: deleted ${result.changes} nodes`);
     return result;
   } catch (err) {
@@ -1670,7 +1683,7 @@ ipcMain.handle('db:clearNodePositions', () => {
   try {
     const db = getDatabase();
     const result = db
-      .prepare('UPDATE nodes SET latitude = NULL, longitude = NULL, altitude = NULL')
+      .prepareOnce('UPDATE nodes SET latitude = NULL, longitude = NULL, altitude = NULL')
       .run();
     console.debug(`[IPC] db:clearNodePositions: cleared positions for ${result.changes} nodes`);
     return result;
@@ -1687,7 +1700,7 @@ ipcMain.handle('db:deleteNode', (_event, nodeId: number) => {
   try {
     const id = safeNonNegativeInt(nodeId);
     const db = getDatabase();
-    const result = db.prepare('DELETE FROM nodes WHERE node_id = ?').run(id);
+    const result = db.prepareOnce('DELETE FROM nodes WHERE node_id = ?').run(id);
     console.debug(
       `[IPC] db:deleteNode: deleted node 0x${id.toString(16).toUpperCase()} (${result.changes} rows)`,
     );
@@ -1705,7 +1718,7 @@ ipcMain.handle('db:deleteNodesByAge', (_event, days: number) => {
   try {
     if (typeof days !== 'number' || days < 1 || !isFinite(days)) return { changes: 0 };
     const cutoff = Math.floor(Date.now() / 1000) - days * 86400;
-    const result = getDatabase().prepare('DELETE FROM nodes WHERE last_heard < ?').run(cutoff);
+    const result = getDatabase().prepareOnce('DELETE FROM nodes WHERE last_heard < ?').run(cutoff);
     console.debug(`[IPC] db:deleteNodesByAge: pruned ${result.changes} nodes older than ${days}d`);
     return result;
   } catch (err) {
@@ -1721,7 +1734,7 @@ ipcMain.handle('db:pruneNodesByCount', (_event, maxCount: number) => {
   try {
     if (typeof maxCount !== 'number' || maxCount < 1 || !isFinite(maxCount)) return { changes: 0 };
     const result = getDatabase()
-      .prepare(
+      .prepareOnce(
         'DELETE FROM nodes WHERE node_id NOT IN (SELECT node_id FROM nodes ORDER BY last_heard DESC LIMIT ?)',
       )
       .run(maxCount);
@@ -1747,7 +1760,7 @@ ipcMain.handle('db:deleteNodesBatch', (_event, nodeIds: number[]) => {
     if (safe.length === 0) return 0;
     const placeholders = safe.map(() => '?').join(', ');
     const result = getDatabase()
-      .prepare(`DELETE FROM nodes WHERE node_id IN (${placeholders})`)
+      .prepareOnce(`DELETE FROM nodes WHERE node_id IN (${placeholders})`)
       .run(...safe);
     console.debug(`[IPC] db:deleteNodesBatch: deleted ${result.changes} nodes`);
     return result.changes;
@@ -1763,7 +1776,7 @@ ipcMain.handle('db:deleteNodesBatch', (_event, nodeIds: number[]) => {
 ipcMain.handle('db:clearMessagesByChannel', (_event, channel: number) => {
   try {
     const ch = safeNonNegativeInt(channel);
-    const result = getDatabase().prepare('DELETE FROM messages WHERE channel = ?').run(ch);
+    const result = getDatabase().prepareOnce('DELETE FROM messages WHERE channel = ?').run(ch);
     console.debug(
       `[IPC] db:clearMessagesByChannel: deleted ${result.changes} messages from channel ${ch}`,
     );
@@ -1779,7 +1792,9 @@ ipcMain.handle('db:clearMessagesByChannel', (_event, channel: number) => {
 
 ipcMain.handle('db:getMessageChannels', () => {
   try {
-    return getDatabase().prepare('SELECT DISTINCT channel FROM messages ORDER BY channel').all();
+    return getDatabase()
+      .prepareOnce('SELECT DISTINCT channel FROM messages ORDER BY channel')
+      .all();
   } catch (err) {
     console.error(
       '[IPC] db:getMessageChannels failed:',
@@ -1859,11 +1874,13 @@ ipcMain.handle(
           throw new Error('db:updateMessageStatus: mqttStatus must be a string');
         const mqttSafe = capStatusString('db:updateMessageStatus: mqttStatus', mqttStatus)!;
         return db
-          .prepare('UPDATE messages SET status = ?, error = ?, mqtt_status = ? WHERE packet_id = ?')
+          .prepareOnce(
+            'UPDATE messages SET status = ?, error = ?, mqtt_status = ? WHERE packet_id = ?',
+          )
           .run(statusSafe, errorSafe, mqttSafe, pid);
       }
       return db
-        .prepare('UPDATE messages SET status = ?, error = ? WHERE packet_id = ?')
+        .prepareOnce('UPDATE messages SET status = ?, error = ? WHERE packet_id = ?')
         .run(statusSafe, errorSafe, pid);
     } catch (err) {
       console.error(
@@ -1881,7 +1898,7 @@ ipcMain.handle('db:updateMessageReceivedVia', (_event, packetId: number) => {
     const pid = safeNonNegativeInt(packetId);
     const db = getDatabase();
     return db
-      .prepare(
+      .prepareOnce(
         "UPDATE messages SET received_via = 'both' WHERE packet_id = ? AND received_via != 'both'",
       )
       .run(pid);
@@ -2034,13 +2051,15 @@ ipcMain.handle('db:getMeshcoreMessages', (_event, channelIdx?: number, limit = 2
     if (channelIdx !== undefined && channelIdx !== null) {
       const ch = typeof channelIdx === 'number' ? Math.trunc(channelIdx) : 0;
       const rows = db
-        .prepare('SELECT * FROM meshcore_messages WHERE channel_idx = ? ORDER BY id DESC LIMIT ?')
+        .prepareOnce(
+          'SELECT * FROM meshcore_messages WHERE channel_idx = ? ORDER BY id DESC LIMIT ?',
+        )
         .all(ch, safeLimit) as Record<string, unknown>[];
       rows.reverse();
       return rows;
     }
     const rows = db
-      .prepare('SELECT * FROM meshcore_messages ORDER BY id DESC LIMIT ?')
+      .prepareOnce('SELECT * FROM meshcore_messages ORDER BY id DESC LIMIT ?')
       .all(safeLimit) as Record<string, unknown>[];
     rows.reverse();
     return rows;
@@ -2081,7 +2100,7 @@ ipcMain.handle('db:searchMeshcoreMessages', (_event, query: string, limit?: numb
 
 ipcMain.handle('db:getMeshcoreContacts', () => {
   try {
-    return getDatabase().prepare('SELECT * FROM meshcore_contacts').all();
+    return getDatabase().prepareOnce('SELECT * FROM meshcore_contacts').all();
   } catch (err) {
     console.error(
       '[IPC] db:getMeshcoreContacts failed:',
@@ -2108,7 +2127,7 @@ ipcMain.handle('db:saveMeshcoreMessage', (_event, message) => {
         ? receivedViaRaw
         : null;
     return db
-      .prepare(
+      .prepareOnce(
         'INSERT OR IGNORE INTO meshcore_messages ' +
           '(sender_id, sender_name, payload, channel_idx, timestamp, status, packet_id, emoji, reply_id, to_node, received_via) ' +
           'VALUES (@sender_id, @sender_name, @payload, @channel_idx, @timestamp, @status, @packet_id, @emoji, @reply_id, @to_node, @received_via)',
@@ -2141,7 +2160,7 @@ ipcMain.handle('db:saveMeshcoreContact', (_event, contact) => {
     const c = contact as Record<string, unknown>;
     const db = getDatabase();
     return db
-      .prepare(
+      .prepareOnce(
         'INSERT OR REPLACE INTO meshcore_contacts ' +
           '(node_id, public_key, adv_name, contact_type, last_advert, adv_lat, adv_lon, last_snr, last_rssi, favorited, nickname) ' +
           'VALUES (@node_id, @public_key, @adv_name, @contact_type, @last_advert, @adv_lat, @adv_lon, @last_snr, @last_rssi, ' +
@@ -2177,7 +2196,7 @@ ipcMain.handle(
       if (nickname != null && (typeof nickname !== 'string' || nickname.length > MAX_NODE_STRING))
         throw new Error('db:updateMeshcoreContactNickname: invalid nickname');
       getDatabase()
-        .prepare('UPDATE meshcore_contacts SET nickname = ? WHERE node_id = ?')
+        .prepareOnce('UPDATE meshcore_contacts SET nickname = ? WHERE node_id = ?')
         .run(nickname ?? null, id);
     } catch (err) {
       console.error(
@@ -2205,7 +2224,7 @@ ipcMain.handle(
       }
       const db = getDatabase();
       const run = db
-        .prepare('UPDATE meshcore_contacts SET favorited = ? WHERE node_id = ?')
+        .prepareOnce('UPDATE meshcore_contacts SET favorited = ? WHERE node_id = ?')
         .run(favorited ? 1 : 0, id);
       if (run.changes > 0) return run;
       const hex = publicKeyHex?.replace(/\s/g, '') ?? '';
@@ -2214,7 +2233,7 @@ ipcMain.handle(
           'db:updateMeshcoreContactFavorited: contact not in database; public_key required to create row',
         );
       }
-      db.prepare(
+      db.prepareOnce(
         `INSERT INTO meshcore_contacts (node_id, public_key, favorited)
          VALUES (?, ?, ?)
          ON CONFLICT(node_id) DO UPDATE SET favorited = excluded.favorited`,
@@ -2258,7 +2277,7 @@ ipcMain.handle('db:updateMeshcoreMessageStatus', (_event, packetId: number, stat
     if (typeof status !== 'string' || status.length > MAX_STATUS_STRING)
       throw new Error('db:updateMeshcoreMessageStatus: invalid status');
     return getDatabase()
-      .prepare('UPDATE meshcore_messages SET status = ? WHERE packet_id = ?')
+      .prepareOnce('UPDATE meshcore_messages SET status = ? WHERE packet_id = ?')
       .run(status, pid);
   } catch (err) {
     console.error(
@@ -2272,7 +2291,7 @@ ipcMain.handle('db:updateMeshcoreMessageStatus', (_event, packetId: number, stat
 ipcMain.handle('db:deleteMeshcoreContact', (_event, nodeId: number) => {
   try {
     const id = safeNonNegativeInt(nodeId);
-    return getDatabase().prepare('DELETE FROM meshcore_contacts WHERE node_id = ?').run(id);
+    return getDatabase().prepareOnce('DELETE FROM meshcore_contacts WHERE node_id = ?').run(id);
   } catch (err) {
     console.error(
       '[IPC] db:deleteMeshcoreContact failed:',
@@ -2284,7 +2303,7 @@ ipcMain.handle('db:deleteMeshcoreContact', (_event, nodeId: number) => {
 
 ipcMain.handle('db:clearMeshcoreMessages', () => {
   try {
-    return getDatabase().prepare('DELETE FROM meshcore_messages').run();
+    return getDatabase().prepareOnce('DELETE FROM meshcore_messages').run();
   } catch (err) {
     console.error(
       '[IPC] db:clearMeshcoreMessages failed:',
@@ -2296,7 +2315,7 @@ ipcMain.handle('db:clearMeshcoreMessages', () => {
 
 ipcMain.handle('db:clearMeshcoreContacts', () => {
   try {
-    return getDatabase().prepare('DELETE FROM meshcore_contacts').run();
+    return getDatabase().prepareOnce('DELETE FROM meshcore_contacts').run();
   } catch (err) {
     console.error(
       '[IPC] db:clearMeshcoreContacts failed:',
@@ -2309,7 +2328,7 @@ ipcMain.handle('db:clearMeshcoreContacts', () => {
 // Deletes only Repeater-type contacts (contact_type = 2), leaving Chat and Room contacts intact.
 ipcMain.handle('db:clearMeshcoreRepeaters', () => {
   try {
-    return getDatabase().prepare('DELETE FROM meshcore_contacts WHERE contact_type = 2').run();
+    return getDatabase().prepareOnce('DELETE FROM meshcore_contacts WHERE contact_type = 2').run();
   } catch (err) {
     console.error(
       '[IPC] db:clearMeshcoreRepeaters failed:',
@@ -2325,7 +2344,7 @@ ipcMain.handle(
     try {
       const safeNodeId = safeNonNegativeInt(nodeId);
       getDatabase()
-        .prepare(
+        .prepareOnce(
           'UPDATE meshcore_contacts SET last_advert = ?, adv_lat = ?, adv_lon = ? WHERE node_id = ?',
         )
         .run(lastAdvert, advLat, advLon, safeNodeId);
@@ -2356,7 +2375,7 @@ ipcMain.handle(
         return;
       const src = typeof source === 'string' ? source.slice(0, 16) : 'rf';
       getDatabase()
-        .prepare(
+        .prepareOnce(
           'INSERT INTO position_history (node_id, latitude, longitude, recorded_at, source) VALUES (?, ?, ?, ?, ?)',
         )
         .run(id, lat, lon, recordedAt, src);
@@ -2373,7 +2392,7 @@ ipcMain.handle('db:getPositionHistory', (_event, sinceMs: number) => {
   try {
     const since = typeof sinceMs === 'number' && isFinite(sinceMs) ? sinceMs : 0;
     return getDatabase()
-      .prepare(
+      .prepareOnce(
         'SELECT node_id, latitude, longitude, recorded_at, source FROM position_history WHERE recorded_at >= ? ORDER BY node_id, recorded_at',
       )
       .all(since);
@@ -2388,7 +2407,7 @@ ipcMain.handle('db:getPositionHistory', (_event, sinceMs: number) => {
 
 ipcMain.handle('db:clearPositionHistory', () => {
   try {
-    return getDatabase().prepare('DELETE FROM position_history').run();
+    return getDatabase().prepareOnce('DELETE FROM position_history').run();
   } catch (err) {
     console.error(
       '[IPC] db:clearPositionHistory failed:',
@@ -2429,7 +2448,7 @@ ipcMain.handle('meshcore:tcp-connect', (_event, host: string, port: number) => {
       }
     });
     socket.on('data', (data) => {
-      mainWindow?.webContents.send('meshcore:tcp-data', Array.from(data));
+      mainWindow?.webContents.send('meshcore:tcp-data', new Uint8Array(data));
     });
     socket.on('close', (hadError) => {
       console.debug('[IPC] meshcore:tcp socket closed', hadError ? '(hadError)' : '(clean)');

@@ -28,6 +28,49 @@ type SortField =
   | 'altitude'
   | 'redundancy';
 
+function SortIcon({
+  field,
+  sortField,
+  sortAsc,
+}: {
+  field: SortField;
+  sortField: SortField;
+  sortAsc: boolean;
+}) {
+  if (sortField !== field) {
+    return (
+      <svg
+        className="w-3 h-3 text-gray-600 ml-1 inline"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2}
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
+        />
+      </svg>
+    );
+  }
+  return (
+    <svg
+      className="w-3 h-3 text-bright-green ml-1 inline"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d={sortAsc ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'}
+      />
+    </svg>
+  );
+}
+
 interface Props {
   nodes: Map<number, MeshNode>;
   myNodeNum: number;
@@ -239,41 +282,6 @@ export default function NodeListPanel({
     return val.toFixed(4);
   }
 
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) {
-      return (
-        <svg
-          className="w-3 h-3 text-gray-600 ml-1 inline"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
-          />
-        </svg>
-      );
-    }
-    return (
-      <svg
-        className="w-3 h-3 text-bright-green ml-1 inline"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={2}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d={sortAsc ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'}
-        />
-      </svg>
-    );
-  };
-
   return (
     <div className="flex flex-col min-h-0 h-full gap-3">
       <div className="flex justify-between items-center gap-3 shrink-0">
@@ -340,7 +348,7 @@ export default function NodeListPanel({
                 className="px-3 py-2 cursor-pointer hover:text-gray-200 transition-colors select-none"
                 onClick={() => handleSort('node_id')}
               >
-                ID <SortIcon field="node_id" />
+                ID <SortIcon field="node_id" sortField={sortField} sortAsc={sortAsc} />
               </th>
               <th
                 scope="col"
@@ -350,7 +358,7 @@ export default function NodeListPanel({
                 className="px-3 py-2 cursor-pointer hover:text-gray-200 transition-colors select-none"
                 onClick={() => handleSort('long_name')}
               >
-                Long Name <SortIcon field="long_name" />
+                Long Name <SortIcon field="long_name" sortField={sortField} sortAsc={sortAsc} />
               </th>
               <th
                 scope="col"
@@ -360,7 +368,7 @@ export default function NodeListPanel({
                 className="px-3 py-2 cursor-pointer hover:text-gray-200 transition-colors select-none"
                 onClick={() => handleSort('short_name')}
               >
-                Short <SortIcon field="short_name" />
+                Short <SortIcon field="short_name" sortField={sortField} sortAsc={sortAsc} />
               </th>
               <th
                 scope="col"
@@ -370,7 +378,7 @@ export default function NodeListPanel({
                 className="px-3 py-2 cursor-pointer hover:text-gray-200 transition-colors select-none"
                 onClick={() => handleSort('last_heard')}
               >
-                Last Heard <SortIcon field="last_heard" />
+                Last Heard <SortIcon field="last_heard" sortField={sortField} sortAsc={sortAsc} />
               </th>
               <th
                 scope="col"
@@ -378,7 +386,7 @@ export default function NodeListPanel({
                 className="px-3 py-2 cursor-pointer hover:text-gray-200 transition-colors select-none"
                 onClick={() => handleSort('role')}
               >
-                Role <SortIcon field="role" />
+                Role <SortIcon field="role" sortField={sortField} sortAsc={sortAsc} />
               </th>
               <th
                 scope="col"
@@ -388,7 +396,7 @@ export default function NodeListPanel({
                 className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
                 onClick={() => handleSort('hops_away')}
               >
-                Hops <SortIcon field="hops_away" />
+                Hops <SortIcon field="hops_away" sortField={sortField} sortAsc={sortAsc} />
               </th>
               <th
                 scope="col"
@@ -398,7 +406,7 @@ export default function NodeListPanel({
                 className="px-3 py-2 text-center cursor-pointer hover:text-gray-200 transition-colors select-none"
                 onClick={() => handleSort('via_mqtt')}
               >
-                MQTT <SortIcon field="via_mqtt" />
+                MQTT <SortIcon field="via_mqtt" sortField={sortField} sortAsc={sortAsc} />
               </th>
               <th
                 scope="col"
@@ -408,7 +416,7 @@ export default function NodeListPanel({
                 className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
                 onClick={() => handleSort('latitude')}
               >
-                Lat <SortIcon field="latitude" />
+                Lat <SortIcon field="latitude" sortField={sortField} sortAsc={sortAsc} />
               </th>
               <th
                 scope="col"
@@ -418,7 +426,7 @@ export default function NodeListPanel({
                 className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
                 onClick={() => handleSort('longitude')}
               >
-                Lon <SortIcon field="longitude" />
+                Lon <SortIcon field="longitude" sortField={sortField} sortAsc={sortAsc} />
               </th>
               <th
                 scope="col"
@@ -426,7 +434,7 @@ export default function NodeListPanel({
                 className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
                 onClick={() => handleSort('rssi')}
               >
-                Signal <SortIcon field="rssi" />
+                Signal <SortIcon field="rssi" sortField={sortField} sortAsc={sortAsc} />
               </th>
               <th
                 scope="col"
@@ -435,7 +443,7 @@ export default function NodeListPanel({
                 onClick={() => handleSort('snr')}
                 title="SNR in dB — only meaningful for direct (0-hop) RF neighbors"
               >
-                SNR <SortIcon field="snr" />
+                SNR <SortIcon field="snr" sortField={sortField} sortAsc={sortAsc} />
               </th>
               <th
                 scope="col"
@@ -445,7 +453,7 @@ export default function NodeListPanel({
                 className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
                 onClick={() => handleSort('battery')}
               >
-                Battery <SortIcon field="battery" />
+                Battery <SortIcon field="battery" sortField={sortField} sortAsc={sortAsc} />
               </th>
               <th
                 scope="col"
@@ -455,7 +463,7 @@ export default function NodeListPanel({
                 className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
                 onClick={() => handleSort('voltage')}
               >
-                Voltage <SortIcon field="voltage" />
+                Voltage <SortIcon field="voltage" sortField={sortField} sortAsc={sortAsc} />
               </th>
               <th
                 scope="col"
@@ -469,7 +477,8 @@ export default function NodeListPanel({
                 className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
                 onClick={() => handleSort('channel_utilization')}
               >
-                Ch.Util <SortIcon field="channel_utilization" />
+                Ch.Util{' '}
+                <SortIcon field="channel_utilization" sortField={sortField} sortAsc={sortAsc} />
               </th>
               <th
                 scope="col"
@@ -479,7 +488,7 @@ export default function NodeListPanel({
                 className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
                 onClick={() => handleSort('air_util_tx')}
               >
-                Air Tx <SortIcon field="air_util_tx" />
+                Air Tx <SortIcon field="air_util_tx" sortField={sortField} sortAsc={sortAsc} />
               </th>
               <th
                 scope="col"
@@ -489,7 +498,7 @@ export default function NodeListPanel({
                 className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
                 onClick={() => handleSort('altitude')}
               >
-                Alt <SortIcon field="altitude" />
+                Alt <SortIcon field="altitude" sortField={sortField} sortAsc={sortAsc} />
               </th>
               <th
                 scope="col"
@@ -500,7 +509,7 @@ export default function NodeListPanel({
                 onClick={() => handleSort('redundancy')}
                 title="Echoes: same packet received via multiple paths (e.g. RF + MQTT or multiple RF hops). Higher means better mesh redundancy."
               >
-                Redund. <SortIcon field="redundancy" />
+                Redund. <SortIcon field="redundancy" sortField={sortField} sortAsc={sortAsc} />
               </th>
             </tr>
           </thead>

@@ -114,7 +114,7 @@ class IpcTcpConnection {
       this.inner = instance;
 
       const offData = window.electronAPI.meshcore.tcp.onData((bytes) => {
-        void instance.onDataReceived(new Uint8Array(bytes));
+        void instance.onDataReceived(bytes);
       });
       const offDisc = window.electronAPI.meshcore.tcp.onDisconnected(() => {
         instance.onDisconnected();

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { parseStoredJson } from '../lib/parseStoredJson';
 import { emojiDisplayChar, emojiDisplayLabel } from '../lib/reactions';
@@ -194,7 +194,7 @@ interface Props {
   onGlobalSearch?: () => void;
 }
 
-export default function ChatPanel({
+function ChatPanel({
   messages,
   channels,
   myNodeNum,
@@ -1298,3 +1298,5 @@ export default function ChatPanel({
     </div>
   );
 }
+
+export default memo(ChatPanel);

@@ -450,7 +450,7 @@ export class MQTTManager extends EventEmitter {
   }
 
   private onMessage(topic: string, payload: Buffer | string): void {
-    const cleanBytes = Uint8Array.from(Buffer.from(payload));
+    const cleanBytes = new Uint8Array(Buffer.isBuffer(payload) ? payload : Buffer.from(payload));
     if (cleanBytes.length === 0) return;
 
     if (cleanBytes[0] === 0x7b) {

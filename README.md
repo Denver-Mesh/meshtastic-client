@@ -25,10 +25,17 @@ The official Meshtastic apps cover the basics, but desktop power users need more
 
 <table>
   <tr>
-    <td><img src="docs/images/node-list.png" height="200" alt="Node List"/></td>
+    <td><img src="docs/images/nodes.png" height="200" alt="Nodes"/></td>
     <td><img src="docs/images/map.png" height="200" alt="Map"/></td>
     <td><img src="docs/images/diagnostics.png" height="200" alt="Diagnostics"/></td>
     <td><img src="docs/images/node-detail.png" height="200" alt="Node Detail"/></td>
+  </tr>
+  <tr>
+    <td colspan="4" align="center">
+      <img src="docs/images/chat.png" height="200" alt="Chat"/>
+      <img src="docs/images/connection.png" height="200" alt="Connection"/>
+      <img src="docs/images/repeaters.png" height="200" alt="Repeaters"/>
+    </td>
   </tr>
 </table>
 
@@ -546,7 +553,7 @@ mesh-client/
 ├── patches/                     # patch-package patches (e.g. electron-builder)
 ├── docs/
 │   ├── accessibility-checklist.md
-│   └── images/                  # README screenshots (node-list, map, diagnostics, node-detail)
+│   └── images/                  # README screenshots (nodes, map, diagnostics, node-detail, chat, connection, repeaters)
 ├── release.sh                   # Release automation script
 ├── electron-builder.yml         # Distributable config (targets, icons, signing)
 ├── vite.config.ts               # Renderer build (Vite)
@@ -844,6 +851,22 @@ Bare IPv6 addresses (e.g. `fe80::1`) must be wrapped in brackets when entered in
 ### Update check fails / no update banner
 
 The app functions fully offline — this is not a critical error. If "Update check failed" appears in the console, verify network connectivity. Update checks are rate-limited by the GitHub API and may silently skip when the limit is reached.
+
+### Map tab without internet (offline / no WAN)
+
+**Basemap tiles:** The map background uses **OpenStreetMap** raster tiles loaded over HTTPS. The `TileLayer` is defined in [`src/renderer/components/MapPanel.tsx`](src/renderer/components/MapPanel.tsx). **Without internet access, new tiles cannot be fetched**, so the basemap may look **blank, gray, or incomplete**, or show only **tiles previously cached** by the embedded browser (caching is best-effort and not guaranteed).
+
+**Overlays:** **Node markers, polylines, position trails, and other vector layers** are separate from the tile layer. If nodes have latitude/longitude (from RF, MQTT, SQLite, or your session), those overlays can still **render on top of a missing or partial basemap**.
+
+**Your position offline:** Use **device GPS** when available, **Fixed Position** on the **Radio** tab, or **static coordinates** in app/GPS settings. See **GPS "Location unavailable" or stuck on the map** above for IP-based fallbacks and manual entry. Positions heard over the mesh do not require internet.
+
+### Verifying offline behavior (manual QA)
+
+With **Wi‑Fi off** or **airplane mode** on, using a **packaged** build if possible:
+
+1. Confirm the app **window loads** and core tabs work; connect via **USB serial** or **BLE** to a local radio if you need RF features.
+2. Open the **Map** tab: expect **missing or stale basemap tiles** as described above; **markers and trails** may still appear when position data exists.
+3. A non-fatal **update check** message in the console is expected without WAN; see **Update check fails / no update banner** above.
 
 ### Diagnostics panel: "restored from last session" banner
 
