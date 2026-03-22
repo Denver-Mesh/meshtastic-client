@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 
 import { withTimeout } from '../shared/withTimeout';
+import { sanitizeLogMessage } from './log-service';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const noble = require('@stoprocent/noble') as any;
@@ -167,7 +168,7 @@ export class NobleBleManager extends EventEmitter {
           } catch (err) {
             console.warn(
               `[BLE:${sessionId}] readAsync #${i} error after ${Date.now() - t0}ms:`,
-              err instanceof Error ? err.message : err,
+              sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
             );
             // Back off before the outer while can re-trigger to avoid hammering a failing characteristic.
             await new Promise<void>((r) => setTimeout(r, 500));
@@ -400,7 +401,10 @@ export class NobleBleManager extends EventEmitter {
         try {
           await withTimeout(peripheral.disconnectAsync(), 5000, 'BLE pre-connect disconnectAsync');
         } catch (err) {
-          console.debug(`[BLE:${sessionId}] pre-connect disconnect error (ignored):`, err); // log-injection-ok noble internal error
+          console.debug(
+            `[BLE:${sessionId}] pre-connect disconnect error (ignored):`,
+            sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+          );
         }
       }
       await withTimeout(peripheral.connectAsync(), 15000, 'BLE connectAsync');

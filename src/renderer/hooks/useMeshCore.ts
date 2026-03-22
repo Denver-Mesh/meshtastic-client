@@ -1,6 +1,8 @@
 import { CayenneLpp, SerialConnection, WebSerialConnection } from '@liamcottle/meshcore.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { sanitizeLogMessage } from '@/main/sanitize-log-message';
+
 import { withTimeout } from '../../shared/withTimeout';
 import { classifyPayload, extractMeshtasticSenderId } from '../lib/foreignLoraDetection';
 import type { OurPosition } from '../lib/gpsSource';
@@ -577,6 +579,8 @@ export function useMeshCore() {
   const selfInfoRef = useRef<MeshCoreSelfInfo | null>(null);
   /** Throttle LetsMesh packet-logger publishes (event 136 can be very frequent). */
   const lastPacketLogAtRef = useRef(0);
+  /** Rate-limit debug logs when optional packet-logger IPC publish fails. */
+  const lastPacketLogPublishFailureLogAtRef = useRef(0);
   const meshcoreHookMountedRef = useRef(true);
 
   useEffect(() => {
@@ -1214,8 +1218,15 @@ export function useMeshCore() {
                 rssi,
                 rawHex,
               })
-              .catch(() => {
-                // catch-no-log-ok optional packet-logger publish must not disrupt RF path
+              .catch((e) => {
+                const t = Date.now();
+                if (t - lastPacketLogPublishFailureLogAtRef.current >= 30_000) {
+                  lastPacketLogPublishFailureLogAtRef.current = t;
+                  console.debug(
+                    '[useMeshCore] publishMeshcorePacketLog failed',
+                    sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+                  );
+                }
               });
           }
         }
