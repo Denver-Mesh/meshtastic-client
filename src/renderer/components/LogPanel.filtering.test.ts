@@ -1,3 +1,5 @@
+import { execFileSync } from 'child_process';
+import path from 'path';
 import { describe, expect, it } from 'vitest';
 
 import { isDeviceEntry } from './LogPanel';
@@ -5,6 +7,17 @@ import { isDeviceEntry } from './LogPanel';
 function entry(source: string, message: string, level = 'log') {
   return { ts: Date.now(), level, source, message };
 }
+
+describe('log-panel filter contract', () => {
+  it('all [TAG] prefixes in device source files are registered in isDeviceEntry', () => {
+    const projectRoot = path.resolve(import.meta.dirname ?? __dirname, '..', '..', '..');
+    execFileSync('node', [path.join(projectRoot, 'scripts', 'check-log-panel-filter.mjs')], {
+      encoding: 'utf8',
+      stdio: 'pipe',
+      cwd: projectRoot,
+    });
+  });
+});
 
 describe('isDeviceEntry — Meshtastic protocol', () => {
   it('classifies SDK source as Meshtastic device entry', () => {
