@@ -904,7 +904,24 @@ export default function App() {
 
         {logPanelVisible && (
           <LogPanel
-            deviceLogs={device.deviceLogs}
+            deviceLogs={[
+              ...meshtasticDevice.deviceLogs.map((d) => ({
+                ts: d.time,
+                level:
+                  d.level >= 40
+                    ? 'error'
+                    : d.level >= 30
+                      ? 'warn'
+                      : d.level >= 10
+                        ? 'log'
+                        : d.level > 0
+                          ? 'debug'
+                          : 'log',
+                source: d.source,
+                message: d.message,
+              })),
+              ...meshcoreDevice.deviceLogs,
+            ].sort((a, b) => a.ts - b.ts)}
             variant="overlay"
             onClose={() => setLogPanelVisible(false)}
           />
