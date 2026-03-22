@@ -1085,6 +1085,11 @@ export default function ConnectionPanel({
     mqttStatus === 'connected' ? (
       <div className={`bg-deep-black rounded-lg border border-brand-green/20 overflow-hidden`}>
         {mqttHeaderBar}
+        {mqttError && (
+          <div className="px-4 py-2 bg-red-900/50 border-b border-red-800 text-red-300 text-xs">
+            {mqttError}
+          </div>
+        )}
         {mqttWarning && (
           <div className="px-4 py-2 bg-amber-900/40 border-b border-amber-800/60 text-amber-200 text-xs">
             {mqttWarning}

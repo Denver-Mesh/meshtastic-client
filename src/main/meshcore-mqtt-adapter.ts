@@ -27,6 +27,16 @@ function buildMeshcoreUrlForLog(settings: MQTTSettings): string {
 
 /** Time allowed for TCP/TLS/WebSocket + MQTT CONNACK (slow networks, captive portals). */
 const MESHCORE_MQTT_CONNECT_ACK_MS = 30_000;
+/**
+ * MQTT keepalive (seconds) for direct TCP/TLS — standard interval.
+ */
+const MESHCORE_MQTT_KEEPALIVE_TCP_SEC = 60;
+/**
+ * Shorter keepalive for WSS: first PINGREQ is scheduled at this interval. With 60s, the wire
+ * can sit idle ~60s before a ping, which aligns with common proxy/LB idle timeouts and the
+ * connection drops before MQTT keepalive runs. 30s keeps traffic below typical 60s idle cuts.
+ */
+const MESHCORE_MQTT_KEEPALIVE_WS_SEC = 30;
 
 export class MeshcoreMqttAdapter extends EventEmitter {
   private client: mqtt.MqttClient | null = null;
@@ -82,12 +92,15 @@ export class MeshcoreMqttAdapter extends EventEmitter {
 
     // Match MQTTManager: WebSocket uses mqtt.connect({ protocol, host, port, path, … }) — not
     // mqtt.connect(urlString, opts), which can hang or mis-handle TLS in Node mqtt.js.
+    const keepaliveSec = settings.useWebSocket
+      ? MESHCORE_MQTT_KEEPALIVE_WS_SEC
+      : MESHCORE_MQTT_KEEPALIVE_TCP_SEC;
     let connectOpts: mqtt.IClientOptions = {
       clientId,
       username: settings.username || undefined,
       password: settings.password || undefined,
       clean: true,
-      keepalive: 60,
+      keepalive: keepaliveSec,
       reconnectPeriod: 0,
       connectTimeout: MESHCORE_MQTT_CONNECT_ACK_MS,
       protocolVersion: 4,
@@ -119,6 +132,8 @@ export class MeshcoreMqttAdapter extends EventEmitter {
       sanitizeLogMessage(logUrl),
       'ws:',
       settings.useWebSocket,
+      'keepaliveSec:',
+      keepaliveSec,
       'tlsInsecure:',
       settings.tlsInsecure === true,
     );

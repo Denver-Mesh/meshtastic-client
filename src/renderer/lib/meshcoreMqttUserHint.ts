@@ -17,5 +17,8 @@ export function meshcoreMqttUserFacingHint(rawMessage: string): string {
   if (/^Subscribe failed:\s*/i.test(m) || /^Subscribe to .+ failed:/i.test(m)) {
     return `${m} The broker may deny wildcard subscribe on this topic; messages may still arrive if the broker allows it.`;
   }
+  if (/keepalive/i.test(m)) {
+    return `${m} The server stopped responding to MQTT pings (idle timeout, network drop, or broker closed the session). Reconnect or check your link.`;
+  }
   return m;
 }

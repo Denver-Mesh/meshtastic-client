@@ -13,6 +13,10 @@ For **LetsMesh public presets** (`mqtt-us-v1.letsmesh.net`, `mqtt-eu-v1.letsmesh
 
 That aligns with common tooling such as [meshcoretomqtt](https://github.com/Cisien/meshcoretomqtt) (token `audience` matches the broker host). If your operator documents a different `aud`, use **Custom** MQTT and paste a manually generated token.
 
+## WebSocket idle / keepalive
+
+MeshCore MQTT over WSS uses a **30s MQTT keepalive** (vs 60s on raw TCP) so the client sends MQTT `PINGREQ` sooner. Long idle periods with a 60s keepalive can hit **proxy or load-balancer idle timeouts** (~60s) before the first ping, which surfaces as **Keepalive timeout** in mqtt.js.
+
 ## Debugging connection vs auth
 
 When investigating failures, use the **main process** log (not only the UI):

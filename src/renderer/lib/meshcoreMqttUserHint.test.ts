@@ -29,6 +29,12 @@ describe('meshcoreMqttUserFacingHint', () => {
     expect(out).toContain('Subscribe to msh/# failed');
   });
 
+  it('appends hint for keepalive timeout', () => {
+    const out = meshcoreMqttUserFacingHint('Keepalive timeout');
+    expect(out).toContain('MQTT pings');
+    expect(out).toContain('Keepalive timeout');
+  });
+
   it('passes through unrelated messages unchanged', () => {
     expect(meshcoreMqttUserFacingHint('Something else')).toBe('Something else');
   });
