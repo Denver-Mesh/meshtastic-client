@@ -120,6 +120,13 @@ export function initUpdater(win: BrowserWindow): void {
           send('update:error', { message: 'Update check failed — check network connection' });
           return;
         }
+        if (res.redirected) {
+          console.warn(
+            '[updater] GitHub API redirected to',
+            res.url,
+            '— API_URL may need updating',
+          );
+        }
         const data = (await res.json()) as { tag_name: string; html_url: string };
         const remoteVersion = data.tag_name.replace(/^v/, '');
         const localVersion = app.getVersion();
