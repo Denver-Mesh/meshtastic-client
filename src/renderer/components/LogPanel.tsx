@@ -321,10 +321,10 @@ export default function LogPanel({
             <button
               type="button"
               onClick={() => setLogSource('app')}
-              aria-label="App"
+              aria-label={`App (${appEntries.length})`}
               className={`px-2 py-0.5 text-[10px] rounded ${logSource === 'app' ? 'bg-brand-green/20 text-brand-green border border-brand-green/40' : 'bg-slate-800 text-gray-400 border border-gray-700'}`}
             >
-              App
+              App ({appEntries.length})
             </button>
             <button
               type="button"
