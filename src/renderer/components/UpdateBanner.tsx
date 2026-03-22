@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+
 import type { UpdateState } from '../App';
 
 interface Props {
@@ -15,6 +17,12 @@ export default function UpdateBanner({
   onViewRelease,
   onDismiss,
 }: Props) {
+  useEffect(() => {
+    if (updateState.phase !== 'up-to-date') return;
+    const t = setTimeout(() => onDismiss(), 3000);
+    return () => clearTimeout(t);
+  }, [updateState.phase, onDismiss]);
+
   if (updateState.phase === 'idle' || updateState.dismissed) return null;
 
   const { phase, version, isPackaged, isMac } = updateState;
@@ -28,6 +36,10 @@ export default function UpdateBanner({
       aria-live="polite"
       className="flex items-center gap-3 px-4 py-2 bg-gray-900 border-b border-brand-green/30 text-sm"
     >
+      {phase === 'up-to-date' && (
+        <span className="text-brand-green font-medium">You&apos;re up to date</span>
+      )}
+
       {phase === 'available' && (
         <>
           <span className="text-brand-green font-medium">Update v{version} available</span>
@@ -84,8 +96,8 @@ export default function UpdateBanner({
         <span className="text-red-400">Update check failed — check your network connection</span>
       )}
 
-      {/* Dismiss — not shown during active download */}
-      {phase !== 'downloading' && (
+      {/* Dismiss — not shown during active download or the auto-dismissing up-to-date notice */}
+      {phase !== 'downloading' && phase !== 'up-to-date' && (
         <button
           onClick={onDismiss}
           aria-label="Dismiss"

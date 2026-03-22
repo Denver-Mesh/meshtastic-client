@@ -41,7 +41,7 @@ import {
 import { MeshcoreMqttAdapter } from './meshcore-mqtt-adapter';
 import { MQTTManager } from './mqtt-manager';
 import { NobleBleManager, type NobleSessionId } from './noble-ble-manager';
-import { initUpdater } from './updater';
+import { getCheckNow, initUpdater } from './updater';
 
 // Route main-process console through log file + Log panel (must run before other code logs)
 patchMainConsole();
@@ -466,6 +466,11 @@ function setupAppMenu() {
             if (w) void dialog.showMessageBox(w, opts);
             else void dialog.showMessageBox(opts);
           },
+        },
+        { type: 'separator' as const },
+        {
+          label: 'Check for Updates\u2026',
+          click: () => getCheckNow()?.(),
         },
         { type: 'separator' as const },
         {

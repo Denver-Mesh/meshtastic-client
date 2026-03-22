@@ -63,7 +63,7 @@ export interface LocationFilter {
 }
 
 export interface UpdateState {
-  phase: 'idle' | 'available' | 'downloading' | 'ready' | 'error';
+  phase: 'idle' | 'available' | 'downloading' | 'ready' | 'error' | 'up-to-date';
   version?: string;
   releaseUrl?: string;
   isPackaged?: boolean;
@@ -74,6 +74,30 @@ export interface UpdateState {
 
 const CHAT_UNREAD_STORAGE_KEY = 'mesh-client:chatUnread';
 const LOG_PANEL_VISIBLE_KEY = 'mesh-client:logPanelVisible';
+const UPDATE_SETTINGS_KEY = 'mesh-client:updateSettings';
+
+function readUpdateSettings(): { checkOnStartup: boolean; dismissedVersion?: string } {
+  try {
+    const raw = localStorage.getItem(UPDATE_SETTINGS_KEY);
+    const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+    return {
+      checkOnStartup: parsed.checkOnStartup !== false,
+      dismissedVersion:
+        typeof parsed.dismissedVersion === 'string' ? parsed.dismissedVersion : undefined,
+    };
+  } catch {
+    return { checkOnStartup: true };
+  }
+}
+
+function saveUpdateSettings(patch: Partial<{ checkOnStartup: boolean; dismissedVersion: string }>) {
+  try {
+    const existing = readUpdateSettings();
+    localStorage.setItem(UPDATE_SETTINGS_KEY, JSON.stringify({ ...existing, ...patch }));
+  } catch {
+    // quota/private mode — silently skip
+  }
+}
 
 function readLogPanelVisible(): boolean {
   try {
@@ -339,17 +363,18 @@ export default function App() {
   // ─── Auto-update event subscriptions ─────────────────────────────
   useEffect(() => {
     const offAvailable = window.electronAPI.update.onAvailable((info) => {
+      const { dismissedVersion } = readUpdateSettings();
       setUpdateState({
         phase: 'available',
         version: info.version,
         releaseUrl: info.releaseUrl,
         isPackaged: info.isPackaged,
         isMac: info.isMac,
-        dismissed: false,
+        dismissed: dismissedVersion === info.version,
       });
     });
     const offNotAvailable = window.electronAPI.update.onNotAvailable(() => {
-      setUpdateState((s) => (s.phase === 'idle' ? s : { ...s, phase: 'idle' }));
+      setUpdateState((s) => ({ ...s, phase: 'up-to-date', dismissed: false }));
     });
     const offProgress = window.electronAPI.update.onProgress((info) => {
       setUpdateState((s) => ({ ...s, phase: 'downloading', percent: info.percent }));
@@ -367,6 +392,13 @@ export default function App() {
       offDownloaded();
       offError();
     };
+  }, []);
+
+  // ─── Auto-check for updates on startup (respects user preference) ────
+  useEffect(() => {
+    if (!readUpdateSettings().checkOnStartup) return;
+    const t = setTimeout(() => window.electronAPI.update.check(), 5000);
+    return () => clearTimeout(t);
   }, []);
 
   // ─── Keyboard shortcuts: Cmd/Ctrl+1-9 for tabs, ? for help ───────────────
@@ -585,7 +617,12 @@ export default function App() {
           onDownload={() => window.electronAPI.update.download()}
           onInstall={() => window.electronAPI.update.install()}
           onViewRelease={() => window.electronAPI.update.openReleases(updateState.releaseUrl)}
-          onDismiss={() => setUpdateState((s) => ({ ...s, dismissed: true }))}
+          onDismiss={() => {
+            setUpdateState((s) => {
+              if (s.version) saveUpdateSettings({ dismissedVersion: s.version });
+              return { ...s, dismissed: true };
+            });
+          }}
         />
 
         <div className="flex flex-1 min-h-0 flex-col">
