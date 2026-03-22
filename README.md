@@ -641,11 +641,7 @@ npm install node-gyp@latest -g && npm install node-gyp@latest --save-dev
 
 Then run `npm install` again.
 
-### Windows: "Could not find any Visual Studio installation to use"
-
-**Cause**: node-gyp (used to build native modules like `@serialport/bindings-cpp` and `@stoprocent/noble`) requires Visual Studio Build Tools (or full Visual Studio) with the C++ workload on Windows. The error appears during `npm install` (postinstall) or `npm run dist:win` when no suitable installation is found. **Even when Build Tools are installed**, this often happens when the **project path contains spaces** (e.g. `C:\Users\Joey Stanford\meshcore`) — node-gyp's Visual Studio finder can fail in that case. Fix the path first.
-
-**Fix**:
+**Windows — "Could not find any Visual Studio installation to use"**: node-gyp requires Visual Studio Build Tools (or full Visual Studio) with the C++ workload. The error appears during `npm install` (postinstall) or `npm run dist:win` when no suitable installation is found. **Even when Build Tools are installed**, this often happens when the **project path contains spaces** (e.g. `C:\Users\Joey Stanford\meshcore`) — node-gyp's Visual Studio finder can fail in that case. Fix the path first.
 
 1. **Use a path without spaces** (do this first, especially if Build Tools are already installed): Clone or move the repo to e.g. `C:\dev\meshcore` or `C:\src\meshcore`, then run `npm install` from there. This resolves the issue in most cases. See [dist:win fails](#distwin-fails-with-space-in-the-path-or-eperm-on-native-modules) for details.
 2. **Install Visual Studio Build Tools** (if not already): Download [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) and select the **"Desktop development with C++"** workload. After installation, close and reopen your terminal so environment variables are picked up.
