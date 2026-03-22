@@ -443,7 +443,7 @@ declare global {
           connect: (host: string, port: number) => Promise<void>;
           write: (bytes: number[]) => Promise<void>;
           disconnect: () => Promise<void>;
-          onData: (cb: (bytes: number[]) => void) => () => void;
+          onData: (cb: (bytes: Uint8Array) => void) => () => void;
           onDisconnected: (cb: () => void) => () => void;
         };
         openJsonFile: () => Promise<string | null>;

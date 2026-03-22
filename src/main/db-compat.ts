@@ -126,6 +126,7 @@ export class NodeSqliteDB {
   private readonly db: DatabaseSyncType;
   // Store exec as a bound ref to avoid triggering lint patterns on method calls below.
   private readonly _run: (sql: string) => void;
+  private readonly stmtCache = new Map<string, WrappedStatement>();
 
   constructor(location: string, opts?: { readonly?: boolean }) {
     this.db = new DatabaseSync(location, { readOnly: opts?.readonly ?? false });
@@ -138,12 +139,23 @@ export class NodeSqliteDB {
     return new WrappedStatement(this.db.prepare(sql), sql);
   }
 
+  /** Cached prepared statement for identical SQL strings (hot IPC paths). */
+  prepareOnce(sql: string): WrappedStatement {
+    let stmt = this.stmtCache.get(sql);
+    if (!stmt) {
+      stmt = this.prepare(sql);
+      this.stmtCache.set(sql, stmt);
+    }
+    return stmt;
+  }
+
   /** Run one or more SQL statements (DDL, multi-statement scripts). */
   execScript(sql: string): void {
     this._run(sql);
   }
 
   close(): void {
+    this.stmtCache.clear();
     this.db.close();
   }
 

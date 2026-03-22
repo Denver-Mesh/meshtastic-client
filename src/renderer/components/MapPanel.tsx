@@ -25,6 +25,13 @@ import { usePositionHistoryStore } from '../stores/positionHistoryStore';
 import NodeInfoBody from './NodeInfoBody';
 import { useToast } from './Toast';
 
+const WAYPOINT_MARKER_ICON = L.divIcon({
+  className: '',
+  html: `<div style="background:#f59e0b;border:2px solid #fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;">📍</div>`,
+  iconSize: [18, 18],
+  iconAnchor: [9, 9],
+});
+
 // ─── Map styles (anomaly halos + dark popup) ──────────────────────────────────
 
 const MAP_STYLE_ID = 'map-styles';
@@ -678,7 +685,11 @@ export default function MapPanel({
 
   const movingNodePaths = useMemo(() => {
     if (!showPaths) return [];
-    const result: { nodeId: number; positions: [number, number][]; color: string }[] = [];
+    const result: {
+      nodeId: number;
+      positions: [number, number][];
+      pathOptions: { color: string; weight: number; opacity: number };
+    }[] = [];
     for (const [nodeId, points] of positionHistory) {
       if (points.length < 2) continue;
       const node = nodes.get(nodeId);
@@ -687,7 +698,7 @@ export default function MapPanel({
       result.push({
         nodeId,
         positions: points.map((p) => [p.lat, p.lon]),
-        color: PATH_COLORS[status],
+        pathOptions: { color: PATH_COLORS[status], weight: 3, opacity: 0.65 },
       });
     }
     return result;
@@ -751,12 +762,8 @@ export default function MapPanel({
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         />
-        {movingNodePaths.map(({ nodeId, positions: pathPositions, color }) => (
-          <Polyline
-            key={`path-${nodeId}`}
-            positions={pathPositions}
-            pathOptions={{ color, weight: 3, opacity: 0.65 }}
-          />
+        {movingNodePaths.map(({ nodeId, positions: pathPositions, pathOptions }) => (
+          <Polyline key={`path-${nodeId}`} positions={pathPositions} pathOptions={pathOptions} />
         ))}
         {nodesWithStatusAndHaloOffsetForRender.map(({ node, anomaly, haloCenterOffset }) => (
           <MapMarker
@@ -773,16 +780,7 @@ export default function MapPanel({
         ))}
         {waypoints &&
           [...waypoints.values()].map((wp) => (
-            <Marker
-              key={wp.id}
-              position={[wp.latitude, wp.longitude]}
-              icon={L.divIcon({
-                className: '',
-                html: `<div style="background:#f59e0b;border:2px solid #fff;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;">📍</div>`,
-                iconSize: [18, 18],
-                iconAnchor: [9, 9],
-              })}
-            >
+            <Marker key={wp.id} position={[wp.latitude, wp.longitude]} icon={WAYPOINT_MARKER_ICON}>
               <Popup>
                 <div className="p-2 space-y-1">
                   <div className="font-medium text-gray-100 text-sm">{wp.name || 'Waypoint'}</div>

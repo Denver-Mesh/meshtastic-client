@@ -45,8 +45,10 @@ export const usePositionHistoryStore = create<PositionHistoryState>((set, get) =
     const existing = get().history.get(nodeId) ?? [];
     const pruned = existing.filter((p) => p.t > now - windowMs);
     const last = pruned.at(-1);
+    let added = false;
     if (!last || haversineDistanceKm(last.lat, last.lon, lat, lon) >= MOVEMENT_THRESHOLD_KM) {
       pruned.push({ t: now, lat, lon });
+      added = true;
       // Fire-and-forget DB write; never block the position update
       try {
         window.electronAPI.db.savePositionHistory(nodeId, lat, lon, now, source).catch((err) => {
@@ -56,9 +58,12 @@ export const usePositionHistoryStore = create<PositionHistoryState>((set, get) =
         // catch-no-log-ok electronAPI not available in test/storybook contexts
       }
     }
-    const newHistory = new Map(get().history);
-    newHistory.set(nodeId, pruned);
-    set({ history: newHistory });
+    const shortenedByWindow = pruned.length !== existing.length;
+    if (added || shortenedByWindow) {
+      const newHistory = new Map(get().history);
+      newHistory.set(nodeId, pruned);
+      set({ history: newHistory });
+    }
   },
 
   clearHistory() {

@@ -284,7 +284,7 @@ export interface ElectronAPI {
       connect: (host: string, port: number) => Promise<unknown>;
       write: (bytes: number[]) => Promise<unknown>;
       disconnect: () => Promise<unknown>;
-      onData: (cb: (bytes: number[]) => void) => () => void;
+      onData: (cb: (bytes: Uint8Array) => void) => () => void;
       onDisconnected: (cb: () => void) => () => void;
     };
     openJsonFile: () => Promise<string | null>;

@@ -1,7 +1,9 @@
+import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   type MouseEvent as ReactMouseEvent,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -222,19 +224,34 @@ export default function LogPanel({
     }
   }, []);
 
-  const libraryEntries = entries.filter((e) => isDeviceEntry(e, protocol));
-  // Dual-mode: exclude device entries from BOTH protocols so neither leaks into the app view.
-  const appEntries = entries.filter(
-    (e) => !isDeviceEntry(e, 'meshtastic') && !isDeviceEntry(e, 'meshcore'),
+  const libraryEntries = useMemo(
+    () => entries.filter((e) => isDeviceEntry(e, protocol)),
+    [entries, protocol],
   );
-  const allDeviceLogs: LogEntry[] = [...(deviceLogs ?? []), ...libraryEntries].sort(
-    (a, b) => a.ts - b.ts,
+  // Dual-mode: exclude device entries from BOTH protocols so neither leaks into the app view.
+  const appEntries = useMemo(
+    () => entries.filter((e) => !isDeviceEntry(e, 'meshtastic') && !isDeviceEntry(e, 'meshcore')),
+    [entries],
+  );
+  const allDeviceLogs: LogEntry[] = useMemo(
+    () => [...(deviceLogs ?? []), ...libraryEntries].sort((a, b) => a.ts - b.ts),
+    [deviceLogs, libraryEntries],
   );
 
-  const visibleLines: LogEntry[] =
-    logSource === 'device'
-      ? allDeviceLogs.filter((e) => levelVisible(e.level, levelFilters))
-      : appEntries.filter((e) => levelVisible(e.level, levelFilters));
+  const visibleLines: LogEntry[] = useMemo(
+    () =>
+      logSource === 'device'
+        ? allDeviceLogs.filter((e) => levelVisible(e.level, levelFilters))
+        : appEntries.filter((e) => levelVisible(e.level, levelFilters)),
+    [logSource, allDeviceLogs, appEntries, levelFilters],
+  );
+
+  const logVirtualizer = useVirtualizer({
+    count: visibleLines.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 18,
+    overscan: 16,
+  });
 
   const onResizeMouseDown = useCallback(
     (e: ReactMouseEvent) => {
@@ -430,17 +447,23 @@ export default function LogPanel({
                   : 'No device lines match the current filters.'}
           </span>
         ) : (
-          visibleLines.map((entry, i) => {
-            const line = formatEntry(entry);
-            return (
-              <div
-                key={`${i}-${entry.ts}-${line.slice(0, 40)}`}
-                className="whitespace-pre-wrap break-all"
-              >
-                {line}
-              </div>
-            );
-          })
+          <div className="relative w-full" style={{ height: `${logVirtualizer.getTotalSize()}px` }}>
+            {logVirtualizer.getVirtualItems().map((vi) => {
+              const entry = visibleLines[vi.index];
+              const line = formatEntry(entry);
+              return (
+                <div
+                  key={`${vi.index}-${entry.ts}-${line.slice(0, 40)}`}
+                  data-index={vi.index}
+                  ref={logVirtualizer.measureElement}
+                  className="whitespace-pre-wrap break-all absolute top-0 left-0 w-full"
+                  style={{ transform: `translateY(${vi.start}px)` }}
+                >
+                  {line}
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </aside>
