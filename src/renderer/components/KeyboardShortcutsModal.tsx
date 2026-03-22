@@ -18,6 +18,8 @@ const OTHER_SHORTCUTS = [
   { keys: 'Enter', action: 'Send message' },
   { keys: 'Shift + Enter', action: 'New line in message' },
   { keys: '?', action: 'Open this keyboard shortcuts help' },
+  { keys: 'Cmd/Ctrl + [', action: 'Switch to Meshtastic' },
+  { keys: 'Cmd/Ctrl + ]', action: 'Switch to MeshCore' },
 ];
 
 interface KeyboardShortcutsModalProps {

@@ -430,6 +430,21 @@ export default function App() {
     return () => clearTimeout(t);
   }, []);
 
+  // ─── Keyboard shortcuts: Cmd/Ctrl+[ / ] to switch protocol ───────────────
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === '[') {
+        e.preventDefault();
+        handleProtocolChange('meshtastic');
+      } else if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === ']') {
+        e.preventDefault();
+        handleProtocolChange('meshcore');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleProtocolChange]);
+
   // ─── Keyboard shortcuts: Cmd/Ctrl+1-9 for tabs, ? for help ───────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
