@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
 import type { OurPosition } from '../lib/gpsSource';
 import type { ProtocolCapabilities } from '../lib/radio/BaseRadioProvider';
+import { HelpTooltip } from './HelpTooltip';
 import { useToast } from './Toast';
 
 interface ChannelConfig {
@@ -120,6 +121,7 @@ function ConfigSelect({
   onChange,
   disabled,
   description,
+  tooltip,
 }: {
   label: string;
   value: number;
@@ -127,13 +129,21 @@ function ConfigSelect({
   onChange: (val: number) => void;
   disabled: boolean;
   description?: string;
+  tooltip?: string;
 }) {
   return (
     <div className="space-y-1">
-      <label className="text-sm text-muted">{label}</label>
+      <div className="flex items-center gap-1.5">
+        <label className="text-sm text-muted">{label}</label>
+        {tooltip && <HelpTooltip text={tooltip} />}
+      </div>
       <select
         value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
+        onChange={(e) => {
+          const n = Number(e.target.value);
+          if (!Number.isFinite(n)) return;
+          onChange(n);
+        }}
         disabled={disabled}
         className="w-full px-3 py-2 bg-secondary-dark rounded-lg text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none disabled:opacity-50"
       >
@@ -186,7 +196,7 @@ function ConfigToggle({
 }
 
 /** Reusable number input */
-function ConfigNumber({
+export function ConfigNumber({
   label,
   value,
   onChange,
@@ -195,6 +205,7 @@ function ConfigNumber({
   max,
   unit,
   description,
+  tooltip,
 }: {
   label: string;
   value: number;
@@ -204,15 +215,23 @@ function ConfigNumber({
   max?: number;
   unit?: string;
   description?: string;
+  tooltip?: string;
 }) {
   return (
     <div className="space-y-1">
-      <label className="text-sm text-muted">{label}</label>
+      <div className="flex items-center gap-1.5">
+        <label className="text-sm text-muted">{label}</label>
+        {tooltip && <HelpTooltip text={tooltip} />}
+      </div>
       <div className="flex items-center gap-2">
         <input
           type="number"
           value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
+          onChange={(e) => {
+            const n = Number(e.target.value);
+            if (!Number.isFinite(n)) return;
+            onChange(n);
+          }}
           min={min}
           max={max}
           disabled={disabled}
@@ -648,6 +667,7 @@ export default function RadioPanel({
                 'mesh-client:meshcoreIdentity',
                 JSON.stringify({ public_key: cfg.public_key, private_key: cfg.private_key }),
               );
+              window.dispatchEvent(new Event('meshclient:meshcoreIdentityUpdated'));
             } catch {
               // catch-no-log-ok localStorage quota or private mode — non-critical identity cache
             }
@@ -1002,6 +1022,7 @@ export default function RadioPanel({
               ]}
               onChange={setBandwidth}
               disabled={disabled || applyingSection !== null}
+              tooltip="Channel width in kHz. Narrower = longer range and less interference but slower data rate. All nodes on the network must use the same bandwidth."
             />
             <ConfigSelect
               label="Spread Factor"
@@ -1025,6 +1046,7 @@ export default function RadioPanel({
               ]}
               onChange={setCodingRate}
               disabled={disabled || applyingSection !== null}
+              tooltip="Forward error correction overhead. 4/5 = minimal redundancy (faster). 4/8 = maximum redundancy (more resilient to interference). All nodes must match."
             />
             <ConfigNumber
               label="TX Power"
@@ -1035,6 +1057,7 @@ export default function RadioPanel({
               max={30}
               unit="dBm"
               description="Transmit power. Check local regulations before increasing."
+              tooltip="Transmit power in dBm (1–30). Higher = longer range but more power draw. Check regional regulations for the legal maximum in your area."
             />
           </div>
         </ConfigSection>
@@ -1098,6 +1121,7 @@ export default function RadioPanel({
                 ]}
                 onChange={setBandwidth}
                 disabled={disabled || applyingSection !== null}
+                tooltip="Channel width in kHz. Narrower = longer range and less interference but slower data rate. All nodes on the network must use the same bandwidth."
               />
               <ConfigSelect
                 label="Spread Factor"
@@ -1121,6 +1145,7 @@ export default function RadioPanel({
                 ]}
                 onChange={setCodingRate}
                 disabled={disabled || applyingSection !== null}
+                tooltip="Forward error correction overhead. 4/5 = minimal redundancy (faster). 4/8 = maximum redundancy (more resilient to interference). All nodes must match."
               />
               <ConfigNumber
                 label="TX Power"
@@ -1131,6 +1156,7 @@ export default function RadioPanel({
                 max={30}
                 unit="dBm"
                 description="Transmit power. Check local regulations before increasing."
+                tooltip="Transmit power in dBm (1–30). Higher = longer range but more power draw. Check regional regulations for the legal maximum in your area."
               />
               <ConfigToggle
                 label="SX126x RX Boosted Gain"
@@ -2009,9 +2035,12 @@ function ChannelSection({
 
             {/* Key Size */}
             <div className="space-y-1">
-              <label htmlFor="radio-mt-ch-key-size" className="text-xs text-muted">
-                Key Size
-              </label>
+              <div className="flex items-center gap-1.5">
+                <label htmlFor="radio-mt-ch-key-size" className="text-xs text-muted">
+                  Key Size
+                </label>
+                <HelpTooltip text="None = no encryption. Simple = default Meshtastic key (shared by all default-config devices — not private). AES-128/256 = custom private key. All nodes on this channel must use the same key." />
+              </div>
               <select
                 id="radio-mt-ch-key-size"
                 value={editKeySize}
@@ -2028,9 +2057,12 @@ function ChannelSection({
 
             {/* Encryption Key */}
             <div className="space-y-1">
-              <label htmlFor="radio-mt-ch-psk" className="text-xs text-muted">
-                Encryption Key (base64)
-              </label>
+              <div className="flex items-center gap-1.5">
+                <label htmlFor="radio-mt-ch-psk" className="text-xs text-muted">
+                  Encryption Key (base64)
+                </label>
+                <HelpTooltip text="Base64-encoded encryption key. AES-128 = 16 bytes (24 base64 chars). AES-256 = 32 bytes (44 base64 chars). Use 'Generate' for a random key, or paste a shared key from another node." />
+              </div>
               <div className="flex items-center gap-2">
                 <input
                   id="radio-mt-ch-psk"
@@ -2202,6 +2234,8 @@ function MeshcoreChannelSection({
       await onSetChannel(idx, editName, hexToBytes(editKeyHex));
       setEditingIdx(null);
       setAddingNew(false);
+    } catch (e) {
+      console.warn('[MeshcoreChannelSection] save failed', e);
     } finally {
       setSaving(false);
     }
@@ -2213,6 +2247,8 @@ function MeshcoreChannelSection({
       await onDeleteChannel(idx);
       setConfirmDeleteIdx(null);
       if (editingIdx === idx) setEditingIdx(null);
+    } catch (e) {
+      console.warn('[MeshcoreChannelSection] delete failed', e);
     } finally {
       setSaving(false);
     }

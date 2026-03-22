@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
@@ -39,6 +39,48 @@ describe('ConnectionPanel MQTT port clamping', () => {
   });
 });
 
+describe('HelpTooltip in MQTT form', () => {
+  function renderMqttForm(protocol: 'meshtastic' | 'meshcore' = 'meshtastic') {
+    return render(
+      <ConnectionPanel
+        state={disconnectedState}
+        onConnect={vi.fn().mockResolvedValue(undefined)}
+        onAutoConnect={vi.fn().mockResolvedValue(undefined)}
+        onDisconnect={vi.fn().mockResolvedValue(undefined)}
+        mqttStatus="disconnected"
+        protocol={protocol}
+        onProtocolChange={vi.fn()}
+      />,
+    );
+  }
+
+  it('shows non-empty tooltip text on mouseenter for each help icon', async () => {
+    const user = userEvent.setup();
+    renderMqttForm();
+    const helpIcons = document.querySelectorAll('.cursor-help');
+    expect(helpIcons.length).toBeGreaterThan(0);
+    for (const icon of helpIcons) {
+      await user.hover(icon as HTMLElement);
+      // After hover, a tooltip span should appear with non-empty text
+      const tooltips = document.querySelectorAll('.pointer-events-none');
+      const visibleTooltip = Array.from(tooltips).find(
+        (el) => el.textContent && el.textContent.trim().length > 0,
+      );
+      expect(visibleTooltip).toBeTruthy();
+      await user.unhover(icon as HTMLElement);
+    }
+  });
+
+  it('help icons do not use native title attribute (broken in Electron)', () => {
+    renderMqttForm();
+    const helpIcons = document.querySelectorAll('.cursor-help');
+    expect(helpIcons.length).toBeGreaterThan(0);
+    for (const icon of helpIcons) {
+      expect(icon.getAttribute('title')).toBeNull();
+    }
+  });
+});
+
 describe('ConnectionPanel accessibility', () => {
   it('has no axe violations in disconnected state', async () => {
     const { container } = render(
@@ -54,5 +96,31 @@ describe('ConnectionPanel accessibility', () => {
     );
     const results = await axe(container);
     expect(results).toHaveNoViolations();
+  });
+});
+
+describe('ConnectionPanel MQTT connect error', () => {
+  it('surfaces error when mqtt.connect rejects', async () => {
+    const user = userEvent.setup();
+    vi.mocked(window.electronAPI.mqtt.connect).mockRejectedValueOnce(new Error('broker refused'));
+
+    render(
+      <ConnectionPanel
+        state={disconnectedState}
+        onConnect={vi.fn().mockResolvedValue(undefined)}
+        onAutoConnect={vi.fn().mockResolvedValue(undefined)}
+        onDisconnect={vi.fn().mockResolvedValue(undefined)}
+        mqttStatus="disconnected"
+        protocol="meshcore"
+        onProtocolChange={vi.fn()}
+      />,
+    );
+
+    const mqttCard = screen.getByText('MQTT Connection').closest('.bg-deep-black');
+    expect(mqttCard).toBeTruthy();
+    const connectBtn = within(mqttCard as HTMLElement).getByRole('button', { name: 'Connect' });
+    await user.click(connectBtn);
+
+    expect(await screen.findByText('broker refused')).toBeInTheDocument();
   });
 });

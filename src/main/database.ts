@@ -2,8 +2,12 @@ import { app } from 'electron';
 import fs from 'fs';
 import path from 'path';
 
+import { escapeSqlLikePattern } from '../shared/sqlLikeEscape';
 import { NodeSqliteDB } from './db-compat';
 import { sanitizeLogMessage } from './log-service';
+
+/** Drop position_history rows older than this window on DB open. */
+const POSITION_HISTORY_PRUNE_MS = 30 * 24 * 60 * 60 * 1000;
 
 let db: NodeSqliteDB | null = null;
 
@@ -59,7 +63,7 @@ export function initDatabase(): void {
            WHERE packet_id IS NOT NULL`,
           )
           .run();
-        db!.pragma('user_version = 14');
+        db!.pragma('user_version = 17');
       } else {
         runMigrations();
       }
@@ -68,7 +72,7 @@ export function initDatabase(): void {
 
     // Prune position_history rows older than 30 days on startup
     try {
-      const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      const cutoff = Date.now() - POSITION_HISTORY_PRUNE_MS;
       const pruned = db.prepare('DELETE FROM position_history WHERE recorded_at < ?').run(cutoff);
       if (pruned.changes > 0) {
         console.debug(`[db] Pruned ${pruned.changes} old position_history rows`);
@@ -95,7 +99,8 @@ export function initDatabase(): void {
 
 export function getDatabase(): NodeSqliteDB {
   if (!db) initDatabase();
-  return db!;
+  if (!db) throw new Error('[db] Database failed to initialize');
+  return db;
 }
 
 function createBaseTables(): void {
@@ -179,7 +184,7 @@ function createBaseTables(): void {
 
       CREATE INDEX IF NOT EXISTS idx_mc_msgs_ts ON meshcore_messages(timestamp);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_mc_msg_dedup
-        ON meshcore_messages(sender_id, timestamp, channel_idx)
+        ON meshcore_messages(sender_id, timestamp, channel_idx, payload)
         WHERE sender_id IS NOT NULL;
 
       CREATE TABLE IF NOT EXISTS position_history (
@@ -654,22 +659,22 @@ export function mergeDatabase(sourcePath: string) {
 
 export function searchMessages(query: string, limit = 50): unknown[] {
   const db = getDatabase();
-  const like = `%${query}%`;
+  const like = `%${escapeSqlLikePattern(query)}%`;
   return db
     .prepare(
       `SELECT id, sender_id, sender_name, payload, channel, timestamp, to_node
-       FROM messages WHERE payload LIKE ? ORDER BY timestamp DESC LIMIT ?`,
+       FROM messages WHERE payload LIKE ? ESCAPE '\\' ORDER BY timestamp DESC LIMIT ?`,
     )
     .all(like, limit);
 }
 
 export function searchMeshcoreMessages(query: string, limit = 50): unknown[] {
   const db = getDatabase();
-  const like = `%${query}%`;
+  const like = `%${escapeSqlLikePattern(query)}%`;
   return db
     .prepare(
       `SELECT id, sender_id, sender_name, payload, channel_idx, timestamp, to_node
-       FROM meshcore_messages WHERE payload LIKE ? ORDER BY timestamp DESC LIMIT ?`,
+       FROM meshcore_messages WHERE payload LIKE ? ESCAPE '\\' ORDER BY timestamp DESC LIMIT ?`,
     )
     .all(like, limit);
 }
@@ -680,11 +685,21 @@ export function deleteNodesBySource(source: string): number {
   return Number(result.changes);
 }
 
+export function migrateRfStubNodes(): number {
+  const db = getDatabase();
+  const result = db
+    .prepare(
+      "UPDATE nodes SET long_name = substr(long_name, 4), short_name = '' WHERE long_name LIKE 'RF !________'",
+    )
+    .run();
+  return Number(result.changes);
+}
+
 export function deleteNodesWithoutLongname(): number {
   const db = getDatabase();
   const result = db
     .prepare(
-      "DELETE FROM nodes WHERE long_name IS NULL OR TRIM(long_name) = '' OR long_name = printf('!%08x', node_id)",
+      "DELETE FROM nodes WHERE (long_name IS NULL OR TRIM(long_name) = '' OR long_name = printf('!%08x', node_id)) AND (source IS NULL OR TRIM(source) = '')",
     )
     .run();
   return Number(result.changes);

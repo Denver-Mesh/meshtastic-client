@@ -84,7 +84,7 @@ The official Meshtastic apps cover the basics, but desktop power users need more
 - **Bluetooth LE** — pair wirelessly; auto-reconnects on startup with no user gesture required (noble native BLE via BlueZ/CoreBluetooth/WinRT); last device name persists across sessions
 - **USB Serial** — plug in via USB; auto-reconnects silently on startup (saved port signature matches the same physical device across re-enumeration)
 - **WiFi / HTTP / TCP** — connect to network-enabled nodes; saves last address for quick reconnect
-- Protocol toggle in the Connection tab (**Meshtastic / MeshCore**); each protocol remembers its own last connection and reconnects independently; the active protocol is shown as a badge in the header
+- **Dual-mode** — both Meshtastic and MeshCore run simultaneously; use the protocol switcher pill in the header to switch which view is active (the inactive protocol stays connected in the background); per-protocol unread badges (Meshtastic = green, MeshCore = cyan); passive toast notifications when the inactive protocol receives messages
 
 **Chat**
 
@@ -114,7 +114,7 @@ The official Meshtastic apps cover the basics, but desktop power users need more
 **Productivity**
 
 - **Log panel** (right rail) — live app log stream, optional debug toggle, export or delete the log file
-- Full keyboard navigation — press `?` for shortcut reference; `Cmd/Ctrl+1–8` switches tabs; `Cmd/Ctrl+F` opens **chat search** across all channels (optional `user:name` and `channel:name` filters)
+- Full keyboard navigation — press `?` for shortcut reference; `Cmd/Ctrl+1–8` switches tabs; `Cmd/Ctrl+[` switches to Meshtastic; `Cmd/Ctrl+]` switches to MeshCore; `Cmd/Ctrl+F` opens **chat search** across all channels (optional `user:name` and `channel:name` filters)
 - **Update notifications** — checks for new releases on startup (toggleable in App tab); shows "You're up to date" confirmation on manual check; dismissed versions are remembered across restarts; "Check for Updates…" in the macOS app menu; Windows/Linux download and install in-app, macOS opens the release page
 - System tray with live unread badge; app stays accessible when window is closed
 - Persistent SQLite storage; DB export/import/clear in the App tab; Clear GPS Data and Reset Diagnostics without a full DB wipe
@@ -123,7 +123,7 @@ The official Meshtastic apps cover the basics, but desktop power users need more
 
 ### MeshCore Features
 
-MeshCore support is available alongside Meshtastic — switch protocols in the Connection tab. When MeshCore is active, the sixth tab is **Repeaters** (instead of Modules); all other tabs, including Network Diagnostics, are available.
+MeshCore runs simultaneously alongside Meshtastic. Use the protocol switcher pill in the header to bring MeshCore into view — the Meshtastic session stays connected in the background. When viewing MeshCore, the sixth tab is **Repeaters** (instead of Modules); all other tabs, including Network Diagnostics, are available.
 
 **Contacts & Discovery**
 
@@ -169,7 +169,7 @@ MeshCore support is available alongside Meshtastic — switch protocols in the C
 - BLE: waits for GATT init (`connected` event) before issuing commands; includes nudge timeout for stuck `deviceQuery` on some devices
 - Serial: auto-reconnects on startup using a saved port signature so reconnect targets the same physical device when possible
 - TCP: connects to MeshCore companion radio on port 4403
-- **MQTT (JSON v1):** The Connection tab MQTT card includes **Network Preset** buttons — **LetsMesh** (WebSocket on port 443, topic prefix `meshcore`), **Ripple Networks** (TLS on port 8883, same topic prefix, preset default credentials, and **Allow insecure TLS** for brokers that use a non–public CA), and **Custom** for your own broker
+- **MQTT (JSON v1):** The Connection tab MQTT card includes **Network Preset** buttons — **LetsMesh** (WebSocket on port 443, topic prefix `meshcore`; broker auth uses `@michaelhart/meshcore-decoder`’s `createAuthToken` — MQTT username `v1_<64-hex public key>`, password token with JWT `aud` matching the **MQTT server hostname** (e.g. `mqtt-us-v1.letsmesh.net` for the US preset); optional **Packet logger (Analyzer)** forwards RX packet summaries to the broker when enabled; see [docs/letsmesh-mqtt-auth.md](docs/letsmesh-mqtt-auth.md)), **Ripple Networks** (TLS on port 8883, same topic prefix, preset default credentials, and **Allow insecure TLS** for brokers that use a non–public CA), and **Custom** for your own broker
 
 ---
 
@@ -373,7 +373,7 @@ If serial isn't detected, install the correct USB drivers for your device (CP210
 
 ### Choosing a Protocol
 
-The **Connection** tab shows a **Meshtastic / MeshCore** toggle at the top. Select the protocol that matches your device firmware before connecting. Each protocol stores its own last-connection and reconnects independently. Switching protocols disconnects the current session.
+Both protocols run at the same time. Use the **Meshtastic / MeshCore** switcher pill in the header to bring the desired protocol's view into focus — the other session remains connected in the background. Each protocol stores its own last-connection and auto-reconnects independently on startup.
 
 ### Connecting Your Device
 
@@ -405,7 +405,7 @@ After a successful connection, Mesh-Client remembers your last device per protoc
 
 ### MQTT
 
-Enter your broker URL, topic, and optional credentials in the MQTT section of the Connection tab. When connected, the section collapses to a compact info card showing the server, client ID, and topic. You can send messages via MQTT even when no hardware device is connected. **Meshtastic** uses the protobuf MQTT stack; **MeshCore** uses the JSON v1 chat envelope on the broker (see [docs/meshcore-meshtastic-parity.md](docs/meshcore-meshtastic-parity.md)). In **MeshCore** mode, **LetsMesh** / **Ripple Networks** presets fill those fields for the corresponding public networks; override username, password, or TLS options if your operator issued different credentials.
+Enter your broker URL, topic, and optional credentials in the MQTT section of the Connection tab. When connected, the section collapses to a compact info card showing the server, client ID, and topic. You can send messages via MQTT without a radio when using **Meshtastic**, or **MeshCore** with brokers other than the public **LetsMesh** presets (Ripple / Custom still use the JSON v1 chat envelope for MQTT-only sends). **LetsMesh** public MQTT targets the **Analyzer** packet-logger model: optional RX summaries to `{topicPrefix}/meshcore/packets` when your radio is connected ([docs/letsmesh-mqtt-auth.md](docs/letsmesh-mqtt-auth.md)); MQTT-only channel chat to LetsMesh without a radio is not supported. **Meshtastic** uses the protobuf MQTT stack; **MeshCore** broker details are in [docs/meshcore-meshtastic-parity.md](docs/meshcore-meshtastic-parity.md). In **MeshCore** mode, **LetsMesh** / **Ripple Networks** presets fill those fields for the corresponding public networks. **LetsMesh** uses the same contract as [meshcore-mqtt-broker](https://github.com/michaelhart/meshcore-mqtt-broker) with JWT `aud` matching the **regional broker hostname** you connect to (e.g. `mqtt-us-v1.letsmesh.net` / `mqtt-eu-v1.letsmesh.net`); mesh-client generates tokens from your imported MeshCore identity (`public_key` + `private_key` in config JSON). Use **Custom** and paste credentials manually if your operator issued different rules.
 
 ---
 

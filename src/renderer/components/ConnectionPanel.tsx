@@ -1,5 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import {
+  letsMeshPresetConfigurationDeviation,
+  validateLetsMeshManualCredentials,
+  validateLetsMeshPresetConnect,
+} from '../lib/letsMeshConnectionGuards';
+import {
+  generateLetsMeshAuthToken,
+  LETSMESH_HOST_EU,
+  LETSMESH_HOST_US,
+  letsMeshMqttUsernameFromIdentity,
+  readMeshcoreIdentity,
+} from '../lib/letsMeshJwt';
+import { meshcoreMqttUserFacingHint } from '../lib/meshcoreMqttUserHint';
 import { parseStoredJson } from '../lib/parseStoredJson';
 import { LAST_SERIAL_PORT_KEY } from '../lib/serialPortSignature';
 import type {
@@ -11,6 +24,7 @@ import type {
   NobleBleDevice,
   SerialPortInfo,
 } from '../lib/types';
+import { HelpTooltip } from './HelpTooltip';
 // ─── Last Connection (localStorage) ───────────────────────────────
 interface LastConnection {
   type: ConnectionType;
@@ -246,6 +260,7 @@ const MESHCORE_MQTT_DEFAULTS: MQTTSettings = {
   topicPrefix: 'meshcore',
   autoLaunch: false,
   maxRetries: 5,
+  meshcorePacketLoggerEnabled: false,
 };
 
 function migrateMqttSettingsOnce(): void {
@@ -348,6 +363,7 @@ export default function ConnectionPanel({
     useState<MQTTSettings>(loadMeshcoreMqttSettings);
   const [showMqttPassword, setShowMqttPassword] = useState(false);
   const [mqttError, setMqttError] = useState<string | null>(null);
+  const [mqttWarning, setMqttWarning] = useState<string | null>(null);
   const [mqttClientId, setMqttClientId] = useState('');
   const mqttSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const meshcoreMqttSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -391,26 +407,58 @@ export default function ConnectionPanel({
     };
   }, [meshcoreMqttSettings]);
 
-  // Listen for MQTT events from main process
-  useEffect(() => window.electronAPI.mqtt.onError(setMqttError), []);
+  // Listen for MQTT events from main process (dual-mode: only errors for the active protocol)
+  useEffect(() => {
+    return window.electronAPI.mqtt.onError(({ error, protocol: mqttProtocol }) => {
+      if (mqttProtocol !== protocol) return;
+      setMqttError(protocol === 'meshcore' ? meshcoreMqttUserFacingHint(error) : error);
+    });
+  }, [protocol]);
+  useEffect(() => {
+    return window.electronAPI.mqtt.onWarning(({ warning, protocol: mqttProtocol }) => {
+      if (mqttProtocol !== protocol) return;
+      setMqttWarning(protocol === 'meshcore' ? meshcoreMqttUserFacingHint(warning) : warning);
+    });
+  }, [protocol]);
   useEffect(() => {
     // Restore clientId if already connected when this component mounts (e.g. after tab switch)
     window.electronAPI.mqtt
-      .getClientId()
+      .getClientId(protocol)
       .then((id) => {
         if (id) setMqttClientId(id);
       })
       .catch((err) => {
         console.warn('[ConnectionPanel] getClientId failed:', err);
       });
-    return window.electronAPI.mqtt.onClientId(setMqttClientId);
-  }, []);
+    return window.electronAPI.mqtt.onClientId(({ clientId, protocol: mqttProtocol }) => {
+      if (mqttProtocol !== protocol) return;
+      setMqttClientId(clientId);
+    });
+  }, [protocol]);
 
-  // Clear MQTT error/clientId when connection succeeds or is disconnected
+  // Clear MQTT error on successful connect; leave it visible on disconnect so the user can read it.
   useEffect(() => {
-    if (mqttStatus === 'connected' || mqttStatus === 'disconnected') setMqttError(null);
-    if (mqttStatus === 'disconnected') setMqttClientId('');
+    if (mqttStatus === 'connected') setMqttError(null);
+    if (mqttStatus === 'disconnected') {
+      setMqttClientId('');
+      setMqttWarning(null);
+    }
+    if (mqttStatus === 'connecting') setMqttWarning(null);
   }, [mqttStatus]);
+
+  // Keep LetsMesh MQTT username in sync with imported MeshCore identity (v1_<64-hex public key>).
+  useEffect(() => {
+    const syncLetsMeshUsername = () => {
+      if (protocol !== 'meshcore' || meshcorePreset !== 'letsmesh') return;
+      const u = letsMeshMqttUsernameFromIdentity(readMeshcoreIdentity());
+      if (!u) return;
+      setMeshcoreMqttSettings((prev) => (prev.username === u ? prev : { ...prev, username: u }));
+    };
+    syncLetsMeshUsername();
+    window.addEventListener('meshclient:meshcoreIdentityUpdated', syncLetsMeshUsername);
+    return () =>
+      window.removeEventListener('meshclient:meshcoreIdentityUpdated', syncLetsMeshUsername);
+  }, [protocol, meshcorePreset]);
 
   const activeMqttSettings = protocol === 'meshcore' ? meshcoreMqttSettings : mqttSettings;
   const setActiveMqttSettings = protocol === 'meshcore' ? setMeshcoreMqttSettings : setMqttSettings;
@@ -846,7 +894,7 @@ export default function ConnectionPanel({
           className={`flex-1 py-2 text-sm font-medium transition-colors ${
             protocol === p
               ? p === 'meshcore'
-                ? 'bg-purple-600 text-white'
+                ? 'bg-cyan-600/20 text-cyan-400'
                 : 'bg-brand-green/20 text-brand-green border-brand-green'
               : 'text-muted hover:text-gray-200 hover:bg-secondary-dark'
           }`}
@@ -1038,6 +1086,16 @@ export default function ConnectionPanel({
     mqttStatus === 'connected' ? (
       <div className={`bg-deep-black rounded-lg border border-brand-green/20 overflow-hidden`}>
         {mqttHeaderBar}
+        {mqttError && (
+          <div className="px-4 py-2 bg-red-900/50 border-b border-red-800 text-red-300 text-xs">
+            {mqttError}
+          </div>
+        )}
+        {mqttWarning && (
+          <div className="px-4 py-2 bg-amber-900/40 border-b border-amber-800/60 text-amber-200 text-xs">
+            {mqttWarning}
+          </div>
+        )}
         <div className="p-4 space-y-3">
           <div className="flex justify-between text-sm">
             <span className="text-muted">Server</span>
@@ -1144,12 +1202,16 @@ export default function ConnectionPanel({
                     onClick={() => {
                       setMeshcorePreset(id);
                       if (id === 'letsmesh') {
+                        const fromIdentity =
+                          letsMeshMqttUsernameFromIdentity(readMeshcoreIdentity());
                         setMeshcoreMqttSettings((prev) => ({
                           ...prev,
-                          server: 'mqtt-us-v1.letsmesh.net',
+                          server: LETSMESH_HOST_US,
                           port: 443,
                           topicPrefix: 'meshcore',
                           useWebSocket: true,
+                          username: fromIdentity || prev.username,
+                          password: '',
                         }));
                       } else if (id === 'ripple') {
                         setMeshcoreMqttSettings((prev) => ({
@@ -1174,6 +1236,57 @@ export default function ConnectionPanel({
                   </button>
                 ))}
               </div>
+              {meshcorePreset === 'letsmesh' && (
+                <div
+                  className="flex flex-wrap items-center gap-2 pt-1"
+                  role="group"
+                  aria-label="LetsMesh region"
+                >
+                  <span className="text-xs text-muted">Region</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const fromIdentity = letsMeshMqttUsernameFromIdentity(readMeshcoreIdentity());
+                      setMeshcoreMqttSettings((prev) => ({
+                        ...prev,
+                        server: LETSMESH_HOST_US,
+                        port: 443,
+                        useWebSocket: true,
+                        topicPrefix: 'meshcore',
+                        username: fromIdentity || prev.username,
+                      }));
+                    }}
+                    className={`px-2 py-1 text-xs font-medium rounded border transition-colors ${
+                      meshcoreMqttSettings.server === LETSMESH_HOST_US
+                        ? 'bg-brand-green/20 border-brand-green text-brand-green'
+                        : 'bg-secondary-dark border-gray-600 text-gray-400 hover:border-gray-400 hover:text-gray-200'
+                    }`}
+                  >
+                    US
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const fromIdentity = letsMeshMqttUsernameFromIdentity(readMeshcoreIdentity());
+                      setMeshcoreMqttSettings((prev) => ({
+                        ...prev,
+                        server: LETSMESH_HOST_EU,
+                        port: 443,
+                        useWebSocket: true,
+                        topicPrefix: 'meshcore',
+                        username: fromIdentity || prev.username,
+                      }));
+                    }}
+                    className={`px-2 py-1 text-xs font-medium rounded border transition-colors ${
+                      meshcoreMqttSettings.server === LETSMESH_HOST_EU
+                        ? 'bg-brand-green/20 border-brand-green text-brand-green'
+                        : 'bg-secondary-dark border-gray-600 text-gray-400 hover:border-gray-400 hover:text-gray-200'
+                    }`}
+                  >
+                    EU
+                  </button>
+                </div>
+              )}
             </div>
           )}
           <div className="grid grid-cols-3 gap-2">
@@ -1234,6 +1347,47 @@ export default function ConnectionPanel({
               Use WebSocket transport <span className="text-gray-500">(required for port 443)</span>
             </label>
           </div>
+          {meshcorePreset === 'letsmesh' &&
+            letsMeshPresetConfigurationDeviation(meshcoreMqttSettings) && (
+              <div className="rounded border border-amber-700/50 bg-amber-900/20 px-2 py-2 text-xs text-amber-200/90">
+                Public LetsMesh needs WebSocket on port 443 and server mqtt-us-v1.letsmesh.net or
+                mqtt-eu-v1.letsmesh.net. Use Region (US/EU), or switch to Custom for other brokers.
+              </div>
+            )}
+          {meshcorePreset === 'letsmesh' && (
+            <div
+              className={`flex items-start gap-2 rounded border px-2 py-2 text-xs ${
+                readMeshcoreIdentity()?.private_key
+                  ? 'border-brand-green/40 bg-brand-green/10 text-brand-green/90'
+                  : 'border-amber-700/50 bg-amber-900/20 text-amber-200/90'
+              }`}
+            >
+              {(() => {
+                const id = readMeshcoreIdentity();
+                return id?.private_key && id?.public_key
+                  ? 'Auth token (meshcore-decoder format) will be generated when you connect. Username is v1_ plus your 64-character public key (hex). JWT audience matches the Server hostname.'
+                  : 'No full identity — import your MeshCore config in the Radio panel (public and private keys), or paste username (v1_<public key>) and token manually. JWT audience in the token must match the Server hostname.';
+              })()}
+            </div>
+          )}
+          {meshcorePreset === 'letsmesh' && (
+            <div className="flex items-start gap-2 rounded border border-gray-600/50 bg-secondary-dark/40 px-2 py-2 text-xs text-gray-300">
+              <input
+                type="checkbox"
+                id="meshcore-packet-logger"
+                checked={meshcoreMqttSettings.meshcorePacketLoggerEnabled ?? false}
+                onChange={(e) => updateMqtt('meshcorePacketLoggerEnabled', e.target.checked)}
+                className="accent-brand-green mt-0.5 shrink-0"
+              />
+              <label htmlFor="meshcore-packet-logger" className="cursor-pointer leading-snug">
+                Packet logger (LetsMesh Analyzer) — when connected to your radio and MQTT, forward
+                RX packet summaries to{' '}
+                <code className="text-gray-400">{`{topicPrefix}/meshcore/packets`}</code> in the
+                same JSON shape as meshcoretomqtt. Off by default; only enable if you intend to
+                share heard air traffic with the public analyzer.
+              </label>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
               <label htmlFor="mqtt-username" className="text-xs text-muted">
@@ -1275,12 +1429,7 @@ export default function ConnectionPanel({
               <label htmlFor="mqtt-topic-prefix" className="text-xs text-muted">
                 Topic Prefix
               </label>
-              <span
-                title="Each country/region has its own Topic setting; please research the correct hierarchy. Example: Colorado is msh/US/CO"
-                className="text-xs text-gray-500 cursor-help"
-              >
-                ⓘ
-              </span>
+              <HelpTooltip text="Each country/region has its own Topic setting; please research the correct hierarchy. Example: Colorado is msh/US/CO" />
             </div>
             <input
               id="mqtt-topic-prefix"
@@ -1292,9 +1441,12 @@ export default function ConnectionPanel({
             />
           </div>
           <div className="space-y-1">
-            <label htmlFor="mqtt-max-retries" className="text-xs text-muted">
-              Max Retries
-            </label>
+            <div className="flex items-center gap-1.5">
+              <label htmlFor="mqtt-max-retries" className="text-xs text-muted">
+                Max Retries
+              </label>
+              <HelpTooltip text="Number of reconnect attempts before giving up. Higher values allow more time for network recovery before showing an error." />
+            </div>
             <input
               id="mqtt-max-retries"
               type="number"
@@ -1311,12 +1463,7 @@ export default function ConnectionPanel({
                 <label htmlFor="mqtt-channel-psks" className="text-xs text-muted">
                   Channel PSKs
                 </label>
-                <span
-                  title="Base64-encoded AES-128 keys for custom channels, one per line. The default LongFast key is always tried automatically."
-                  className="text-xs text-gray-500 cursor-help"
-                >
-                  ⓘ
-                </span>
+                <HelpTooltip text="Base64-encoded AES-128 keys for custom channels, one per line. The default LongFast key is always tried automatically." />
               </div>
               <textarea
                 id="mqtt-channel-psks"
@@ -1349,16 +1496,58 @@ export default function ConnectionPanel({
           </div>
           <div className="pt-1">
             <button
-              onClick={() =>
-                window.electronAPI.mqtt
-                  .connect({
-                    ...activeMqttSettings,
-                    mqttTransportProtocol: protocol === 'meshcore' ? 'meshcore' : 'meshtastic',
-                  })
-                  .catch((err: unknown) => {
-                    console.warn('[ConnectionPanel] mqtt.connect failed:', err);
-                  })
-              }
+              onClick={async () => {
+                setMqttError(null);
+                const settings: Parameters<typeof window.electronAPI.mqtt.connect>[0] = {
+                  ...activeMqttSettings,
+                  mqttTransportProtocol: protocol === 'meshcore' ? 'meshcore' : 'meshtastic',
+                };
+                if (meshcorePreset === 'letsmesh') {
+                  const presetErr = validateLetsMeshPresetConnect(settings);
+                  if (presetErr) {
+                    setMqttError(presetErr);
+                    return;
+                  }
+                  const identity = readMeshcoreIdentity();
+                  const hasFullIdentity = !!(identity?.private_key && identity?.public_key);
+                  if (!hasFullIdentity) {
+                    const manualErr = validateLetsMeshManualCredentials(settings);
+                    if (manualErr) {
+                      setMqttError(manualErr);
+                      return;
+                    }
+                  }
+                  if (hasFullIdentity) {
+                    try {
+                      const u = letsMeshMqttUsernameFromIdentity(identity);
+                      if (u) settings.username = u;
+                      settings.password = await generateLetsMeshAuthToken(
+                        identity,
+                        settings.server,
+                      );
+                    } catch (e) {
+                      const msg = e instanceof Error ? e.message : String(e);
+                      setMqttError(`Auth token generation failed: ${msg}`);
+                      console.warn('[ConnectionPanel] LetsMesh auth token generation failed', e);
+                      return;
+                    }
+                  } else if (!settings.password) {
+                    setMqttError(
+                      identity?.private_key && !identity?.public_key
+                        ? 'Public key missing from identity. Import your MeshCore config JSON in the Radio panel (must include public and private keys), or paste a broker token in the password field.'
+                        : identity
+                          ? 'Could not build LetsMesh username. Import your MeshCore config JSON in the Radio panel, or paste username (v1_<public key>) and token manually.'
+                          : 'No device identity found. Import your MeshCore config JSON in the Radio panel, or paste username and token manually.',
+                    );
+                    return;
+                  }
+                }
+                window.electronAPI.mqtt.connect(settings).catch((err: unknown) => {
+                  const msg = err instanceof Error ? err.message : String(err);
+                  setMqttError(msg);
+                  console.warn('[ConnectionPanel] mqtt.connect failed:', err);
+                });
+              }}
               disabled={mqttStatus === 'connecting'}
               className="w-full px-4 py-2 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-40"
               style={{ backgroundColor: '#4CAF50' }}

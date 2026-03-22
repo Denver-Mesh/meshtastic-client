@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setNodeFavorited: (nodeId: number, favorited: boolean) =>
       ipcRenderer.invoke('db:setNodeFavorited', nodeId, favorited),
     deleteNodesBySource: (source: string) => ipcRenderer.invoke('db:deleteNodesBySource', source),
+    migrateRfStubNodes: () => ipcRenderer.invoke('db:migrateRfStubNodes'),
     deleteNodesWithoutLongname: () => ipcRenderer.invoke('db:deleteNodesWithoutLongname'),
     clearNodePositions: () => ipcRenderer.invoke('db:clearNodePositions'),
     updateMessageReceivedVia: (packetId: number) =>
@@ -125,16 +126,33 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ─── MQTT ──────────────────────────────────────────────────────
   mqtt: {
     connect: (settings: unknown) => ipcRenderer.invoke('mqtt:connect', settings),
-    disconnect: () => ipcRenderer.invoke('mqtt:disconnect'),
-    onStatus: (cb: (status: string) => void) => {
-      const handler = (_: unknown, s: string) => cb(s);
+    disconnect: (protocol?: 'meshtastic' | 'meshcore') =>
+      ipcRenderer.invoke('mqtt:disconnect', protocol),
+    onStatus: (cb: (payload: { status: string; protocol: 'meshtastic' | 'meshcore' }) => void) => {
+      const handler = (
+        _: unknown,
+        payload: { status: string; protocol: 'meshtastic' | 'meshcore' },
+      ) => cb(payload);
       ipcRenderer.on('mqtt:status', handler);
       return () => ipcRenderer.off('mqtt:status', handler);
     },
-    onError: (cb: (message: string) => void) => {
-      const handler = (_: unknown, msg: string) => cb(msg);
+    onError: (cb: (payload: { error: string; protocol: 'meshtastic' | 'meshcore' }) => void) => {
+      const handler = (
+        _: unknown,
+        payload: { error: string; protocol: 'meshtastic' | 'meshcore' },
+      ) => cb(payload);
       ipcRenderer.on('mqtt:error', handler);
       return () => ipcRenderer.off('mqtt:error', handler);
+    },
+    onWarning: (
+      cb: (payload: { warning: string; protocol: 'meshtastic' | 'meshcore' }) => void,
+    ) => {
+      const handler = (
+        _: unknown,
+        payload: { warning: string; protocol: 'meshtastic' | 'meshcore' },
+      ) => cb(payload);
+      ipcRenderer.on('mqtt:warning', handler);
+      return () => ipcRenderer.off('mqtt:warning', handler);
     },
     onNodeUpdate: (cb: (node: unknown) => void) => {
       const handler = (_: unknown, n: unknown) => cb(n);
@@ -146,12 +164,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.on('mqtt:message', handler);
       return () => ipcRenderer.off('mqtt:message', handler);
     },
-    onClientId: (cb: (id: string) => void) => {
-      const handler = (_: unknown, id: string) => cb(id);
+    onClientId: (
+      cb: (payload: { clientId: string; protocol: 'meshtastic' | 'meshcore' }) => void,
+    ) => {
+      const handler = (
+        _: unknown,
+        payload: { clientId: string; protocol: 'meshtastic' | 'meshcore' },
+      ) => cb(payload);
       ipcRenderer.on('mqtt:clientId', handler);
       return () => ipcRenderer.off('mqtt:clientId', handler);
     },
-    getClientId: (): Promise<string> => ipcRenderer.invoke('mqtt:getClientId'),
+    getClientId: (protocol?: 'meshtastic' | 'meshcore'): Promise<string> =>
+      ipcRenderer.invoke('mqtt:getClientId', protocol),
     getCachedNodes: () => ipcRenderer.invoke('mqtt:getCachedNodes'),
     publish: (args: {
       text: string;
@@ -184,6 +208,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
       senderNodeId?: number;
       timestamp?: number;
     }) => ipcRenderer.invoke('mqtt:publishMeshcore', args),
+    publishMeshcorePacketLog: (args: {
+      origin: string;
+      snr: number;
+      rssi: number;
+      rawHex?: string;
+    }) => ipcRenderer.invoke('mqtt:publishMeshcorePacketLog', args),
     onMeshcoreChat: (cb: (msg: unknown) => void) => {
       const handler = (_: unknown, m: unknown) => cb(m);
       ipcRenderer.on('mqtt:meshcore-chat', handler);

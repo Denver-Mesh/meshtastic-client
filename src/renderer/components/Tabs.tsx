@@ -155,12 +155,48 @@ function TabIcon({ name }: { name: string }) {
           />
         </svg>
       );
+    case 'Modules':
+      return (
+        <svg
+          aria-hidden="true"
+          className={cls}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 00-1-1H4a2 2 0 110-4h1a1 1 0 001-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"
+          />
+        </svg>
+      );
+    case 'Repeaters':
+      return (
+        <svg
+          aria-hidden="true"
+          className={cls}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"
+          />
+        </svg>
+      );
     default:
       return null;
   }
 }
 
 export default function Tabs({ tabs, active, onChange, chatUnread = 0, disabledTabs }: TabsProps) {
+  const safeActive = tabs.length === 0 ? 0 : Math.max(0, Math.min(active, tabs.length - 1));
+
   return (
     <div
       role="tablist"
@@ -175,11 +211,11 @@ export default function Tabs({ tabs, active, onChange, chatUnread = 0, disabledT
           : name;
         return (
           <button
-            key={name}
+            key={`${i}-${name}`}
             type="button"
             role="tab"
             aria-label={tabAriaLabel}
-            aria-selected={active === i}
+            aria-selected={safeActive === i}
             aria-controls={`panel-${i}`}
             id={`tab-${i}`}
             disabled={isDisabled}
@@ -188,7 +224,7 @@ export default function Tabs({ tabs, active, onChange, chatUnread = 0, disabledT
             className={`relative flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors rounded-t-md ${
               isDisabled
                 ? 'text-gray-600 cursor-not-allowed opacity-50'
-                : active === i
+                : safeActive === i
                   ? 'bg-gray-900 text-bright-green border-b-2 border-bright-green'
                   : 'text-muted hover:text-gray-200 hover:bg-secondary-dark'
             }`}

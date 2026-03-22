@@ -17,14 +17,24 @@ import SearchModal from './components/SearchModal';
 import { LinkIcon } from './components/SignalBars';
 import Tabs from './components/Tabs';
 import TelemetryPanel from './components/TelemetryPanel';
-import { ToastProvider } from './components/Toast';
+import { ToastProvider, useToast } from './components/Toast';
 import UpdateBanner from './components/UpdateBanner';
 import { useDevice } from './hooks/useDevice';
 import { useMeshCore } from './hooks/useMeshCore';
+import {
+  validateLetsMeshManualCredentials,
+  validateLetsMeshPresetConnect,
+} from './lib/letsMeshConnectionGuards';
+import {
+  generateLetsMeshAuthToken,
+  isLetsMeshSettings,
+  letsMeshMqttUsernameFromIdentity,
+  readMeshcoreIdentity,
+} from './lib/letsMeshJwt';
 import { parseStoredJson } from './lib/parseStoredJson';
 import { useRadioProvider } from './lib/radio/providerFactory';
 import { applyThemeColors, loadThemeColors } from './lib/themeColors';
-import type { ChatMessage, MeshProtocol, MQTTSettings } from './lib/types';
+import type { ChatMessage, DeviceState, MeshProtocol, MQTTSettings } from './lib/types';
 import { useDiagnosticsStore } from './stores/diagnosticsStore';
 
 const PROTOCOL_KEY = 'mesh-client:protocol';
@@ -72,7 +82,8 @@ export interface UpdateState {
   dismissed: boolean;
 }
 
-const CHAT_UNREAD_STORAGE_KEY = 'mesh-client:chatUnread';
+const MESHTASTIC_UNREAD_KEY = 'mesh-client:meshtasticChatUnread';
+const MESHCORE_UNREAD_KEY = 'mesh-client:meshcoreChatUnread';
 const LOG_PANEL_VISIBLE_KEY = 'mesh-client:logPanelVisible';
 const UPDATE_SETTINGS_KEY = 'mesh-client:updateSettings';
 
@@ -109,25 +120,27 @@ function readLogPanelVisible(): boolean {
   }
 }
 
-function readPersistedChatUnread(): number {
+function readPersistedUnread(protocol: 'meshtastic' | 'meshcore'): number {
   try {
-    const raw = localStorage.getItem(CHAT_UNREAD_STORAGE_KEY);
+    const key = protocol === 'meshcore' ? MESHCORE_UNREAD_KEY : MESHTASTIC_UNREAD_KEY;
+    const raw = localStorage.getItem(key);
     if (raw == null) return 0;
     const n = Math.floor(Number(raw));
     if (!Number.isFinite(n) || n < 0) return 0;
     return Math.min(n, 99999);
   } catch (e) {
-    console.debug('[App] readPersistedChatUnread', e);
+    console.debug('[App] readPersistedUnread', e);
     return 0;
   }
 }
 
-function persistChatUnread(count: number): void {
+function persistUnread(protocol: 'meshtastic' | 'meshcore', count: number): void {
   try {
+    const key = protocol === 'meshcore' ? MESHCORE_UNREAD_KEY : MESHTASTIC_UNREAD_KEY;
     const n = Math.max(0, Math.min(Math.floor(count) || 0, 99999));
-    localStorage.setItem(CHAT_UNREAD_STORAGE_KEY, String(n));
+    localStorage.setItem(key, String(n));
   } catch (e) {
-    console.debug('[App] persistChatUnread quota/private mode', e);
+    console.debug('[App] persistUnread quota/private mode', e);
   }
 }
 
@@ -167,10 +180,13 @@ export default function App() {
     };
   });
   const [pendingDmTarget, setPendingDmTarget] = useState<number | null>(null);
-  const [chatUnread, setChatUnread] = useState(readPersistedChatUnread);
+  const [meshtasticUnread, setMeshtasticUnread] = useState(() => readPersistedUnread('meshtastic'));
+  const [meshcoreUnread, setMeshcoreUnread] = useState(() => readPersistedUnread('meshcore'));
   const [logPanelVisible, setLogPanelVisible] = useState(readLogPanelVisible);
-  const prevMsgCountRef = useRef(0);
-  const isInitialLoadRef = useRef(true);
+  const prevMeshtasticMsgCountRef = useRef(0);
+  const prevMeshcoreMsgCountRef = useRef(0);
+  const isMeshtasticInitialRef = useRef(true);
+  const isMeshcoreInitialRef = useRef(true);
   const [updateState, setUpdateState] = useState<UpdateState>({ phase: 'idle', dismissed: false });
   const [telemetryNoticeDismissed, setTelemetryNoticeDismissed] = useState(false);
   const [useFahrenheit, setUseFahrenheit] = useState(
@@ -199,12 +215,18 @@ export default function App() {
     protocol === 'meshcore'
       ? (meshcoreDevice as unknown as typeof meshtasticDevice)
       : meshtasticDevice;
-  const messagesRef = useRef(device.messages);
   const activeTabRef = useRef(activeTab);
-  const myNodeNumForUnreadRef = useRef(device.state.myNodeNum);
-  messagesRef.current = device.messages;
+  const protocolRef = useRef(protocol);
+  const meshtasticMsgsRef = useRef(meshtasticDevice.messages);
+  const meshcoreMsgsRef = useRef(meshcoreDevice.messages);
+  const meshtasticMyNodeNumRef = useRef(meshtasticDevice.state.myNodeNum);
+  const meshcoreSelfIdRef = useRef(meshcoreDevice.selfNodeId);
   activeTabRef.current = activeTab;
-  myNodeNumForUnreadRef.current = device.state.myNodeNum;
+  protocolRef.current = protocol;
+  meshtasticMsgsRef.current = meshtasticDevice.messages;
+  meshcoreMsgsRef.current = meshcoreDevice.messages;
+  meshtasticMyNodeNumRef.current = meshtasticDevice.state.myNodeNum;
+  meshcoreSelfIdRef.current = meshcoreDevice.selfNodeId;
   const nodesForUi = protocol === 'meshcore' ? meshcoreDevice.nodes : meshtasticDevice.nodes;
   const nodeCountLabel = protocol === 'meshcore' ? 'contacts' : 'nodes';
 
@@ -222,9 +244,9 @@ export default function App() {
       useDiagnosticsStore.getState().clearDiagnostics();
       localStorage.setItem(PROTOCOL_KEY, p);
       setProtocol(p);
-      void device.disconnect();
+      // Dual-mode: both devices stay connected — no disconnect on switch.
     },
-    [protocol, device],
+    [protocol],
   );
 
   const runReanalysis = useDiagnosticsStore((s) => s.runReanalysis);
@@ -294,7 +316,12 @@ export default function App() {
         localStorage.getItem('mesh-client:adminSettings'),
         'App startup node pruning',
       ) ?? {};
-    const ops: Promise<unknown>[] = [];
+    const ops: Promise<unknown>[] = [
+      // One-time migration: rename legacy "RF !xxxxxxxx" stub nodes to "!xxxxxxxx"
+      window.electronAPI.db
+        .migrateRfStubNodes()
+        .catch((e) => console.warn('[App] startup migrateRfStubNodes failed', e)),
+    ];
     if (s.autoPruneEnabled) {
       const days =
         typeof s.autoPruneDays === 'number' && s.autoPruneDays > 0 ? s.autoPruneDays : 30;
@@ -324,40 +351,69 @@ export default function App() {
     }
   }, [refreshNodesFromDb]);
 
-  // ─── Disconnect MQTT when switching protocol ─────────────────────
-  // Avoid wrong broker codec (Meshtastic protobuf vs MeshCore JSON) on the same session.
-  const isFirstProtocolEffectRef = useRef(true);
-  useEffect(() => {
-    if (isFirstProtocolEffectRef.current) {
-      isFirstProtocolEffectRef.current = false;
-      return;
-    }
-    void window.electronAPI.mqtt
-      .disconnect()
-      .catch((e) => console.debug('[App] MQTT disconnect on protocol switch', e));
-  }, [protocol]);
+  // Dual-mode: each protocol manages its own MQTT connection independently.
+  // No automatic MQTT disconnect on context switch.
 
   // ─── MQTT auto-launch on startup ─────────────────────────────────
-  // Read protocol from localStorage directly so this one-time effect has no deps.
+  // Run for both protocols so dual-mode auto-launches MQTT on each side independently.
   useEffect(() => {
-    try {
-      const prot = (localStorage.getItem(PROTOCOL_KEY) as MeshProtocol) ?? 'meshtastic';
-      const key =
-        prot === 'meshcore' ? 'mesh-client:mqttSettings:meshcore' : 'mesh-client:mqttSettings';
-      const settings = parseStoredJson<MQTTSettings>(
-        localStorage.getItem(key),
-        'App MQTT auto-launch',
-      );
-      if (settings?.autoLaunch) {
-        void window.electronAPI.mqtt
-          .connect({
+    for (const prot of ['meshtastic', 'meshcore'] as MeshProtocol[]) {
+      try {
+        const key =
+          prot === 'meshcore' ? 'mesh-client:mqttSettings:meshcore' : 'mesh-client:mqttSettings';
+        const settings = parseStoredJson<MQTTSettings>(
+          localStorage.getItem(key),
+          'App MQTT auto-launch',
+        );
+        if (settings?.autoLaunch) {
+          const connectSettings = {
             ...settings,
-            mqttTransportProtocol: prot === 'meshcore' ? 'meshcore' : 'meshtastic',
-          })
-          .catch((e) => console.warn('[App] MQTT auto-launch connect failed', e));
+            mqttTransportProtocol: (prot === 'meshcore' ? 'meshcore' : 'meshtastic') as
+              | 'meshcore'
+              | 'meshtastic',
+          };
+          const tryConnect = async () => {
+            if (prot === 'meshcore' && isLetsMeshSettings(connectSettings.server)) {
+              const presetErr = validateLetsMeshPresetConnect(connectSettings);
+              if (presetErr) {
+                console.warn('[App] MQTT auto-launch skipped:', presetErr);
+                return;
+              }
+              const identity = readMeshcoreIdentity();
+              const hasFull = !!(identity?.private_key && identity?.public_key);
+              if (hasFull) {
+                try {
+                  const u = letsMeshMqttUsernameFromIdentity(identity);
+                  if (u) connectSettings.username = u;
+                  connectSettings.password = await generateLetsMeshAuthToken(
+                    identity,
+                    connectSettings.server,
+                  );
+                } catch (e) {
+                  console.warn('[App] LetsMesh auth token auto-launch generation failed', e);
+                  return;
+                }
+              } else {
+                if (!connectSettings.password?.trim()) {
+                  console.warn(
+                    '[App] MQTT auto-launch skipped: LetsMesh needs imported identity or password',
+                  );
+                  return;
+                }
+                const manualErr = validateLetsMeshManualCredentials(connectSettings);
+                if (manualErr) {
+                  console.warn('[App] MQTT auto-launch skipped:', manualErr);
+                  return;
+                }
+              }
+            }
+            await window.electronAPI.mqtt.connect(connectSettings);
+          };
+          void tryConnect().catch((e) => console.warn('[App] MQTT auto-launch connect failed', e));
+        }
+      } catch (e) {
+        console.debug('[App] MQTT auto-launch startup', e);
       }
-    } catch (e) {
-      console.debug('[App] MQTT auto-launch startup', e);
     }
   }, []);
 
@@ -402,6 +458,21 @@ export default function App() {
     return () => clearTimeout(t);
   }, []);
 
+  // ─── Keyboard shortcuts: Cmd/Ctrl+[ / ] to switch protocol ───────────────
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === '[') {
+        e.preventDefault();
+        handleProtocolChange('meshtastic');
+      } else if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === ']') {
+        e.preventDefault();
+        handleProtocolChange('meshcore');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleProtocolChange]);
+
   // ─── Keyboard shortcuts: Cmd/Ctrl+1-9 for tabs, ? for help ───────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -423,44 +494,64 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // ─── Reset unread tracking on protocol switch ─────────────────
-  // When switching protocols, messages from the newly-active device's DB load
-  // all at once. Without resetting, the message-count effect treats them all
-  // as new arrivals and shows a spurious unread badge.
+  // ─── Track Meshtastic messages arriving while inactive ──────────
   useEffect(() => {
-    isInitialLoadRef.current = true;
-    prevMsgCountRef.current = 0;
-    setChatUnread(0);
-  }, [protocol]);
-
-  // ─── Track messages arriving while Chat tab is inactive ──────────
-  useEffect(() => {
-    const count = device.messages.length;
-    if (isInitialLoadRef.current) {
-      prevMsgCountRef.current = count;
-      if (count > 0) isInitialLoadRef.current = false;
+    const count = meshtasticDevice.messages.length;
+    if (isMeshtasticInitialRef.current) {
+      prevMeshtasticMsgCountRef.current = count;
+      if (count > 0) isMeshtasticInitialRef.current = false;
       return;
     }
-    if (count > prevMsgCountRef.current && activeTabRef.current !== 1) {
-      const newMsgs = messagesRef.current.slice(prevMsgCountRef.current);
+    const isActiveAndChatOpen = protocolRef.current === 'meshtastic' && activeTabRef.current === 1;
+    if (count > prevMeshtasticMsgCountRef.current && !isActiveAndChatOpen) {
+      const newMsgs = meshtasticMsgsRef.current.slice(prevMeshtasticMsgCountRef.current);
       const realNew = newMsgs.filter(
-        (m) => m.sender_id !== myNodeNumForUnreadRef.current && !m.emoji && !m.isHistory,
+        (m) => m.sender_id !== meshtasticMyNodeNumRef.current && !m.emoji && !m.isHistory,
       );
-      if (realNew.length > 0) setChatUnread((prev) => prev + realNew.length);
+      if (realNew.length > 0) setMeshtasticUnread((prev) => prev + realNew.length);
     }
-    prevMsgCountRef.current = count;
-  }, [device.messages.length]);
+    prevMeshtasticMsgCountRef.current = count;
+  }, [meshtasticDevice.messages.length]);
 
-  // ─── Clear unread when Chat tab becomes active ────────────────────
+  // ─── Track MeshCore messages arriving while inactive ─────────────
   useEffect(() => {
-    if (activeTab === 1) setChatUnread(0);
-  }, [activeTab]);
+    const count = meshcoreDevice.messages.length;
+    if (isMeshcoreInitialRef.current) {
+      prevMeshcoreMsgCountRef.current = count;
+      if (count > 0) isMeshcoreInitialRef.current = false;
+      return;
+    }
+    const isActiveAndChatOpen = protocolRef.current === 'meshcore' && activeTabRef.current === 1;
+    if (count > prevMeshcoreMsgCountRef.current && !isActiveAndChatOpen) {
+      const newMsgs = meshcoreMsgsRef.current.slice(prevMeshcoreMsgCountRef.current);
+      const realNew = newMsgs.filter(
+        (m) => m.sender_id !== meshcoreSelfIdRef.current && !m.emoji && !m.isHistory,
+      );
+      if (realNew.length > 0) setMeshcoreUnread((prev) => prev + realNew.length);
+    }
+    prevMeshcoreMsgCountRef.current = count;
+  }, [meshcoreDevice.messages.length]);
 
-  // ─── Persist unread + sync to tray ───────────────────────────────
+  // ─── Clear active protocol's unread when Chat tab becomes active ──
   useEffect(() => {
-    persistChatUnread(chatUnread);
-    window.electronAPI.setTrayUnread(chatUnread);
-  }, [chatUnread]);
+    if (activeTab === 1) {
+      if (protocol === 'meshtastic') setMeshtasticUnread(0);
+      else setMeshcoreUnread(0);
+    }
+  }, [activeTab, protocol]);
+
+  // ─── Persist unread + sync combined total to tray ────────────────
+  useEffect(() => {
+    persistUnread('meshtastic', meshtasticUnread);
+  }, [meshtasticUnread]);
+
+  useEffect(() => {
+    persistUnread('meshcore', meshcoreUnread);
+  }, [meshcoreUnread]);
+
+  useEffect(() => {
+    window.electronAPI.setTrayUnread(meshtasticUnread + meshcoreUnread);
+  }, [meshtasticUnread, meshcoreUnread]);
 
   // Manual reconnect from banner
   const handleReconnect = useCallback(() => {
@@ -510,11 +601,21 @@ export default function App() {
     <ToastProvider>
       {/* Global assertive live region for critical announcements */}
       <div aria-live="assertive" aria-atomic="true" className="sr-only" id="app-announcer" />
+      {/* Passive notifications for inactive protocol activity */}
+      <InactiveProtocolNotifier
+        protocol={protocol}
+        meshtasticDevice={meshtasticDevice}
+        meshcoreDevice={meshcoreDevice}
+      />
       <div className="flex flex-col h-screen">
         {/* Header */}
         <header
           className={`relative flex items-center justify-between px-4 py-2 bg-deep-black border-b ${
-            isConfigured ? 'border-brand-green/20' : 'border-gray-700'
+            isConfigured
+              ? protocol === 'meshcore'
+                ? 'border-cyan-500/20'
+                : 'border-brand-green/20'
+              : 'border-gray-700'
           }`}
         >
           <div className="flex items-center gap-3">
@@ -523,17 +624,50 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Protocol badge */}
-            <span
-              aria-label={protocol === 'meshcore' ? 'MeshCore' : 'Meshtastic'}
-              className={`text-xs px-2 py-0.5 rounded-full font-mono ${
-                protocol === 'meshcore'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-brand-green/20 text-brand-green'
-              }`}
+            {/* Protocol context switcher */}
+            <div
+              role="group"
+              aria-label="Protocol switcher"
+              className="flex items-center rounded-full overflow-hidden border border-gray-600 text-xs font-mono"
             >
-              {protocol === 'meshcore' ? 'MeshCore' : 'Meshtastic'}
-            </span>
+              <button
+                type="button"
+                aria-pressed={protocol === 'meshtastic'}
+                aria-label="Switch to Meshtastic"
+                onClick={() => handleProtocolChange('meshtastic')}
+                className={`px-3 py-0.5 transition-colors ${
+                  protocol === 'meshtastic'
+                    ? 'bg-brand-green/20 text-brand-green'
+                    : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+                }`}
+              >
+                (M) Meshtastic
+                {meshtasticUnread > 0 && protocol !== 'meshtastic' && (
+                  <span className="ml-1.5 inline-flex items-center justify-center min-w-[1.1rem] h-4 px-0.5 rounded-full bg-brand-green/30 text-brand-green text-[10px] font-bold animate-pulse">
+                    {meshtasticUnread > 99 ? '99+' : meshtasticUnread}
+                  </span>
+                )}
+              </button>
+              <div className="w-px h-4 bg-gray-600" aria-hidden="true" />
+              <button
+                type="button"
+                aria-pressed={protocol === 'meshcore'}
+                aria-label="Switch to MeshCore"
+                onClick={() => handleProtocolChange('meshcore')}
+                className={`px-3 py-0.5 transition-colors ${
+                  protocol === 'meshcore'
+                    ? 'bg-cyan-600/20 text-cyan-400'
+                    : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800'
+                }`}
+              >
+                (MC) MeshCore
+                {meshcoreUnread > 0 && protocol !== 'meshcore' && (
+                  <span className="ml-1.5 inline-flex items-center justify-center min-w-[1.1rem] h-4 px-0.5 rounded-full bg-cyan-600/30 text-cyan-400 text-[10px] font-bold animate-pulse">
+                    {meshcoreUnread > 99 ? '99+' : meshcoreUnread}
+                  </span>
+                )}
+              </button>
+            </div>
             <div className="flex items-center gap-1.5 mr-3 pr-3 border-r border-gray-700">
               <MqttGlobeIcon connected={device.mqttStatus === 'connected'} />
               <span
@@ -633,7 +767,7 @@ export default function App() {
               tabs={displayTabNames}
               active={activeTab}
               onChange={setActiveTab}
-              chatUnread={chatUnread}
+              chatUnread={protocol === 'meshtastic' ? meshtasticUnread : meshcoreUnread}
               disabledTabs={protocol === 'meshcore' ? MESHCORE_DISABLED_TABS : undefined}
             />
 
@@ -641,39 +775,53 @@ export default function App() {
             <main className="flex-1 overflow-auto p-4 min-h-0">
               <ErrorBoundary>
                 <div id="panel-0" role="tabpanel" aria-labelledby="tab-0" hidden={activeTab !== 0}>
-                  <ConnectionPanel
-                    state={device.state}
-                    onConnect={
-                      protocol === 'meshcore'
-                        ? (type, addr, blePeripheralId) =>
-                            meshcoreDevice.connect(
-                              type === 'http' ? 'tcp' : (type as 'ble' | 'serial'),
-                              addr,
-                              blePeripheralId,
+                  {/* Both panels are always mounted so each protocol auto-connects at startup */}
+                  <div hidden={protocol !== 'meshtastic'}>
+                    <ConnectionPanel
+                      state={meshtasticDevice.state}
+                      onConnect={meshtasticDevice.connect}
+                      onAutoConnect={meshtasticDevice.connectAutomatic}
+                      onDisconnect={meshtasticDevice.disconnect}
+                      mqttStatus={meshtasticDevice.mqttStatus}
+                      myNodeLabel={
+                        meshtasticDevice.state.myNodeNum > 0
+                          ? meshtasticDevice.getPickerStyleNodeLabel(
+                              meshtasticDevice.state.myNodeNum,
                             )
-                        : meshtasticDevice.connect
-                    }
-                    onAutoConnect={device.connectAutomatic}
-                    onDisconnect={device.disconnect}
-                    mqttStatus={device.mqttStatus}
-                    myNodeLabel={
-                      device.state.myNodeNum > 0
-                        ? device.getPickerStyleNodeLabel(device.state.myNodeNum)
-                        : undefined
-                    }
-                    protocol={protocol}
-                    onProtocolChange={handleProtocolChange}
-                    onRefreshContacts={
-                      protocol === 'meshcore' ? meshcoreDevice.refreshContacts : undefined
-                    }
-                    onSendAdvert={protocol === 'meshcore' ? meshcoreDevice.sendAdvert : undefined}
-                    manualAddContacts={
-                      protocol === 'meshcore' ? meshcoreDevice.manualAddContacts : undefined
-                    }
-                    onToggleManualContacts={
-                      protocol === 'meshcore' ? meshcoreDevice.toggleManualAddContacts : undefined
-                    }
-                  />
+                          : undefined
+                      }
+                      protocol="meshtastic"
+                      onProtocolChange={handleProtocolChange}
+                    />
+                  </div>
+                  <div hidden={protocol !== 'meshcore'}>
+                    <ConnectionPanel
+                      state={meshcoreDevice.state as DeviceState}
+                      onConnect={(type, addr, blePeripheralId) =>
+                        meshcoreDevice.connect(
+                          type === 'http' ? 'tcp' : (type as 'ble' | 'serial'),
+                          addr,
+                          blePeripheralId,
+                        )
+                      }
+                      onAutoConnect={
+                        meshcoreDevice.connectAutomatic as unknown as typeof meshtasticDevice.connectAutomatic
+                      }
+                      onDisconnect={meshcoreDevice.disconnect}
+                      mqttStatus={meshcoreDevice.mqttStatus}
+                      myNodeLabel={
+                        meshcoreDevice.state.myNodeNum > 0
+                          ? meshcoreDevice.getPickerStyleNodeLabel(meshcoreDevice.state.myNodeNum)
+                          : undefined
+                      }
+                      protocol="meshcore"
+                      onProtocolChange={handleProtocolChange}
+                      onRefreshContacts={meshcoreDevice.refreshContacts}
+                      onSendAdvert={meshcoreDevice.sendAdvert}
+                      manualAddContacts={meshcoreDevice.manualAddContacts}
+                      onToggleManualContacts={meshcoreDevice.toggleManualAddContacts}
+                    />
+                  </div>
                 </div>
                 <div id="panel-1" role="tabpanel" aria-labelledby="tab-1" hidden={activeTab !== 1}>
                   <ChatPanel
@@ -1037,6 +1185,81 @@ export default function App() {
       </div>
     </ToastProvider>
   );
+}
+
+// ─── Passive notification monitor for the inactive protocol ──────
+function InactiveProtocolNotifier({
+  protocol,
+  meshtasticDevice,
+  meshcoreDevice,
+}: {
+  protocol: MeshProtocol;
+  meshtasticDevice: ReturnType<typeof useDevice>;
+  meshcoreDevice: ReturnType<typeof useMeshCore>;
+}) {
+  const { addToast } = useToast();
+  const prevMeshtasticRef = useRef(0);
+  const prevMeshcoreRef = useRef(0);
+  const isInitMeshtasticRef = useRef(true);
+  const isInitMeshcoreRef = useRef(true);
+
+  // Notify when Meshtastic (inactive) gets new messages
+  useEffect(() => {
+    if (protocol === 'meshtastic') {
+      // Now active — reset tracking so we don't toast on switch-back
+      isInitMeshtasticRef.current = true;
+      prevMeshtasticRef.current = meshtasticDevice.messages.length;
+      return;
+    }
+    const count = meshtasticDevice.messages.length;
+    if (isInitMeshtasticRef.current) {
+      prevMeshtasticRef.current = count;
+      if (count > 0) isInitMeshtasticRef.current = false;
+      return;
+    }
+    if (count > prevMeshtasticRef.current) {
+      const newMsgs = meshtasticDevice.messages.slice(prevMeshtasticRef.current);
+      const realNew = newMsgs.filter((m) => !m.emoji && !m.isHistory);
+      if (realNew.length > 0) {
+        addToast(
+          `Meshtastic: ${realNew.length} new message${realNew.length > 1 ? 's' : ''}`,
+          'info',
+          6000,
+        );
+      }
+    }
+    prevMeshtasticRef.current = count;
+  }, [meshtasticDevice.messages, protocol, addToast]);
+
+  // Notify when MeshCore (inactive) gets new messages
+  useEffect(() => {
+    if (protocol === 'meshcore') {
+      // Now active — reset tracking
+      isInitMeshcoreRef.current = true;
+      prevMeshcoreRef.current = meshcoreDevice.messages.length;
+      return;
+    }
+    const count = meshcoreDevice.messages.length;
+    if (isInitMeshcoreRef.current) {
+      prevMeshcoreRef.current = count;
+      if (count > 0) isInitMeshcoreRef.current = false;
+      return;
+    }
+    if (count > prevMeshcoreRef.current) {
+      const newMsgs = meshcoreDevice.messages.slice(prevMeshcoreRef.current);
+      const realNew = newMsgs.filter((m) => !m.emoji && !m.isHistory);
+      if (realNew.length > 0) {
+        addToast(
+          `MeshCore: ${realNew.length} new message${realNew.length > 1 ? 's' : ''}`,
+          'info',
+          6000,
+        );
+      }
+    }
+    prevMeshcoreRef.current = count;
+  }, [meshcoreDevice.messages, protocol, addToast]);
+
+  return null;
 }
 
 // ─── Connection Status Banner ─────────────────────────────────────

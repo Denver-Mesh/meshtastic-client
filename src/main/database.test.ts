@@ -3,6 +3,8 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { describe, expect, it } from 'vitest';
 
+import { escapeSqlLikePattern } from '../shared/sqlLikeEscape';
+
 /**
  * Tests for deleteNodesWithoutLongname.
  *
@@ -39,6 +41,38 @@ describe('deleteNodesWithoutLongname SQL', () => {
     expect(stmt).toContain("TRIM(long_name) = ''");
     expect(stmt).toContain("printf('!%08x', node_id)");
   });
+
+  it('preserves nodes with a non-empty source (stub nodes heard via rf/mqtt)', () => {
+    expect(DB_SOURCE).toMatch(/source IS NULL/);
+  });
+});
+
+/**
+ * Tests for migrateRfStubNodes — verifies the one-time migration that renames
+ * legacy "RF !xxxxxxxx" stub nodes to the standard "!xxxxxxxx" format.
+ */
+describe('migrateRfStubNodes SQL', () => {
+  it('targets only nodes matching the legacy RF !xxxxxxxx pattern', () => {
+    expect(DB_SOURCE).toMatch(/UPDATE nodes[^;]*LIKE 'RF !________'/s);
+  });
+
+  it('strips the 3-char "RF " prefix via substr(long_name, 4)', () => {
+    const match = DB_SOURCE.match(/UPDATE nodes[^;]*RF[^;]*/s);
+    expect(match).not.toBeNull();
+    expect(match![0]).toContain('substr(long_name, 4)');
+  });
+
+  it('clears short_name on migrated stub nodes', () => {
+    const match = DB_SOURCE.match(/UPDATE nodes[^;]*RF[^;]*/s);
+    expect(match).not.toBeNull();
+    expect(match![0]).toContain("short_name = ''");
+  });
+
+  it('JS substr equivalent strips "RF " correctly', () => {
+    // Verifies the 3-char prefix arithmetic: SQLite substr(str, 4) = JS slice(3)
+    const legacy = 'RF !be1f4697';
+    expect(legacy.slice(3)).toBe('!be1f4697');
+  });
 });
 
 /**
@@ -70,5 +104,44 @@ describe('placeholder name format', () => {
     // Ensures the condition only matches auto-generated names
     expect('Alice').not.toMatch(/^![0-9a-f]{8}$/);
     expect('MyNode').not.toMatch(/^![0-9a-f]{8}$/);
+  });
+});
+
+/**
+ * MeshCore message dedup + fresh-install stamp — INSERT OR IGNORE must not drop
+ * distinct lines that share sender + second-resolution timestamp + channel only.
+ * Fresh installs skip runMigrations(), so base DDL + user_version must match v17.
+ */
+describe('meshcore_messages dedup index and fresh DB version', () => {
+  it('createBaseTables defines idx_mc_msg_dedup including payload', () => {
+    expect(DB_SOURCE).toMatch(
+      /CREATE UNIQUE INDEX IF NOT EXISTS idx_mc_msg_dedup\s+ON meshcore_messages\(sender_id, timestamp, channel_idx, payload\)/s,
+    );
+  });
+
+  it('fresh DB init stamps user_version 17 inside isFreshDb', () => {
+    expect(DB_SOURCE).toMatch(/if \(isFreshDb\) \{[\s\S]*?pragma\('user_version = 17'\)/);
+  });
+});
+
+describe('escapeSqlLikePattern', () => {
+  it('escapes percent for LIKE wildcards', () => {
+    expect(escapeSqlLikePattern('foo%bar')).toBe('foo\\%bar');
+  });
+
+  it('escapes underscore for LIKE wildcards', () => {
+    expect(escapeSqlLikePattern('a_b')).toBe('a\\_b');
+  });
+
+  it('escapes backslashes first so later escapes are literal', () => {
+    expect(escapeSqlLikePattern('x\\y%z')).toBe('x\\\\y\\%z');
+  });
+
+  it('leaves normal text unchanged', () => {
+    expect(escapeSqlLikePattern('hello world')).toBe('hello world');
+  });
+
+  it('returns empty string for empty input', () => {
+    expect(escapeSqlLikePattern('')).toBe('');
   });
 });

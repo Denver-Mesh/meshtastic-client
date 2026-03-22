@@ -1,9 +1,12 @@
 import { CayenneLpp, SerialConnection, WebSerialConnection } from '@liamcottle/meshcore.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { withTimeout } from '../../shared/withTimeout';
 import { classifyPayload, extractMeshtasticSenderId } from '../lib/foreignLoraDetection';
 import type { OurPosition } from '../lib/gpsSource';
 import { resolveOurPosition } from '../lib/gpsSource';
+import { isLetsMeshSettings } from '../lib/letsMeshJwt';
+import { readMeshcoreMqttSettingsFromStorage } from '../lib/meshcoreMqttSettingsStorage';
 import {
   CONTACT_TYPE_LABELS,
   isMeshcoreTransportStatusChatLine,
@@ -443,13 +446,75 @@ function mergeMeshcoreDbHydrationWithLive(
   return merged;
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
-    ),
-  ]);
+/** Row shape from `db:getMeshcoreMessages` — shared by initConn, mount load, refreshMessagesFromDb. */
+interface MeshcoreMessageDbRow {
+  id: number;
+  sender_id: number | null;
+  sender_name: string | null;
+  payload: string;
+  channel_idx: number;
+  timestamp: number;
+  status: string;
+  packet_id: number | null;
+  emoji: number | null;
+  reply_id: number | null;
+  to_node: number | null;
+  received_via?: string | null;
+}
+
+/** Map persisted MeshCore message rows to chat messages (normalize payload / stub sender id). */
+function mapMeshcoreDbRowsToChatMessages(rows: MeshcoreMessageDbRow[]): ChatMessage[] {
+  const mapped: ChatMessage[] = [];
+  for (const r of rows) {
+    if (isMeshcoreTransportStatusChatLine(r.payload)) continue;
+    const normalized = normalizeMeshcoreIncomingText(r.payload);
+    const displayName =
+      r.sender_name && r.sender_name !== 'Unknown'
+        ? r.sender_name
+        : (normalized.senderName ?? 'Unknown');
+    let senderId = r.sender_id ?? 0;
+    if (senderId === 0) {
+      senderId = meshcoreChatStubNodeIdFromDisplayName(displayName);
+    }
+    mapped.push({
+      id: r.id,
+      sender_id: senderId,
+      sender_name: displayName,
+      payload: normalized.payload,
+      channel: r.channel_idx,
+      timestamp: r.timestamp,
+      status: (r.status as ChatMessage['status']) ?? 'acked',
+      packetId: r.packet_id ?? undefined,
+      emoji: r.emoji ?? undefined,
+      replyId: r.reply_id ?? undefined,
+      to: r.to_node ?? undefined,
+      receivedVia: meshcoreReceivedViaFromDb(r.received_via),
+      isHistory: true,
+    });
+  }
+  return mapped;
+}
+
+/** Ensure minimal chat nodes exist for message senders (RF/MQTT stubs before device connect). */
+function mergeStubNodesFromMeshcoreMessages(
+  prev: Map<number, MeshNode>,
+  mapped: ChatMessage[],
+): Map<number, MeshNode> {
+  const next = new Map(prev);
+  for (const msg of mapped) {
+    if (msg.sender_id === 0) continue;
+    if (next.has(msg.sender_id)) continue;
+    next.set(
+      msg.sender_id,
+      minimalMeshcoreChatNode(
+        msg.sender_id,
+        msg.sender_name,
+        Math.floor(msg.timestamp / 1000),
+        msg.receivedVia === 'mqtt' ? 'mqtt' : 'rf',
+      ),
+    );
+  }
+  return next;
 }
 
 export function useMeshCore() {
@@ -509,6 +574,21 @@ export function useMeshCore() {
   );
   /** MQTT-derived contacts persisted with a placeholder pubkey until 0x8A supplies a real key. */
   const mqttPlaceholderSavedRef = useRef<Set<number>>(new Set());
+  const selfInfoRef = useRef<MeshCoreSelfInfo | null>(null);
+  /** Throttle LetsMesh packet-logger publishes (event 136 can be very frequent). */
+  const lastPacketLogAtRef = useRef(0);
+  const meshcoreHookMountedRef = useRef(true);
+
+  useEffect(() => {
+    meshcoreHookMountedRef.current = true;
+    return () => {
+      meshcoreHookMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    selfInfoRef.current = selfInfo;
+  }, [selfInfo]);
 
   useEffect(() => {
     nodesRef.current = nodes;
@@ -527,7 +607,8 @@ export function useMeshCore() {
   }, [mqttStatus]);
 
   useEffect(() => {
-    const offStatus = window.electronAPI.mqtt.onStatus((s) => {
+    const offStatus = window.electronAPI.mqtt.onStatus(({ status: s, protocol }) => {
+      if (protocol !== 'meshcore') return;
       const st = s as MQTTStatus;
       mqttStatusRef.current = st;
       setMqttStatus(st);
@@ -535,12 +616,14 @@ export function useMeshCore() {
     return offStatus;
   }, []);
 
-  // Load persisted MeshCore contacts (e.g. imported repeaters) from DB on mount so list shows before connect
+  // Load persisted MeshCore contacts + messages from DB on mount (no device required — matches Meshtastic).
   useEffect(() => {
     let cancelled = false;
-    window.electronAPI.db
-      .getMeshcoreContacts()
-      .then((rows) => {
+    Promise.all([
+      window.electronAPI.db.getMeshcoreContacts(),
+      window.electronAPI.db.getMeshcoreMessages(undefined, 500),
+    ])
+      .then(([rows, dbMsgs]) => {
         if (cancelled) return;
         const dbContacts = rows as {
           node_id: number;
@@ -575,15 +658,22 @@ export function useMeshCore() {
           if (row.nickname) nicknameMapRef.current.set(row.node_id, row.nickname);
           const hex = row.public_key.replace(/\s/g, '');
           if (!meshcoreIsSyntheticPlaceholderPubKeyHex(hex) && hex.length >= 12) {
-            const bytes = new Uint8Array(hex.match(/.{2}/g)!.map((b) => parseInt(b, 16)));
+            const pairs = hex.match(/.{2}/g);
+            if (!pairs) continue;
+            const bytes = new Uint8Array(pairs.map((b) => parseInt(b, 16)));
             pubKeyMapRef.current.set(row.node_id, bytes);
             const prefix = hex.slice(0, 12);
             pubKeyPrefixMapRef.current.set(prefix, row.node_id);
           }
         }
-        setNodes(initial);
+        const mapped = mapMeshcoreDbRowsToChatMessages(dbMsgs as MeshcoreMessageDbRow[]);
+        setNodes(mergeStubNodesFromMeshcoreMessages(initial, mapped));
+        if (mapped.length > 0) {
+          setMessages((prev) => mergeMeshcoreDbHydrationWithLive(prev, mapped));
+          console.debug('[useMeshCore] mount: loaded', mapped.length, 'messages from DB');
+        }
       })
-      .catch((e) => console.warn('[useMeshCore] load contacts from DB on mount', e));
+      .catch((e) => console.warn('[useMeshCore] load contacts/messages from DB on mount', e));
     return () => {
       cancelled = true;
     };
@@ -793,7 +883,7 @@ export function useMeshCore() {
         const entry: DeviceLogEntry = {
           ts: now,
           level: 'info',
-          source: 'device',
+          source: 'meshcore',
           message: line.length > 220 ? `${line.slice(0, 220)}…` : line,
         };
         setDeviceLogs((prev) => {
@@ -909,6 +999,7 @@ export function useMeshCore() {
         void (async () => {
           try {
             const msgs = await conn.getWaitingMessages();
+            if (!meshcoreHookMountedRef.current) return;
             const arr = msgs as {
               contactMessage?: { pubKeyPrefix: Uint8Array; senderTimestamp: number; text: string };
               channelMessage?: { channelIdx: number; senderTimestamp: number; text: string };
@@ -1074,7 +1165,7 @@ export function useMeshCore() {
         const entry: DeviceLogEntry = {
           ts: now,
           level: 'info',
-          source: 'device',
+          source: 'meshcore',
           message: `RX SNR=${snr.toFixed(2)}dB RSSI=${rssi}dBm`,
         };
         setDeviceLogs((prev) => {
@@ -1101,6 +1192,33 @@ export function useMeshCore() {
               );
           }
         }
+
+        const mq = readMeshcoreMqttSettingsFromStorage();
+        if (
+          mqttStatusRef.current === 'connected' &&
+          isLetsMeshSettings(mq.server) &&
+          mq.meshcorePacketLoggerEnabled
+        ) {
+          const now = Date.now();
+          if (now - lastPacketLogAtRef.current >= 100) {
+            lastPacketLogAtRef.current = now;
+            const origin = selfInfoRef.current?.name ?? 'mesh-client';
+            let rawHex: string | undefined;
+            if (d.raw instanceof Uint8Array && d.raw.length > 0) {
+              rawHex = Array.from(d.raw, (b) => b.toString(16).padStart(2, '0')).join('');
+            }
+            void window.electronAPI.mqtt
+              .publishMeshcorePacketLog({
+                origin,
+                snr,
+                rssi,
+                rawHex,
+              })
+              .catch(() => {
+                // catch-no-log-ok optional packet-logger publish must not disrupt RF path
+              });
+          }
+        }
       });
 
       conn.on('disconnected', () => {
@@ -1116,68 +1234,15 @@ export function useMeshCore() {
       connRef.current = conn;
       setupEventListeners(conn);
 
-      // Load persisted messages from DB before device's MsgWaiting fires
+      // Load persisted messages from DB before device's MsgWaiting fires (merge with mount-hydrated state)
       try {
-        const dbMsgs = (await window.electronAPI.db.getMeshcoreMessages(undefined, 500)) as {
-          id: number;
-          sender_id: number | null;
-          sender_name: string | null;
-          payload: string;
-          channel_idx: number;
-          timestamp: number;
-          status: string;
-          packet_id: number | null;
-          emoji: number | null;
-          reply_id: number | null;
-          to_node: number | null;
-          received_via?: string | null;
-        }[];
+        const dbMsgs = (await window.electronAPI.db.getMeshcoreMessages(
+          undefined,
+          500,
+        )) as MeshcoreMessageDbRow[];
         if (dbMsgs.length > 0) {
-          const mapped: ChatMessage[] = [];
-          for (const r of dbMsgs) {
-            const normalized = normalizeMeshcoreIncomingText(r.payload);
-            const displayName =
-              r.sender_name && r.sender_name !== 'Unknown'
-                ? r.sender_name
-                : (normalized.senderName ?? 'Unknown');
-            let senderId = r.sender_id ?? 0;
-            if (senderId === 0) {
-              senderId = meshcoreChatStubNodeIdFromDisplayName(displayName);
-            }
-            const msg: ChatMessage = {
-              id: r.id,
-              sender_id: senderId,
-              sender_name: displayName,
-              payload: normalized.payload,
-              channel: r.channel_idx,
-              timestamp: r.timestamp,
-              status: (r.status as ChatMessage['status']) ?? 'acked',
-              packetId: r.packet_id ?? undefined,
-              emoji: r.emoji ?? undefined,
-              replyId: r.reply_id ?? undefined,
-              to: r.to_node ?? undefined,
-              receivedVia: meshcoreReceivedViaFromDb(r.received_via),
-              isHistory: true,
-            };
-            mapped.push(msg);
-          }
-          setNodes((prev) => {
-            const next = new Map(prev);
-            for (const msg of mapped) {
-              if (msg.sender_id === 0) continue;
-              if (next.has(msg.sender_id)) continue;
-              next.set(
-                msg.sender_id,
-                minimalMeshcoreChatNode(
-                  msg.sender_id,
-                  msg.sender_name,
-                  Math.floor(msg.timestamp / 1000),
-                  msg.receivedVia === 'mqtt' ? 'mqtt' : 'rf',
-                ),
-              );
-            }
-            return next;
-          });
+          const mapped = mapMeshcoreDbRowsToChatMessages(dbMsgs);
+          setNodes((prev) => mergeStubNodesFromMeshcoreMessages(prev, mapped));
           setMessages((prev) => mergeMeshcoreDbHydrationWithLive(prev, mapped));
           console.debug('[useMeshCore] initConn: loaded', mapped.length, 'messages from DB');
         }
@@ -1353,7 +1418,25 @@ export function useMeshCore() {
           throw err;
         }
       } else if (type === 'http') {
-        await connect('tcp', httpAddress);
+        let addr = httpAddress;
+        if (addr == null || !String(addr).trim()) {
+          try {
+            const raw = localStorage.getItem('mesh-client:lastConnection:meshcore');
+            const parsed = raw
+              ? (JSON.parse(raw) as { type?: string; httpAddress?: string })
+              : null;
+            if (
+              parsed?.type === 'http' &&
+              typeof parsed.httpAddress === 'string' &&
+              parsed.httpAddress.trim()
+            ) {
+              addr = parsed.httpAddress;
+            }
+          } catch {
+            // catch-no-log-ok corrupt lastConnection JSON
+          }
+        }
+        await connect('tcp', addr);
       }
       // BLE: requires user gesture — not supported for auto-connect
     },
@@ -1502,8 +1585,9 @@ export function useMeshCore() {
       } else {
         const sentAt = Date.now();
         try {
-          if (connRef.current) {
-            await connRef.current.sendChannelTextMessage(channelIdx, text);
+          const channelConn = connRef.current;
+          if (channelConn) {
+            await channelConn.sendChannelTextMessage(channelIdx, text);
             addMessage({
               sender_id: myNodeNumRef.current,
               sender_name: selfInfo?.name ?? 'Me',
@@ -1513,6 +1597,12 @@ export function useMeshCore() {
               status: 'acked',
             });
           } else if (mqttStatusRef.current === 'connected') {
+            const mq = readMeshcoreMqttSettingsFromStorage();
+            if (isLetsMeshSettings(mq.server)) {
+              // LetsMesh MQTT is for authenticated packet/analyzer feeds (see docs), not MQTT-only
+              // channel chat without a radio.
+              return;
+            }
             await window.electronAPI.mqtt.publishMeshcore({
               text,
               channelIdx,
@@ -1752,7 +1842,7 @@ export function useMeshCore() {
     try {
       const result = await connRef.current.tracePath([pubKey]);
       // pathSnrs are signed bytes in 0.25dB units
-      const hops = result.pathSnrs.map((raw) => {
+      const hops = (result.pathSnrs ?? []).map((raw) => {
         const signed = raw > 127 ? raw - 256 : raw;
         return { snr: signed * 0.25 };
       });
@@ -2320,35 +2410,12 @@ export function useMeshCore() {
     }, []),
     refreshMessagesFromDb: useCallback(async () => {
       try {
-        const dbMsgs = (await window.electronAPI.db.getMeshcoreMessages(undefined, 500)) as {
-          id: number;
-          sender_id: number | null;
-          sender_name: string | null;
-          payload: string;
-          channel_idx: number;
-          timestamp: number;
-          status: string;
-          packet_id: number | null;
-          emoji: number | null;
-          reply_id: number | null;
-          to_node: number | null;
-          received_via?: string | null;
-        }[];
-        const mapped = dbMsgs.map((r) => ({
-          id: r.id,
-          sender_id: r.sender_id ?? 0,
-          sender_name: r.sender_name ?? 'Unknown',
-          payload: r.payload,
-          channel: r.channel_idx,
-          timestamp: r.timestamp,
-          status: (r.status as ChatMessage['status']) ?? 'acked',
-          packetId: r.packet_id ?? undefined,
-          emoji: r.emoji ?? undefined,
-          replyId: r.reply_id ?? undefined,
-          to: r.to_node ?? undefined,
-          receivedVia: meshcoreReceivedViaFromDb(r.received_via),
-          isHistory: true,
-        }));
+        const dbMsgs = (await window.electronAPI.db.getMeshcoreMessages(
+          undefined,
+          500,
+        )) as MeshcoreMessageDbRow[];
+        const mapped = mapMeshcoreDbRowsToChatMessages(dbMsgs);
+        setNodes((prev) => mergeStubNodesFromMeshcoreMessages(prev, mapped));
         setMessages((prev) => mergeMeshcoreDbHydrationWithLive(prev, mapped));
       } catch (e) {
         console.warn('[useMeshCore] refreshMessagesFromDb error', e);

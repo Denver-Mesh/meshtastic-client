@@ -162,6 +162,11 @@ export interface MQTTSettings {
   mqttTransportProtocol?: 'meshtastic' | 'meshcore';
   /** Use ws:// or wss:// transport instead of mqtt:// / mqtts:// (required for port 443 on LetsMesh). */
   useWebSocket?: boolean;
+  /**
+   * When true (MeshCore MQTT + LetsMesh public broker), forward RX packet summaries to
+   * `{topicPrefix}/meshcore/packets` for the Analyzer (meshcoretomqtt-shaped JSON). Default false.
+   */
+  meshcorePacketLoggerEnabled?: boolean;
 }
 
 export type MQTTStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
@@ -304,6 +309,7 @@ declare global {
         getMessageChannels: () => Promise<{ channel: number }[]>;
         setNodeFavorited: (nodeId: number, favorited: boolean) => Promise<unknown>;
         deleteNodesBySource: (source: string) => Promise<number>;
+        migrateRfStubNodes: () => Promise<number>;
         deleteNodesWithoutLongname: () => Promise<number>;
         clearNodePositions: () => Promise<unknown>;
         updateMessageReceivedVia: (packetId: number) => Promise<unknown>;
@@ -376,13 +382,22 @@ declare global {
       };
       mqtt: {
         connect: (settings: MQTTSettings) => Promise<void>;
-        disconnect: () => Promise<void>;
-        onStatus: (cb: (status: MQTTStatus) => void) => () => void;
-        onError: (cb: (message: string) => void) => () => void;
+        disconnect: (protocol?: 'meshtastic' | 'meshcore') => Promise<void>;
+        onStatus: (
+          cb: (payload: { status: MQTTStatus; protocol: 'meshtastic' | 'meshcore' }) => void,
+        ) => () => void;
+        onError: (
+          cb: (payload: { error: string; protocol: 'meshtastic' | 'meshcore' }) => void,
+        ) => () => void;
+        onWarning: (
+          cb: (payload: { warning: string; protocol: 'meshtastic' | 'meshcore' }) => void,
+        ) => () => void;
         onNodeUpdate: (cb: (node: Partial<MeshNode> & { node_id: number }) => void) => () => void;
         onMessage: (cb: (msg: Omit<ChatMessage, 'id'>) => void) => () => void;
-        onClientId: (cb: (id: string) => void) => () => void;
-        getClientId: () => Promise<string>;
+        onClientId: (
+          cb: (payload: { clientId: string; protocol: 'meshtastic' | 'meshcore' }) => void,
+        ) => () => void;
+        getClientId: (protocol?: 'meshtastic' | 'meshcore') => Promise<string>;
         getCachedNodes: () => Promise<CachedNode[]>;
         publish: (args: {
           text: string;
@@ -414,6 +429,12 @@ declare global {
           senderName?: string;
           senderNodeId?: number;
           timestamp?: number;
+        }) => Promise<void>;
+        publishMeshcorePacketLog: (args: {
+          origin: string;
+          snr: number;
+          rssi: number;
+          rawHex?: string;
         }) => Promise<void>;
         onMeshcoreChat: (cb: (msg: unknown) => void) => () => void;
       };

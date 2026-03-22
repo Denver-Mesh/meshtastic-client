@@ -70,24 +70,37 @@ function levelVisible(level: string, f: LevelFilters): boolean {
 }
 
 /** Returns true for log entries that originated from the given protocol's device library or hook. */
-function isDeviceEntry(entry: LogEntry, protocol?: MeshProtocol): boolean {
+export function isDeviceEntry(entry: LogEntry, protocol?: MeshProtocol): boolean {
   if (protocol === 'meshtastic') {
     return (
+      entry.source === 'sdk' ||
       entry.source.includes('meshtastic') ||
       entry.message.includes('[iMeshDevice]') ||
-      entry.message.includes('[TransportNobleIpc]')
+      entry.message.includes('[TransportNobleIpc]') ||
+      entry.message.includes('[MQTT]') ||
+      entry.message.includes('[NobleBleManager]') ||
+      entry.message.includes('[BLE:')
     );
   }
   if (protocol === 'meshcore') {
-    return entry.source.includes('meshcore') || entry.message.includes('[useMeshCore]');
+    return (
+      entry.source.includes('meshcore') ||
+      entry.message.includes('[useMeshCore]') ||
+      entry.message.includes('[MeshcoreMqttAdapter]')
+    );
   }
   // No protocol: show all device entries (fallback)
   return (
+    entry.source === 'sdk' ||
     entry.source.includes('meshtastic') ||
     entry.source.includes('meshcore') ||
     entry.message.includes('[iMeshDevice]') ||
     entry.message.includes('[useMeshCore]') ||
-    entry.message.includes('[TransportNobleIpc]')
+    entry.message.includes('[TransportNobleIpc]') ||
+    entry.message.includes('[MQTT]') ||
+    entry.message.includes('[MeshcoreMqttAdapter]') ||
+    entry.message.includes('[NobleBleManager]') ||
+    entry.message.includes('[BLE:')
   );
 }
 
@@ -130,6 +143,7 @@ export default function LogPanel({
 }) {
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [levelFilters, setLevelFiltersState] = useState<LevelFilters>(readLevelFilters);
+  const [logClearError, setLogClearError] = useState<string | null>(null);
   const [logSource, setLogSource] = useState<'app' | 'device'>('app');
   const [panelWidth, setPanelWidth] = useState(readPanelWidth);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -198,12 +212,21 @@ export default function LogPanel({
   }, []);
 
   const handleDelete = useCallback(async () => {
-    await window.electronAPI.log.clear();
-    setEntries([]);
+    setLogClearError(null);
+    try {
+      await window.electronAPI.log.clear();
+      setEntries([]);
+    } catch (e) {
+      console.warn('[LogPanel] clear log failed', e);
+      setLogClearError(e instanceof Error ? e.message : 'Could not clear log');
+    }
   }, []);
 
   const libraryEntries = entries.filter((e) => isDeviceEntry(e, protocol));
-  const appEntries = entries.filter((e) => !isDeviceEntry(e, protocol));
+  // Dual-mode: exclude device entries from BOTH protocols so neither leaks into the app view.
+  const appEntries = entries.filter(
+    (e) => !isDeviceEntry(e, 'meshtastic') && !isDeviceEntry(e, 'meshcore'),
+  );
   const allDeviceLogs: LogEntry[] = [...(deviceLogs ?? []), ...libraryEntries].sort(
     (a, b) => a.ts - b.ts,
   );
@@ -358,23 +381,30 @@ export default function LogPanel({
             <span className="text-[10px] text-muted flex-1 text-right">{panelWidth}px</span>
           </div>
         )}
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={handleExport}
-            aria-label="Export log…"
-            className="flex-1 px-2 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 text-gray-200"
-          >
-            Export log…
-          </button>
-          <button
-            type="button"
-            onClick={handleDelete}
-            aria-label="Delete log"
-            className="px-2 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-gray-300 border border-gray-600"
-          >
-            Delete log
-          </button>
+        <div className="flex flex-col gap-1">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleExport}
+              aria-label="Export log…"
+              className="flex-1 px-2 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 text-gray-200"
+            >
+              Export log…
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              aria-label="Delete log"
+              className="px-2 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 text-gray-300 border border-gray-600"
+            >
+              Delete log
+            </button>
+          </div>
+          {logClearError && (
+            <div role="alert" className="text-[10px] text-red-400">
+              {logClearError}
+            </div>
+          )}
         </div>
       </div>
       <div

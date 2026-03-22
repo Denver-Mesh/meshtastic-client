@@ -80,6 +80,7 @@ export interface ElectronAPI {
     getMessageChannels: () => Promise<unknown>;
     setNodeFavorited: (nodeId: number, favorited: boolean) => Promise<unknown>;
     deleteNodesBySource: (source: string) => Promise<unknown>;
+    migrateRfStubNodes: () => Promise<unknown>;
     deleteNodesWithoutLongname: () => Promise<unknown>;
     clearNodePositions: () => Promise<unknown>;
     updateMessageReceivedVia: (packetId: number) => Promise<unknown>;
@@ -144,13 +145,22 @@ export interface ElectronAPI {
   // ─── MQTT ────────────────────────────────────────────────────────────────────
   mqtt: {
     connect: (settings: unknown) => Promise<unknown>;
-    disconnect: () => Promise<unknown>;
-    onStatus: (cb: (status: string) => void) => () => void;
-    onError: (cb: (message: string) => void) => () => void;
+    disconnect: (protocol?: 'meshtastic' | 'meshcore') => Promise<unknown>;
+    onStatus: (
+      cb: (payload: { status: string; protocol: 'meshtastic' | 'meshcore' }) => void,
+    ) => () => void;
+    onError: (
+      cb: (payload: { error: string; protocol: 'meshtastic' | 'meshcore' }) => void,
+    ) => () => void;
+    onWarning: (
+      cb: (payload: { warning: string; protocol: 'meshtastic' | 'meshcore' }) => void,
+    ) => () => void;
     onNodeUpdate: (cb: (node: unknown) => void) => () => void;
     onMessage: (cb: (msg: unknown) => void) => () => void;
-    onClientId: (cb: (id: string) => void) => () => void;
-    getClientId: () => Promise<string>;
+    onClientId: (
+      cb: (payload: { clientId: string; protocol: 'meshtastic' | 'meshcore' }) => void,
+    ) => () => void;
+    getClientId: (protocol?: 'meshtastic' | 'meshcore') => Promise<string>;
     getCachedNodes: () => Promise<unknown>;
     publish: (args: {
       text: string;
@@ -182,6 +192,12 @@ export interface ElectronAPI {
       senderName?: string;
       senderNodeId?: number;
       timestamp?: number;
+    }) => Promise<unknown>;
+    publishMeshcorePacketLog: (args: {
+      origin: string;
+      snr: number;
+      rssi: number;
+      rawHex?: string;
     }) => Promise<unknown>;
     onMeshcoreChat: (cb: (msg: unknown) => void) => () => void;
   };

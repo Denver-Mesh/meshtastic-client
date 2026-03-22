@@ -5,6 +5,7 @@ import { EventEmitter } from 'events';
 import * as mqtt from 'mqtt';
 
 import type { ChatMessage, MeshNode, MQTTSettings, MQTTStatus } from '../renderer/lib/types';
+import { meshtasticShortNameAfterClearingDefault } from '../shared/nodeNameUtils';
 import { sanitizeLogMessage } from './log-service';
 
 const { ServiceEnvelopeSchema } = MqttProto;
@@ -116,7 +117,7 @@ export class MQTTManager extends EventEmitter {
         password: settings.password || undefined,
         clean: true,
         keepalive: 60,
-        connectTimeout: 30_000,
+        connectTimeout: 10_000,
         reconnectPeriod: 0,
         rejectUnauthorized: settings.port === 443 ? true : rejectUnauthorized,
       };
@@ -132,7 +133,7 @@ export class MQTTManager extends EventEmitter {
         password: settings.password || undefined,
         clean: true,
         keepalive: 60,
-        connectTimeout: 30_000,
+        connectTimeout: 10_000,
         reconnectPeriod: 0,
         rejectUnauthorized,
       };
@@ -498,7 +499,9 @@ export class MQTTManager extends EventEmitter {
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(
+      // Public msh/# feeds carry JSON, corrupt, or non-Meshtastic binary; first byte 0x0a is not
+      // sufficient proof of ServiceEnvelope. Debug only — avoids dual-mode log spam.
+      console.debug(
         '[MQTT] ServiceEnvelope decode failed:',
         sanitizeLogMessage(msg),
         '| Topic:',
@@ -524,10 +527,16 @@ export class MQTTManager extends EventEmitter {
       try {
         const user = fromBinary(UserSchema, payload);
         const now = Date.now();
+        const long_name = user.longName || '';
+        const short_name = meshtasticShortNameAfterClearingDefault(
+          long_name,
+          user.shortName || '',
+          nodeId,
+        );
         const nodeUpdate: Partial<MeshNode> & { node_id: number; from_mqtt: boolean } = {
           node_id: nodeId,
-          long_name: user.longName || '',
-          short_name: user.shortName || '',
+          long_name,
+          short_name,
           hw_model: String(user.hwModel ?? ''),
           last_heard: now,
           from_mqtt: true,

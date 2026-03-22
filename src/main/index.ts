@@ -29,6 +29,7 @@ import {
   getDatabase,
   initDatabase,
   mergeDatabase,
+  migrateRfStubNodes,
   searchMeshcoreMessages,
   searchMessages,
 } from './database';
@@ -69,6 +70,11 @@ if (!app.requestSingleInstanceLock()) {
 const mqttManager = new MQTTManager();
 const meshcoreMqttAdapter = new MeshcoreMqttAdapter();
 const nobleBleManager = new NobleBleManager();
+
+/** Max bytes per MeshCore TCP IPC write (DoS guard). */
+const MESHCORE_TCP_WRITE_MAX_BYTES = 256 * 1024;
+/** Max bytes per BLE write IPC (DoS guard). */
+const NOBLE_BLE_TO_RADIO_MAX_BYTES = 512;
 
 function isAnyMqttConnected(): boolean {
   return mqttManager.getStatus() === 'connected' || meshcoreMqttAdapter.getStatus() === 'connected';
@@ -346,6 +352,9 @@ function validateMqttSettings(settings: unknown): void {
     throw new Error('mqtt:connect: tlsInsecure must be a boolean');
   if (s.useWebSocket != null && typeof s.useWebSocket !== 'boolean')
     throw new Error('mqtt:connect: useWebSocket must be a boolean');
+  if (s.meshcorePacketLoggerEnabled != null && typeof s.meshcorePacketLoggerEnabled !== 'boolean') {
+    throw new Error('mqtt:connect: meshcorePacketLoggerEnabled must be a boolean');
+  }
   if (s.mqttTransportProtocol != null) {
     if (s.mqttTransportProtocol !== 'meshtastic' && s.mqttTransportProtocol !== 'meshcore') {
       throw new Error('mqtt:connect: mqttTransportProtocol must be meshtastic or meshcore');
@@ -375,6 +384,31 @@ function validateMqttPublishMeshcoreArgs(args: unknown): void {
   }
   if (a.timestamp != null && !Number.isFinite(Number(a.timestamp))) {
     throw new Error('mqtt:publishMeshcore: timestamp invalid');
+  }
+}
+
+const MAX_MESHCORE_PACKET_LOG_ORIGIN = 200;
+const MAX_MESHCORE_PACKET_LOG_RAW_HEX = 2048;
+
+function validateMqttPublishMeshcorePacketLogArgs(args: unknown): void {
+  if (!args || typeof args !== 'object')
+    throw new Error('mqtt:publishMeshcorePacketLog: args must be an object');
+  const a = args as Record<string, unknown>;
+  if (typeof a.origin !== 'string' || a.origin.length === 0)
+    throw new Error('mqtt:publishMeshcorePacketLog: origin must be a non-empty string');
+  if (a.origin.length > MAX_MESHCORE_PACKET_LOG_ORIGIN)
+    throw new Error('mqtt:publishMeshcorePacketLog: origin too long');
+  const snr = Number(a.snr);
+  const rssi = Number(a.rssi);
+  if (!Number.isFinite(snr)) throw new Error('mqtt:publishMeshcorePacketLog: snr must be finite');
+  if (!Number.isFinite(rssi)) throw new Error('mqtt:publishMeshcorePacketLog: rssi must be finite');
+  if (a.rawHex != null) {
+    if (typeof a.rawHex !== 'string')
+      throw new Error('mqtt:publishMeshcorePacketLog: rawHex invalid');
+    if (a.rawHex.length > MAX_MESHCORE_PACKET_LOG_RAW_HEX)
+      throw new Error('mqtt:publishMeshcorePacketLog: rawHex too long');
+    if (!/^[0-9a-fA-F]*$/.test(a.rawHex))
+      throw new Error('mqtt:publishMeshcorePacketLog: rawHex must be hex');
   }
 }
 
@@ -1047,20 +1081,28 @@ ipcMain.handle('noble-ble-to-radio', async (_event, sessionId: unknown, bytes: u
     return;
   }
   const buf = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes as Uint8Array);
+  if (buf.length > NOBLE_BLE_TO_RADIO_MAX_BYTES) {
+    return Promise.reject(
+      new Error(
+        `noble-ble-to-radio: payload exceeds ${NOBLE_BLE_TO_RADIO_MAX_BYTES} bytes (${buf.length})`,
+      ),
+    );
+  }
   await nobleBleManager.writeToRadio(sessionId, buf);
 });
 
 // ─── MQTT: Forward manager events to renderer ───────────────────────
 mqttManager.on('status', (s) => {
-  if (mainWindow) mainWindow.webContents.send('mqtt:status', s);
+  if (mainWindow) mainWindow.webContents.send('mqtt:status', { status: s, protocol: 'meshtastic' });
   else console.debug('[main] mqtt:status dropped (mainWindow not ready)', s);
 });
 mqttManager.on('error', (msg) => {
-  if (mainWindow) mainWindow.webContents.send('mqtt:error', msg);
+  if (mainWindow) mainWindow.webContents.send('mqtt:error', { error: msg, protocol: 'meshtastic' });
   else console.debug('[main] mqtt:error dropped (mainWindow not ready)', msg);
 });
 mqttManager.on('clientId', (id) => {
-  if (mainWindow) mainWindow.webContents.send('mqtt:clientId', id);
+  if (mainWindow)
+    mainWindow.webContents.send('mqtt:clientId', { clientId: id, protocol: 'meshtastic' });
   else console.debug('[main] mqtt:clientId dropped (mainWindow not ready)', id);
 });
 mqttManager.on('nodeUpdate', (n) => {
@@ -1073,16 +1115,22 @@ mqttManager.on('message', (m) => {
 });
 
 meshcoreMqttAdapter.on('status', (s) => {
-  if (mainWindow) mainWindow.webContents.send('mqtt:status', s);
+  if (mainWindow) mainWindow.webContents.send('mqtt:status', { status: s, protocol: 'meshcore' });
   else console.debug('[main] mqtt:status (meshcore) dropped (mainWindow not ready)', s);
 });
 meshcoreMqttAdapter.on('error', (msg) => {
-  if (mainWindow) mainWindow.webContents.send('mqtt:error', msg);
+  if (mainWindow) mainWindow.webContents.send('mqtt:error', { error: msg, protocol: 'meshcore' });
   else console.debug('[main] mqtt:error (meshcore) dropped (mainWindow not ready)', msg);
 });
 meshcoreMqttAdapter.on('clientId', (id) => {
-  if (mainWindow) mainWindow.webContents.send('mqtt:clientId', id);
+  if (mainWindow)
+    mainWindow.webContents.send('mqtt:clientId', { clientId: id, protocol: 'meshcore' });
   else console.debug('[main] mqtt:clientId (meshcore) dropped (mainWindow not ready)', id);
+});
+meshcoreMqttAdapter.on('subscribeWarning', (msg) => {
+  if (mainWindow)
+    mainWindow.webContents.send('mqtt:warning', { warning: msg, protocol: 'meshcore' });
+  else console.debug('[main] mqtt:warning (meshcore) dropped (mainWindow not ready)', msg);
 });
 meshcoreMqttAdapter.on('chatMessage', (m) => {
   if (mainWindow) mainWindow.webContents.send('mqtt:meshcore-chat', m);
@@ -1096,11 +1144,13 @@ ipcMain.handle('mqtt:connect', async (_event, settings) => {
     validateMqttSettings(settings);
     const s = settings as { mqttTransportProtocol?: string };
     const mode = s.mqttTransportProtocol === 'meshcore' ? 'meshcore' : 'meshtastic';
-    meshcoreMqttAdapter.disconnect();
-    mqttManager.disconnect();
+    // Dual-mode: only disconnect the target manager before reconnecting it.
+    // The other manager stays connected independently.
     if (mode === 'meshcore') {
+      meshcoreMqttAdapter.disconnect();
       meshcoreMqttAdapter.connect(settings as MQTTSettings);
     } else {
+      mqttManager.disconnect();
       mqttManager.connect(settings);
     }
   } catch (err) {
@@ -1111,11 +1161,11 @@ ipcMain.handle('mqtt:connect', async (_event, settings) => {
     throw err;
   }
 });
-ipcMain.handle('mqtt:disconnect', async () => {
+ipcMain.handle('mqtt:disconnect', async (_event, protocol?: 'meshtastic' | 'meshcore') => {
   try {
-    console.debug('[IPC] mqtt:disconnect');
-    mqttManager.disconnect();
-    meshcoreMqttAdapter.disconnect();
+    console.debug('[IPC] mqtt:disconnect', protocol ?? 'both');
+    if (!protocol || protocol === 'meshtastic') mqttManager.disconnect();
+    if (!protocol || protocol === 'meshcore') meshcoreMqttAdapter.disconnect();
   } catch (err) {
     console.error(
       '[IPC] mqtt:disconnect failed:',
@@ -1124,12 +1174,13 @@ ipcMain.handle('mqtt:disconnect', async () => {
     throw err;
   }
 });
-ipcMain.handle('mqtt:getClientId', async () => {
+ipcMain.handle('mqtt:getClientId', async (_event, protocol?: 'meshtastic' | 'meshcore') => {
   try {
-    console.debug('[IPC] mqtt:getClientId');
-    if (meshcoreMqttAdapter.getStatus() === 'connected') {
-      return meshcoreMqttAdapter.getClientId();
-    }
+    console.debug('[IPC] mqtt:getClientId', protocol);
+    if (protocol === 'meshcore') return meshcoreMqttAdapter.getClientId();
+    if (protocol === 'meshtastic') return mqttManager.getClientId();
+    // Fallback: return whichever is connected
+    if (meshcoreMqttAdapter.getStatus() === 'connected') return meshcoreMqttAdapter.getClientId();
     return mqttManager.getClientId();
   } catch (err) {
     console.error(
@@ -1192,6 +1243,26 @@ ipcMain.handle('mqtt:publishMeshcore', async (_event, args) => {
   } catch (err) {
     console.error(
       '[IPC] mqtt:publishMeshcore failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+ipcMain.handle('mqtt:publishMeshcorePacketLog', async (_event, args) => {
+  try {
+    console.debug('[IPC] mqtt:publishMeshcorePacketLog');
+    validateMqttPublishMeshcorePacketLogArgs(args);
+    const a = args as { origin: string; snr: number; rssi: number; rawHex?: string };
+    meshcoreMqttAdapter.publishPacketLog({
+      origin: a.origin,
+      snr: a.snr,
+      rssi: a.rssi,
+      rawHex: a.rawHex,
+    });
+  } catch (err) {
+    console.error(
+      '[IPC] mqtt:publishMeshcorePacketLog failed:',
       sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
     );
     throw err;
@@ -1698,6 +1769,20 @@ ipcMain.handle('db:deleteNodesBySource', (_event, source: string) => {
   } catch (err) {
     console.error(
       '[IPC] db:deleteNodesBySource failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+ipcMain.handle('db:migrateRfStubNodes', () => {
+  try {
+    const changes = migrateRfStubNodes();
+    console.debug(`[IPC] db:migrateRfStubNodes: renamed ${changes} RF stub nodes`);
+    return changes;
+  } catch (err) {
+    console.error(
+      '[IPC] db:migrateRfStubNodes failed:',
       sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
     );
     throw err;
@@ -2330,6 +2415,13 @@ ipcMain.handle('meshcore:tcp-connect', (_event, host: string, port: number) => {
 });
 
 ipcMain.handle('meshcore:tcp-write', (_event, bytes: number[]) => {
+  if (!Array.isArray(bytes) || bytes.length > MESHCORE_TCP_WRITE_MAX_BYTES) {
+    return Promise.reject(
+      new Error(
+        `meshcore:tcp-write: invalid or oversized payload (max ${MESHCORE_TCP_WRITE_MAX_BYTES} bytes)`,
+      ),
+    );
+  }
   if (!meshcoreTcpSocket) {
     const msg = 'meshcore:tcp-write: no active socket';
     console.warn(`[IPC] ${msg}`);
