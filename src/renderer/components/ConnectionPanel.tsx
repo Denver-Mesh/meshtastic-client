@@ -500,6 +500,8 @@ export default function ConnectionPanel({
   deviceStateRef.current = state;
   const lastConnectionRef = useRef(lastConnection);
   lastConnectionRef.current = lastConnection;
+  const connectionTypeRef = useRef(connectionType);
+  connectionTypeRef.current = connectionType;
   const onAutoConnectRef = useRef(onAutoConnect);
   onAutoConnectRef.current = onAutoConnect;
 
@@ -600,8 +602,10 @@ export default function ConnectionPanel({
           return;
         }
       }
-      setShowBlePicker(true);
-      setConnectionStage('Scanning — select your device when it appears below');
+      if (connectionTypeRef.current === 'ble') {
+        setShowBlePicker(true);
+        setConnectionStage('Scanning — select your device when it appears below');
+      }
     });
     return cleanup;
   }, [lastConnection, onConnect, protocol]); // isAutoConnecting intentionally omitted — ref handles it

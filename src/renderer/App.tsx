@@ -19,7 +19,7 @@ import SearchModal from './components/SearchModal';
 import { LinkIcon } from './components/SignalBars';
 import Tabs from './components/Tabs';
 import { ToastProvider, useToast } from './components/Toast';
-import UpdateBanner from './components/UpdateBanner';
+import UpdateStatusIndicator from './components/UpdateStatusIndicator';
 import { useDevice } from './hooks/useDevice';
 import { useMeshCore } from './hooks/useMeshCore';
 import {
@@ -31,6 +31,7 @@ import {
   RepeatersPanel,
   TelemetryPanel,
 } from './lazyTabPanels';
+import { DEFAULT_ADMIN_SETTINGS_SHARED } from './lib/defaultAdminSettings';
 import {
   validateLetsMeshManualCredentials,
   validateLetsMeshPresetConnect,
@@ -89,37 +90,13 @@ export interface UpdateState {
   isPackaged?: boolean;
   isMac?: boolean;
   percent?: number;
-  dismissed: boolean;
 }
 
 const MESHTASTIC_UNREAD_KEY = 'mesh-client:meshtasticChatUnread';
 const MESHCORE_UNREAD_KEY = 'mesh-client:meshcoreChatUnread';
 const LOG_PANEL_VISIBLE_KEY = 'mesh-client:logPanelVisible';
-const UPDATE_SETTINGS_KEY = 'mesh-client:updateSettings';
-
-function readUpdateSettings(): { checkOnStartup: boolean; dismissedVersion?: string } {
-  try {
-    const raw = localStorage.getItem(UPDATE_SETTINGS_KEY);
-    const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
-    return {
-      checkOnStartup: parsed.checkOnStartup !== false,
-      dismissedVersion:
-        typeof parsed.dismissedVersion === 'string' ? parsed.dismissedVersion : undefined,
-    };
-  } catch {
-    // catch-no-log-ok localStorage JSON parse error — return safe defaults
-    return { checkOnStartup: true };
-  }
-}
-
-function saveUpdateSettings(patch: Partial<{ checkOnStartup: boolean; dismissedVersion: string }>) {
-  try {
-    const existing = readUpdateSettings();
-    localStorage.setItem(UPDATE_SETTINGS_KEY, JSON.stringify({ ...existing, ...patch }));
-  } catch {
-    // catch-no-log-ok localStorage quota or private mode — silently skip
-  }
-}
+/** Legacy key (pre–footer indicator): `checkOnStartup` / `dismissedVersion` — removed on launch so updates always check on startup. */
+const LEGACY_UPDATE_SETTINGS_KEY = 'mesh-client:updateSettings';
 
 function readLogPanelVisible(): boolean {
   try {
@@ -210,7 +187,7 @@ export default function App() {
   const prevMeshcoreMsgCountRef = useRef(0);
   const isMeshtasticInitialRef = useRef(true);
   const isMeshcoreInitialRef = useRef(true);
-  const [updateState, setUpdateState] = useState<UpdateState>({ phase: 'idle', dismissed: false });
+  const [updateState, setUpdateState] = useState<UpdateState>({ phase: 'idle' });
   const [telemetryNoticeDismissed, setTelemetryNoticeDismissed] = useState(false);
   const [useFahrenheit, setUseFahrenheit] = useState(
     () => localStorage.getItem('mesh-client:useFahrenheit') === 'true',
@@ -364,11 +341,12 @@ export default function App() {
   // ─── Startup node pruning based on persisted admin settings ─────
   const { refreshNodesFromDb } = device;
   useEffect(() => {
-    const s =
+    const raw =
       parseStoredJson<Record<string, unknown>>(
         localStorage.getItem('mesh-client:adminSettings'),
         'App startup node pruning',
       ) ?? {};
+    const s = { ...DEFAULT_ADMIN_SETTINGS_SHARED, ...raw };
     const ops: Promise<unknown>[] = [
       // One-time migration: rename legacy "RF !xxxxxxxx" stub nodes to "!xxxxxxxx"
       window.electronAPI.db
@@ -473,18 +451,16 @@ export default function App() {
   // ─── Auto-update event subscriptions ─────────────────────────────
   useEffect(() => {
     const offAvailable = window.electronAPI.update.onAvailable((info) => {
-      const { dismissedVersion } = readUpdateSettings();
       setUpdateState({
         phase: 'available',
         version: info.version,
         releaseUrl: info.releaseUrl,
         isPackaged: info.isPackaged,
         isMac: info.isMac,
-        dismissed: dismissedVersion === info.version,
       });
     });
     const offNotAvailable = window.electronAPI.update.onNotAvailable(() => {
-      setUpdateState((s) => ({ ...s, phase: 'up-to-date', dismissed: false }));
+      setUpdateState((s) => ({ ...s, phase: 'up-to-date' }));
     });
     const offProgress = window.electronAPI.update.onProgress((info) => {
       setUpdateState((s) => ({ ...s, phase: 'downloading', percent: info.percent }));
@@ -504,9 +480,17 @@ export default function App() {
     };
   }, []);
 
-  // ─── Auto-check for updates on startup (respects user preference) ────
+  // ─── Drop legacy update prefs (localStorage) — always check on startup below ───
   useEffect(() => {
-    if (!readUpdateSettings().checkOnStartup) return;
+    try {
+      localStorage.removeItem(LEGACY_UPDATE_SETTINGS_KEY);
+    } catch {
+      // catch-no-log-ok quota / private mode
+    }
+  }, []);
+
+  // ─── Auto-check for updates on startup ────
+  useEffect(() => {
     const t = setTimeout(() => window.electronAPI.update.check(), 5000);
     return () => clearTimeout(t);
   }, []);
@@ -804,20 +788,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Update Notification Banner */}
-        <UpdateBanner
-          updateState={updateState}
-          onDownload={() => window.electronAPI.update.download()}
-          onInstall={() => window.electronAPI.update.install()}
-          onViewRelease={() => window.electronAPI.update.openReleases(updateState.releaseUrl)}
-          onDismiss={() => {
-            setUpdateState((s) => {
-              if (s.version) saveUpdateSettings({ dismissedVersion: s.version });
-              return { ...s, dismissed: true };
-            });
-          }}
-        />
-
         <div className="flex flex-1 min-h-0 flex-col">
           <div className="flex flex-col flex-1 min-w-0 min-h-0">
             {/* Tabs */}
@@ -1102,9 +1072,9 @@ export default function App() {
               </ErrorBoundary>
             </main>
 
-            {/* Footer */}
-            <footer className="px-4 py-1.5 bg-deep-black border-t border-gray-700 text-[11px] text-muted flex items-center justify-between shrink-0">
-              <span>
+            {/* Footer — same centering idea as header: 1fr | auto | 1fr so middle stays true center */}
+            <footer className="px-4 py-1.5 bg-deep-black border-t border-gray-700 text-[11px] text-muted grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-4 shrink-0">
+              <span className="min-w-0">
                 A Project by{' '}
                 <a
                   href="https://coloradomesh.org/"
@@ -1137,24 +1107,35 @@ export default function App() {
                 </a>
                 .
               </span>
-              {/* Keyboard shortcuts — centered in footer */}
               <button
+                type="button"
                 onClick={() => setShowShortcuts(true)}
-                aria-label="Shortcuts ?"
+                aria-label="Keyboard shortcuts (?)"
                 aria-haspopup="dialog"
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-slate-700 bg-slate-800/40 text-gray-500 hover:text-gray-300 hover:border-slate-600 transition-colors text-[11px] font-medium"
                 title="Keyboard shortcuts (?)"
+                className="shrink-0 justify-self-center inline-flex items-center gap-1 px-3 py-0.5 rounded-full border border-gray-600 text-xs font-mono text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors"
               >
-                Shortcuts{' '}
-                <kbd
-                  className="px-1 border border-slate-600 rounded bg-slate-700 text-slate-400 text-[10px] font-mono"
-                  aria-hidden="true"
-                >
+                Shortcuts
+                <span className="text-[10px] font-mono text-gray-400" aria-hidden="true">
                   ?
-                </kbd>
+                </span>
               </button>
-              <span>
-                {nodesForUi.size} {nodeCountLabel} | {device.messages.length} messages
+              <span className="justify-self-end text-right whitespace-nowrap tabular-nums inline-flex items-center gap-2 flex-wrap justify-end">
+                <span>
+                  {nodesForUi.size} {nodeCountLabel} | {device.messages.length} messages
+                </span>
+                <UpdateStatusIndicator
+                  updateState={updateState}
+                  onCheck={() => {
+                    setUpdateState({ phase: 'idle' });
+                    void window.electronAPI.update.check();
+                  }}
+                  onDownload={() => window.electronAPI.update.download()}
+                  onInstall={() => window.electronAPI.update.install()}
+                  onViewRelease={() =>
+                    window.electronAPI.update.openReleases(updateState.releaseUrl)
+                  }
+                />
               </span>
             </footer>
           </div>

@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 
 import { withTimeout } from '../shared/withTimeout';
+import { sanitizeLogMessage } from './log-service';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const noble = require('@stoprocent/noble') as any;
@@ -167,7 +168,7 @@ export class NobleBleManager extends EventEmitter {
           } catch (err) {
             console.warn(
               `[BLE:${sessionId}] readAsync #${i} error after ${Date.now() - t0}ms:`,
-              err instanceof Error ? err.message : err,
+              sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
             );
             // Back off before the outer while can re-trigger to avoid hammering a failing characteristic.
             await new Promise<void>((r) => setTimeout(r, 500));
@@ -222,7 +223,18 @@ export class NobleBleManager extends EventEmitter {
     // Clear known peripherals so every device is re-emitted as discovered on each new scan.
     // Without this, devices found in a previous scan are never re-emitted (isNew = false),
     // so the picker stays empty on second and subsequent scan attempts.
+    // Preserve peripherals already connected in noble — they won't re-advertise during a
+    // scan, so keep them available for connect() and re-emit for auto-connect / picker.
+    const stillConnected: [string, any][] = [];
+    for (const [id, peripheral] of this.knownPeripherals.entries()) {
+      if (peripheral.state === 'connected') stillConnected.push([id, peripheral]);
+    }
     this.knownPeripherals.clear();
+    for (const [id, peripheral] of stillConnected) {
+      this.knownPeripherals.set(id, peripheral);
+      const name: string = peripheral.advertisement?.localName || peripheral.address || id;
+      this.emit('deviceDiscovered', { deviceId: id, deviceName: name } as NobleBleDevice);
+    }
     this.scanRequesters.add(sessionId);
     if (!this.adapterReady) throw new Error('Bluetooth adapter is not powered on');
     await this.doStartScanning();
@@ -389,7 +401,10 @@ export class NobleBleManager extends EventEmitter {
         try {
           await withTimeout(peripheral.disconnectAsync(), 5000, 'BLE pre-connect disconnectAsync');
         } catch (err) {
-          console.debug(`[BLE:${sessionId}] pre-connect disconnect error (ignored):`, err); // log-injection-ok noble internal error
+          console.debug(
+            `[BLE:${sessionId}] pre-connect disconnect error (ignored):`,
+            sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+          );
         }
       }
       await withTimeout(peripheral.connectAsync(), 15000, 'BLE connectAsync');

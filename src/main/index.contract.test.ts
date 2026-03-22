@@ -13,3 +13,24 @@ describe('IPC payload size limits (source contract)', () => {
     expect(INDEX_SOURCE).toMatch(/bytes\.length > MESHCORE_TCP_WRITE_MAX_BYTES/);
   });
 });
+
+describe('MeshCore packet log IPC (source contract)', () => {
+  it('validates publishMeshcorePacketLog args and wires handler', () => {
+    expect(INDEX_SOURCE).toContain('const MAX_MESHCORE_PACKET_LOG_ORIGIN = 200');
+    expect(INDEX_SOURCE).toContain('const MAX_MESHCORE_PACKET_LOG_RAW_HEX = 2048');
+    expect(INDEX_SOURCE).toContain(
+      'function validateMqttPublishMeshcorePacketLogArgs(args: unknown)',
+    );
+    expect(INDEX_SOURCE).toMatch(/validateMqttPublishMeshcorePacketLogArgs\(args\)/);
+    expect(INDEX_SOURCE).toContain('mqtt:publishMeshcorePacketLog');
+    expect(INDEX_SOURCE).toMatch(/rawHex must be hex/);
+  });
+});
+
+describe('MQTT forwarder dropped-event logs (source contract)', () => {
+  it('sanitizes dynamic MQTT fields when mainWindow is not ready', () => {
+    expect((INDEX_SOURCE.match(/sanitizeLogMessage\(String\(s\)\)/g) ?? []).length).toBe(2);
+    expect((INDEX_SOURCE.match(/sanitizeLogMessage\(String\(msg\)\)/g) ?? []).length).toBe(3);
+    expect((INDEX_SOURCE.match(/sanitizeLogMessage\(String\(id\)\)/g) ?? []).length).toBe(2);
+  });
+});

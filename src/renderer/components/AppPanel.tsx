@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { LocationFilter } from '../App';
+import { DEFAULT_ADMIN_SETTINGS_SHARED } from '../lib/defaultAdminSettings';
 import type { OurPosition } from '../lib/gpsSource';
 import { haversineDistanceKm } from '../lib/nodeStatus';
 import { parseStoredJson } from '../lib/parseStoredJson';
@@ -102,14 +103,7 @@ interface AdminSettings {
 }
 
 const DEFAULT_SETTINGS: AdminSettings = {
-  autoPruneEnabled: false,
-  autoPruneDays: 30,
-  pruneEmptyNamesEnabled: true,
-  nodeCapEnabled: true,
-  nodeCapCount: 10000,
-  distanceFilterEnabled: false,
-  distanceFilterMax: 500,
-  distanceUnit: 'miles',
+  ...DEFAULT_ADMIN_SETTINGS_SHARED,
   filterMqttOnly: false,
   messageLimitEnabled: true,
   messageLimitCount: 1000,
@@ -173,32 +167,6 @@ export default function AppPanel({
   const historyWindowHours = usePositionHistoryStore((s) => s.historyWindowHours);
   const setHistoryWindow = usePositionHistoryStore((s) => s.setHistoryWindow);
   const clearHistory = usePositionHistoryStore((s) => s.clearHistory);
-
-  // ─── Update preference ───────────────────────────────────────
-  const [checkOnStartup, setCheckOnStartup] = useState<boolean>(() => {
-    try {
-      const raw = localStorage.getItem('mesh-client:updateSettings');
-      const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
-      return parsed.checkOnStartup !== false;
-    } catch {
-      // catch-no-log-ok localStorage JSON parse error — return safe default
-      return true;
-    }
-  });
-
-  const handleCheckOnStartupChange = useCallback((enabled: boolean) => {
-    setCheckOnStartup(enabled);
-    try {
-      const raw = localStorage.getItem('mesh-client:updateSettings');
-      const existing = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
-      localStorage.setItem(
-        'mesh-client:updateSettings',
-        JSON.stringify({ ...existing, checkOnStartup: enabled }),
-      );
-    } catch {
-      // catch-no-log-ok localStorage quota or private mode — silently skip
-    }
-  }, []);
 
   // ─── Node retention settings ────────────────────────────────
   const [settings, setSettings] = useState<AdminSettings>(loadSettings);
@@ -441,40 +409,6 @@ export default function AppPanel({
           </div>
         </div>
       )}
-
-      {/* Updates */}
-      <div className="space-y-2">
-        <h3 className="text-sm font-medium text-muted">Updates</h3>
-        <div className="bg-secondary-dark rounded-lg p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <input
-              id="check-on-startup-checkbox"
-              type="checkbox"
-              checked={checkOnStartup}
-              onChange={(e) => handleCheckOnStartupChange(e.target.checked)}
-              aria-label="Check for updates on startup"
-              className="rounded border-gray-600"
-            />
-            <label
-              htmlFor="check-on-startup-checkbox"
-              className="text-sm text-gray-300 cursor-pointer"
-            >
-              Check for updates on startup
-            </label>
-          </div>
-          <p className="text-xs text-muted">
-            When enabled, the app checks GitHub for a newer release 5 seconds after launch. You can
-            always trigger a manual check from the app menu (macOS) or the banner&apos;s Check
-            button.
-          </p>
-          <button
-            onClick={() => window.electronAPI.update.check()}
-            className="px-3 py-1.5 rounded bg-secondary-dark border border-gray-600 hover:border-gray-500 text-xs text-gray-300 hover:text-gray-100 transition-colors"
-          >
-            Check Now
-          </button>
-        </div>
-      </div>
 
       {/* Appearance / color scheme */}
       <div className="space-y-2">
@@ -815,21 +749,27 @@ export default function AppPanel({
           </div>
 
           {/* Prune unnamed nodes on startup */}
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="pruneEmptyNames"
-              checked={settings.pruneEmptyNamesEnabled}
-              onChange={(e) => updateSetting('pruneEmptyNamesEnabled', e.target.checked)}
-              aria-label="Remove unnamed nodes on startup"
-              className="accent-brand-green"
-            />
-            <label
-              htmlFor="pruneEmptyNames"
-              className="text-sm text-gray-300 flex-1 cursor-pointer"
-            >
-              Remove unnamed nodes on startup
-            </label>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="pruneEmptyNames"
+                checked={settings.pruneEmptyNamesEnabled}
+                onChange={(e) => updateSetting('pruneEmptyNamesEnabled', e.target.checked)}
+                aria-label="Remove unnamed nodes on startup"
+                className="accent-brand-green"
+              />
+              <label
+                htmlFor="pruneEmptyNames"
+                className="text-sm text-gray-300 flex-1 cursor-pointer"
+              >
+                Remove unnamed nodes on startup
+              </label>
+            </div>
+            <p className="text-xs text-muted pl-6">
+              Includes MQTT-only placeholders that still use the default !hex ID; favorited nodes
+              are kept.
+            </p>
           </div>
 
           {/* Node cap */}
@@ -1131,7 +1071,7 @@ export default function AppPanel({
                   name: 'Prune Unnamed Nodes',
                   title: 'Prune Unnamed Nodes',
                   message:
-                    'This will permanently delete all nodes without a long name. They will be re-discovered when they broadcast again.',
+                    'This will permanently delete nodes with no real long name: empty names, auto-generated !hex placeholders, and MQTT-only identities that never received UserInfo. Favorited nodes are kept. They will be re-discovered when they broadcast again.',
                   confirmLabel: 'Prune Unnamed Nodes',
                   danger: true,
                   action: async () => {

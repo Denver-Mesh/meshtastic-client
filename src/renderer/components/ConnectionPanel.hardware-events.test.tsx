@@ -10,8 +10,10 @@
  * - Changing payload property names (deviceId → device_id, portId → port_id, etc.)
  * - Forgetting to return / call the cleanup unsubscribe function on unmount
  * - Disconnecting the serial port listener from state update
+ * - BLE discovery opening the picker while Connection Type is serial (cross-panel scan)
  */
-import { act, render } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { NobleBleDevice, SerialPort } from '@/shared/electron-api.types';
@@ -101,6 +103,62 @@ describe('ConnectionPanel hardware event wiring', () => {
     unmount();
 
     expect(unsub).toHaveBeenCalled();
+  });
+
+  it('does not open BLE picker when a device is discovered during USB Serial connect (cross-panel scan)', async () => {
+    const user = userEvent.setup();
+    let capturedCb: ((device: NobleBleDevice) => void) | undefined;
+    vi.mocked(window.electronAPI.onNobleBleDeviceDiscovered).mockImplementation((cb) => {
+      capturedCb = cb;
+      return () => {};
+    });
+
+    const onConnect = vi.fn(() => new Promise<void>(() => {}));
+
+    render(<ConnectionPanel {...DEFAULT_PROPS} protocol="meshcore" onConnect={onConnect} />);
+
+    const connectionField = screen
+      .getByRole('radiogroup', { name: 'Connection Type' })
+      .closest('fieldset')?.parentElement;
+    expect(connectionField).toBeTruthy();
+    await user.click(within(connectionField!).getByRole('radio', { name: /USB Serial/i }));
+    await user.click(within(connectionField!).getByRole('button', { name: /^Connect$/i }));
+
+    expect(onConnect).toHaveBeenCalled();
+    expect(capturedCb).toBeDefined();
+
+    act(() => {
+      capturedCb!({ deviceId: 'foreign-ble-device', deviceName: 'Other Radio' });
+    });
+
+    expect(screen.queryByText('Select Bluetooth Device')).not.toBeInTheDocument();
+  });
+
+  it('opens BLE picker when a device is discovered during manual Bluetooth scan', async () => {
+    const user = userEvent.setup();
+    let capturedCb: ((device: NobleBleDevice) => void) | undefined;
+    vi.mocked(window.electronAPI.onNobleBleDeviceDiscovered).mockImplementation((cb) => {
+      capturedCb = cb;
+      return () => {};
+    });
+
+    render(<ConnectionPanel {...DEFAULT_PROPS} />);
+
+    const connectionField = screen
+      .getByRole('radiogroup', { name: 'Connection Type' })
+      .closest('fieldset')?.parentElement;
+    expect(connectionField).toBeTruthy();
+    await user.click(within(connectionField!).getByRole('radio', { name: /Bluetooth/i }));
+    await user.click(within(connectionField!).getByRole('button', { name: /^Connect$/i }));
+
+    expect(window.electronAPI.startNobleBleScanning).toHaveBeenCalled();
+    expect(capturedCb).toBeDefined();
+
+    act(() => {
+      capturedCb!({ deviceId: 'dev-1', deviceName: 'Test Radio' });
+    });
+
+    expect(screen.getByText('Select Bluetooth Device')).toBeInTheDocument();
   });
 
   // ─── Serial port discovery ─────────────────────────────────────────────────

@@ -1140,16 +1140,28 @@ ipcMain.handle('noble-ble-to-radio', async (_event, sessionId: unknown, bytes: u
 // ─── MQTT: Forward manager events to renderer ───────────────────────
 mqttManager.on('status', (s) => {
   if (mainWindow) mainWindow.webContents.send('mqtt:status', { status: s, protocol: 'meshtastic' });
-  else console.debug('[main] mqtt:status dropped (mainWindow not ready)', s);
+  else
+    console.debug(
+      '[main] mqtt:status dropped (mainWindow not ready)',
+      sanitizeLogMessage(String(s)),
+    );
 });
 mqttManager.on('error', (msg) => {
   if (mainWindow) mainWindow.webContents.send('mqtt:error', { error: msg, protocol: 'meshtastic' });
-  else console.debug('[main] mqtt:error dropped (mainWindow not ready)', msg);
+  else
+    console.debug(
+      '[main] mqtt:error dropped (mainWindow not ready)',
+      sanitizeLogMessage(String(msg)),
+    );
 });
 mqttManager.on('clientId', (id) => {
   if (mainWindow)
     mainWindow.webContents.send('mqtt:clientId', { clientId: id, protocol: 'meshtastic' });
-  else console.debug('[main] mqtt:clientId dropped (mainWindow not ready)', id);
+  else
+    console.debug(
+      '[main] mqtt:clientId dropped (mainWindow not ready)',
+      sanitizeLogMessage(String(id)),
+    );
 });
 mqttManager.on('nodeUpdate', (n) => {
   if (mainWindow) mainWindow.webContents.send('mqtt:node-update', n);
@@ -1162,21 +1174,37 @@ mqttManager.on('message', (m) => {
 
 meshcoreMqttAdapter.on('status', (s) => {
   if (mainWindow) mainWindow.webContents.send('mqtt:status', { status: s, protocol: 'meshcore' });
-  else console.debug('[main] mqtt:status (meshcore) dropped (mainWindow not ready)', s);
+  else
+    console.debug(
+      '[main] mqtt:status (meshcore) dropped (mainWindow not ready)',
+      sanitizeLogMessage(String(s)),
+    );
 });
 meshcoreMqttAdapter.on('error', (msg) => {
   if (mainWindow) mainWindow.webContents.send('mqtt:error', { error: msg, protocol: 'meshcore' });
-  else console.debug('[main] mqtt:error (meshcore) dropped (mainWindow not ready)', msg);
+  else
+    console.debug(
+      '[main] mqtt:error (meshcore) dropped (mainWindow not ready)',
+      sanitizeLogMessage(String(msg)),
+    );
 });
 meshcoreMqttAdapter.on('clientId', (id) => {
   if (mainWindow)
     mainWindow.webContents.send('mqtt:clientId', { clientId: id, protocol: 'meshcore' });
-  else console.debug('[main] mqtt:clientId (meshcore) dropped (mainWindow not ready)', id);
+  else
+    console.debug(
+      '[main] mqtt:clientId (meshcore) dropped (mainWindow not ready)',
+      sanitizeLogMessage(String(id)),
+    );
 });
 meshcoreMqttAdapter.on('subscribeWarning', (msg) => {
   if (mainWindow)
     mainWindow.webContents.send('mqtt:warning', { warning: msg, protocol: 'meshcore' });
-  else console.debug('[main] mqtt:warning (meshcore) dropped (mainWindow not ready)', msg);
+  else
+    console.debug(
+      '[main] mqtt:warning (meshcore) dropped (mainWindow not ready)',
+      sanitizeLogMessage(String(msg)),
+    );
 });
 meshcoreMqttAdapter.on('chatMessage', (m) => {
   if (mainWindow) mainWindow.webContents.send('mqtt:meshcore-chat', m);
