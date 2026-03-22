@@ -527,7 +527,8 @@ export function useMeshCore() {
   }, [mqttStatus]);
 
   useEffect(() => {
-    const offStatus = window.electronAPI.mqtt.onStatus((s) => {
+    const offStatus = window.electronAPI.mqtt.onStatus(({ status: s, protocol }) => {
+      if (protocol !== 'meshcore') return;
       const st = s as MQTTStatus;
       mqttStatusRef.current = st;
       setMqttStatus(st);
@@ -793,7 +794,7 @@ export function useMeshCore() {
         const entry: DeviceLogEntry = {
           ts: now,
           level: 'info',
-          source: 'device',
+          source: 'meshcore',
           message: line.length > 220 ? `${line.slice(0, 220)}…` : line,
         };
         setDeviceLogs((prev) => {
@@ -1074,7 +1075,7 @@ export function useMeshCore() {
         const entry: DeviceLogEntry = {
           ts: now,
           level: 'info',
-          source: 'device',
+          source: 'meshcore',
           message: `RX SNR=${snr.toFixed(2)}dB RSSI=${rssi}dBm`,
         };
         setDeviceLogs((prev) => {

@@ -438,7 +438,8 @@ export function useDevice() {
 
   // ─── MQTT event subscriptions (independent of RF device) ──────
   useEffect(() => {
-    const unsubStatus = window.electronAPI.mqtt.onStatus((s) => {
+    const unsubStatus = window.electronAPI.mqtt.onStatus(({ status: s, protocol }) => {
+      if (protocol !== 'meshtastic') return;
       mqttStatusRef.current = s as MQTTStatus;
       setMqttStatus(s as MQTTStatus);
       if (s !== 'connected') {

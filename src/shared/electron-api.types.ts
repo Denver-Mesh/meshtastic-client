@@ -144,13 +144,19 @@ export interface ElectronAPI {
   // ─── MQTT ────────────────────────────────────────────────────────────────────
   mqtt: {
     connect: (settings: unknown) => Promise<unknown>;
-    disconnect: () => Promise<unknown>;
-    onStatus: (cb: (status: string) => void) => () => void;
-    onError: (cb: (message: string) => void) => () => void;
+    disconnect: (protocol?: 'meshtastic' | 'meshcore') => Promise<unknown>;
+    onStatus: (
+      cb: (payload: { status: string; protocol: 'meshtastic' | 'meshcore' }) => void,
+    ) => () => void;
+    onError: (
+      cb: (payload: { error: string; protocol: 'meshtastic' | 'meshcore' }) => void,
+    ) => () => void;
     onNodeUpdate: (cb: (node: unknown) => void) => () => void;
     onMessage: (cb: (msg: unknown) => void) => () => void;
-    onClientId: (cb: (id: string) => void) => () => void;
-    getClientId: () => Promise<string>;
+    onClientId: (
+      cb: (payload: { clientId: string; protocol: 'meshtastic' | 'meshcore' }) => void,
+    ) => () => void;
+    getClientId: (protocol?: 'meshtastic' | 'meshcore') => Promise<string>;
     getCachedNodes: () => Promise<unknown>;
     publish: (args: {
       text: string;

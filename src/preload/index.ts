@@ -125,14 +125,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ─── MQTT ──────────────────────────────────────────────────────
   mqtt: {
     connect: (settings: unknown) => ipcRenderer.invoke('mqtt:connect', settings),
-    disconnect: () => ipcRenderer.invoke('mqtt:disconnect'),
-    onStatus: (cb: (status: string) => void) => {
-      const handler = (_: unknown, s: string) => cb(s);
+    disconnect: (protocol?: 'meshtastic' | 'meshcore') =>
+      ipcRenderer.invoke('mqtt:disconnect', protocol),
+    onStatus: (cb: (payload: { status: string; protocol: 'meshtastic' | 'meshcore' }) => void) => {
+      const handler = (
+        _: unknown,
+        payload: { status: string; protocol: 'meshtastic' | 'meshcore' },
+      ) => cb(payload);
       ipcRenderer.on('mqtt:status', handler);
       return () => ipcRenderer.off('mqtt:status', handler);
     },
-    onError: (cb: (message: string) => void) => {
-      const handler = (_: unknown, msg: string) => cb(msg);
+    onError: (cb: (payload: { error: string; protocol: 'meshtastic' | 'meshcore' }) => void) => {
+      const handler = (
+        _: unknown,
+        payload: { error: string; protocol: 'meshtastic' | 'meshcore' },
+      ) => cb(payload);
       ipcRenderer.on('mqtt:error', handler);
       return () => ipcRenderer.off('mqtt:error', handler);
     },
@@ -146,12 +153,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.on('mqtt:message', handler);
       return () => ipcRenderer.off('mqtt:message', handler);
     },
-    onClientId: (cb: (id: string) => void) => {
-      const handler = (_: unknown, id: string) => cb(id);
+    onClientId: (
+      cb: (payload: { clientId: string; protocol: 'meshtastic' | 'meshcore' }) => void,
+    ) => {
+      const handler = (
+        _: unknown,
+        payload: { clientId: string; protocol: 'meshtastic' | 'meshcore' },
+      ) => cb(payload);
       ipcRenderer.on('mqtt:clientId', handler);
       return () => ipcRenderer.off('mqtt:clientId', handler);
     },
-    getClientId: (): Promise<string> => ipcRenderer.invoke('mqtt:getClientId'),
+    getClientId: (protocol?: 'meshtastic' | 'meshcore'): Promise<string> =>
+      ipcRenderer.invoke('mqtt:getClientId', protocol),
     getCachedNodes: () => ipcRenderer.invoke('mqtt:getCachedNodes'),
     publish: (args: {
       text: string;

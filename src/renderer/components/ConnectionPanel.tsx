@@ -392,19 +392,19 @@ export default function ConnectionPanel({
   }, [meshcoreMqttSettings]);
 
   // Listen for MQTT events from main process
-  useEffect(() => window.electronAPI.mqtt.onError(setMqttError), []);
+  useEffect(() => window.electronAPI.mqtt.onError(({ error }) => setMqttError(error)), []);
   useEffect(() => {
     // Restore clientId if already connected when this component mounts (e.g. after tab switch)
     window.electronAPI.mqtt
-      .getClientId()
+      .getClientId(protocol)
       .then((id) => {
         if (id) setMqttClientId(id);
       })
       .catch((err) => {
         console.warn('[ConnectionPanel] getClientId failed:', err);
       });
-    return window.electronAPI.mqtt.onClientId(setMqttClientId);
-  }, []);
+    return window.electronAPI.mqtt.onClientId(({ clientId }) => setMqttClientId(clientId));
+  }, [protocol]);
 
   // Clear MQTT error/clientId when connection succeeds or is disconnected
   useEffect(() => {
@@ -846,7 +846,7 @@ export default function ConnectionPanel({
           className={`flex-1 py-2 text-sm font-medium transition-colors ${
             protocol === p
               ? p === 'meshcore'
-                ? 'bg-purple-600 text-white'
+                ? 'bg-cyan-600/20 text-cyan-400'
                 : 'bg-brand-green/20 text-brand-green border-brand-green'
               : 'text-muted hover:text-gray-200 hover:bg-secondary-dark'
           }`}

@@ -70,16 +70,21 @@ function levelVisible(level: string, f: LevelFilters): boolean {
 }
 
 /** Returns true for log entries that originated from the given protocol's device library or hook. */
-function isDeviceEntry(entry: LogEntry, protocol?: MeshProtocol): boolean {
+export function isDeviceEntry(entry: LogEntry, protocol?: MeshProtocol): boolean {
   if (protocol === 'meshtastic') {
     return (
       entry.source.includes('meshtastic') ||
       entry.message.includes('[iMeshDevice]') ||
-      entry.message.includes('[TransportNobleIpc]')
+      entry.message.includes('[TransportNobleIpc]') ||
+      entry.message.includes('[MQTT]')
     );
   }
   if (protocol === 'meshcore') {
-    return entry.source.includes('meshcore') || entry.message.includes('[useMeshCore]');
+    return (
+      entry.source.includes('meshcore') ||
+      entry.message.includes('[useMeshCore]') ||
+      entry.message.includes('[MeshcoreMqttAdapter]')
+    );
   }
   // No protocol: show all device entries (fallback)
   return (
@@ -87,7 +92,9 @@ function isDeviceEntry(entry: LogEntry, protocol?: MeshProtocol): boolean {
     entry.source.includes('meshcore') ||
     entry.message.includes('[iMeshDevice]') ||
     entry.message.includes('[useMeshCore]') ||
-    entry.message.includes('[TransportNobleIpc]')
+    entry.message.includes('[TransportNobleIpc]') ||
+    entry.message.includes('[MQTT]') ||
+    entry.message.includes('[MeshcoreMqttAdapter]')
   );
 }
 
@@ -203,7 +210,10 @@ export default function LogPanel({
   }, []);
 
   const libraryEntries = entries.filter((e) => isDeviceEntry(e, protocol));
-  const appEntries = entries.filter((e) => !isDeviceEntry(e, protocol));
+  // Dual-mode: exclude device entries from BOTH protocols so neither leaks into the app view.
+  const appEntries = entries.filter(
+    (e) => !isDeviceEntry(e, 'meshtastic') && !isDeviceEntry(e, 'meshcore'),
+  );
   const allDeviceLogs: LogEntry[] = [...(deviceLogs ?? []), ...libraryEntries].sort(
     (a, b) => a.ts - b.ts,
   );

@@ -1052,15 +1052,16 @@ ipcMain.handle('noble-ble-to-radio', async (_event, sessionId: unknown, bytes: u
 
 // ─── MQTT: Forward manager events to renderer ───────────────────────
 mqttManager.on('status', (s) => {
-  if (mainWindow) mainWindow.webContents.send('mqtt:status', s);
+  if (mainWindow) mainWindow.webContents.send('mqtt:status', { status: s, protocol: 'meshtastic' });
   else console.debug('[main] mqtt:status dropped (mainWindow not ready)', s);
 });
 mqttManager.on('error', (msg) => {
-  if (mainWindow) mainWindow.webContents.send('mqtt:error', msg);
+  if (mainWindow) mainWindow.webContents.send('mqtt:error', { error: msg, protocol: 'meshtastic' });
   else console.debug('[main] mqtt:error dropped (mainWindow not ready)', msg);
 });
 mqttManager.on('clientId', (id) => {
-  if (mainWindow) mainWindow.webContents.send('mqtt:clientId', id);
+  if (mainWindow)
+    mainWindow.webContents.send('mqtt:clientId', { clientId: id, protocol: 'meshtastic' });
   else console.debug('[main] mqtt:clientId dropped (mainWindow not ready)', id);
 });
 mqttManager.on('nodeUpdate', (n) => {
@@ -1073,15 +1074,16 @@ mqttManager.on('message', (m) => {
 });
 
 meshcoreMqttAdapter.on('status', (s) => {
-  if (mainWindow) mainWindow.webContents.send('mqtt:status', s);
+  if (mainWindow) mainWindow.webContents.send('mqtt:status', { status: s, protocol: 'meshcore' });
   else console.debug('[main] mqtt:status (meshcore) dropped (mainWindow not ready)', s);
 });
 meshcoreMqttAdapter.on('error', (msg) => {
-  if (mainWindow) mainWindow.webContents.send('mqtt:error', msg);
+  if (mainWindow) mainWindow.webContents.send('mqtt:error', { error: msg, protocol: 'meshcore' });
   else console.debug('[main] mqtt:error (meshcore) dropped (mainWindow not ready)', msg);
 });
 meshcoreMqttAdapter.on('clientId', (id) => {
-  if (mainWindow) mainWindow.webContents.send('mqtt:clientId', id);
+  if (mainWindow)
+    mainWindow.webContents.send('mqtt:clientId', { clientId: id, protocol: 'meshcore' });
   else console.debug('[main] mqtt:clientId (meshcore) dropped (mainWindow not ready)', id);
 });
 meshcoreMqttAdapter.on('chatMessage', (m) => {
@@ -1096,11 +1098,13 @@ ipcMain.handle('mqtt:connect', async (_event, settings) => {
     validateMqttSettings(settings);
     const s = settings as { mqttTransportProtocol?: string };
     const mode = s.mqttTransportProtocol === 'meshcore' ? 'meshcore' : 'meshtastic';
-    meshcoreMqttAdapter.disconnect();
-    mqttManager.disconnect();
+    // Dual-mode: only disconnect the target manager before reconnecting it.
+    // The other manager stays connected independently.
     if (mode === 'meshcore') {
+      meshcoreMqttAdapter.disconnect();
       meshcoreMqttAdapter.connect(settings as MQTTSettings);
     } else {
+      mqttManager.disconnect();
       mqttManager.connect(settings);
     }
   } catch (err) {
@@ -1111,11 +1115,11 @@ ipcMain.handle('mqtt:connect', async (_event, settings) => {
     throw err;
   }
 });
-ipcMain.handle('mqtt:disconnect', async () => {
+ipcMain.handle('mqtt:disconnect', async (_event, protocol?: 'meshtastic' | 'meshcore') => {
   try {
-    console.debug('[IPC] mqtt:disconnect');
-    mqttManager.disconnect();
-    meshcoreMqttAdapter.disconnect();
+    console.debug('[IPC] mqtt:disconnect', protocol ?? 'both');
+    if (!protocol || protocol === 'meshtastic') mqttManager.disconnect();
+    if (!protocol || protocol === 'meshcore') meshcoreMqttAdapter.disconnect();
   } catch (err) {
     console.error(
       '[IPC] mqtt:disconnect failed:',
@@ -1124,12 +1128,13 @@ ipcMain.handle('mqtt:disconnect', async () => {
     throw err;
   }
 });
-ipcMain.handle('mqtt:getClientId', async () => {
+ipcMain.handle('mqtt:getClientId', async (_event, protocol?: 'meshtastic' | 'meshcore') => {
   try {
-    console.debug('[IPC] mqtt:getClientId');
-    if (meshcoreMqttAdapter.getStatus() === 'connected') {
-      return meshcoreMqttAdapter.getClientId();
-    }
+    console.debug('[IPC] mqtt:getClientId', protocol);
+    if (protocol === 'meshcore') return meshcoreMqttAdapter.getClientId();
+    if (protocol === 'meshtastic') return mqttManager.getClientId();
+    // Fallback: return whichever is connected
+    if (meshcoreMqttAdapter.getStatus() === 'connected') return meshcoreMqttAdapter.getClientId();
     return mqttManager.getClientId();
   } catch (err) {
     console.error(
