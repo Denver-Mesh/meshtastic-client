@@ -27,8 +27,6 @@ function buildMeshcoreUrlForLog(settings: MQTTSettings): string {
 
 /** Time allowed for TCP/TLS/WebSocket + MQTT CONNACK (slow networks, captive portals). */
 const MESHCORE_MQTT_CONNECT_ACK_MS = 30_000;
-/** Time allowed for SUBACK after CONNACK (broker ACL or load). */
-const MESHCORE_MQTT_SUBSCRIBE_MS = 30_000;
 
 export class MeshcoreMqttAdapter extends EventEmitter {
   private client: mqtt.MqttClient | null = null;
@@ -36,9 +34,10 @@ export class MeshcoreMqttAdapter extends EventEmitter {
   private clientIdStr = '';
   private lastSettings: MQTTSettings | null = null;
   private connectAckTimer: ReturnType<typeof setTimeout> | null = null;
-  private subscribeTimer: ReturnType<typeof setTimeout> | null = null;
   /** True when a watchdog tore the client down — suppress noisy subscribe(err) after. */
   private connectAbortByWatchdog = false;
+  /** One-shot: log first inbound MQTT message for broker delivery diagnostics. */
+  private firstMessageLogged = false;
 
   getStatus(): MQTTStatus {
     return this.status;
@@ -52,10 +51,6 @@ export class MeshcoreMqttAdapter extends EventEmitter {
     if (this.connectAckTimer) {
       clearTimeout(this.connectAckTimer);
       this.connectAckTimer = null;
-    }
-    if (this.subscribeTimer) {
-      clearTimeout(this.subscribeTimer);
-      this.subscribeTimer = null;
     }
   }
 
@@ -127,6 +122,7 @@ export class MeshcoreMqttAdapter extends EventEmitter {
       'tlsInsecure:',
       settings.tlsInsecure === true,
     );
+    this.firstMessageLogged = false;
     this.setStatus('connecting');
     this.connectAbortByWatchdog = false;
     this.client = mqtt.connect(connectOpts);
@@ -151,47 +147,34 @@ export class MeshcoreMqttAdapter extends EventEmitter {
         clearTimeout(this.connectAckTimer);
         this.connectAckTimer = null;
       }
-      console.debug('[MeshcoreMqttAdapter] MQTT session established, subscribing…');
+      console.debug('[MeshcoreMqttAdapter] CONNACK received', new Date().toISOString());
       this.clientIdStr = (this.client?.options.clientId as string) || '';
+      this.setStatus('connected');
+      this.emit('clientId', this.clientIdStr);
       const base = normalizePrefix(settings.topicPrefix || 'msh');
       const subTopic = `${base}/#`;
-      this.subscribeTimer = setTimeout(() => {
-        this.subscribeTimer = null;
-        if (this.status !== 'connecting' || !this.client) return;
-        this.connectAbortByWatchdog = true;
-        const msg = `MeshCore MQTT: MQTT session OK but subscribe did not complete within ${MESHCORE_MQTT_SUBSCRIBE_MS / 1000}s (no SUBACK). Check topic prefix and broker ACL.`;
-        console.error('[MeshcoreMqttAdapter]', sanitizeLogMessage(msg));
-        this.emit('error', msg);
-        try {
-          this.client.removeAllListeners();
-          this.client.end(true);
-        } catch {
-          // catch-no-log-ok forced end during stuck subscribe
-        }
-        this.client = null;
-        this.setStatus('disconnected');
-      }, MESHCORE_MQTT_SUBSCRIBE_MS);
       this.client!.subscribe(subTopic, (err) => {
-        if (this.subscribeTimer) {
-          clearTimeout(this.subscribeTimer);
-          this.subscribeTimer = null;
-        }
         if (err) {
           if (this.connectAbortByWatchdog) {
             this.connectAbortByWatchdog = false;
             return;
           }
-          console.error('[MeshcoreMqttAdapter] subscribe failed', sanitizeLogMessage(err.message));
-          this.setStatus('error');
-          this.emit('error', `Subscribe failed: ${err.message}`);
+          const detail = `Subscribe to ${subTopic} failed: ${err.message}`;
+          console.warn('[MeshcoreMqttAdapter] subscribe warning', sanitizeLogMessage(detail));
+          this.emit('subscribeWarning', detail);
           return;
         }
-        console.debug('[MeshcoreMqttAdapter] subscribed', sanitizeLogMessage(subTopic));
-        this.setStatus('connected');
-        this.emit('clientId', this.clientIdStr);
+        console.debug('[MeshcoreMqttAdapter] subscribe callback OK', sanitizeLogMessage(subTopic));
       });
     });
     this.client.on('message', (topic, payload) => {
+      if (!this.firstMessageLogged) {
+        this.firstMessageLogged = true;
+        console.debug(
+          '[MeshcoreMqttAdapter] first message received on topic',
+          sanitizeLogMessage(topic),
+        );
+      }
       const buf = payload instanceof Buffer ? payload : Buffer.from(payload);
       let text = '';
       try {

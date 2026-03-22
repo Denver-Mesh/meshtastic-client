@@ -1087,6 +1087,11 @@ meshcoreMqttAdapter.on('clientId', (id) => {
     mainWindow.webContents.send('mqtt:clientId', { clientId: id, protocol: 'meshcore' });
   else console.debug('[main] mqtt:clientId (meshcore) dropped (mainWindow not ready)', id);
 });
+meshcoreMqttAdapter.on('subscribeWarning', (msg) => {
+  if (mainWindow)
+    mainWindow.webContents.send('mqtt:warning', { warning: msg, protocol: 'meshcore' });
+  else console.debug('[main] mqtt:warning (meshcore) dropped (mainWindow not ready)', msg);
+});
 meshcoreMqttAdapter.on('chatMessage', (m) => {
   if (mainWindow) mainWindow.webContents.send('mqtt:meshcore-chat', m);
   else console.debug('[main] mqtt:meshcore-chat dropped (mainWindow not ready)');

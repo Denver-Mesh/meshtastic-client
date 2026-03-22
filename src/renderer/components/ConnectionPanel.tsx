@@ -362,6 +362,7 @@ export default function ConnectionPanel({
     useState<MQTTSettings>(loadMeshcoreMqttSettings);
   const [showMqttPassword, setShowMqttPassword] = useState(false);
   const [mqttError, setMqttError] = useState<string | null>(null);
+  const [mqttWarning, setMqttWarning] = useState<string | null>(null);
   const [mqttClientId, setMqttClientId] = useState('');
   const mqttSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const meshcoreMqttSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -413,6 +414,12 @@ export default function ConnectionPanel({
     });
   }, [protocol]);
   useEffect(() => {
+    return window.electronAPI.mqtt.onWarning(({ warning, protocol: mqttProtocol }) => {
+      if (mqttProtocol !== protocol) return;
+      setMqttWarning(protocol === 'meshcore' ? meshcoreMqttUserFacingHint(warning) : warning);
+    });
+  }, [protocol]);
+  useEffect(() => {
     // Restore clientId if already connected when this component mounts (e.g. after tab switch)
     window.electronAPI.mqtt
       .getClientId(protocol)
@@ -431,7 +438,11 @@ export default function ConnectionPanel({
   // Clear MQTT error on successful connect; leave it visible on disconnect so the user can read it.
   useEffect(() => {
     if (mqttStatus === 'connected') setMqttError(null);
-    if (mqttStatus === 'disconnected') setMqttClientId('');
+    if (mqttStatus === 'disconnected') {
+      setMqttClientId('');
+      setMqttWarning(null);
+    }
+    if (mqttStatus === 'connecting') setMqttWarning(null);
   }, [mqttStatus]);
 
   // Keep LetsMesh MQTT username in sync with imported MeshCore identity (v1_<64-hex public key>).
@@ -1074,6 +1085,11 @@ export default function ConnectionPanel({
     mqttStatus === 'connected' ? (
       <div className={`bg-deep-black rounded-lg border border-brand-green/20 overflow-hidden`}>
         {mqttHeaderBar}
+        {mqttWarning && (
+          <div className="px-4 py-2 bg-amber-900/40 border-b border-amber-800/60 text-amber-200 text-xs">
+            {mqttWarning}
+          </div>
+        )}
         <div className="p-4 space-y-3">
           <div className="flex justify-between text-sm">
             <span className="text-muted">Server</span>

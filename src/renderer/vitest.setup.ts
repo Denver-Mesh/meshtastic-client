@@ -87,6 +87,7 @@ const electronAPIMock = {
     disconnect: vi.fn().mockResolvedValue(undefined),
     onStatus: vi.fn().mockReturnValue(() => {}),
     onError: vi.fn().mockReturnValue(() => {}),
+    onWarning: vi.fn().mockReturnValue(() => {}),
     onNodeUpdate: vi.fn().mockReturnValue(() => {}),
     onMessage: vi.fn().mockReturnValue(() => {}),
     onClientId: vi.fn().mockReturnValue(() => {}),

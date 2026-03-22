@@ -152,6 +152,9 @@ export interface ElectronAPI {
     onError: (
       cb: (payload: { error: string; protocol: 'meshtastic' | 'meshcore' }) => void,
     ) => () => void;
+    onWarning: (
+      cb: (payload: { warning: string; protocol: 'meshtastic' | 'meshcore' }) => void,
+    ) => () => void;
     onNodeUpdate: (cb: (node: unknown) => void) => () => void;
     onMessage: (cb: (msg: unknown) => void) => () => void;
     onClientId: (

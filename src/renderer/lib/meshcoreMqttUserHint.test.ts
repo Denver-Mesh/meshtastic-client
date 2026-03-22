@@ -23,6 +23,12 @@ describe('meshcoreMqttUserFacingHint', () => {
     expect(out).toContain('CONNACK');
   });
 
+  it('appends subscribe hint for Subscribe to … failed', () => {
+    const out = meshcoreMqttUserFacingHint('Subscribe to msh/# failed: denied');
+    expect(out).toContain('wildcard subscribe');
+    expect(out).toContain('Subscribe to msh/# failed');
+  });
+
   it('passes through unrelated messages unchanged', () => {
     expect(meshcoreMqttUserFacingHint('Something else')).toBe('Something else');
   });

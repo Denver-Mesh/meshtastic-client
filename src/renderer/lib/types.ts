@@ -384,6 +384,9 @@ declare global {
         onError: (
           cb: (payload: { error: string; protocol: 'meshtastic' | 'meshcore' }) => void,
         ) => () => void;
+        onWarning: (
+          cb: (payload: { warning: string; protocol: 'meshtastic' | 'meshcore' }) => void,
+        ) => () => void;
         onNodeUpdate: (cb: (node: Partial<MeshNode> & { node_id: number }) => void) => () => void;
         onMessage: (cb: (msg: Omit<ChatMessage, 'id'>) => void) => () => void;
         onClientId: (

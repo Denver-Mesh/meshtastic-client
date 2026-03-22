@@ -144,6 +144,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.on('mqtt:error', handler);
       return () => ipcRenderer.off('mqtt:error', handler);
     },
+    onWarning: (
+      cb: (payload: { warning: string; protocol: 'meshtastic' | 'meshcore' }) => void,
+    ) => {
+      const handler = (
+        _: unknown,
+        payload: { warning: string; protocol: 'meshtastic' | 'meshcore' },
+      ) => cb(payload);
+      ipcRenderer.on('mqtt:warning', handler);
+      return () => ipcRenderer.off('mqtt:warning', handler);
+    },
     onNodeUpdate: (cb: (node: unknown) => void) => {
       const handler = (_: unknown, n: unknown) => cb(n);
       ipcRenderer.on('mqtt:node-update', handler);

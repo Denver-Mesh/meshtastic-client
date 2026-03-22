@@ -18,7 +18,7 @@ That aligns with common tooling such as [meshcoretomqtt](https://github.com/Cisi
 When investigating failures, use the **main process** log (not only the UI):
 
 - **`[MeshcoreMqttAdapter] client error`** with “Not authorized” (or similar) **before** a phase timeout usually indicates **rejected credentials or JWT** (signature, expiry, or `aud`).
-- **`no CONNACK`** (connect phase) or **`no SUBACK`** (subscribe phase) with **no** preceding client error often points to **transport** or **broker ACL/topic** respectively (TLS/WebSocket stall, DNS, firewall vs topic prefix).
+- **`no CONNACK`** (connect phase) with **no** preceding client error often points to **transport** (TLS/WebSocket stall, DNS, firewall). After CONNACK, subscribe is **non-blocking**: a **subscribe warning** in the UI (amber) means the broker reported a subscribe failure or the client could not confirm subscribe; the session may still deliver traffic depending on broker behavior and ACLs.
 
 Meshtastic MQTT working on the same machine does not guarantee MeshCore LetsMesh will (different code path and broker), but it helps rule out total network outage.
 
