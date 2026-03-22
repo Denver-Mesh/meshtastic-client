@@ -84,7 +84,7 @@ The official Meshtastic apps cover the basics, but desktop power users need more
 - **Bluetooth LE** — pair wirelessly; auto-reconnects on startup with no user gesture required (noble native BLE via BlueZ/CoreBluetooth/WinRT); last device name persists across sessions
 - **USB Serial** — plug in via USB; auto-reconnects silently on startup (saved port signature matches the same physical device across re-enumeration)
 - **WiFi / HTTP / TCP** — connect to network-enabled nodes; saves last address for quick reconnect
-- Protocol toggle in the Connection tab (**Meshtastic / MeshCore**); each protocol remembers its own last connection and reconnects independently; the active protocol is shown as a badge in the header
+- **Dual-mode** — both Meshtastic and MeshCore run simultaneously; use the protocol switcher pill in the header to switch which view is active (the inactive protocol stays connected in the background); per-protocol unread badges (Meshtastic = green, MeshCore = cyan); passive toast notifications when the inactive protocol receives messages
 
 **Chat**
 
@@ -114,7 +114,7 @@ The official Meshtastic apps cover the basics, but desktop power users need more
 **Productivity**
 
 - **Log panel** (right rail) — live app log stream, optional debug toggle, export or delete the log file
-- Full keyboard navigation — press `?` for shortcut reference; `Cmd/Ctrl+1–8` switches tabs; `Cmd/Ctrl+F` opens **chat search** across all channels (optional `user:name` and `channel:name` filters)
+- Full keyboard navigation — press `?` for shortcut reference; `Cmd/Ctrl+1–8` switches tabs; `Cmd/Ctrl+[` switches to Meshtastic; `Cmd/Ctrl+]` switches to MeshCore; `Cmd/Ctrl+F` opens **chat search** across all channels (optional `user:name` and `channel:name` filters)
 - **Update notifications** — checks for new releases on startup (toggleable in App tab); shows "You're up to date" confirmation on manual check; dismissed versions are remembered across restarts; "Check for Updates…" in the macOS app menu; Windows/Linux download and install in-app, macOS opens the release page
 - System tray with live unread badge; app stays accessible when window is closed
 - Persistent SQLite storage; DB export/import/clear in the App tab; Clear GPS Data and Reset Diagnostics without a full DB wipe
@@ -123,7 +123,7 @@ The official Meshtastic apps cover the basics, but desktop power users need more
 
 ### MeshCore Features
 
-MeshCore support is available alongside Meshtastic — switch protocols in the Connection tab. When MeshCore is active, the sixth tab is **Repeaters** (instead of Modules); all other tabs, including Network Diagnostics, are available.
+MeshCore runs simultaneously alongside Meshtastic. Use the protocol switcher pill in the header to bring MeshCore into view — the Meshtastic session stays connected in the background. When viewing MeshCore, the sixth tab is **Repeaters** (instead of Modules); all other tabs, including Network Diagnostics, are available.
 
 **Contacts & Discovery**
 
@@ -373,7 +373,7 @@ If serial isn't detected, install the correct USB drivers for your device (CP210
 
 ### Choosing a Protocol
 
-The **Connection** tab shows a **Meshtastic / MeshCore** toggle at the top. Select the protocol that matches your device firmware before connecting. Each protocol stores its own last-connection and reconnects independently. Switching protocols disconnects the current session.
+Both protocols run at the same time. Use the **Meshtastic / MeshCore** switcher pill in the header to bring the desired protocol's view into focus — the other session remains connected in the background. Each protocol stores its own last-connection and auto-reconnects independently on startup.
 
 ### Connecting Your Device
 
