@@ -1763,7 +1763,7 @@ ipcMain.handle('db:getMeshcoreMessages', (_event, channelIdx?: number, limit = 2
 
 ipcMain.handle('db:searchMessages', (_event, query: string, limit?: number) => {
   try {
-    if (typeof query !== 'string') return [];
+    if (typeof query !== 'string' || query.length > 500) return [];
     return searchMessages(query, Math.min(limit ?? 50, 200));
   } catch (err) {
     console.error(
@@ -1776,7 +1776,7 @@ ipcMain.handle('db:searchMessages', (_event, query: string, limit?: number) => {
 
 ipcMain.handle('db:searchMeshcoreMessages', (_event, query: string, limit?: number) => {
   try {
-    if (typeof query !== 'string') return [];
+    if (typeof query !== 'string' || query.length > 500) return [];
     return searchMeshcoreMessages(query, Math.min(limit ?? 50, 200));
   } catch (err) {
     console.error(

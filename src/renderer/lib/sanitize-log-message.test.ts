@@ -84,3 +84,25 @@ describe('silent-catch check (main process + renderer)', () => {
     });
   });
 });
+
+describe('console-log check (main process + renderer)', () => {
+  it('no bare console.log() calls — use console.debug/warn/error instead', () => {
+    const projectRoot = path.resolve(import.meta.dirname ?? __dirname, '..', '..', '..');
+    execFileSync('node', [path.join(projectRoot, 'scripts', 'check-console-log.mjs')], {
+      encoding: 'utf8',
+      stdio: 'pipe',
+      cwd: projectRoot,
+    });
+  });
+});
+
+describe('xss-patterns check (all source)', () => {
+  it('no XSS-risk patterns in source files', () => {
+    const projectRoot = path.resolve(import.meta.dirname ?? __dirname, '..', '..', '..');
+    execFileSync('node', [path.join(projectRoot, 'scripts', 'check-xss-patterns.mjs')], {
+      encoding: 'utf8',
+      stdio: 'pipe',
+      cwd: projectRoot,
+    });
+  });
+});

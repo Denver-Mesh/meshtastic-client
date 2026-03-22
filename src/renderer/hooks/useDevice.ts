@@ -1636,7 +1636,7 @@ export function useDevice() {
       device.configure();
 
       // Success
-      console.log(`[useDevice] Reconnect succeeded on attempt ${reconnectAttemptRef.current}`);
+      console.debug(`[useDevice] Reconnect succeeded on attempt ${reconnectAttemptRef.current}`);
       reconnectAttemptRef.current = 0;
       isReconnectingRef.current = false;
     } catch (err) {
@@ -2022,7 +2022,7 @@ export function useDevice() {
   const deleteNode = useCallback(
     async (nodeId: number) => {
       await window.electronAPI.db.deleteNode(nodeId);
-      console.log(
+      console.debug(
         `[useDevice] deleteNode: removed 0x${nodeId.toString(16).toUpperCase()} from memory`,
       );
       updateNodes((prev) => {
@@ -2046,7 +2046,7 @@ export function useDevice() {
             favorited: Boolean(n.favorited),
           });
         }
-        console.log(`[useDevice] refreshNodesFromDb: loaded ${nodeMap.size} nodes`);
+        console.debug(`[useDevice] refreshNodesFromDb: loaded ${nodeMap.size} nodes`);
         nodesRef.current = nodeMap;
         setNodes(nodeMap);
       })
@@ -2059,7 +2059,7 @@ export function useDevice() {
     window.electronAPI.db
       .getMessages(undefined, getMessageLoadLimit())
       .then((msgs) => {
-        console.log(`[useDevice] refreshMessagesFromDb: loaded ${msgs.length} messages`);
+        console.debug(`[useDevice] refreshMessagesFromDb: loaded ${msgs.length} messages`);
         setMessages(msgs.reverse());
       })
       .catch((err) => {

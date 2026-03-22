@@ -811,7 +811,7 @@ export function useMeshCore() {
           lastAdvert: number;
         };
         const nodeId = pubkeyToNodeId(d.publicKey);
-        console.log('[useMeshCore] event 128: advert from', nodeId.toString(16).toUpperCase());
+        console.debug('[useMeshCore] event 128: advert from', nodeId.toString(16).toUpperCase());
         setNodes((prev) => {
           const existing = prev.get(nodeId);
           if (!existing) return prev;
@@ -852,7 +852,7 @@ export function useMeshCore() {
       conn.on(129, (data: unknown) => {
         const d = data as { publicKey: Uint8Array };
         const nodeId = pubkeyToNodeId(d.publicKey);
-        console.log('[useMeshCore] event 129: path update', nodeId.toString(16).toUpperCase());
+        console.debug('[useMeshCore] event 129: path update', nodeId.toString(16).toUpperCase());
         setNodes((prev) => {
           const existing = prev.get(nodeId);
           if (!existing) return prev;
@@ -892,7 +892,7 @@ export function useMeshCore() {
         const nodeWithNick = nick
           ? { ...node, long_name: nick, short_name: nick.slice(0, 4) }
           : node;
-        console.log(
+        console.debug(
           '[useMeshCore] event 138: new contact',
           node.node_id.toString(16).toUpperCase(),
         );
@@ -982,7 +982,7 @@ export function useMeshCore() {
                 });
               }
             }
-            console.log(
+            console.debug(
               '[useMeshCore] event 131: message waiting, fetched',
               arr.length,
               'messages',
@@ -1010,7 +1010,7 @@ export function useMeshCore() {
             return next;
           });
         }
-        console.log('[useMeshCore] event 7: DM from', senderId.toString(16).toUpperCase());
+        console.debug('[useMeshCore] event 7: DM from', senderId.toString(16).toUpperCase());
         if (isMeshcoreTransportStatusChatLine(d.text)) {
           logTransportLineAsDevice(d.text);
           return;
@@ -1035,7 +1035,7 @@ export function useMeshCore() {
           return;
         }
         const normalized = normalizeMeshcoreIncomingText(d.text);
-        console.log('[useMeshCore] event 8: channel msg idx=', d.channelIdx);
+        console.debug('[useMeshCore] event 8: channel msg idx=', d.channelIdx);
         const displayName = normalized.senderName ?? 'Unknown';
         const stubId = meshcoreChatStubNodeIdFromDisplayName(displayName);
         setNodes((prev) => {
@@ -1179,7 +1179,7 @@ export function useMeshCore() {
             return next;
           });
           setMessages((prev) => mergeMeshcoreDbHydrationWithLive(prev, mapped));
-          console.log('[useMeshCore] initConn: loaded', mapped.length, 'messages from DB');
+          console.debug('[useMeshCore] initConn: loaded', mapped.length, 'messages from DB');
         }
       } catch (e) {
         console.warn('[useMeshCore] loadMessagesFromDb error', e);
@@ -1187,7 +1187,7 @@ export function useMeshCore() {
 
       // Fetch self info, contacts, channels (sequential — device handles one request at a time)
       const info = await conn.getSelfInfo(5000);
-      console.log(
+      console.debug(
         `[useMeshCore] selfInfo: radioFreq=${info.radioFreq} radioBw=${info.radioBw} radioSf=${info.radioSf} radioCr=${info.radioCr} txPower=${info.txPower}`,
       );
       setSelfInfo(info);
@@ -1200,13 +1200,13 @@ export function useMeshCore() {
       const contacts = await withTimeout(conn.getContacts(), 10_000, 'getContacts');
       const newNodes = await buildNodesFromContacts(contacts, { self: info, myNodeId });
       setNodes((prev) => mergeMeshcoreChatStubNodes(prev, newNodes));
-      console.log('[useMeshCore] initConn: contacts loaded, device=', contacts.length);
+      console.debug('[useMeshCore] initConn: contacts loaded, device=', contacts.length);
 
       const rawChannels = await withTimeout(conn.getChannels(), 10_000, 'getChannels');
       setChannels(
         rawChannels.map((c) => ({ index: c.channelIdx, name: c.name, secret: c.secret })),
       );
-      console.log('[useMeshCore] initConn: channels=', rawChannels.length);
+      console.debug('[useMeshCore] initConn: channels=', rawChannels.length);
 
       // Post-init side-effects — run sequentially to avoid shared Ok/Err listener races
       // with user-initiated commands (e.g. config import right after connect).
@@ -1258,13 +1258,13 @@ export function useMeshCore() {
           if (!blePeripheralId) {
             throw new Error('BLE peripheral ID required');
           }
-          console.log('[useMeshCore] connect: BLE via Noble IPC opening...');
+          console.debug('[useMeshCore] connect: BLE via Noble IPC opening...');
           const nobleConn = new IpcNobleConnection(blePeripheralId, 'meshcore');
           ipcNobleRef.current = nobleConn;
           await nobleConn.connect();
           conn = nobleConn.connection as unknown as MeshCoreConnection;
         } else if (type === 'serial') {
-          console.log('[useMeshCore] connect: serial requesting port...');
+          console.debug('[useMeshCore] connect: serial requesting port...');
           if (!navigator.serial?.requestPort) throw new Error('Web Serial API not available');
           const port = await navigator.serial.requestPort();
           persistSerialPortIdentity(port as SerialPort);
@@ -1275,7 +1275,7 @@ export function useMeshCore() {
         } else {
           // tcp
           const host = tcpHost ?? 'localhost';
-          console.log('[useMeshCore] connect: TCP to', host);
+          console.debug('[useMeshCore] connect: TCP to', host);
           const tcpConn = new IpcTcpConnection(host, 4403);
           ipcTcpRef.current = tcpConn;
           await tcpConn.connect();
@@ -1283,7 +1283,7 @@ export function useMeshCore() {
         }
 
         await initConn(conn);
-        console.log('[useMeshCore] connect: handshake complete, type=', type);
+        console.debug('[useMeshCore] connect: handshake complete, type=', type);
       } catch (err) {
         const rawMessage =
           err instanceof Error
@@ -1346,7 +1346,7 @@ export function useMeshCore() {
             port: unknown,
           ) => MeshCoreConnection)(port);
           await initConn(conn);
-          console.log('[useMeshCore] connectAutomatic serial: connected');
+          console.debug('[useMeshCore] connectAutomatic serial: connected');
         } catch (err) {
           console.error('[useMeshCore] connectAutomatic serial error', err);
           setState({ status: 'disconnected', myNodeNum: 0, connectionType: null });
@@ -1361,7 +1361,7 @@ export function useMeshCore() {
   );
 
   const disconnect = useCallback(async () => {
-    console.log('[useMeshCore] disconnect');
+    console.debug('[useMeshCore] disconnect');
     // Cancel all pending ACK timers
     for (const { timeoutId } of pendingAcksRef.current.values()) {
       clearTimeout(timeoutId);
@@ -1394,7 +1394,7 @@ export function useMeshCore() {
     setMeshcoreNeighbors(new Map());
     setEnvironmentTelemetry([]);
     setState(INITIAL_STATE);
-    console.log('[useMeshCore] disconnect: complete');
+    console.debug('[useMeshCore] disconnect: complete');
   }, []);
 
   const sendMessage = useCallback(
@@ -1547,7 +1547,7 @@ export function useMeshCore() {
         myNodeId: myNodeNumRef.current,
       });
       setNodes((prev) => mergeMeshcoreChatStubNodes(prev, newNodes));
-      console.log('[useMeshCore] refreshContacts: loaded', contacts.length);
+      console.debug('[useMeshCore] refreshContacts: loaded', contacts.length);
     } catch (e) {
       console.error('[useMeshCore] refreshContacts error', e);
     }
@@ -1555,13 +1555,13 @@ export function useMeshCore() {
 
   const sendAdvert = useCallback(async () => {
     if (!connRef.current) return;
-    console.log('[useMeshCore] sendAdvert');
+    console.debug('[useMeshCore] sendAdvert');
     await connRef.current.sendFloodAdvert();
   }, []);
 
   const syncClock = useCallback(async () => {
     if (!connRef.current) return;
-    console.log('[useMeshCore] syncClock');
+    console.debug('[useMeshCore] syncClock');
     await connRef.current.syncDeviceTime();
   }, []);
 
@@ -1578,7 +1578,7 @@ export function useMeshCore() {
   const deleteNode = useCallback(async (nodeId: number) => {
     const pubKey = pubKeyMapRef.current.get(nodeId);
     if (!pubKey || !connRef.current) return;
-    console.log('[useMeshCore] deleteNode:', nodeId.toString(16).toUpperCase());
+    console.debug('[useMeshCore] deleteNode:', nodeId.toString(16).toUpperCase());
     try {
       await connRef.current.removeContact(pubKey);
     } catch (e) {
@@ -1617,7 +1617,7 @@ export function useMeshCore() {
 
   const setOwner = useCallback(
     async (owner: { longName: string; shortName: string; isLicensed: boolean }) => {
-      console.log(
+      console.debug(
         '[useMeshCore] setOwner called, connRef.current:',
         !!connRef.current,
         'name:',
@@ -1629,7 +1629,7 @@ export function useMeshCore() {
       }
       try {
         await connRef.current.setAdvertName(owner.longName);
-        console.log('[useMeshCore] setAdvertName succeeded');
+        console.debug('[useMeshCore] setAdvertName succeeded');
       } catch (e) {
         console.error('[useMeshCore] setAdvertName threw:', e);
         throw e;
@@ -1641,7 +1641,7 @@ export function useMeshCore() {
 
   const setRadioParams = useCallback(
     async (p: { freq: number; bw: number; sf: number; cr: number; txPower: number }) => {
-      console.log(
+      console.debug(
         `[useMeshCore] setRadioParams called, connRef=${!!connRef.current} freq=${p.freq} bw=${p.bw} sf=${p.sf} cr=${p.cr} txPower=${p.txPower}`,
       );
       if (!connRef.current) {
@@ -1652,7 +1652,7 @@ export function useMeshCore() {
         // MeshCore protocol: freq as UInt32 in kHz (910525 = 910.525 MHz), bw in Hz.
         const freqKhz = Math.round(p.freq / 1000);
         await connRef.current.setRadioParams(freqKhz, p.bw, p.sf, p.cr);
-        console.log('[useMeshCore] setRadioParams succeeded');
+        console.debug('[useMeshCore] setRadioParams succeeded');
       } catch (e) {
         console.error('[useMeshCore] setRadioParams threw:', e);
         const err =
@@ -1665,7 +1665,7 @@ export function useMeshCore() {
       }
       try {
         await connRef.current.setTxPower(p.txPower);
-        console.log('[useMeshCore] setTxPower succeeded');
+        console.debug('[useMeshCore] setTxPower succeeded');
       } catch (e) {
         console.error('[useMeshCore] setTxPower threw:', e);
         const err =
@@ -1748,7 +1748,7 @@ export function useMeshCore() {
   const traceRoute = useCallback(async (nodeId: number) => {
     const pubKey = pubKeyMapRef.current.get(nodeId);
     if (!pubKey || !connRef.current) return;
-    console.log('[useMeshCore] traceRoute nodeId=', nodeId.toString(16).toUpperCase());
+    console.debug('[useMeshCore] traceRoute nodeId=', nodeId.toString(16).toUpperCase());
     try {
       const result = await connRef.current.tracePath([pubKey]);
       // pathSnrs are signed bytes in 0.25dB units
@@ -1762,7 +1762,7 @@ export function useMeshCore() {
         return next;
       });
       useRepeaterSignalStore.getState().recordSignal(nodeId, result.lastSnr * 0.25);
-      console.log(
+      console.debug(
         '[useMeshCore] traceRoute result: hops=',
         hops.length,
         'lastSnr=',
@@ -1776,7 +1776,7 @@ export function useMeshCore() {
   const requestRepeaterStatus = useCallback(async (nodeId: number) => {
     const pubKey = pubKeyMapRef.current.get(nodeId);
     if (!pubKey || !connRef.current) return;
-    console.log('[useMeshCore] requestRepeaterStatus nodeId=', nodeId.toString(16).toUpperCase());
+    console.debug('[useMeshCore] requestRepeaterStatus nodeId=', nodeId.toString(16).toUpperCase());
     try {
       const raw = await connRef.current.getStatus(pubKey);
       const status: MeshCoreRepeaterStatus = {
@@ -1811,7 +1811,7 @@ export function useMeshCore() {
   const requestTelemetry = useCallback(async (nodeId: number) => {
     const pubKey = pubKeyMapRef.current.get(nodeId);
     if (!pubKey || !connRef.current) return;
-    console.log('[useMeshCore] requestTelemetry nodeId=', nodeId.toString(16).toUpperCase());
+    console.debug('[useMeshCore] requestTelemetry nodeId=', nodeId.toString(16).toUpperCase());
     try {
       const raw = await connRef.current.getTelemetry(pubKey);
       const entries = CayenneLpp.parse(raw.lppSensorData) as CayenneLppEntry[];
@@ -1858,7 +1858,7 @@ export function useMeshCore() {
         };
         setEnvironmentTelemetry((prev) => [...prev, pt].slice(-MAX_ENV_TELEMETRY_POINTS));
       }
-      console.log('[useMeshCore] requestTelemetry result:', result);
+      console.debug('[useMeshCore] requestTelemetry result:', result);
     } catch (e) {
       console.warn('[useMeshCore] requestTelemetry error', e);
     }
@@ -1867,7 +1867,7 @@ export function useMeshCore() {
   const requestNeighbors = useCallback(async (nodeId: number) => {
     const pubKey = pubKeyMapRef.current.get(nodeId);
     if (!pubKey || !connRef.current) return;
-    console.log('[useMeshCore] requestNeighbors nodeId=', nodeId.toString(16).toUpperCase());
+    console.debug('[useMeshCore] requestNeighbors nodeId=', nodeId.toString(16).toUpperCase());
     try {
       const raw = await connRef.current.getNeighbours(pubKey, 10, 0, 0, 6);
       const neighbours: MeshCoreNeighborEntry[] = raw.neighbours.map((nb) => {
@@ -1893,7 +1893,7 @@ export function useMeshCore() {
         next.set(nodeId, result);
         return next;
       });
-      console.log(
+      console.debug(
         '[useMeshCore] requestNeighbors result: total=',
         raw.totalNeighboursCount,
         'fetched=',
@@ -1953,10 +1953,10 @@ export function useMeshCore() {
   }> => {
     const raw = await window.electronAPI.meshcore.openJsonFile();
     if (raw == null) {
-      console.log('[useMeshCore] importRepeaters: file picker cancelled');
+      console.debug('[useMeshCore] importRepeaters: file picker cancelled');
       return { imported: 0, skipped: 0, errors: [] };
     }
-    console.log('[useMeshCore] importRepeaters: file opened, length=', raw.length);
+    console.debug('[useMeshCore] importRepeaters: file opened, length=', raw.length);
 
     let parsed: unknown[];
     try {
@@ -1968,7 +1968,7 @@ export function useMeshCore() {
         const arrays = Object.values(val as Record<string, unknown>).filter(Array.isArray);
         if (arrays.length === 0) throw new Error('JSON contains no array of entries');
         parsed = arrays[0] as unknown[];
-        console.log(
+        console.debug(
           '[useMeshCore] importRepeaters: found array under object key, length=',
           parsed.length,
         );
@@ -1979,7 +1979,7 @@ export function useMeshCore() {
       console.warn('[useMeshCore] importRepeaters: parse error', e);
       return { imported: 0, skipped: 0, errors: [e instanceof Error ? e.message : String(e)] };
     }
-    console.log('[useMeshCore] importRepeaters: parsed', parsed.length, 'entries');
+    console.debug('[useMeshCore] importRepeaters: parsed', parsed.length, 'entries');
 
     function parsePublicKey(rawKey: string): Uint8Array | null {
       const s = rawKey.trim().replace(/-/g, '+').replace(/_/g, '/');
@@ -2038,7 +2038,7 @@ export function useMeshCore() {
       const longitude = parseCoord(
         rec.longitude ?? rec.lon ?? rec.lng ?? rec.adv_lon ?? rec.advLon,
       );
-      console.log(
+      console.debug(
         '[useMeshCore] importRepeaters: valid entry',
         name,
         nodeId.toString(16).toUpperCase(),
@@ -2048,7 +2048,7 @@ export function useMeshCore() {
       validEntries.push({ nodeId, name, pubKey, latitude, longitude });
     }
 
-    console.log(
+    console.debug(
       '[useMeshCore] importRepeaters: imported=',
       validEntries.length,
       'skipped=',

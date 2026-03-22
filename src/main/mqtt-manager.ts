@@ -170,7 +170,7 @@ export class MQTTManager extends EventEmitter {
         } else {
           // Only reset retry count after a fully stable connection + subscribe
           this.retryCount = 0;
-          console.log('[MQTT] Subscribed to', topic);
+          console.debug('[MQTT] Subscribed to', topic);
         }
       });
     });

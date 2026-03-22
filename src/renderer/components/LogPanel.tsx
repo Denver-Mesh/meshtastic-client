@@ -190,7 +190,7 @@ export default function LogPanel({
     try {
       const path = await window.electronAPI.log.export();
       if (path) {
-        console.log('[LogPanel] Log exported to', path);
+        console.debug('[LogPanel] Log exported to', path);
       }
     } catch (e) {
       console.error('[LogPanel] Log export failed', e);

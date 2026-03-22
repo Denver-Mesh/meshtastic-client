@@ -151,7 +151,7 @@ export async function getGpsFix(): Promise<GpsFixResult> {
 
   try {
     const fix = await getIpFix();
-    console.log(
+    console.debug(
       `[gps] ip fix: ${sanitizeLogMessage(String(fix.lat))}, ${sanitizeLogMessage(String(fix.lon))}`,
     );
     return fix;
