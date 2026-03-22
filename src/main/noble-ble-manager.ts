@@ -222,7 +222,18 @@ export class NobleBleManager extends EventEmitter {
     // Clear known peripherals so every device is re-emitted as discovered on each new scan.
     // Without this, devices found in a previous scan are never re-emitted (isNew = false),
     // so the picker stays empty on second and subsequent scan attempts.
+    // Preserve peripherals already connected in noble — they won't re-advertise during a
+    // scan, so keep them available for connect() and re-emit for auto-connect / picker.
+    const stillConnected: [string, any][] = [];
+    for (const [id, peripheral] of this.knownPeripherals.entries()) {
+      if (peripheral.state === 'connected') stillConnected.push([id, peripheral]);
+    }
     this.knownPeripherals.clear();
+    for (const [id, peripheral] of stillConnected) {
+      this.knownPeripherals.set(id, peripheral);
+      const name: string = peripheral.advertisement?.localName || peripheral.address || id;
+      this.emit('deviceDiscovered', { deviceId: id, deviceName: name } as NobleBleDevice);
+    }
     this.scanRequesters.add(sessionId);
     if (!this.adapterReady) throw new Error('Bluetooth adapter is not powered on');
     await this.doStartScanning();
