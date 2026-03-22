@@ -57,7 +57,7 @@ export default function UpdateBanner({
 }: Props) {
   useEffect(() => {
     if (updateState.phase !== 'up-to-date') return;
-    const t = setTimeout(() => onDismiss(), 3000);
+    const t = setTimeout(() => onDismiss(), 1500);
     return () => clearTimeout(t);
   }, [updateState.phase, onDismiss]);
 
