@@ -375,6 +375,16 @@ export class NobleBleManager extends EventEmitter {
       peripheral.once('disconnect', onDisconnected);
       session.connectedPeripheralDisconnectHandler = onDisconnected;
 
+      if (peripheral.state === 'connected') {
+        console.warn(
+          `[BLE:${sessionId}] peripheral already connected in noble — disconnecting before reconnect`,
+        );
+        try {
+          await withTimeout(peripheral.disconnectAsync(), 5000, 'BLE pre-connect disconnectAsync');
+        } catch (err) {
+          console.debug(`[BLE:${sessionId}] pre-connect disconnect error (ignored):`, err); // log-injection-ok noble internal error
+        }
+      }
       await withTimeout(peripheral.connectAsync(), 15000, 'BLE connectAsync');
       connected = true;
 
