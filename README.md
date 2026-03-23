@@ -10,7 +10,23 @@
 
 ## Why
 
-The official Meshtastic apps cover the basics, but desktop power users need more: persistent message history, mesh diagnostics, MQTT integration, and keyboard-driven workflows. Mesh-Client fills that gap — a full-featured desktop Meshtastic client built on Electron with a local SQLite database, routing diagnostics, and multi-transport connectivity. It also supports **MeshCore** firmware devices, giving you a single app for both mesh protocols.
+### Mesh-Client: The Universal Desktop Suite for Mesh Networks
+
+Reliable Desktop Power. Local Persistence. Total Insight.
+
+While official mobile apps cover the basics, desktop power users often face a fragmented ecosystem: limited app availability for MeshCore, inconsistent support across operating systems, and persistent sync issues on macOS. Mesh-Client fills those gaps with a high-performance, keyboard-driven desktop experience.
+
+With a dedicated local SQLite database, Mesh-Client keeps message history and mesh logs durable across restarts and sync failures. It provides one reliable hub for both Meshtastic and MeshCore firmware, delivering a unified workflow regardless of protocol or hardware.
+
+**Why Mesh-Client?**
+
+- **True message persistence:** Local SQLite storage for reliable long-term history, without lost chats or broken logs.
+- **Universal protocol support:** One consistent interface for both Meshtastic and MeshCore devices.
+- **Advanced mesh visibility:** Routing diagnostics and mesh health insight that mobile apps often skip.
+- **Desktop-first workflow:** Keyboard-driven navigation and MQTT integration for power users.
+- **Cross-platform stability:** A feature-rich experience across macOS, Linux, and Windows.
+
+From real-time diagnostics to permanent message archives, Mesh-Client delivers the desktop visibility serious mesh users require.
 
 **Known Bugs:**
 
