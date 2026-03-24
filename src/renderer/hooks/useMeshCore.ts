@@ -1385,6 +1385,16 @@ export function useMeshCore() {
         );
       }
 
+      // Close any existing connection before starting a new one.
+      // Without this, a spurious connect() call (e.g. BLE auto-connect racing with an
+      // already-established serial session) leaves the old serial port open, causing
+      // the next serialPort.open() to throw "The port is already open."
+      const staleConn = connRef.current;
+      connRef.current = null;
+      if (staleConn) {
+        void staleConn.close().catch(() => {});
+      }
+
       setState({
         status: 'connecting',
         myNodeNum: 0,
