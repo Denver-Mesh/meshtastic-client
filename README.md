@@ -764,13 +764,13 @@ npm start
 
 For compiled releases, the command depends on the package format:
 
-- **Extracted archives (`.tar.gz`, `.zip`, or `linux-unpacked`)**
+For extracted archives (`.tar.gz`, `.zip`, or `linux-unpacked`):
 
 ```bash
 sudo setcap cap_net_raw+eip /path/to/extracted/mesh-client
 ```
 
-- **Installed system packages (`.deb` / `.rpm`)**
+For installed system packages (`.deb` or `.rpm`):
 
 ```bash
 sudo setcap cap_net_raw+eip /opt/mesh-client/mesh-client
