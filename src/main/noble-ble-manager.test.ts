@@ -63,11 +63,12 @@ describe('NobleBleManager.connect — per-session UUID selection (regression)', 
 });
 
 /**
- * Regression guard: MeshCore NUS TX may advertise both read+notify on some stacks, but
- * protocol reads can fail at runtime. We should prefer notify delivery when available and
- * fall back to the read pump only if subscribe fails or notify is unavailable.
+ * Regression guard: MeshCore NUS TX may advertise both read+notify on some stacks.
+ * On macOS, notify delivery is reliable so the read pump is suppressed when notify is active.
+ * On Windows/Linux, noble may not deliver notify events even after subscribeAsync() succeeds,
+ * so the read pump always runs as a safety net regardless of fromRadioNotifyOnly.
  */
-describe('NobleBleManager — notify-only fromRadio read pump suppression (regression)', () => {
+describe('NobleBleManager — notify-first fromRadio read pump strategy (regression)', () => {
   it('declares fromRadioNotifyOnly in session state and initialises it to false', () => {
     expect(SOURCE).toContain('fromRadioNotifyOnly: boolean');
     // createSessionState must initialise the flag to false
@@ -81,9 +82,11 @@ describe('NobleBleManager — notify-only fromRadio read pump suppression (regre
     expect(fnMatch![0]).toContain('fromRadioNotifyOnly = false');
   });
 
-  it('requestFromRadioReadPump returns early when fromRadioNotifyOnly is set', () => {
-    // Prevents readAsync() being called on a notify-only characteristic
-    expect(SOURCE).toMatch(/if \(session\.fromRadioNotifyOnly\) return/);
+  it('requestFromRadioReadPump returns early on Darwin when fromRadioNotifyOnly is set', () => {
+    // On macOS, notify delivers data reliably — skip reads to avoid redundant GATT traffic.
+    // On Windows/Linux, noble may not deliver notify events even after subscribe succeeds,
+    // so the read pump always runs as a safety net (IS_DARWIN gate).
+    expect(SOURCE).toMatch(/if \(session\.fromRadioNotifyOnly && IS_DARWIN\) return/);
   });
 
   it('connect() starts fromRadioNotifyOnly as false before strategy selection', () => {
@@ -97,11 +100,12 @@ describe('NobleBleManager — notify-only fromRadio read pump suppression (regre
     expect(SOURCE).toContain('fromRadio strategy=fallback-read');
   });
 
-  it('writeToRadio skips the post-write read-pump timer when fromRadioNotifyOnly is set', () => {
-    // MeshCore responses arrive via notify events — no polling after writes
-    expect(SOURCE).toMatch(
-      /if \(!session\.fromRadioNotifyOnly\)[\s\S]{0,300}postWriteReadPumpTimer/,
-    );
+  it('writeToRadio uses IS_DARWIN gate for post-write read-pump scheduling', () => {
+    // On Darwin: skips pump when fromRadioNotifyOnly (notify is reliable).
+    // On Windows/Linux: always schedules pump regardless of fromRadioNotifyOnly
+    // because noble may not deliver notify events even after subscribe succeeds.
+    expect(SOURCE).toMatch(/scheduleReadPump[\s\S]{0,400}postWriteReadPumpTimer/);
+    expect(SOURCE).toMatch(/!session\.fromRadioNotifyOnly \|\| !IS_DARWIN/);
   });
 });
 

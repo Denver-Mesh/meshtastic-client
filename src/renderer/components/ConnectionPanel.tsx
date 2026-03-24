@@ -34,7 +34,9 @@ interface LastConnection {
   serialPortId?: string;
 }
 
-const LAST_BLE_DEVICE_KEY = 'mesh-client:lastBleDevice';
+function lastBleDeviceKey(p: MeshProtocol) {
+  return `mesh-client:lastBleDevice:${p}`;
+}
 
 function lastConnectionKey(p: MeshProtocol) {
   return `mesh-client:lastConnection:${p}`;
@@ -167,18 +169,18 @@ function clearLastConnection(p: MeshProtocol) {
   }
 }
 
-function loadLastBleDevice(): string | null {
+function loadLastBleDevice(protocol: MeshProtocol): string | null {
   try {
-    return localStorage.getItem(LAST_BLE_DEVICE_KEY);
+    return localStorage.getItem(lastBleDeviceKey(protocol));
   } catch (e) {
     console.debug('[ConnectionPanel] loadLastBleDevice', e);
     return null;
   }
 }
 
-function saveLastBleDevice(id: string) {
+function saveLastBleDevice(protocol: MeshProtocol, id: string) {
   try {
-    localStorage.setItem(LAST_BLE_DEVICE_KEY, id);
+    localStorage.setItem(lastBleDeviceKey(protocol), id);
   } catch (e) {
     console.debug('[ConnectionPanel] saveLastBleDevice', e);
   }
@@ -576,7 +578,7 @@ export default function ConnectionPanel({
         if (state.connectionType === 'http') {
           conn.httpAddress = activeHostAddress;
         } else if (state.connectionType === 'ble') {
-          const bleId = loadLastBleDevice();
+          const bleId = loadLastBleDevice(protocol);
           if (bleId) {
             conn.bleDeviceId = bleId;
             conn.bleDeviceName =
@@ -623,14 +625,14 @@ export default function ConnectionPanel({
         return [...prev, device];
       });
       if (isAutoConnectingRef.current) {
-        const lastId = lastConnection?.bleDeviceId ?? loadLastBleDevice();
+        const lastId = lastConnection?.bleDeviceId ?? loadLastBleDevice(protocol);
         if (lastId && device.deviceId === lastId) {
           if (autoConnectTimeoutRef.current) {
             clearTimeout(autoConnectTimeoutRef.current);
             autoConnectTimeoutRef.current = null;
           }
           void window.electronAPI.stopNobleBleScanning(protocol);
-          saveLastBleDevice(device.deviceId);
+          saveLastBleDevice(protocol, device.deviceId);
           lastSelectedBleNameRef.current = device.deviceName ?? null;
           setConnectionStage('Connecting to device...');
           onConnect('ble', undefined, device.deviceId).catch((err: unknown) => {
@@ -751,7 +753,7 @@ export default function ConnectionPanel({
   const handleSelectBleDevice = useCallback(
     (deviceId: string) => {
       console.debug('[ConnectionPanel] BLE device selected', deviceId);
-      saveLastBleDevice(deviceId);
+      saveLastBleDevice(protocol, deviceId);
       // Save BLE advertisement name for use in LastConnection display
       const found = bleDevices.find((d) => d.deviceId === deviceId);
       lastSelectedBleNameRef.current = found?.deviceName ?? null;

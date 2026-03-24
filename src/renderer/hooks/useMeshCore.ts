@@ -1289,6 +1289,17 @@ export function useMeshCore() {
 
       conn.on('disconnected', () => {
         setState((prev) => ({ ...prev, status: 'disconnected' }));
+        // Release the underlying transport (serial port lock, BLE IPC session) so the
+        // next connect attempt can open it cleanly. Without this, an unexpected
+        // device-side disconnect leaves the raw SerialPort open at the browser level
+        // and the next serialPort.open() throws "The port is already open."
+        // Defer via setTimeout to avoid re-entrancy while the 'disconnected' event is firing.
+        const staleConn = connRef.current;
+        connRef.current = null;
+        if (staleConn)
+          setTimeout(() => {
+            void staleConn.close().catch(() => {});
+          }, 0);
       });
     },
     [addMessage, updateNode, setDeviceLogs],
@@ -1372,6 +1383,16 @@ export function useMeshCore() {
         throw new Error(
           'Bluetooth connection already in progress. Wait for it to finish or cancel, then try again.',
         );
+      }
+
+      // Close any existing connection before starting a new one.
+      // Without this, a spurious connect() call (e.g. BLE auto-connect racing with an
+      // already-established serial session) leaves the old serial port open, causing
+      // the next serialPort.open() to throw "The port is already open."
+      const staleConn = connRef.current;
+      connRef.current = null;
+      if (staleConn) {
+        void staleConn.close().catch(() => {});
       }
 
       setState({

@@ -183,8 +183,10 @@ export class NobleBleManager extends EventEmitter {
   private requestFromRadioReadPump(sessionId: NobleSessionId): void {
     const session = this.getSession(sessionId);
     if (session.closing) return;
-    // Notify-only characteristics (e.g. MeshCore NUS TX) deliver data via events — no reads needed.
-    if (session.fromRadioNotifyOnly) return;
+    // On macOS (Darwin), CoreBluetooth reliably delivers notify events — skip reads to avoid
+    // redundant GATT traffic. On Windows/Linux, noble's notify delivery is unreliable even when
+    // subscribeAsync() succeeds, so always allow the read pump to run as a safety net.
+    if (session.fromRadioNotifyOnly && IS_DARWIN) return;
     session.readPumpRequested = true;
     if (session.readPumpActive) return;
     session.readPumpActive = true;
@@ -676,9 +678,11 @@ export class NobleBleManager extends EventEmitter {
         fromRadioProps.includes('notify') || fromRadioProps.includes('indicate');
       const fromRadioCanRead = fromRadioProps.includes('read');
       // Notify-first strategy:
-      // - Prefer notifications whenever the characteristic advertises notify/indicate.
+      // - Subscribe whenever the characteristic advertises notify/indicate.
+      // - On macOS, CoreBluetooth reliably delivers notify events — read-pump is skipped.
+      // - On Windows/Linux, noble may not deliver notify events even after a successful subscribe,
+      //   so the read-pump runs in parallel as a safety net (see fromRadioNotifyOnly flag usage).
       // - Fall back to read-pump only if subscribe fails or notify is unavailable.
-      // This avoids Windows/Linux stacks that advertise "read" but fail protocol reads at runtime.
       session.fromRadioNotifyOnly = false;
       const tSubscribe = Date.now();
       let fromRadioSubscribed = false;
@@ -775,13 +779,15 @@ export class NobleBleManager extends EventEmitter {
       throw new Error(`Not connected to a BLE device for session ${sessionId}`);
     console.debug(`[BLE:${sessionId}] writeToRadio: ${data.length} bytes`);
     await session.toRadioChar.writeAsync(data, false);
+    // On Darwin, CoreBluetooth reliably delivers notify events — skip the read pump for
+    // notify-subscribed characteristics to avoid redundant GATT reads.
+    // On Windows/Linux, noble may not deliver notify events even when subscribe succeeded,
+    // so always schedule the post-write read pump as a guaranteed safety net.
+    const scheduleReadPump = !session.fromRadioNotifyOnly || !IS_DARWIN;
     console.debug(
-      `[BLE:${sessionId}] writeToRadio done — scheduling post-write read pump in ${POST_WRITE_READ_PUMP_DELAY_MS}ms`,
+      `[BLE:${sessionId}] writeToRadio done — ${scheduleReadPump ? `scheduling post-write read pump in ${POST_WRITE_READ_PUMP_DELAY_MS}ms` : 'notify-only mode, skipping post-write read pump'}`,
     );
-    // Give the device time to prepare its response, then kick the read pump.
-    // fromNum notify is the primary trigger; this is a safety net for devices that are slow to notify.
-    // Skip entirely for notify-only characteristics (e.g. MeshCore) — responses arrive via events.
-    if (!session.fromRadioNotifyOnly) {
+    if (scheduleReadPump) {
       if (session.postWriteReadPumpTimer !== null) {
         clearTimeout(session.postWriteReadPumpTimer);
         session.postWriteReadPumpTimer = null;
