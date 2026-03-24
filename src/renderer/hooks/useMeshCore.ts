@@ -83,8 +83,9 @@ function messageToDbRow(
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface SerialConnectionInstance extends InstanceType<typeof SerialConnection> {}
 
-const NOBLE_IPC_CONNECT_TIMEOUT_MS = 20_000;
-const NOBLE_IPC_HANDSHAKE_TIMEOUT_MS = 15_000;
+const NOBLE_IPC_CONNECT_TIMEOUT_MS = 25_000;
+const NOBLE_IPC_HANDSHAKE_TIMEOUT_MS = 20_000;
+const NOBLE_IPC_CONNECT_MAX_ATTEMPTS = 2;
 
 type MeshcoreBleTimeoutStage = 'ipc-open' | 'protocol-handshake' | 'unknown';
 
@@ -92,6 +93,18 @@ function classifyMeshcoreBleTimeoutStage(message: string): MeshcoreBleTimeoutSta
   if (/MeshCore BLE IPC open timed out/i.test(message)) return 'ipc-open';
   if (/MeshCore BLE protocol handshake timed out/i.test(message)) return 'protocol-handshake';
   return 'unknown';
+}
+
+function serializeErrorLike(value: unknown): string {
+  if (value instanceof Error) return value.message;
+  if (typeof value === 'string') return value;
+  if (value == null) return '';
+  try {
+    return JSON.stringify(value);
+  } catch {
+    // catch-no-log-ok stringify fallback for arbitrary error payloads
+    return String(value);
+  }
 }
 
 /** TCP connection implemented over IPC bridge (main-process net.Socket). */
@@ -1361,17 +1374,62 @@ export function useMeshCore() {
       if (type === 'ble') bleConnectInProgressRef.current = true;
 
       try {
-        let conn: MeshCoreConnection;
+        let conn: MeshCoreConnection | null = null;
 
         if (type === 'ble') {
           if (!blePeripheralId) {
             throw new Error('BLE peripheral ID required');
           }
-          console.debug('[useMeshCore] connect: BLE via Noble IPC opening...');
-          const nobleConn = new IpcNobleConnection(blePeripheralId, 'meshcore');
-          ipcNobleRef.current = nobleConn;
-          await nobleConn.connect();
-          conn = nobleConn.connection as unknown as MeshCoreConnection;
+          let connected = false;
+          let lastBleError: unknown = null;
+          for (let attempt = 1; attempt <= NOBLE_IPC_CONNECT_MAX_ATTEMPTS; attempt++) {
+            const attemptStartedAt = Date.now();
+            console.debug(
+              `[useMeshCore] connect: BLE via Noble IPC opening... (attempt ${attempt}/${NOBLE_IPC_CONNECT_MAX_ATTEMPTS})`,
+            );
+            const nobleConn = new IpcNobleConnection(blePeripheralId, 'meshcore');
+            ipcNobleRef.current = nobleConn;
+            try {
+              await nobleConn.connect();
+              conn = nobleConn.connection as unknown as MeshCoreConnection;
+              connected = true;
+              if (attempt > 1) {
+                console.info('[useMeshCore] connect: BLE via Noble IPC recovered on retry', {
+                  attempt,
+                  maxAttempts: NOBLE_IPC_CONNECT_MAX_ATTEMPTS,
+                  elapsedMs: Date.now() - attemptStartedAt,
+                });
+              }
+              break;
+            } catch (bleErr) {
+              lastBleError = bleErr;
+              const rawBleMessage = serializeErrorLike(bleErr) || 'BLE connect failed';
+              const isTimeout =
+                /MeshCore BLE IPC open timed out|MeshCore BLE protocol handshake timed out/i.test(
+                  rawBleMessage,
+                );
+              const stage = isTimeout ? classifyMeshcoreBleTimeoutStage(rawBleMessage) : null;
+              console.warn('[useMeshCore] connect: BLE Noble IPC attempt failed', {
+                attempt,
+                maxAttempts: NOBLE_IPC_CONNECT_MAX_ATTEMPTS,
+                isTimeout,
+                stage,
+                elapsedMs: Date.now() - attemptStartedAt,
+                message: rawBleMessage,
+              });
+              ipcNobleRef.current?.cleanup();
+              ipcNobleRef.current = null;
+              if (!isTimeout || attempt >= NOBLE_IPC_CONNECT_MAX_ATTEMPTS) {
+                throw bleErr;
+              }
+              console.debug('[useMeshCore] connect: retrying BLE Noble IPC after timeout', {
+                nextAttempt: attempt + 1,
+                maxAttempts: NOBLE_IPC_CONNECT_MAX_ATTEMPTS,
+                stage,
+              });
+            }
+          }
+          if (!connected) throw lastBleError ?? new Error('BLE connect failed');
         } else if (type === 'serial') {
           console.debug('[useMeshCore] connect: serial requesting port...');
           if (!navigator.serial?.requestPort) throw new Error('Web Serial API not available');
@@ -1391,15 +1449,11 @@ export function useMeshCore() {
           conn = tcpConn.connection as unknown as MeshCoreConnection;
         }
 
+        if (!conn) throw new Error('Connection initialization failed');
         await initConn(conn);
         console.debug('[useMeshCore] connect: handshake complete, type=', type);
       } catch (err) {
-        const rawMessage =
-          err instanceof Error
-            ? err.message
-            : typeof err === 'string'
-              ? err
-              : String(err ?? 'Connection failed');
+        const rawMessage = serializeErrorLike(err) || 'Connection failed';
         const safeMessage = (rawMessage && String(rawMessage).trim()) || 'Connection failed';
         const isAlreadyInProgress = /already in progress|Connection already in progress/i.test(
           safeMessage,
@@ -1420,6 +1474,10 @@ export function useMeshCore() {
             ? 'BLE connection failed (no error details from device). Try again or use Serial/USB.'
             : 'Connection failed';
         const displayMessage = safeMessage !== 'Connection failed' ? safeMessage : fallbackMessage;
+        const timeoutMessage =
+          bleTimeoutStage === 'protocol-handshake'
+            ? 'Bluetooth connected but MeshCore protocol handshake did not complete before disconnect/timeout. Retry, keep the device awake and nearby, power-cycle BLE, or use Serial/TCP.'
+            : 'Bluetooth connection timed out while opening MeshCore over Noble IPC. Retry, power-cycle BLE on the device, or use Serial/TCP.';
         const normalizedErr = new Error(
           isAlreadyInProgress
             ? 'Bluetooth connection already in progress. Wait for it to finish or try Serial/USB instead.'
@@ -1428,7 +1486,7 @@ export function useMeshCore() {
               : isPeripheralInUse
                 ? 'This device is already connected via Meshtastic BLE. Disconnect it first before connecting as MeshCore.'
                 : isBleConnectTimeout
-                  ? 'Bluetooth connection timed out while opening MeshCore over Noble IPC. Retry, power-cycle BLE on the device, or use Serial/TCP.'
+                  ? timeoutMessage
                   : displayMessage,
         );
         if (isBleConnectTimeout) {
@@ -1437,8 +1495,7 @@ export function useMeshCore() {
             { stage: bleTimeoutStage },
           );
         }
-        const errForLog =
-          err != null ? (err instanceof Error ? err.message : String(err)) : '(no error object)';
+        const errForLog = serializeErrorLike(err) || '(no error object)';
         console.error('[useMeshCore] connect error', normalizedErr.message, errForLog, {
           bleTimeoutStage,
         });
