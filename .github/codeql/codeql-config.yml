@@ -1,18 +1,9 @@
 # CodeQL config for mesh-client
 #
-# js/http-to-file-access flags any taint from HTTP (e.g. updater fetch → console →
-# appendLine) reaching appendFile/writeFileSync. That rule targets backdoors that
-# persist remote payloads to disk. Our only sinks are formatted log lines written
-# to a fixed userData path after sanitizeLogMessage on message and source; we do
-# not write raw response bodies or arbitrary paths. CodeQL does not model
-# sanitizeLogMessage as a sanitizer, so taint remains on the formatted string.
-# Excluding this query avoids false positives on the log-service while keeping
-# other security queries enabled.
-#
-# See: https://codeql.github.com/codeql-query-help/javascript/js-http-to-file-access/
+# js/http-to-file-access can flag log-service disk writes (HTTP-tainted console →
+# appendLine → appendFile) because the query does not treat sanitizeLogPayloadForDisk
+# as a barrier. We sanitize at the disk boundary and use inline
+# `// codeql[js/http-to-file-access]` on those sinks so default/advanced runs stay
+# useful without blanket query excludes. Pre-commit: log-service.contract.test.ts.
 
 name: mesh-client CodeQL config
-
-query-filters:
-  - exclude:
-      id: js/http-to-file-access

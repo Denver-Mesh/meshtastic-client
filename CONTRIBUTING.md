@@ -309,6 +309,12 @@ GitHub Code scanning (CodeQL) reports **log injection** when user-controlled or 
 - **Checks:** Code scanning runs on push (GitHub default setup). If you add or change code that feeds into the log pipeline, ensure the **first** use of untrusted data in that path is wrapped in `sanitizeLogMessage()` at the call site.
 - **Tests:** When adding or changing code that feeds into the log pipeline (e.g. new call sites of `appendLine`, `console.*` in main, or renderer→main log forwarding), add or extend tests so that log injection is caught by the suite. Pre-commit runs `npm run test:run`, which includes `src/renderer/lib/sanitize-log-message.test.ts`: that file tests both `sanitizeLogMessage` and `sanitizeForLogSink` (used by the console overrides in log-service) and runs the log-injection script so that regressions fail the test run. Add or extend tests there (or equivalent) so regressions are caught. AI and reviewers should ensure such tests exist or are added.
 
+### Network data written to file (CodeQL js/http-to-file-access)
+
+Code scanning may report this query on `fs.promises.appendFile` / `fs.writeFileSync` in `src/main/log-service.ts` when taint from HTTP responses reaches formatted log lines. The query does not model `sanitizeLogPayloadForDisk` as a sanitizer, so after routing payloads through that helper you must keep a `// codeql[js/http-to-file-access]` tag on each sink line (with a short reason), matching the pattern used for `js/log-injection` elsewhere.
+
+**Pre-commit:** `src/main/log-service.contract.test.ts` requires `sanitizeLogPayloadForDisk` at every log disk write and that those CodeQL tags stay on the sink lines. See `.github/codeql/README.md`.
+
 ### Silent-catch check
 
 `scripts/check-silent-catches.mjs` scans `src/` for `catch` blocks that contain no `console.*` call, no rethrow, and no suppression comment. It runs automatically on every commit as part of `npm run test:run`.

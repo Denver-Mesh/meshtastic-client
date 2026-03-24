@@ -12,15 +12,15 @@ So the previous workflow that ran `github/codeql-action` with a custom `config-f
 
 Default setup already runs JavaScript/TypeScript analysis on push/PR; no separate workflow is required for scanning to occur.
 
-## Using the custom config (`codeql-config.yml`)
+## `js/http-to-file-access` and the log file
 
-`codeql-config.yml` excludes the `js/http-to-file-access` query to avoid false positives in our log service (see comments in that file). That only applies when analysis is driven by **advanced setup** with this config.
+Default CodeQL flags `appendFile` / `writeFileSync` in `src/main/log-service.ts` when HTTP-tainted data can reach those sinks. The query does not treat `sanitizeLogPayloadForDisk` as a barrier, so we document each sink with `// codeql[js/http-to-file-access]` after sanitizing (same idea as `// codeql[js/log-injection]` in `gps.ts`). **Pre-commit:** `src/main/log-service.contract.test.ts` asserts disk payloads stay wired through `sanitizeLogPayloadForDisk` and that those suppression tags remain on the sink lines.
 
-If you need that exclusion in automated runs:
+## Using `codeql-config.yml` (advanced setup only)
 
-1. In the repo **Settings → Code security and analysis → Code scanning**, **disable** CodeQL default setup (switch to advanced / disable default).
-2. Restore a CodeQL workflow that runs `github/codeql-action/init` with  
-   `config-file: ./.github/codeql/codeql-config.yml`  
-   and `analyze` as before (use `github/codeql-action@v4` when adding it back).
+`codeql-config.yml` is a named pack stub for repos that switch to **advanced** CodeQL with `config-file: ./.github/codeql/codeql-config.yml`. It does not disable `js/http-to-file-access`. If you add advanced setup:
 
-Do not run both default setup and a CodeQL workflow that uploads SARIF—GitHub will reject the upload.
+1. In **Settings → Code security and analysis → Code scanning**, disable CodeQL default setup (or avoid duplicate uploads).
+2. Use `github/codeql-action/init@v4` with `config-file: ./.github/codeql/codeql-config.yml` and `analyze` as documented.
+
+Do not run both default setup and a CodeQL workflow that uploads SARIF for the same scope—GitHub will reject the upload.

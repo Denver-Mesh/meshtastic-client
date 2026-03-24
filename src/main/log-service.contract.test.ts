@@ -8,7 +8,7 @@ const LOG_SERVICE_SOURCE = readFileSync(join(__dirname, 'log-service.ts'), 'utf-
 describe('log-service disk writes (CodeQL js/http-to-file-access contract)', () => {
   it('passes every appendFile / writeFileSync log payload through sanitizeLogPayloadForDisk', () => {
     expect(LOG_SERVICE_SOURCE).toContain('sanitizeLogPayloadForDisk');
-    const appendFileCalls = LOG_SERVICE_SOURCE.match(/fs\.promises\.appendFile\(/g) ?? [];
+    const appendFileCalls = LOG_SERVICE_SOURCE.match(/\.appendFile\(/g) ?? [];
     const writeFileSyncCalls = LOG_SERVICE_SOURCE.match(/fs\.writeFileSync\(/g) ?? [];
     expect(appendFileCalls.length).toBe(2);
     expect(writeFileSyncCalls.length).toBe(2);
@@ -16,5 +16,18 @@ describe('log-service disk writes (CodeQL js/http-to-file-access contract)', () 
     expect(LOG_SERVICE_SOURCE).toMatch(/appendFile\(\s*p\s*,\s*data\s*,/);
     expect(LOG_SERVICE_SOURCE).toMatch(/appendFile\(\s*getLogFilePath\(\)\s*,\s*diskLine\s*,/);
     expect(LOG_SERVICE_SOURCE).toMatch(/writeFileSync\(\s*getLogFilePath\(\)\s*,\s*diskLine\s*,/);
+  });
+
+  it('marks each tainted disk sink with codeql[js/http-to-file-access] (default setup has no sanitizer model)', () => {
+    const lines = LOG_SERVICE_SOURCE.split('\n');
+    const sinkLinePattern =
+      /(?:^|\s)\.appendFile\(\s*[^,]+,\s*(data|diskLine)\s*,|fs\.writeFileSync\(\s*[^,]+,\s*diskLine\s*,/;
+    for (const line of lines) {
+      if (sinkLinePattern.test(line)) {
+        expect(line, `missing CodeQL suppression on sink line: ${line.trim()}`).toMatch(
+          /codeql\[js\/http-to-file-access\]/,
+        );
+      }
+    }
   });
 });
