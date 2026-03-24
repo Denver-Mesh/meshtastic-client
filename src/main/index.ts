@@ -1111,9 +1111,18 @@ ipcMain.handle('noble-ble-connect', async (_event, sessionId: unknown, periphera
     throw new Error('noble-ble-connect: peripheralId must be a string');
   if (isQuitting) {
     console.debug(`[main] noble-ble-connect: ignoring session=${sessionId} (app is quitting)`);
-    return;
+    return { ok: false as const, error: 'App is quitting' };
   }
-  await nobleBleManager.connect(sessionId, peripheralId);
+  try {
+    await nobleBleManager.connect(sessionId, peripheralId);
+    return { ok: true as const };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.debug(
+      `[main] noble-ble-connect failed: session=${sessionId} peripheral=${peripheralId} message=${sanitizeLogMessage(message)}`,
+    );
+    return { ok: false as const, error: sanitizeLogMessage(message) };
+  }
 });
 ipcMain.handle('noble-ble-disconnect', async (_event, sessionId: unknown) => {
   if (sessionId !== 'meshtastic' && sessionId !== 'meshcore') {

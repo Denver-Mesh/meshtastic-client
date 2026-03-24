@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 import type {
   ElectronAPI,
+  NobleBleConnectResult,
   NobleBleDevice,
   NobleBleSessionId,
   SerialPort,
@@ -277,7 +278,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('noble-ble-start-scan', sessionId),
   stopNobleBleScanning: (sessionId: NobleBleSessionId): Promise<void> =>
     ipcRenderer.invoke('noble-ble-stop-scan', sessionId),
-  connectNobleBle: (sessionId: NobleBleSessionId, peripheralId: string): Promise<void> =>
+  connectNobleBle: (
+    sessionId: NobleBleSessionId,
+    peripheralId: string,
+  ): Promise<NobleBleConnectResult> =>
     ipcRenderer.invoke('noble-ble-connect', sessionId, peripheralId),
   disconnectNobleBle: (sessionId: NobleBleSessionId): Promise<void> =>
     ipcRenderer.invoke('noble-ble-disconnect', sessionId),

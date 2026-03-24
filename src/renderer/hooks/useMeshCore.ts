@@ -223,7 +223,9 @@ class IpcNobleConnection {
     this.cleanupFns = [offData, offDisc];
     try {
       await withTimeout(
-        window.electronAPI.connectNobleBle(sessionId, this.peripheralId),
+        window.electronAPI.connectNobleBle(sessionId, this.peripheralId).then((result) => {
+          if (!result.ok) throw new Error(result.error || 'BLE connect failed');
+        }),
         NOBLE_IPC_CONNECT_TIMEOUT_MS,
         'MeshCore BLE IPC open',
       );

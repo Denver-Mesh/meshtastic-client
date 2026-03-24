@@ -61,7 +61,10 @@ export async function createBleConnection(
   // packets emitted during the initial drain are dropped.
   const transport = new TransportNobleIpc(sessionId);
   try {
-    await window.electronAPI.connectNobleBle(sessionId, peripheralId);
+    const connectResult = await window.electronAPI.connectNobleBle(sessionId, peripheralId);
+    if (!connectResult.ok) {
+      throw new Error(connectResult.error || 'BLE connect failed');
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const isTimeout = /timed out/i.test(message);

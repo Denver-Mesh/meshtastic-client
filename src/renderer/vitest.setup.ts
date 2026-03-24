@@ -109,7 +109,7 @@ const electronAPIMock = {
   onNobleBleFromRadio: vi.fn().mockReturnValue(() => {}),
   startNobleBleScanning: vi.fn().mockResolvedValue(undefined),
   stopNobleBleScanning: vi.fn().mockResolvedValue(undefined),
-  connectNobleBle: vi.fn().mockResolvedValue(undefined),
+  connectNobleBle: vi.fn().mockResolvedValue({ ok: true }),
   disconnectNobleBle: vi.fn().mockResolvedValue(undefined),
   nobleBleToRadio: vi.fn().mockResolvedValue(undefined),
   onSerialPortsDiscovered: vi.fn().mockReturnValue(() => {}),
