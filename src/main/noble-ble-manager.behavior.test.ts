@@ -104,6 +104,9 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Matches `IS_DARWIN` in noble-ble-manager: Darwin skips read-pump when notify-only; Linux/Win use it as safety net. */
+const IS_DARWIN = process.platform === 'darwin';
+
 describe('NobleBleManager behavior (notify-first + fallback)', () => {
   let fakeNoble: FakeNoble;
 
@@ -139,7 +142,8 @@ describe('NobleBleManager behavior (notify-first + fallback)', () => {
     });
 
     expect(fromRadio.subscribeCalls).toBe(1);
-    expect(fromRadio.readCalls).toBe(0);
+    // Non-Darwin: one-shot drain after connect (see requestFromRadioReadPump + fromRadioNotifyOnly).
+    expect(fromRadio.readCalls).toBe(IS_DARWIN ? 0 : 1);
 
     const received: Uint8Array[] = [];
     manager.on('fromRadio', ({ bytes }) => {
@@ -184,15 +188,17 @@ describe('NobleBleManager behavior (notify-first + fallback)', () => {
     );
   });
 
-  it('does not trigger read-pump after write when notify-first succeeds', async () => {
+  it('read-pump safety net after write when notify-first succeeds (non-Darwin only)', async () => {
     const { manager, fromRadio } = await setupMeshcoreConnection({
       properties: ['read', 'notify'],
       readResults: [Buffer.alloc(0)],
     });
 
-    expect(fromRadio.readCalls).toBe(0);
+    expect(fromRadio.readCalls).toBe(IS_DARWIN ? 0 : 1);
     await manager.writeToRadio('meshcore', Buffer.from([0xbb]));
     await wait(140);
-    expect(fromRadio.readCalls).toBe(0);
+    // Darwin: writeToRadio skips post-write read pump for notify-only sessions.
+    // Linux/Windows: post-write read pump runs (POST_WRITE_READ_PUMP_DELAY_MS + drain read).
+    expect(fromRadio.readCalls).toBe(IS_DARWIN ? 0 : 2);
   });
 });
