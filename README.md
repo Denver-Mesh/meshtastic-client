@@ -658,7 +658,7 @@ The pre-commit hook runs format, lint, typecheck, **npm audit**, **actionlint** 
 
 ## Community
 
-Join the `#mesh-client-development` channel on Discord for help, feedback, and development discussion: https://discord.com/invite/McChKR5NpS
+Join the `#mesh-client` channel on Discord for help, feedback, and development discussion: https://discord.com/invite/McChKR5NpS
 
 ---
 
