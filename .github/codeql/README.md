@@ -12,15 +12,17 @@ So the previous workflow that ran `github/codeql-action` with a custom `config-f
 
 Default setup already runs JavaScript/TypeScript analysis on push/PR; no separate workflow is required for scanning to occur.
 
-## `js/http-to-file-access` and the log file
+## `js/http-to-file-access` and `codeql-config.yml`
 
-Default CodeQL flags `appendFile` / `writeFileSync` in `src/main/log-service.ts` when HTTP-tainted data can reach those sinks. The query does not treat `sanitizeLogPayloadForDisk` as a barrier. Use `// codeql[js/http-to-file-access]: …` on the **line above** each sink (CodeQL applies that form to the following line only; do not rely on trailing comments—Prettier/ESLint can reflow them). **Pre-commit:** `src/main/log-service.contract.test.ts` asserts `sanitizeLogPayloadForDisk` wiring and that the tag appears on the line above or on the sink line.
+[`js/http-to-file-access`](https://codeql.github.com/codeql-query-help/javascript/js-http-to-file-access/) is a path-problem query whose sink is the **data argument** to `appendFile` / `writeFileSync` (a narrow source span), not the whole statement. GitHub’s `// codeql[query-id]` suppression logic matches alerts whose location is a **whole line** (`startcolumn`/`endcolumn` zero); it does **not** suppress these argument-level sinks, so inline comments do not clear the alert.
 
-## Using `codeql-config.yml` (advanced setup only)
+[`codeql-config.yml`](./codeql-config.yml) **excludes** `js/http-to-file-access` because our disk writes are sanitized log lines to a fixed path, not arbitrary remote-to-file backdoors.
 
-`codeql-config.yml` is a named pack stub for repos that switch to **advanced** CodeQL with `config-file: ./.github/codeql/codeql-config.yml`. It does not disable `js/http-to-file-access`. If you add advanced setup:
+**Important:** **Default setup does not read `codeql-config.yml`.** With default setup only, alerts may still appear until you **dismiss** them in the Security / PR UI (false positive, with justification pointing to CONTRIBUTING) **or** switch to **advanced** CodeQL and pass this config.
 
-1. In **Settings → Code security and analysis → Code scanning**, disable CodeQL default setup (or avoid duplicate uploads).
-2. Use `github/codeql-action/init@v4` with `config-file: ./.github/codeql/codeql-config.yml` and `analyze` as documented.
+## Using advanced setup with `codeql-config.yml`
+
+1. In **Settings → Code security and analysis → Code scanning**, disable CodeQL default setup (so SARIF from Actions is accepted).
+2. Add a workflow that runs `github/codeql-action/init@v4` with `config-file: ./.github/codeql/codeql-config.yml` and `analyze` as documented.
 
 Do not run both default setup and a CodeQL workflow that uploads SARIF for the same scope—GitHub will reject the upload.

@@ -311,9 +311,13 @@ GitHub Code scanning (CodeQL) reports **log injection** when user-controlled or 
 
 ### Network data written to file (CodeQL js/http-to-file-access)
 
-Code scanning may report this query on `fs.promises.appendFile` / `fs.writeFileSync` in `src/main/log-service.ts` when taint from HTTP responses reaches formatted log lines. The query does not model `sanitizeLogPayloadForDisk` as a sanitizer. After routing payloads through that helper, add `// codeql[js/http-to-file-access]: …` on **the line immediately above** each sink (GitHub’s suppression model applies `codeql[…]` only to the next line, and it must be the first text on its line—trailing same-line comments are not reliable and formatters can move them).
+Code scanning may report this query on `fs.promises.appendFile` / `fs.writeFileSync` in `src/main/log-service.ts` when taint from HTTP responses reaches the **data argument** of those calls. The query does not model `sanitizeLogPayloadForDisk` as a barrier. We still route every log payload through that helper before disk I/O.
 
-**Pre-commit:** `src/main/log-service.contract.test.ts` requires `sanitizeLogPayloadForDisk` at every log disk write and that those CodeQL tags stay on the sink lines. See `.github/codeql/README.md`.
+**Suppressions:** `// codeql[js/http-to-file-access]` does **not** clear these alerts on GitHub: path-problem results anchor on a sub-expression (the data argument), while CodeQL’s suppression matcher expects whole-line locations. Do not rely on inline comments for this rule.
+
+**Configuration:** `.github/codeql/codeql-config.yml` excludes `js/http-to-file-access` when analysis is run with that config (**advanced** CodeQL + `config-file` on `github/codeql-action/init`). **Default setup does not load the file**, so you may still see alerts until you dismiss them in the Security / PR UI (document why) or switch to advanced setup. See `.github/codeql/README.md`.
+
+**Pre-commit:** `src/main/log-service.contract.test.ts` locks disk-write wiring (`sanitizeLogPayloadForDisk`, `data` / `diskLine` at the sinks).
 
 ### Silent-catch check
 
