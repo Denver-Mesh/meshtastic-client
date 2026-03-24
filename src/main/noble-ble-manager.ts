@@ -6,7 +6,7 @@ import { withTimeout } from '../shared/withTimeout';
 import { sanitizeLogMessage } from './log-service';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const noble = require('@stoprocent/noble') as any;
+const noble = require('@stoprocent/noble');
 
 // Meshtastic BLE GATT UUIDs (from @meshtastic/transport-web-bluetooth)
 const SERVICE_UUID = '6ba1b21815a8461f9fa85dcae273eafd';
@@ -50,11 +50,12 @@ export interface NobleBleDevice {
 export type NobleSessionId = 'meshtastic' | 'meshcore';
 
 interface NobleBleSession {
-  connectedPeripheral: any | null;
+  // Noble GATT objects from @stoprocent/noble — typed as any (no stable TS surface); avoid `any | null` (redundant union).
+  connectedPeripheral: any;
   connectedPeripheralDisconnectHandler: (() => void) | null;
-  toRadioChar: any | null;
-  fromRadioChar: any | null;
-  fromNumChar: any | null;
+  toRadioChar: any;
+  fromRadioChar: any;
+  fromNumChar: any;
   fromRadioDataHandler: ((data: Buffer, isNotification: boolean) => void) | null;
   fromNumDataHandler: ((data: Buffer) => void) | null;
   readPumpActive: boolean;
@@ -100,7 +101,7 @@ export class NobleBleManager extends EventEmitter {
       this.adapterReady = state === 'poweredOn';
       this.emit('adapterState', state);
       if (this.adapterReady && this.scanRequesters.size > 0) {
-        void this.doStartScanning().catch((err) => {
+        void this.doStartScanning().catch((err: unknown) => {
           console.error('[NobleBleManager] deferred startScanning error:', err); // log-injection-ok noble internal error
         });
       }
@@ -748,7 +749,7 @@ export class NobleBleManager extends EventEmitter {
       releaseQueue();
       // If any session was scanning when we stopped for this connect, restart the scan now.
       if (this.scanRequesters.size > 0 && this.adapterReady && !this.scanningActive) {
-        void this.doStartScanning().catch((err) => {
+        void this.doStartScanning().catch((err: unknown) => {
           console.error('[NobleBleManager] post-connect scan restart error:', err); // log-injection-ok noble internal error
         });
       }
@@ -757,7 +758,7 @@ export class NobleBleManager extends EventEmitter {
 
   isConnected(sessionId: NobleSessionId): boolean {
     const session = this.sessions.get(sessionId);
-    return session != null && session.toRadioChar != null;
+    return session?.toRadioChar != null;
   }
 
   async writeToRadio(sessionId: NobleSessionId, data: Buffer): Promise<void> {

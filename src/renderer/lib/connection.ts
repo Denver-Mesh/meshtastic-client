@@ -13,8 +13,12 @@ const HTTP_PREFLIGHT_RETRY_DELAY_MS = 2_000;
 
 function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
   const ac = new AbortController();
-  const t = setTimeout(() => ac.abort(), timeoutMs);
-  return fetch(url, { signal: ac.signal }).finally(() => clearTimeout(t));
+  const t = setTimeout(() => {
+    ac.abort();
+  }, timeoutMs);
+  return fetch(url, { signal: ac.signal }).finally(() => {
+    clearTimeout(t);
+  });
 }
 
 async function httpPreflightWithRetries(connectionUrl: string): Promise<void> {
@@ -116,13 +120,11 @@ export async function createConnection(
       try {
         const serialPromise = TransportWebSerial.create(115200);
         const serialTimeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(
-            () =>
-              reject(
-                new Error(`Serial connection timed out after ${SERIAL_CONNECT_TIMEOUT_MS / 1000}s`),
-              ),
-            SERIAL_CONNECT_TIMEOUT_MS,
-          ),
+          setTimeout(() => {
+            reject(
+              new Error(`Serial connection timed out after ${SERIAL_CONNECT_TIMEOUT_MS / 1000}s`),
+            );
+          }, SERIAL_CONNECT_TIMEOUT_MS),
         );
         transport = await Promise.race([serialPromise, serialTimeoutPromise]);
       } finally {
@@ -153,13 +155,11 @@ export async function createConnection(
       await httpPreflightWithRetries(connectionUrl);
       const createPromise = TransportHTTP.create(host, useTls);
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(
-          () =>
-            reject(
-              new Error(`Connection to ${host} timed out after ${HTTP_CONNECT_TIMEOUT_MS / 1000}s`),
-            ),
-          HTTP_CONNECT_TIMEOUT_MS,
-        ),
+        setTimeout(() => {
+          reject(
+            new Error(`Connection to ${host} timed out after ${HTTP_CONNECT_TIMEOUT_MS / 1000}s`),
+          );
+        }, HTTP_CONNECT_TIMEOUT_MS),
       );
       transport = await Promise.race([createPromise, timeoutPromise]);
       break;

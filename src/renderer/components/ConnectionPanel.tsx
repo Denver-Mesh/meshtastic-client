@@ -455,7 +455,7 @@ export default function ConnectionPanel({
       .then((id) => {
         if (id) setMqttClientId(id);
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         console.warn('[ConnectionPanel] getClientId failed:', err);
       });
     return window.electronAPI.mqtt.onClientId(({ clientId, protocol: mqttProtocol }) => {
@@ -484,8 +484,9 @@ export default function ConnectionPanel({
     };
     syncLetsMeshUsername();
     window.addEventListener('meshclient:meshcoreIdentityUpdated', syncLetsMeshUsername);
-    return () =>
+    return () => {
       window.removeEventListener('meshclient:meshcoreIdentityUpdated', syncLetsMeshUsername);
+    };
   }, [protocol, meshcorePreset]);
 
   const activeMqttSettings = protocol === 'meshcore' ? meshcoreMqttSettings : mqttSettings;
@@ -886,7 +887,7 @@ export default function ConnectionPanel({
       setShowBlePicker(false);
       setShowSerialPicker(false);
       setConnectionStage('Please wait...');
-      onConnect('http', addr).catch((err) => {
+      onConnect('http', addr).catch((err: unknown) => {
         setError(humanizeHttpError(addr, err));
         setConnecting(false);
         setConnectionStage('');
@@ -897,7 +898,7 @@ export default function ConnectionPanel({
       setConnectionType('serial');
       setConnecting(true);
       setConnectionStage('Please wait...');
-      onAutoConnect('serial', undefined, lastConnection.serialPortId).catch((err) => {
+      onAutoConnect('serial', undefined, lastConnection.serialPortId).catch((err: unknown) => {
         isAutoConnectingRef.current = false;
         setIsAutoConnecting(false);
         setError(humanizeSerialError(err));
@@ -922,7 +923,9 @@ export default function ConnectionPanel({
           type="button"
           aria-label={p === 'meshtastic' ? 'Meshtastic' : 'MeshCore'}
           aria-pressed={protocol === p}
-          onClick={() => onProtocolChange(p)}
+          onClick={() => {
+            onProtocolChange(p);
+          }}
           className={`flex-1 py-2 text-sm font-medium transition-colors ${
             protocol === p
               ? p === 'meshcore'
@@ -998,7 +1001,9 @@ export default function ConnectionPanel({
                       key={device.deviceId}
                       type="button"
                       aria-label={bleAriaLabel}
-                      onClick={() => handleSelectBleDevice(device.deviceId)}
+                      onClick={() => {
+                        handleSelectBleDevice(device.deviceId);
+                      }}
                       className="w-full px-4 py-3 text-left hover:bg-secondary-dark transition-colors border-b border-gray-700 last:border-b-0"
                     >
                       <div className="text-sm text-gray-200 flex items-center gap-2">
@@ -1049,7 +1054,9 @@ export default function ConnectionPanel({
                       key={port.portId}
                       type="button"
                       aria-label={serialAriaLabel}
-                      onClick={() => handleSelectSerialPort(port.portId)}
+                      onClick={() => {
+                        handleSelectSerialPort(port.portId);
+                      }}
                       className="w-full px-4 py-3 text-left hover:bg-secondary-dark transition-colors border-b border-gray-700 last:border-b-0"
                     >
                       <div className="text-sm text-gray-200 flex items-center gap-2">
@@ -1330,7 +1337,9 @@ export default function ConnectionPanel({
                 id="mqtt-server"
                 type="text"
                 value={activeMqttSettings.server}
-                onChange={(e) => updateMqtt('server', e.target.value)}
+                onChange={(e) => {
+                  updateMqtt('server', e.target.value);
+                }}
                 className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
               />
             </div>
@@ -1342,9 +1351,12 @@ export default function ConnectionPanel({
                 id="mqtt-port"
                 type="number"
                 value={activeMqttSettings.port}
-                onChange={(e) =>
-                  updateMqtt('port', Math.max(1, Math.min(65535, parseInt(e.target.value) || 1883)))
-                }
+                onChange={(e) => {
+                  updateMqtt(
+                    'port',
+                    Math.max(1, Math.min(65535, parseInt(e.target.value) || 1883)),
+                  );
+                }}
                 className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
               />
             </div>
@@ -1355,7 +1367,9 @@ export default function ConnectionPanel({
                 type="checkbox"
                 id="mqtt-tls-insecure"
                 checked={activeMqttSettings.tlsInsecure ?? false}
-                onChange={(e) => updateMqtt('tlsInsecure', e.target.checked)}
+                onChange={(e) => {
+                  updateMqtt('tlsInsecure', e.target.checked);
+                }}
                 className="accent-brand-green"
               />
               <label
@@ -1372,7 +1386,9 @@ export default function ConnectionPanel({
               type="checkbox"
               id="mqtt-websocket"
               checked={activeMqttSettings.useWebSocket ?? false}
-              onChange={(e) => updateMqtt('useWebSocket', e.target.checked)}
+              onChange={(e) => {
+                updateMqtt('useWebSocket', e.target.checked);
+              }}
               className="accent-brand-green"
             />
             <label htmlFor="mqtt-websocket" className="text-xs text-gray-300 cursor-pointer">
@@ -1408,7 +1424,9 @@ export default function ConnectionPanel({
                 type="checkbox"
                 id="meshcore-packet-logger"
                 checked={meshcoreMqttSettings.meshcorePacketLoggerEnabled ?? false}
-                onChange={(e) => updateMqtt('meshcorePacketLoggerEnabled', e.target.checked)}
+                onChange={(e) => {
+                  updateMqtt('meshcorePacketLoggerEnabled', e.target.checked);
+                }}
                 className="accent-brand-green mt-0.5 shrink-0"
               />
               <label htmlFor="meshcore-packet-logger" className="cursor-pointer leading-snug">
@@ -1429,7 +1447,9 @@ export default function ConnectionPanel({
                 id="mqtt-username"
                 type="text"
                 value={activeMqttSettings.username}
-                onChange={(e) => updateMqtt('username', e.target.value)}
+                onChange={(e) => {
+                  updateMqtt('username', e.target.value);
+                }}
                 className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
               />
             </div>
@@ -1442,12 +1462,16 @@ export default function ConnectionPanel({
                   id="mqtt-password"
                   type={showMqttPassword ? 'text' : 'password'}
                   value={activeMqttSettings.password}
-                  onChange={(e) => updateMqtt('password', e.target.value)}
+                  onChange={(e) => {
+                    updateMqtt('password', e.target.value);
+                  }}
                   className="w-full px-2 py-1.5 pr-8 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
                 />
                 <button
                   type="button"
-                  onClick={() => setShowMqttPassword((v) => !v)}
+                  onClick={() => {
+                    setShowMqttPassword((v) => !v);
+                  }}
                   aria-label={showMqttPassword ? 'hide' : 'show'}
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 text-xs"
                 >
@@ -1467,7 +1491,9 @@ export default function ConnectionPanel({
               id="mqtt-topic-prefix"
               type="text"
               value={activeMqttSettings.topicPrefix}
-              onChange={(e) => updateMqtt('topicPrefix', e.target.value, false)}
+              onChange={(e) => {
+                updateMqtt('topicPrefix', e.target.value, false);
+              }}
               className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
               placeholder="msh/US/"
             />
@@ -1485,7 +1511,9 @@ export default function ConnectionPanel({
               min={1}
               max={20}
               value={activeMqttSettings.maxRetries ?? 5}
-              onChange={(e) => updateMqtt('maxRetries', parseInt(e.target.value) || 5, false)}
+              onChange={(e) => {
+                updateMqtt('maxRetries', parseInt(e.target.value) || 5, false);
+              }}
               className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
             />
           </div>
@@ -1519,7 +1547,9 @@ export default function ConnectionPanel({
               type="checkbox"
               id="mqttAutoLaunch"
               checked={activeMqttSettings.autoLaunch}
-              onChange={(e) => updateMqtt('autoLaunch', e.target.checked, false)}
+              onChange={(e) => {
+                updateMqtt('autoLaunch', e.target.checked, false);
+              }}
               className="accent-brand-green"
             />
             <label htmlFor="mqttAutoLaunch" className="text-sm text-gray-300 cursor-pointer">
@@ -1728,8 +1758,8 @@ export default function ConnectionPanel({
         <button
           type="button"
           onClick={() => {
-            window.electronAPI.mqtt.disconnect();
-            window.electronAPI.quitApp();
+            void window.electronAPI.mqtt.disconnect();
+            void window.electronAPI.quitApp();
           }}
           className="w-full px-6 py-2.5 border border-red-700 text-red-400 hover:bg-red-900/30 hover:text-red-300 font-medium rounded-lg transition-colors text-sm"
         >
@@ -1822,7 +1852,9 @@ export default function ConnectionPanel({
                     type="button"
                     role="radio"
                     aria-checked={connectionType === type}
-                    onClick={() => setConnectionType(type)}
+                    onClick={() => {
+                      setConnectionType(type);
+                    }}
                     className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
                       connectionType === type
                         ? 'text-white ring-2 ring-bright-green'
@@ -1849,7 +1881,9 @@ export default function ConnectionPanel({
                     type="button"
                     role="radio"
                     aria-checked={connectionType === type}
-                    onClick={() => setConnectionType(type)}
+                    onClick={() => {
+                      setConnectionType(type);
+                    }}
                     className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
                       connectionType === type
                         ? 'text-white ring-2 ring-purple-500'
@@ -1877,7 +1911,9 @@ export default function ConnectionPanel({
                 id="connection-meshtastic-host"
                 type="text"
                 value={httpAddress}
-                onChange={(e) => setHttpAddress(e.target.value)}
+                onChange={(e) => {
+                  setHttpAddress(e.target.value);
+                }}
                 placeholder="meshtastic.local or 192.168.1.x"
                 className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
                 autoComplete="off"
@@ -1900,7 +1936,9 @@ export default function ConnectionPanel({
                 id="connection-meshcore-tcp-host"
                 type="text"
                 value={tcpHost}
-                onChange={(e) => setTcpHost(e.target.value)}
+                onChange={(e) => {
+                  setTcpHost(e.target.value);
+                }}
                 placeholder="localhost or 192.168.1.x"
                 className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-purple-500 focus:outline-none text-sm"
                 autoComplete="off"

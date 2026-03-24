@@ -18,10 +18,12 @@ vi.stubGlobal('localStorage', {
     _localStorageStore[k] = v;
   },
   removeItem: (k: string) => {
-    delete _localStorageStore[k];
+    Reflect.deleteProperty(_localStorageStore, k);
   },
   clear: () => {
-    Object.keys(_localStorageStore).forEach((k) => delete _localStorageStore[k]);
+    Object.keys(_localStorageStore).forEach((k) => {
+      Reflect.deleteProperty(_localStorageStore, k);
+    });
   },
   get length() {
     return Object.keys(_localStorageStore).length;

@@ -75,7 +75,7 @@ function flushPendingBuffer(): void {
   const data = lines.join('');
   appendChain = appendChain.then(() =>
     // codeql[js/http-to-file-access] -- data is joined formatLine outputs; each line was built after sanitizeLogMessage in appendLine.
-    fs.promises.appendFile(p, data, 'utf8').catch((e) => {
+    fs.promises.appendFile(p, data, 'utf8').catch((e: unknown) => {
       original.debug('[log-service] flushPendingBuffer appendFile failed', e);
     }),
   );
@@ -132,7 +132,7 @@ export function appendLine(level: LogLevel, source: string, message: string): vo
       // codeql[js/http-to-file-access] -- line is built only from sanitizeLogMessage(message/source) + fixed path; not raw network payload.
       fs.promises.appendFile(getLogFilePath(), line, 'utf8'),
     )
-    .catch((e) => {
+    .catch((e: unknown) => {
       original.debug('[log-service] appendFile failed, retry writeFileSync', e);
       try {
         // codeql[js/http-to-file-access] -- same as appendFile above; retry path only.
@@ -201,7 +201,7 @@ function stringifyArgs(args: unknown[]): string {
           return JSON.stringify(a);
         } catch (e) {
           original.debug('[log-service] stringifyArgs JSON.stringify failed', e);
-          return String(a);
+          return '[unserializable]';
         }
       }
       return String(a);

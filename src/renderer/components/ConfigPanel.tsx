@@ -100,7 +100,9 @@ function ConfigSelect({
       <label className="text-sm text-muted">{label}</label>
       <select
         value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
+        onChange={(e) => {
+          onChange(Number(e.target.value));
+        }}
         disabled={disabled}
         className="w-full px-3 py-2 bg-secondary-dark rounded-lg text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none disabled:opacity-50"
       >
@@ -134,7 +136,9 @@ function ConfigToggle({
       <div className="flex items-center justify-between">
         <label className="text-sm text-muted">{label}</label>
         <button
-          onClick={() => onChange(!checked)}
+          onClick={() => {
+            onChange(!checked);
+          }}
           disabled={disabled}
           className={`relative w-10 h-5 rounded-full transition-colors disabled:opacity-50 ${
             checked ? 'bg-brand-green' : 'bg-gray-600'
@@ -179,7 +183,9 @@ function ConfigNumber({
         <input
           type="number"
           value={value}
-          onChange={(e) => onChange(Number(e.target.value))}
+          onChange={(e) => {
+            onChange(Number(e.target.value));
+          }}
           min={min}
           max={max}
           disabled={disabled}
@@ -394,7 +400,9 @@ export default function ConfigPanel({
               min={1}
               max={7}
               value={hopLimit}
-              onChange={(e) => setHopLimit(Number(e.target.value))}
+              onChange={(e) => {
+                setHopLimit(Number(e.target.value));
+              }}
               disabled={disabled || applyingSection !== null}
               className="flex-1 accent-green-500 disabled:opacity-50"
             />
@@ -794,7 +802,9 @@ function ChannelSection({
             return (
               <button
                 key={i}
-                onClick={() => setSelectedIndex(i)}
+                onClick={() => {
+                  setSelectedIndex(i);
+                }}
                 className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-colors ${
                   isSelected
                     ? 'bg-gray-700 border border-gray-500'
@@ -851,7 +861,9 @@ function ChannelSection({
                 id="cfg-ch-name"
                 type="text"
                 value={editName}
-                onChange={(e) => setEditName(e.target.value)}
+                onChange={(e) => {
+                  setEditName(e.target.value);
+                }}
                 maxLength={11}
                 disabled={disabled}
                 placeholder={selectedIndex === 0 ? 'Primary' : 'Channel name'}
@@ -868,7 +880,9 @@ function ChannelSection({
                 <select
                   id="cfg-ch-role"
                   value={editRole}
-                  onChange={(e) => setEditRole(Number(e.target.value))}
+                  onChange={(e) => {
+                    setEditRole(Number(e.target.value));
+                  }}
                   disabled={disabled}
                   className="w-full px-2 py-1.5 bg-secondary-dark rounded text-sm text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none disabled:opacity-50"
                 >
@@ -886,7 +900,9 @@ function ChannelSection({
               <select
                 id="cfg-ch-key-size"
                 value={editKeySize}
-                onChange={(e) => handleKeySizeChange(e.target.value as KeySize)}
+                onChange={(e) => {
+                  handleKeySizeChange(e.target.value as KeySize);
+                }}
                 disabled={disabled}
                 className="w-full px-2 py-1.5 bg-secondary-dark rounded text-sm text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none disabled:opacity-50"
               >
@@ -918,11 +934,11 @@ function ChannelSection({
                 />
                 {isAesKey && (
                   <button
-                    onClick={() =>
+                    onClick={() => {
                       setEditPskB64(
                         pskToBase64(generateRandomPsk(editKeySize === 'aes128' ? 16 : 32)),
-                      )
-                    }
+                      );
+                    }}
                     disabled={disabled}
                     className="px-2 py-1.5 text-xs bg-secondary-dark text-muted hover:text-gray-200 rounded border border-gray-600 disabled:opacity-50 whitespace-nowrap"
                     title="Generate random key"
@@ -965,7 +981,9 @@ function ChannelSection({
                 id="cfg-ch-pos-precision"
                 type="number"
                 value={editPosPrecision}
-                onChange={(e) => setEditPosPrecision(Number(e.target.value))}
+                onChange={(e) => {
+                  setEditPosPrecision(Number(e.target.value));
+                }}
                 min={0}
                 max={32}
                 disabled={disabled}
