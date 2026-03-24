@@ -1,4 +1,9 @@
-import { CayenneLpp, SerialConnection, WebSerialConnection } from '@liamcottle/meshcore.js';
+import {
+  CayenneLpp,
+  Connection,
+  SerialConnection,
+  WebSerialConnection,
+} from '@liamcottle/meshcore.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { sanitizeLogMessage } from '@/main/sanitize-log-message';
@@ -87,6 +92,18 @@ function messageToDbRow(
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface SerialConnectionInstance extends InstanceType<typeof SerialConnection> {}
 
+/** meshcore.js BLE (NUS) uses raw companion frames like Web Bluetooth — not USB serial framing. */
+interface NobleIpcMeshcoreConnectionInstance {
+  emit(event: string | number, ...args: unknown[]): void;
+  onConnected(): Promise<void>;
+  onDisconnected(): void;
+  onFrameReceived(frame: Uint8Array): void;
+}
+
+/** Runtime Connection + onFrameReceived (NUS path); meshcore.d.ts covers the shared base. */
+const MeshcoreConnectionBase =
+  Connection as unknown as new () => NobleIpcMeshcoreConnectionInstance;
+
 // Umbrella timeout for the IPC call to main process to connect BLE.
 // Must exceed the sum of all per-operation GATT timeouts on the slowest platform:
 // non-macOS: connectAsync(30s) + discovery(30s) + subscribe×2(20s each) = 100s.
@@ -172,7 +189,7 @@ class IpcTcpConnection {
 class IpcNobleConnection {
   private readonly peripheralId: string;
   private readonly sessionId: NobleBleSessionId;
-  private inner: SerialConnectionInstance | null = null;
+  private inner: NobleIpcMeshcoreConnectionInstance | null = null;
   private cleanupFns: (() => void)[] = [];
 
   constructor(peripheralId: string, sessionId: NobleBleSessionId = 'meshcore') {
@@ -182,9 +199,18 @@ class IpcNobleConnection {
 
   async connect() {
     const sessionId = this.sessionId;
-    class NobleOverIpc extends (SerialConnection as unknown as new () => SerialConnectionInstance) {
+    class NobleOverIpc extends (MeshcoreConnectionBase as unknown as new () => NobleIpcMeshcoreConnectionInstance) {
       constructor(private readonly session: NobleBleSessionId) {
         super();
+      }
+
+      /**
+       * Raw companion frames over Nordic UART (same as meshcore.js WebBleConnection), not SerialConnection's
+       * USB framing (0x3c/0x3e + length) used for WebSerial/TCP.
+       */
+      async sendToRadioFrame(data: Uint8Array) {
+        this.emit('tx', data);
+        await this.write(data);
       }
 
       async write(bytes: Uint8Array) {
@@ -197,12 +223,13 @@ class IpcNobleConnection {
       }
     }
 
-    const instance = new NobleOverIpc(sessionId) as unknown as SerialConnectionInstance;
+    const instance = new NobleOverIpc(sessionId) as unknown as NobleIpcMeshcoreConnectionInstance;
     this.inner = instance;
     const offData = window.electronAPI.onNobleBleFromRadio(({ sessionId: sid, bytes }) => {
       if (sid !== sessionId) return;
       console.debug(`[IpcNobleConnection:${sessionId}] fromRadio ${bytes.length} bytes`);
-      void instance.onDataReceived(bytes);
+      const frame = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes as ArrayBuffer);
+      instance.onFrameReceived(frame);
     });
     const offDisc = window.electronAPI.onNobleBleDisconnected((sid) => {
       if (sid !== sessionId) return;
