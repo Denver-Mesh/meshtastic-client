@@ -533,32 +533,40 @@ export class NobleBleManager extends EventEmitter {
       );
 
       if (peripheral.state === 'connected') {
-        // Check if any other session already owns this peripheral. If so, refuse to connect
-        // rather than destructively disconnecting the other session's active GATT link.
+        let releasedOtherSession = false;
         for (const [otherSessionId, otherSession] of this.sessions.entries()) {
           if (
             otherSessionId !== sessionId &&
             otherSession.connectedPeripheral?.id === peripheral.id
           ) {
-            throw new Error(
-              `Peripheral ${peripheral.id} is already in use by the ${otherSessionId} session`,
+            console.debug(
+              `[BLE:${sessionId}] peripheral ${peripheral.id} owned by ${otherSessionId} — disconnecting other session so this session can connect`,
             );
+            await this.disconnect(otherSessionId);
+            releasedOtherSession = true;
+            break;
           }
         }
         // Peripheral is connected in noble's internal state but not claimed by any session
         // (e.g. leftover from a previous crashed session). Disconnect before reconnecting.
         // NOTE: register onDisconnected AFTER this cleanup so the pre-connect disconnectAsync()
         // does not prematurely trigger the handler and wipe the new session state.
-        console.warn(
-          `[BLE:${sessionId}] peripheral already connected in noble — disconnecting before reconnect`,
-        );
-        try {
-          await withTimeout(peripheral.disconnectAsync(), 5000, 'BLE pre-connect disconnectAsync');
-        } catch (err) {
-          console.debug(
-            `[BLE:${sessionId}] pre-connect disconnect error (ignored):`,
-            sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+        if (peripheral.state === 'connected' && !releasedOtherSession) {
+          console.warn(
+            `[BLE:${sessionId}] peripheral already connected in noble — disconnecting before reconnect`,
           );
+          try {
+            await withTimeout(
+              peripheral.disconnectAsync(),
+              5000,
+              'BLE pre-connect disconnectAsync',
+            );
+          } catch (err) {
+            console.debug(
+              `[BLE:${sessionId}] pre-connect disconnect error (ignored):`,
+              sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+            );
+          }
         }
       }
 

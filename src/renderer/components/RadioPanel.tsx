@@ -761,7 +761,7 @@ export default function RadioPanel({
   }, [addToast, onSetOwner, onApplyLoraParams, shortName, isLicensed, bandwidth, radioFreqHz]);
 
   return (
-    <div className="max-w-lg mx-auto space-y-4">
+    <div className="max-w-5xl mx-auto space-y-4">
       <h2 className="text-xl font-semibold text-gray-200">Radio Configuration</h2>
 
       {capabilities?.protocol === 'meshcore' && (

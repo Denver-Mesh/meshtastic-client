@@ -943,7 +943,7 @@ export default function ConnectionPanel({
   // ─── Connecting Progress View ───────────────────────────────────
   if (connecting && !isConnected) {
     return (
-      <div className="max-w-lg mx-auto flex flex-col items-center justify-center py-16 space-y-6">
+      <div className="max-w-5xl mx-auto flex flex-col items-center justify-center py-16 space-y-6">
         <Spinner className="w-12 h-12 text-bright-green" />
         <div className="text-center space-y-2">
           <h2 className="text-xl font-semibold text-gray-200">
@@ -966,7 +966,7 @@ export default function ConnectionPanel({
           <div
             role="region"
             aria-labelledby="ble-device-picker-heading"
-            className="w-full max-w-md bg-deep-black rounded-lg border border-gray-600 overflow-hidden"
+            className="w-full max-w-4xl bg-deep-black rounded-lg border border-gray-600 overflow-hidden"
           >
             <div className="px-4 py-2.5 bg-secondary-dark border-b border-gray-600 flex justify-between items-center">
               <span id="ble-device-picker-heading" className="text-sm font-medium text-gray-200">
@@ -1030,7 +1030,7 @@ export default function ConnectionPanel({
           <div
             role="region"
             aria-labelledby="serial-port-picker-heading"
-            className="w-full max-w-md bg-deep-black rounded-lg border border-gray-600 overflow-hidden"
+            className="w-full max-w-4xl bg-deep-black rounded-lg border border-gray-600 overflow-hidden"
           >
             <div className="px-4 py-2.5 bg-secondary-dark border-b border-gray-600 flex justify-between items-center">
               <span id="serial-port-picker-heading" className="text-sm font-medium text-gray-200">
@@ -1078,7 +1078,7 @@ export default function ConnectionPanel({
 
         {/* Error in progress view */}
         {error && (
-          <div className="w-full max-w-md bg-red-900/50 border border-red-700 text-red-300 px-4 py-2 rounded-lg text-sm">
+          <div className="w-full max-w-4xl bg-red-900/50 border border-red-700 text-red-300 px-4 py-2 rounded-lg text-sm">
             {error}
           </div>
         )}
@@ -1624,7 +1624,7 @@ export default function ConnectionPanel({
   // ─── Connected View ────────────────────────────────────────────
   if (isConnected) {
     return (
-      <div className="max-w-lg mx-auto space-y-6">
+      <div className="max-w-5xl mx-auto space-y-6">
         {protocolToggle}
         <button
           onClick={async () => {
@@ -1752,7 +1752,7 @@ export default function ConnectionPanel({
 
   // ─── Disconnected View ─────────────────────────────────────────
   return (
-    <div className="max-w-lg mx-auto space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6">
       {protocolToggle}
       {mqttStatus === 'connected' && (
         <button

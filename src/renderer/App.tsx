@@ -530,7 +530,7 @@ export default function App() {
         setSearchModalOpen(true);
       } else if ((e.metaKey || e.ctrlKey) && e.key >= '1' && e.key <= '9') {
         e.preventDefault();
-        setActiveTab(parseInt(e.key) - 1);
+        setActiveTab(parseInt(e.key, 10) - 1);
       } else if (e.key === '?' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         const tag = (e.target as HTMLElement).tagName;
         if (tag !== 'INPUT' && tag !== 'TEXTAREA') {

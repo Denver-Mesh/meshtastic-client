@@ -279,7 +279,7 @@ export default function ModulePanel({
   };
 
   return (
-    <div className="max-w-lg mx-auto space-y-4">
+    <div className="max-w-5xl mx-auto space-y-4">
       <h2 className="text-xl font-semibold text-gray-200">Module Configuration</h2>
 
       {!isConnected && (

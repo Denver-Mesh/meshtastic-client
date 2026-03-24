@@ -141,6 +141,14 @@ describe('NobleBleManager — Linux/BlueZ adapter init race (regression)', () =>
   });
 });
 
+describe('NobleBleManager.connect — release other session on same peripheral (regression)', () => {
+  it('disconnects the other protocol session instead of throwing already in use', () => {
+    expect(SOURCE).toContain('releasedOtherSession');
+    expect(SOURCE).toContain('await this.disconnect(otherSessionId)');
+    expect(SOURCE).not.toContain('already in use by the');
+  });
+});
+
 describe('NobleBleManager — Linux BLE capability diagnostics (regression)', () => {
   it('defines a dedicated Linux capability error code', () => {
     expect(SOURCE).toContain('BLE_LINUX_CAPABILITY_MISSING');
