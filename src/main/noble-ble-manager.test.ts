@@ -64,9 +64,8 @@ describe('NobleBleManager.connect — per-session UUID selection (regression)', 
 
 /**
  * Regression guard: MeshCore NUS TX may advertise both read+notify on some stacks.
- * On macOS, notify delivery is reliable so the read pump is suppressed when notify is active.
- * On Windows/Linux, noble may not deliver notify events even after subscribeAsync() succeeds,
- * so the read pump always runs as a safety net regardless of fromRadioNotifyOnly.
+ * MeshCore uses notify-only (like Web Bluetooth); GATT read on NUS TX fails on Windows WinRT.
+ * Meshtastic keeps a non-Darwin read-pump safety net when notify is active.
  */
 describe('NobleBleManager — notify-first fromRadio read pump strategy (regression)', () => {
   it('declares fromRadioNotifyOnly in session state and initialises it to false', () => {
@@ -82,11 +81,10 @@ describe('NobleBleManager — notify-first fromRadio read pump strategy (regress
     expect(fnMatch![0]).toContain('fromRadioNotifyOnly = false');
   });
 
-  it('requestFromRadioReadPump returns early on Darwin when fromRadioNotifyOnly is set', () => {
-    // On macOS, notify delivers data reliably — skip reads to avoid redundant GATT traffic.
-    // On Windows/Linux, noble may not deliver notify events even after subscribe succeeds,
-    // so the read pump always runs as a safety net (IS_DARWIN gate).
-    expect(SOURCE).toMatch(/if \(session\.fromRadioNotifyOnly && IS_DARWIN\) return/);
+  it('centralizes read-pump gating in shouldUseFromRadioReadPump (meshcore notify-only, meshtastic Win safety net)', () => {
+    expect(SOURCE).toContain('shouldUseFromRadioReadPump');
+    expect(SOURCE).toMatch(/sessionId === 'meshcore'/);
+    expect(SOURCE).toMatch(/if \(!this\.shouldUseFromRadioReadPump\(sessionId, session\)\) return/);
   });
 
   it('connect() starts fromRadioNotifyOnly as false before strategy selection', () => {
@@ -100,12 +98,11 @@ describe('NobleBleManager — notify-first fromRadio read pump strategy (regress
     expect(SOURCE).toContain('fromRadio strategy=fallback-read');
   });
 
-  it('writeToRadio uses IS_DARWIN gate for post-write read-pump scheduling', () => {
-    // On Darwin: skips pump when fromRadioNotifyOnly (notify is reliable).
-    // On Windows/Linux: always schedules pump regardless of fromRadioNotifyOnly
-    // because noble may not deliver notify events even after subscribe succeeds.
+  it('writeToRadio schedules post-write read pump only when shouldUseFromRadioReadPump is true', () => {
+    expect(SOURCE).toMatch(
+      /const scheduleReadPump = this\.shouldUseFromRadioReadPump\(sessionId, session\)/,
+    );
     expect(SOURCE).toMatch(/scheduleReadPump[\s\S]{0,400}postWriteReadPumpTimer/);
-    expect(SOURCE).toMatch(/!session\.fromRadioNotifyOnly \|\| !IS_DARWIN/);
   });
 });
 

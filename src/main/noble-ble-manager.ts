@@ -180,13 +180,25 @@ export class NobleBleManager extends EventEmitter {
     session.fromRadioNotifyOnly = false;
   }
 
+  /**
+   * Whether to issue GATT reads on fromRadio (NUS TX / Meshtastic fromRadio) as a complement to notify.
+   * - Fallback mode (subscribe failed): always read — notify is not active.
+   * - MeshCore NUS + notify OK: never read. WinRT often returns "Protocol error" on read even when
+   *   the characteristic lists "read"; Web Bluetooth path is notify-only. macOS tolerates reads but
+   *   they are redundant.
+   * - Meshtastic + notify OK: skip reads on Darwin only; on Windows/Linux keep read pump as a
+   *   safety net because notify delivery has been unreliable in noble.
+   */
+  private shouldUseFromRadioReadPump(sessionId: NobleSessionId, session: NobleBleSession): boolean {
+    if (!session.fromRadioNotifyOnly) return true;
+    if (sessionId === 'meshcore' || IS_DARWIN) return false;
+    return true;
+  }
+
   private requestFromRadioReadPump(sessionId: NobleSessionId): void {
     const session = this.getSession(sessionId);
     if (session.closing) return;
-    // On macOS (Darwin), CoreBluetooth reliably delivers notify events — skip reads to avoid
-    // redundant GATT traffic. On Windows/Linux, noble's notify delivery is unreliable even when
-    // subscribeAsync() succeeds, so always allow the read pump to run as a safety net.
-    if (session.fromRadioNotifyOnly && IS_DARWIN) return;
+    if (!this.shouldUseFromRadioReadPump(sessionId, session)) return;
     session.readPumpRequested = true;
     if (session.readPumpActive) return;
     session.readPumpActive = true;
@@ -779,13 +791,9 @@ export class NobleBleManager extends EventEmitter {
       throw new Error(`Not connected to a BLE device for session ${sessionId}`);
     console.debug(`[BLE:${sessionId}] writeToRadio: ${data.length} bytes`);
     await session.toRadioChar.writeAsync(data, false);
-    // On Darwin, CoreBluetooth reliably delivers notify events — skip the read pump for
-    // notify-subscribed characteristics to avoid redundant GATT reads.
-    // On Windows/Linux, noble may not deliver notify events even when subscribe succeeded,
-    // so always schedule the post-write read pump as a guaranteed safety net.
-    const scheduleReadPump = !session.fromRadioNotifyOnly || !IS_DARWIN;
+    const scheduleReadPump = this.shouldUseFromRadioReadPump(sessionId, session);
     console.debug(
-      `[BLE:${sessionId}] writeToRadio done — ${scheduleReadPump ? `scheduling post-write read pump in ${POST_WRITE_READ_PUMP_DELAY_MS}ms` : 'notify-only mode, skipping post-write read pump'}`,
+      `[BLE:${sessionId}] writeToRadio done — ${scheduleReadPump ? `scheduling post-write read pump in ${POST_WRITE_READ_PUMP_DELAY_MS}ms` : 'skipping post-write read pump (notify-only / meshcore NUS)'}`,
     );
     if (scheduleReadPump) {
       if (session.postWriteReadPumpTimer !== null) {
