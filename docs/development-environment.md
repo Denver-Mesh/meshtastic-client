@@ -307,7 +307,7 @@ export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
 nvm install 25
 nvm use 25
-sudo apt install build-essential make g++ python3
+sudo apt install build-essential make g++ python3 libnspr4 libnss3
 ```
 
 Fedora/RedHat:
@@ -319,7 +319,7 @@ export NVM_DIR="$HOME/.nvm"
 nvm install 25
 nvm use 25
 sudo dnf groupinstall "Development Tools"
-sudo dnf install make gcc-c++ python3
+sudo dnf install make gcc-c++ python3 nspr nss
 ```
 
 ### Build/run flow
