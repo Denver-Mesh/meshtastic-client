@@ -62,6 +62,33 @@ npm install
 - Dev mode (hot reload): `npm run dev`
 - Production-like local start: `npm start`
 
+### Common npm commands
+
+Use these from the repository root:
+
+```bash
+# App run/build
+npm run dev
+npm start
+npm run build
+
+# Platform packaging (binary artifacts in release/)
+npm run dist:mac
+npm run dist:linux
+npm run dist:win
+
+# Quality checks
+npm run test:run
+npm run lint
+npm run typecheck
+npm run format:check
+
+# Docs
+npm run docs:install
+npm run docs:build
+npm run docs:serve
+```
+
 ### 4) Test harness and local quality checks
 
 Run these before opening a PR:
