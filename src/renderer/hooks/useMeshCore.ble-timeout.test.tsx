@@ -246,4 +246,36 @@ describe('useMeshCore BLE Noble IPC timeout handling', () => {
       ),
     );
   });
+
+  it('retries once after WinRT GATT unreachable during service discovery', async () => {
+    vi.mocked(window.electronAPI.connectNobleBle)
+      .mockRejectedValueOnce(new Error('Device is unreachable while discovering services'))
+      .mockResolvedValueOnce({ ok: true });
+
+    vi.mocked(withTimeout).mockImplementation(
+      async (promise: Promise<unknown>, ms: number, label: string) => {
+        if (label === 'MeshCore BLE protocol handshake') {
+          throw new Error(`MeshCore BLE protocol handshake timed out after ${ms}ms`);
+        }
+        return promise;
+      },
+    );
+
+    const { result } = renderHook(() => useMeshCore());
+
+    await expect(
+      act(async () => {
+        await result.current.connect('ble', undefined, 'ble-device-unreachable');
+      }),
+    ).rejects.toThrow(
+      'Bluetooth connected but MeshCore protocol handshake did not complete before disconnect/timeout. Retry, keep the device awake and nearby, power-cycle BLE, or use Serial/TCP.',
+    );
+
+    expect(window.electronAPI.connectNobleBle).toHaveBeenCalledTimes(2);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /\[useMeshCore\] connect: BLE Noble IPC attempt failed \{"attempt":1,"maxAttempts":2,"isTimeout":false,"isRetryable":true,"stage":"unknown","elapsedMs":\d+,"message":"Device is unreachable while discovering services"\}/,
+      ),
+    );
+  });
 });

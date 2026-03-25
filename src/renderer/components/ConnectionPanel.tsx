@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { MESHCORE_SETUP_ABORT_MESSAGE } from '../lib/bleConnectErrors';
 import {
   letsMeshPresetConfigurationDeviation,
   validateLetsMeshManualCredentials,
@@ -88,19 +89,26 @@ function humanizeHttpError(address: string, err: unknown): string {
 }
 
 function humanizeBleError(err: unknown): string {
+  if (
+    err instanceof DOMException &&
+    err.name === 'AbortError' &&
+    err.message === MESHCORE_SETUP_ABORT_MESSAGE
+  ) {
+    return '';
+  }
   const msg =
     err instanceof Error
       ? err.message
       : typeof err === 'string'
         ? err
         : (() => {
-          try {
-            return JSON.stringify(err);
-          } catch {
-            // catch-no-log-ok stringify fallback for arbitrary renderer error shapes
-            return String(err);
-          }
-        })();
+            try {
+              return JSON.stringify(err);
+            } catch {
+              // catch-no-log-ok stringify fallback for arbitrary renderer error shapes
+              return String(err);
+            }
+          })();
   const isWindows = navigator.userAgent.toLowerCase().includes('windows');
   const isLinux = navigator.userAgent.toLowerCase().includes('linux');
   if (msg.includes('BLE_LINUX_CAPABILITY_MISSING')) {
@@ -647,7 +655,8 @@ export default function ConnectionPanel({
           onConnect('ble', undefined, device.deviceId).catch((err: unknown) => {
             isAutoConnectingRef.current = false;
             setIsAutoConnecting(false);
-            setError(humanizeBleError(err));
+            const bleErrMsg = humanizeBleError(err);
+            if (bleErrMsg) setError(bleErrMsg);
             setConnecting(false);
             setConnectionStage('');
           });
@@ -707,7 +716,8 @@ export default function ConnectionPanel({
         await window.electronAPI.startNobleBleScanning(protocol);
       } catch (err) {
         console.warn('[ConnectionPanel] startNobleBleScanning failed:', err);
-        setError(humanizeBleError(err));
+        const bleErrMsg = humanizeBleError(err);
+        if (bleErrMsg) setError(bleErrMsg);
         setConnecting(false);
         setConnectionStage('');
       }
@@ -772,7 +782,8 @@ export default function ConnectionPanel({
       // Trigger the actual connection with the peripheral ID
       onConnect('ble', undefined, deviceId).catch((err: unknown) => {
         console.warn('[ConnectionPanel] BLE connect after selection failed', err);
-        setError(humanizeBleError(err));
+        const bleErrMsg = humanizeBleError(err);
+        if (bleErrMsg) setError(bleErrMsg);
         setConnecting(false);
         setConnectionStage('');
       });
@@ -890,7 +901,8 @@ export default function ConnectionPanel({
           }
           isAutoConnectingRef.current = false;
           setIsAutoConnecting(false);
-          setError(humanizeBleError(err));
+          const bleErrMsg = humanizeBleError(err);
+          if (bleErrMsg) setError(bleErrMsg);
           setConnecting(false);
           setConnectionStage('');
         });
@@ -949,12 +961,13 @@ export default function ConnectionPanel({
           onClick={() => {
             onProtocolChange(p);
           }}
-          className={`flex-1 py-2 text-sm font-medium transition-colors ${protocol === p
+          className={`flex-1 py-2 text-sm font-medium transition-colors ${
+            protocol === p
               ? p === 'meshcore'
                 ? 'bg-cyan-600/20 text-cyan-400'
                 : 'bg-brand-green/20 text-brand-green border-brand-green'
               : 'text-muted hover:text-gray-200 hover:bg-secondary-dark'
-            }`}
+          }`}
         >
           {p === 'meshtastic' ? 'Meshtastic' : 'MeshCore'}
         </button>
@@ -1017,7 +1030,7 @@ export default function ConnectionPanel({
                     ? advertisedName && advertisedName !== cached
                       ? `${cached} (${advertisedName})`
                       : cached
-                    : advertisedName ?? device.deviceId;
+                    : (advertisedName ?? device.deviceId);
                   const bleAriaLabel = `${displayName} ${device.deviceId}`;
                   return (
                     <button
@@ -1134,14 +1147,15 @@ export default function ConnectionPanel({
         <span className="font-medium text-gray-200">MQTT Connection</span>
       </div>
       <span
-        className={`text-xs font-medium ${mqttStatus === 'connected'
+        className={`text-xs font-medium ${
+          mqttStatus === 'connected'
             ? 'text-brand-green'
             : mqttStatus === 'connecting'
               ? 'text-yellow-400 animate-pulse'
               : mqttStatus === 'error'
                 ? 'text-red-400'
                 : 'text-gray-500'
-          }`}
+        }`}
         aria-live="polite"
       >
         <span aria-hidden="true">● </span>
@@ -1235,10 +1249,11 @@ export default function ConnectionPanel({
                         });
                       }
                     }}
-                    className={`flex-1 px-2 py-1.5 text-xs font-medium rounded border transition-colors ${meshtasticPreset === id
+                    className={`flex-1 px-2 py-1.5 text-xs font-medium rounded border transition-colors ${
+                      meshtasticPreset === id
                         ? 'bg-brand-green/20 border-brand-green text-brand-green'
                         : 'bg-secondary-dark border-gray-600 text-gray-400 hover:border-gray-400 hover:text-gray-200'
-                      }`}
+                    }`}
                   >
                     {label}
                   </button>
@@ -1293,10 +1308,11 @@ export default function ConnectionPanel({
                         }));
                       }
                     }}
-                    className={`flex-1 px-2 py-1.5 text-xs font-medium rounded border transition-colors ${meshcorePreset === id
+                    className={`flex-1 px-2 py-1.5 text-xs font-medium rounded border transition-colors ${
+                      meshcorePreset === id
                         ? 'bg-brand-green/20 border-brand-green text-brand-green'
                         : 'bg-secondary-dark border-gray-600 text-gray-400 hover:border-gray-400 hover:text-gray-200'
-                      }`}
+                    }`}
                   >
                     {label}
                   </button>
@@ -1322,10 +1338,11 @@ export default function ConnectionPanel({
                         username: fromIdentity || prev.username,
                       }));
                     }}
-                    className={`px-2 py-1 text-xs font-medium rounded border transition-colors ${meshcoreMqttSettings.server === LETSMESH_HOST_US
+                    className={`px-2 py-1 text-xs font-medium rounded border transition-colors ${
+                      meshcoreMqttSettings.server === LETSMESH_HOST_US
                         ? 'bg-brand-green/20 border-brand-green text-brand-green'
                         : 'bg-secondary-dark border-gray-600 text-gray-400 hover:border-gray-400 hover:text-gray-200'
-                      }`}
+                    }`}
                   >
                     US
                   </button>
@@ -1342,10 +1359,11 @@ export default function ConnectionPanel({
                         username: fromIdentity || prev.username,
                       }));
                     }}
-                    className={`px-2 py-1 text-xs font-medium rounded border transition-colors ${meshcoreMqttSettings.server === LETSMESH_HOST_EU
+                    className={`px-2 py-1 text-xs font-medium rounded border transition-colors ${
+                      meshcoreMqttSettings.server === LETSMESH_HOST_EU
                         ? 'bg-brand-green/20 border-brand-green text-brand-green'
                         : 'bg-secondary-dark border-gray-600 text-gray-400 hover:border-gray-400 hover:text-gray-200'
-                      }`}
+                    }`}
                   >
                     EU
                   </button>
@@ -1430,10 +1448,11 @@ export default function ConnectionPanel({
             )}
           {protocol === 'meshcore' && meshcorePreset === 'letsmesh' && (
             <div
-              className={`flex items-start gap-2 rounded border px-2 py-2 text-xs ${readMeshcoreIdentity()?.private_key
+              className={`flex items-start gap-2 rounded border px-2 py-2 text-xs ${
+                readMeshcoreIdentity()?.private_key
                   ? 'border-brand-green/40 bg-brand-green/10 text-brand-green/90'
                   : 'border-amber-700/50 bg-amber-900/20 text-amber-200/90'
-                }`}
+              }`}
             >
               {(() => {
                 const id = readMeshcoreIdentity();
@@ -1667,22 +1686,25 @@ export default function ConnectionPanel({
         </button>
 
         <div
-          className={`bg-deep-black rounded-lg border overflow-hidden ${state.status === 'reconnecting' ? 'border-orange-500/30' : 'border-brand-green/20'
-            }`}
+          className={`bg-deep-black rounded-lg border overflow-hidden ${
+            state.status === 'reconnecting' ? 'border-orange-500/30' : 'border-brand-green/20'
+          }`}
         >
           <div
-            className={`flex items-center justify-between px-4 py-3 bg-secondary-dark border-b ${state.status === 'reconnecting' ? 'border-orange-500/30' : 'border-brand-green/20'
-              }`}
+            className={`flex items-center justify-between px-4 py-3 bg-secondary-dark border-b ${
+              state.status === 'reconnecting' ? 'border-orange-500/30' : 'border-brand-green/20'
+            }`}
           >
             <div className="flex items-center gap-2">
               <ConnectionIcon type={state.connectionType!} />
               <span className="font-medium text-gray-200">Radio Connection</span>
             </div>
             <span
-              className={`text-xs font-medium ${state.status === 'reconnecting'
+              className={`text-xs font-medium ${
+                state.status === 'reconnecting'
                   ? 'text-orange-400 animate-pulse'
                   : 'text-brand-green'
-                }`}
+              }`}
             >
               ● {state.status}
             </span>
@@ -1750,16 +1772,18 @@ export default function ConnectionPanel({
             <button
               type="button"
               onClick={() => onToggleManualContacts(!manualAddContacts)}
-              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${manualAddContacts ? 'bg-purple-500' : 'bg-gray-600'
-                }`}
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${
+                manualAddContacts ? 'bg-purple-500' : 'bg-gray-600'
+              }`}
               role="switch"
               aria-checked={manualAddContacts}
               aria-labelledby="manual-contact-approval-label"
             >
               <span
                 aria-hidden="true"
-                className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${manualAddContacts ? 'translate-x-4' : 'translate-x-0'
-                  }`}
+                className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                  manualAddContacts ? 'translate-x-4' : 'translate-x-0'
+                }`}
               />
             </button>
           </div>
@@ -1875,10 +1899,11 @@ export default function ConnectionPanel({
                     onClick={() => {
                       setConnectionType(type);
                     }}
-                    className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all ${connectionType === type
+                    className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+                      connectionType === type
                         ? 'text-white ring-2 ring-bright-green'
                         : 'bg-secondary-dark text-gray-300 hover:bg-gray-600'
-                      }`}
+                    }`}
                     style={connectionType === type ? { backgroundColor: '#4CAF50' } : undefined}
                   >
                     <ConnectionIcon type={type} />
@@ -1903,10 +1928,11 @@ export default function ConnectionPanel({
                     onClick={() => {
                       setConnectionType(type);
                     }}
-                    className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all ${connectionType === type
+                    className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium transition-all ${
+                      connectionType === type
                         ? 'text-white ring-2 ring-purple-500'
                         : 'bg-secondary-dark text-gray-300 hover:bg-gray-600'
-                      }`}
+                    }`}
                     style={connectionType === type ? { backgroundColor: '#7c3aed' } : undefined}
                   >
                     <ConnectionIcon type={type} />

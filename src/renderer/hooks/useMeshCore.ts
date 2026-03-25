@@ -12,6 +12,7 @@ import { withTimeout } from '../../shared/withTimeout';
 import {
   classifyMeshcoreBleTimeoutStage,
   isMeshcoreRetryableBleErrorMessage,
+  MESHCORE_SETUP_ABORT_MESSAGE,
 } from '../lib/bleConnectErrors';
 import { classifyPayload, extractMeshtasticSenderId } from '../lib/foreignLoraDetection';
 import type { OurPosition } from '../lib/gpsSource';
@@ -697,6 +698,8 @@ export function useMeshCore() {
   const ipcTcpRef = useRef<IpcTcpConnection | null>(null);
   const ipcNobleRef = useRef<IpcNobleConnection | null>(null);
   const bleConnectInProgressRef = useRef(false);
+  /** Incremented on `disconnect()` so in-flight `initConn` can abort instead of timing out. */
+  const meshcoreSetupGenerationRef = useRef(0);
   // Map pubKeyPrefix (6-byte hex) → nodeId for DM routing
   const pubKeyPrefixMapRef = useRef<Map<string, number>>(new Map());
   // Full pubKey → nodeId for sending
@@ -1390,17 +1393,51 @@ export function useMeshCore() {
     [addMessage, updateNode, setDeviceLogs],
   );
 
+  /** Reject promptly when `disconnect()` bumps `meshcoreSetupGenerationRef` (avoids hanging on getChannels, etc.). */
+  const awaitUnlessMeshcoreSetupCancelled = useCallback(
+    async <T>(setupGen: number, promise: Promise<T>): Promise<T> => {
+      if (meshcoreSetupGenerationRef.current !== setupGen) {
+        throw new DOMException(MESHCORE_SETUP_ABORT_MESSAGE, 'AbortError');
+      }
+      return new Promise<T>((resolve, reject) => {
+        const id = setInterval(() => {
+          if (meshcoreSetupGenerationRef.current !== setupGen) {
+            clearInterval(id);
+            reject(new DOMException(MESHCORE_SETUP_ABORT_MESSAGE, 'AbortError'));
+          }
+        }, 50);
+        promise.then(
+          (v) => {
+            clearInterval(id);
+            if (meshcoreSetupGenerationRef.current !== setupGen) {
+              reject(new DOMException(MESHCORE_SETUP_ABORT_MESSAGE, 'AbortError'));
+            } else {
+              resolve(v);
+            }
+          },
+          (e: unknown) => {
+            clearInterval(id);
+            reject(
+              e instanceof Error ? e : new Error(serializeErrorLike(e) || 'Connection failed'),
+            );
+          },
+        );
+      });
+    },
+    [],
+  );
+
   /** Shared post-connection handshake: wire events, fetch self info, contacts, channels. */
   const initConn = useCallback(
-    async (conn: MeshCoreConnection) => {
+    async (conn: MeshCoreConnection, setupGen: number) => {
       connRef.current = conn;
       setupEventListeners(conn);
 
       // Load persisted messages from DB before device's MsgWaiting fires (merge with mount-hydrated state)
       try {
-        const dbMsgs = (await window.electronAPI.db.getMeshcoreMessages(
-          undefined,
-          500,
+        const dbMsgs = (await awaitUnlessMeshcoreSetupCancelled(
+          setupGen,
+          window.electronAPI.db.getMeshcoreMessages(undefined, 500),
         )) as MeshcoreMessageDbRow[];
         if (dbMsgs.length > 0) {
           const mapped = mapMeshcoreDbRowsToChatMessages(dbMsgs);
@@ -1409,11 +1446,12 @@ export function useMeshCore() {
           console.debug('[useMeshCore] initConn: loaded', mapped.length, 'messages from DB');
         }
       } catch (e) {
+        if (e instanceof DOMException && e.name === 'AbortError') throw e;
         console.warn('[useMeshCore] loadMessagesFromDb error', e);
       }
 
       // Fetch self info, contacts, channels (sequential — device handles one request at a time)
-      const info = await conn.getSelfInfo(5000);
+      const info = await awaitUnlessMeshcoreSetupCancelled(setupGen, conn.getSelfInfo(5000));
       console.debug(
         `[useMeshCore] selfInfo: radioFreq=${info.radioFreq} radioBw=${info.radioBw} radioSf=${info.radioSf} radioCr=${info.radioCr} txPower=${info.txPower}`,
       );
@@ -1424,12 +1462,21 @@ export function useMeshCore() {
       setState((prev) => ({ ...prev, myNodeNum: myNodeId, status: 'configured' }));
       useDiagnosticsStore.getState().migrateForeignLoraFromZero(myNodeId);
 
-      const contacts = await withTimeout(conn.getContacts(), 10_000, 'getContacts');
-      const newNodes = await buildNodesFromContacts(contacts, { self: info, myNodeId });
+      const contacts = await awaitUnlessMeshcoreSetupCancelled(
+        setupGen,
+        withTimeout(conn.getContacts(), 10_000, 'getContacts'),
+      );
+      const newNodes = await awaitUnlessMeshcoreSetupCancelled(
+        setupGen,
+        buildNodesFromContacts(contacts, { self: info, myNodeId }),
+      );
       setNodes((prev) => mergeMeshcoreChatStubNodes(prev, newNodes));
       console.debug('[useMeshCore] initConn: contacts loaded, device=', contacts.length);
 
-      const rawChannels = await withTimeout(conn.getChannels(), 10_000, 'getChannels');
+      const rawChannels = await awaitUnlessMeshcoreSetupCancelled(
+        setupGen,
+        withTimeout(conn.getChannels(), 10_000, 'getChannels'),
+      );
       setChannels(
         rawChannels.map((c) => ({ index: c.channelIdx, name: c.name, secret: c.secret })),
       );
@@ -1441,25 +1488,32 @@ export function useMeshCore() {
       try {
         const savedManual = localStorage.getItem(MANUAL_CONTACTS_KEY) === 'true';
         if (savedManual) {
-          await conn.setManualAddContacts();
+          await awaitUnlessMeshcoreSetupCancelled(setupGen, conn.setManualAddContacts());
         }
       } catch (e) {
+        if (e instanceof DOMException && e.name === 'AbortError') throw e;
         console.warn('[useMeshCore] setManualAddContacts (init) error', e);
       }
 
-      await conn.syncDeviceTime().catch((e: unknown) => {
-        console.warn('[useMeshCore] syncDeviceTime error', e);
-      });
-      await conn
-        .getBatteryVoltage()
-        .then(({ batteryMilliVolts }) => {
-          setSelfInfo((prev) => (prev ? { ...prev, batteryMilliVolts } : prev));
-        })
-        .catch((e: unknown) => {
-          console.warn('[useMeshCore] getBatteryVoltage error', e);
-        });
+      await awaitUnlessMeshcoreSetupCancelled(
+        setupGen,
+        conn.syncDeviceTime().catch((e: unknown) => {
+          console.warn('[useMeshCore] syncDeviceTime error', e);
+        }),
+      );
+      await awaitUnlessMeshcoreSetupCancelled(
+        setupGen,
+        conn
+          .getBatteryVoltage()
+          .then(({ batteryMilliVolts }) => {
+            setSelfInfo((prev) => (prev ? { ...prev, batteryMilliVolts } : prev));
+          })
+          .catch((e: unknown) => {
+            console.warn('[useMeshCore] getBatteryVoltage error', e);
+          }),
+      );
     },
-    [buildNodesFromContacts, setupEventListeners],
+    [awaitUnlessMeshcoreSetupCancelled, buildNodesFromContacts, setupEventListeners],
   );
 
   const connect = useCallback(
@@ -1491,6 +1545,7 @@ export function useMeshCore() {
       let serialRawPort: SerialPort | null = null;
 
       try {
+        const setupGen = meshcoreSetupGenerationRef.current;
         if (type === 'ble') {
           if (!blePeripheralId) {
             throw new Error('BLE peripheral ID required');
@@ -1582,7 +1637,11 @@ export function useMeshCore() {
         }
 
         if (!conn) throw new Error('Connection initialization failed');
-        await initConn(conn);
+        if (meshcoreSetupGenerationRef.current !== setupGen) {
+          void conn.close().catch(() => {});
+          throw new DOMException(MESHCORE_SETUP_ABORT_MESSAGE, 'AbortError');
+        }
+        await initConn(conn, setupGen);
         if (type === 'serial') {
           const portId = localStorage.getItem(LAST_SERIAL_PORT_KEY);
           const nodeName = selfInfoRef.current?.name?.trim() || null;
@@ -1603,6 +1662,36 @@ export function useMeshCore() {
         }
         console.debug('[useMeshCore] connect: handshake complete, type=', type);
       } catch (err) {
+        const isSetupAbort =
+          err instanceof DOMException &&
+          err.name === 'AbortError' &&
+          err.message === MESHCORE_SETUP_ABORT_MESSAGE;
+        if (isSetupAbort) {
+          console.debug('[useMeshCore] connect: aborted (disconnect during setup)');
+          setState({ status: 'disconnected', myNodeNum: 0, connectionType: null });
+          ipcTcpRef.current?.cleanup();
+          ipcTcpRef.current = null;
+          ipcNobleRef.current?.cleanup();
+          ipcNobleRef.current = null;
+          if (type === 'serial') {
+            connRef.current = null;
+            if (conn) {
+              try {
+                await conn.close();
+              } catch {
+                // catch-no-log-ok port may already be in a bad state
+              }
+            }
+            if (serialRawPort) {
+              try {
+                await serialRawPort.close();
+              } catch {
+                // catch-no-log-ok port may already be in a bad state
+              }
+            }
+          }
+          throw err;
+        }
         const rawMessage = serializeErrorLike(err) || 'Connection failed';
         const safeMessage = rawMessage.trim() || 'Connection failed';
         const isAlreadyInProgress = /already in progress|Connection already in progress/i.test(
@@ -1697,6 +1786,7 @@ export function useMeshCore() {
         let serialPort: SerialPort | null = null;
         let serialConn: MeshCoreConnection | null = null;
         try {
+          const setupGen = meshcoreSetupGenerationRef.current;
           if (!navigator.serial?.getPorts) throw new Error('Web Serial API not available');
           const ports = await navigator.serial.getPorts();
           serialPort = selectGrantedSerialPort(ports, lastSerialPortId);
@@ -1705,13 +1795,23 @@ export function useMeshCore() {
           serialConn = new (WebSerialConnection as unknown as new (
             port: unknown,
           ) => MeshCoreConnection)(serialPort);
-          await initConn(serialConn);
+          await initConn(serialConn, setupGen);
           console.debug('[useMeshCore] connectAutomatic serial: connected');
         } catch (err) {
-          console.error(
-            '[useMeshCore] connectAutomatic serial error',
-            serializeErrorLike(err) || err,
-          );
+          const isSetupAbort =
+            err instanceof DOMException &&
+            err.name === 'AbortError' &&
+            err.message === MESHCORE_SETUP_ABORT_MESSAGE;
+          if (isSetupAbort) {
+            console.debug(
+              '[useMeshCore] connectAutomatic serial: aborted (disconnect during setup)',
+            );
+          } else {
+            console.error(
+              '[useMeshCore] connectAutomatic serial error',
+              serializeErrorLike(err) || err,
+            );
+          }
           setState({ status: 'disconnected', myNodeNum: 0, connectionType: null });
           connRef.current = null;
           // Always try both: conn.close() may throw if the read pump already errored
@@ -1759,6 +1859,7 @@ export function useMeshCore() {
 
   const disconnect = useCallback(async () => {
     console.debug('[useMeshCore] disconnect');
+    meshcoreSetupGenerationRef.current += 1;
     // Cancel all pending ACK timers
     for (const { timeoutId } of pendingAcksRef.current.values()) {
       clearTimeout(timeoutId);
