@@ -727,6 +727,8 @@ You're missing build tools for the native modules (e.g. `@serialport/bindings-cp
 
 On Linux, applications require `CAP_NET_RAW` to scan for and connect to Bluetooth devices. For development (`npm start`), the preferred approach is to launch with an ambient capability using `setpriv` (instead of applying file capabilities directly to Electron).
 
+At startup, the app now performs a Linux BLE capability preflight and shows a friendly warning in the Connection tab when `CAP_NET_RAW` is missing, so you get actionable guidance before scan/connect attempts fail.
+
 How you do this depends on how you are running the application:
 
 #### Scenario 1: Running from Source (`npm start`) - preferred
@@ -762,6 +764,12 @@ sudo setcap cap_net_raw+eip /path/to/extracted/mesh-client
 ```
 
 For installed system packages (`.deb` or `.rpm`):
+
+```bash
+getcap /opt/mesh-client/mesh-client
+```
+
+`.deb` and `.rpm` builds now attempt to apply `cap_net_raw` automatically at install time via package post-install scripts. If your distro image does not include `setcap`/libcap tools, run:
 
 ```bash
 sudo setcap cap_net_raw+eip /opt/mesh-client/mesh-client

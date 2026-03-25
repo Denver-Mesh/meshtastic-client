@@ -33,6 +33,12 @@ export interface LogEntry {
   message: string;
 }
 
+export interface LinuxBleCapabilityStatus {
+  platform: 'linux' | 'other';
+  hasCapNetRaw: boolean;
+  detail: string;
+}
+
 // ─── ElectronAPI interface ────────────────────────────────────────────────────
 
 export interface ElectronAPI {
@@ -221,6 +227,7 @@ export interface ElectronAPI {
   ) => Promise<NobleBleConnectResult>;
   disconnectNobleBle: (sessionId: NobleBleSessionId) => Promise<void>;
   nobleBleToRadio: (sessionId: NobleBleSessionId, bytes: Uint8Array) => Promise<void>;
+  getLinuxBleCapabilityStatus: () => Promise<LinuxBleCapabilityStatus>;
 
   // ─── Serial port selection ───────────────────────────────────────────────────
   onSerialPortsDiscovered: (callback: (ports: SerialPort[]) => void) => () => void;

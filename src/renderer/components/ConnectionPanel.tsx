@@ -412,6 +412,7 @@ export default function ConnectionPanel({
   });
   const [tcpHost, setTcpHost] = useState('localhost');
   const [error, setError] = useState<string | null>(null);
+  const [linuxBleCapabilityWarning, setLinuxBleCapabilityWarning] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [connectionStage, setConnectionStage] = useState('');
   const activeHostAddress = protocol === 'meshcore' ? tcpHost : httpAddress;
@@ -569,6 +570,23 @@ export default function ConnectionPanel({
   useEffect(() => {
     setLastConnection(loadLastConnection(protocol));
   }, [protocol]);
+
+  useEffect(() => {
+    window.electronAPI
+      .getLinuxBleCapabilityStatus()
+      .then((status) => {
+        if (status.platform !== 'linux' || status.hasCapNetRaw) {
+          setLinuxBleCapabilityWarning(null);
+          return;
+        }
+        setLinuxBleCapabilityWarning(
+          "Bluetooth permissions missing on Linux (CAP_NET_RAW). For npm start use: sudo setpriv --reuid=$USER --regid=$(id -g) --init-groups --inh-caps +net_raw --ambient-caps +net_raw --reset-env bash -lc 'npm start'. For release binaries, run setcap on the installed/extracted executable (AppImage must be extracted first).",
+        );
+      })
+      .catch((err: unknown) => {
+        console.debug('[ConnectionPanel] getLinuxBleCapabilityStatus failed', err);
+      });
+  }, []);
 
   // Update connection stage based on state transitions, and save last connection on success
   useEffect(() => {
@@ -1124,6 +1142,14 @@ export default function ConnectionPanel({
         {error && (
           <div className="w-full max-w-4xl bg-red-900/50 border border-red-700 text-red-300 px-4 py-2 rounded-lg text-sm">
             {error}
+          </div>
+        )}
+        {linuxBleCapabilityWarning && (
+          <div
+            role="alert"
+            className="w-full max-w-4xl bg-amber-900/40 border border-amber-700 text-amber-100 px-4 py-2 rounded-lg text-sm"
+          >
+            {linuxBleCapabilityWarning}
           </div>
         )}
 
@@ -1799,6 +1825,14 @@ export default function ConnectionPanel({
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {protocolToggle}
+      {linuxBleCapabilityWarning && (
+        <div
+          role="alert"
+          className="bg-amber-900/40 border border-amber-700 text-amber-100 px-4 py-3 rounded-lg text-sm"
+        >
+          {linuxBleCapabilityWarning}
+        </div>
+      )}
       {mqttStatus === 'connected' && (
         <button
           type="button"

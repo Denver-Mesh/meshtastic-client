@@ -258,6 +258,12 @@ export interface SerialPortInfo {
   productId?: string;
 }
 
+export interface LinuxBleCapabilityStatus {
+  platform: 'linux' | 'other';
+  hasCapNetRaw: boolean;
+  detail: string;
+}
+
 export interface MeshWaypoint {
   id: number;
   latitude: number;
@@ -466,6 +472,7 @@ declare global {
       ) => Promise<NobleBleConnectResult>;
       disconnectNobleBle: (sessionId: NobleBleSessionId) => Promise<void>;
       nobleBleToRadio: (sessionId: NobleBleSessionId, bytes: Uint8Array) => Promise<void>;
+      getLinuxBleCapabilityStatus: () => Promise<LinuxBleCapabilityStatus>;
       onSerialPortsDiscovered: (cb: (ports: SerialPortInfo[]) => void) => () => void;
       selectSerialPort: (portId: string) => void;
       cancelSerialSelection: () => void;
