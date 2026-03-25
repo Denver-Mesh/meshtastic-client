@@ -11,6 +11,7 @@ These requirements apply to all platforms.
 - Git
 - Node.js **22.12.0+** (Node 22, to match CI)
 - npm **9+**
+- Python 3 + `pip` (needed for MkDocs documentation build)
 
 Verify:
 
@@ -19,6 +20,18 @@ git --version
 node --version
 npm --version
 ```
+
+### MkDocs (documentation) tooling
+
+Docs are built with MkDocs Material.
+
+1. Install the Python dependency:
+   - `npm run docs:install`
+   - or (manual): `python3 -m pip install -r docs/requirements.txt`
+2. Build locally:
+   - `npm run docs:build`
+3. Preview locally:
+   - `npm run docs:serve`
 
 ### 2) Clone and install
 
@@ -79,7 +92,22 @@ act --container-architecture linux/amd64
 
 - **actionlint**: required for local pre-commit if workflow files are touched.
 
-### 7) Optional editor/tooling
+### 7) Helper scripts (auto-install where possible)
+
+These scripts try to install optional tooling automatically. If they fail (for example, missing `sudo`/admin rights), follow the manual steps in this doc instead.
+
+1. Install `actionlint` (used by the git pre-commit hook):
+   - `npm run setup:actionlint`
+   - This installs into `.githooks/bin` so the hook can find it.
+2. Install native build dependencies:
+   - `npm run setup:build-deps`
+   - Linux/macOS: attempts to install what native builds need (requires sudo where applicable).
+   - Windows: prints a message to install Visual Studio Build Tools manually.
+3. (Linux only) Fix serial port permissions:
+   - `npm run setup:dialout`
+   - Adds your user to the `dialout` group (requires sudo + re-login).
+
+### 8) Optional editor/tooling
 
 - VS Code (or Cursor) with TypeScript + ESLint support
 - Prettier editor extension (optional convenience; repository already defines formatting rules)

@@ -8,6 +8,12 @@
 unset npm_config_devdir 2>/dev/null
 unset NPM_CONFIG_DEVDIR 2>/dev/null
 
+# Ensure locally installed tooling (e.g. `actionlint`) is on PATH.
+REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+if [ -d "$REPO_ROOT/.githooks/bin" ]; then
+  export PATH="$REPO_ROOT/.githooks/bin:$PATH"
+fi
+
 # Capture paths already staged so we only re-stage those after format. Using
 # git add -u would stage every tracked modification and sweep in unstaged WIP.
 STAGED_LIST=$(mktemp)

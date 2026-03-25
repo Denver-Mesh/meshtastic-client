@@ -21,7 +21,14 @@ npm run rebuild   # Rebuild native modules (@stoprocent/noble) for current Elect
 
 **Running CI locally:** With [act](https://github.com/nektos/act) installed, run `act --container-architecture linux/amd64` so Linux jobs use the correct architecture. The test-results artifact upload step is skipped when running under act (actor `nektos/act`); all other steps run as on GitHub.
 
-**actionlint:** Install [actionlint](https://github.com/rhysd/actionlint) so the pre-commit hook can lint GitHub Actions workflows (e.g. `brew install actionlint` on macOS; see [releases](https://github.com/rhysd/actionlint/releases) for Windows/Linux binaries).
+**actionlint:** Install [actionlint](https://github.com/rhysd/actionlint) so the pre-commit hook can lint GitHub Actions workflows.
+
+Recommended (auto-install): `npm run setup:actionlint` (installs into `.githooks/bin` so the hook can find it).
+
+Manual fallback:
+
+- macOS: `brew install actionlint`
+- Windows/Linux: see [releases](https://github.com/rhysd/actionlint/releases) for prebuilt binaries.
 
 After `npm install`, the repo’s git hooks are enabled (`core.hooksPath` → `.githooks`). On every commit, the **pre-commit** hook runs in order:
 
@@ -388,7 +395,7 @@ Fixes #35
 ## PR Process
 
 1. **Describe your changes** — What did you change and why? What did you test?
-2. **Update docs** — If you added or changed a feature, update README.md or relevant `/docs` files.
+2. **Update docs** — If you added or changed a feature, update README.md or relevant `/docs` files. If you touch docs content, install MkDocs deps (`npm run docs:install`) and run `npm run docs:build` before opening the PR.
 3. **Follow existing code style** — Run `npm run lint` (and let pre-commit run `format` or run `npm run format` yourself). Fix import-sort, type-imports, and hook dependency issues before pushing.
 4. **Keep scope tight** — Avoid refactoring unrelated code in the same PR. One concern per PR makes review faster.
 5. **Await review** — A maintainer will review and may request changes before merging.
