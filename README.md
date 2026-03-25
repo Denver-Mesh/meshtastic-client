@@ -714,6 +714,10 @@ You're missing build tools for the native modules (e.g. `@serialport/bindings-cp
 - **Device not discovered** — make sure the device is in advertising/pairing mode and within range. Try stopping and restarting the scan.
 - If BLE is unreliable, prefer Serial (USB) or TCP/HTTP for a stable connection.
 
+**Windows-specific:**
+
+- Before connecting to a MeshCore device over BLE, pair it first in **Settings → Bluetooth & devices → Add device**. Without pairing, the connection appears to succeed but no data is exchanged.
+
 **Linux-specific:**
 
 - noble requires raw socket capability on the executable you run. Follow [Linux Bluetooth (BLE) Permissions](#linux-bluetooth-ble-permissions).

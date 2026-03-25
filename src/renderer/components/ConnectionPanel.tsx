@@ -1045,6 +1045,12 @@ export default function ConnectionPanel({
                 → Bluetooth to see its Meshtastic name.
               </p>
             )}
+            {navigator.userAgent.toLowerCase().includes('windows') && protocol === 'meshcore' && (
+              <p className="px-4 py-2 text-xs text-yellow-400 border-t border-gray-700">
+                On Windows, pair your device first in{' '}
+                <strong>Settings &rarr; Bluetooth &amp; devices</strong> before connecting.
+              </p>
+            )}
           </div>
         )}
 
