@@ -325,14 +325,14 @@ sudo dnf install make gcc-c++ python3 nspr nss
 For Fedora / Bazzite / Aurora (inside a Distrobox/Toolbox):
 
 ```bash
-sudo dnf install atk at-spi2-atk libXcomposite libXdamage libXrandr mesa-libgbm alsa-lib libdrm libxshmfence nss nspr
+sudo dnf install cups-libs nspr nss atk at-spi2-atk libXcomposite libXdamage libXrandr mesa-libgbm alsa-lib libdrm libxshmfence cairo
 ```
 
 For Ubuntu / Debian:
 
 ```bash
 sudo apt update
-sudo apt install libatk1.0-0 libatk-bridge2.0-0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 libasound2 libdrm2 libxshmfence1 libnss3 libnspr4
+sudo apt install libcups2 libnspr4 libnss3 libatk1.0-0 libatk-bridge2.0-0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 libasound2 libdrm2 libxshmfence1 libcairo2
 ```
 
 ### Build/run flow
