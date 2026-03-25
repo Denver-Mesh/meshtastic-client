@@ -1,8 +1,22 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
-import { parseStoredJson } from '../lib/parseStoredJson';
+import {
+  lastReadStorageKey,
+  loadOpenDmTabsInitial,
+  loadPersistedLastReadInitial,
+  openDmTabsStorageKey,
+} from '../lib/chatPanelProtocolStorage';
 import { emojiDisplayChar, emojiDisplayLabel } from '../lib/reactions';
-import type { ChatMessage, MeshNode } from '../lib/types';
+import type { ChatMessage, MeshNode, MeshProtocol } from '../lib/types';
+
+/** Meshtastic prefers short_name; MeshCore shows full companion names (long_name). */
+function nodeDisplayName(node: MeshNode | undefined, protocol: MeshProtocol): string {
+  if (!node) return '';
+  if (protocol === 'meshcore') {
+    return node.long_name || node.short_name || '';
+  }
+  return node.short_name || node.long_name || '';
+}
 import { HelpTooltip } from './HelpTooltip';
 
 function StatusBadge({
@@ -197,6 +211,8 @@ interface Props {
   onDmTargetConsumed?: () => void;
   isActive?: boolean;
   onGlobalSearch?: () => void;
+  /** When `meshcore`, show full names, hide redundant RF-only transport badge, block threaded replies. */
+  protocol?: MeshProtocol;
 }
 
 function ChatPanel({
@@ -215,6 +231,7 @@ function ChatPanel({
   onDmTargetConsumed,
   isActive = true,
   onGlobalSearch,
+  protocol = 'meshtastic',
 }: Props) {
   const [input, setInput] = useState('');
   const [channel, setChannel] = useState(() => (channels.length > 0 ? channels[0].index : 0));
@@ -238,16 +255,7 @@ function ChatPanel({
 
   // Two-section UI state — load DM tabs from localStorage for restart persistence
   const [viewMode, setViewMode] = useState<'channels' | 'dm'>('channels');
-  const [openDmTabs, setOpenDmTabs] = useState<number[]>(() => {
-    const parsed = parseStoredJson<unknown>(
-      localStorage.getItem('mesh-client:openDmTabs'),
-      'ChatPanel openDmTabs',
-    );
-    if (Array.isArray(parsed) && parsed.every((n: unknown) => typeof n === 'number')) {
-      return parsed;
-    }
-    return [];
-  });
+  const [openDmTabs, setOpenDmTabs] = useState<number[]>(() => loadOpenDmTabsInitial(protocol));
   const openDmTabsRef = useRef(openDmTabs);
   openDmTabsRef.current = openDmTabs;
   const channelsRef = useRef(channels);
@@ -257,25 +265,20 @@ function ChatPanel({
   // Persist openDmTabs to localStorage whenever it changes
   useEffect(() => {
     try {
-      localStorage.setItem('mesh-client:openDmTabs', JSON.stringify(openDmTabs));
+      localStorage.setItem(openDmTabsStorageKey(protocol), JSON.stringify(openDmTabs));
     } catch (e) {
       console.warn('[ChatPanel] persist openDmTabs failed', e);
     }
-  }, [openDmTabs]);
+  }, [openDmTabs, protocol]);
 
   // Track unread counts per channel
   const lastReadRef = useRef<Map<number, number>>(new Map());
   const [unreadCounts, setUnreadCounts] = useState<Map<number, number>>(new Map());
 
   // Persisted lastRead: { "ch:0": timestamp, "ch:2": ..., "dm:12345678": ... }
-  const [persistedLastRead, setPersistedLastRead] = useState<Record<string, number>>(() => {
-    const parsed = parseStoredJson<Record<string, number>>(
-      localStorage.getItem('mesh-client:lastRead'),
-      'ChatPanel lastRead',
-    );
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed;
-    return {};
-  });
+  const [persistedLastRead, setPersistedLastRead] = useState<Record<string, number>>(() =>
+    loadPersistedLastReadInitial(protocol),
+  );
   // Ref mirror — lets view-switch effect read latest value without adding it to deps
   const persistedLastReadRef = useRef(persistedLastRead);
   persistedLastReadRef.current = persistedLastRead;
@@ -292,19 +295,24 @@ function ChatPanel({
   // Persist lastRead timestamps to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem('mesh-client:lastRead', JSON.stringify(persistedLastRead));
+      localStorage.setItem(lastReadStorageKey(protocol), JSON.stringify(persistedLastRead));
     } catch (e) {
       console.warn('[ChatPanel] persist lastRead failed', e);
     }
-  }, [persistedLastRead]);
+  }, [persistedLastRead, protocol]);
 
   const getDmLabel = useCallback(
     (nodeNum: number) => {
       const node = nodes.get(nodeNum);
-      return node?.short_name || node?.long_name || `!${nodeNum.toString(16)}`;
+      const label = nodeDisplayName(node, protocol);
+      return label || `!${nodeNum.toString(16)}`;
     },
-    [nodes],
+    [nodes, protocol],
   );
+
+  useEffect(() => {
+    if (protocol === 'meshcore') setReplyTo(null);
+  }, [protocol]);
 
   // Handle initialDmTarget from Nodes tab
   useEffect(() => {
@@ -867,8 +875,7 @@ function ChatPanel({
             const pickerOpensAbove = i >= filteredMessages.length - 3;
 
             const senderNode = nodes.get(msg.sender_id);
-            const displaySenderName =
-              senderNode?.short_name || senderNode?.long_name || msg.sender_name;
+            const displaySenderName = nodeDisplayName(senderNode, protocol) || msg.sender_name;
 
             // Day separator
             const daySeparator = daySeparatorIndices.has(i) ? (
@@ -948,8 +955,7 @@ function ChatPanel({
                               <div className="w-0.5 rounded-full bg-gray-500 shrink-0" />
                               <div className="min-w-0">
                                 <span className="text-[10px] font-semibold text-gray-400 block">
-                                  {nodes.get(orig.sender_id)?.short_name ||
-                                    nodes.get(orig.sender_id)?.long_name ||
+                                  {nodeDisplayName(nodes.get(orig.sender_id), protocol) ||
                                     orig.sender_name}
                                 </span>
                                 <span className="text-[11px] text-gray-500 block truncate">
@@ -963,16 +969,20 @@ function ChatPanel({
                         })()}
 
                       {/* Message text with optional search highlight */}
-                      <p className="text-sm text-gray-200 break-words leading-relaxed">
+                      <p className="text-sm text-gray-200 break-words whitespace-pre-wrap leading-relaxed">
                         <HighlightText text={msg.payload} query={searchQuery} />
                       </p>
 
-                      {/* Transport indicator for incoming messages */}
-                      {!isOwn && msg.receivedVia && (
-                        <div className="flex items-center justify-end mt-0.5">
-                          <TransportBadge via={msg.receivedVia} />
-                        </div>
-                      )}
+                      {/* Transport indicator for incoming messages (MeshCore is RF-first; hide redundant RF-only badge) */}
+                      {!isOwn &&
+                        msg.receivedVia &&
+                        (protocol !== 'meshcore' ||
+                          msg.receivedVia === 'mqtt' ||
+                          msg.receivedVia === 'both') && (
+                          <div className="flex items-center justify-end mt-0.5">
+                            <TransportBadge via={msg.receivedVia} />
+                          </div>
+                        )}
 
                       {/* Delivery status for own messages */}
                       {isOwn && (msg.status || msg.mqttStatus) && (
@@ -1028,30 +1038,32 @@ function ChatPanel({
                     {/* Inline reaction trigger — visible on hover or focus-within */}
                     {isConnected && (
                       <div className="opacity-0 group-hover/msg:opacity-100 group-focus-within/msg:opacity-100 flex gap-0.5 transition-all shrink-0">
-                        {/* Reply */}
-                        <button
-                          onClick={() => {
-                            setReplyTo(msg);
-                            inputRef.current?.focus();
-                          }}
-                          className="text-gray-600 hover:text-blue-400 text-xs p-1 rounded"
-                          aria-label="Reply to message"
-                          title="Reply"
-                        >
-                          <svg
-                            className="w-3.5 h-3.5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={2}
+                        {/* Reply (Meshtastic threaded replies; not supported on MeshCore transport) */}
+                        {protocol !== 'meshcore' && (
+                          <button
+                            onClick={() => {
+                              setReplyTo(msg);
+                              inputRef.current?.focus();
+                            }}
+                            className="text-gray-600 hover:text-blue-400 text-xs p-1 rounded"
+                            aria-label="Reply to message"
+                            title="Reply"
                           >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"
-                            />
-                          </svg>
-                        </button>
+                            <svg
+                              className="w-3.5 h-3.5"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"
+                              />
+                            </svg>
+                          </button>
+                        )}
                         {/* React */}
                         <button
                           onClick={() => {
@@ -1218,7 +1230,7 @@ function ChatPanel({
       )}
 
       {/* Reply preview bar */}
-      {replyTo && (
+      {replyTo && protocol !== 'meshcore' && (
         <div className="flex items-center gap-2 px-3 py-1.5 mb-1 bg-secondary-dark/80 border border-gray-600/50 rounded-xl text-xs">
           <svg
             className="w-3 h-3 text-blue-400 shrink-0"
@@ -1236,9 +1248,7 @@ function ChatPanel({
           <span className="text-gray-400">
             Replying to{' '}
             <span className="text-gray-200 font-medium">
-              {nodes.get(replyTo.sender_id)?.short_name ||
-                nodes.get(replyTo.sender_id)?.long_name ||
-                replyTo.sender_name}
+              {nodeDisplayName(nodes.get(replyTo.sender_id), protocol) || replyTo.sender_name}
             </span>
             :
           </span>

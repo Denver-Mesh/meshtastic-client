@@ -19,7 +19,7 @@ import {
 import { snrMeaningfulForNodeDiagnostics } from '../lib/diagnostics/snrMeaningfulForNodeDiagnostics';
 import { normalizeLastHeardMs } from '../lib/nodeStatus';
 import { RoleDisplay } from '../lib/roleInfo';
-import type { HopHistoryPoint, MeshNode, NodeAnomaly } from '../lib/types';
+import type { HopHistoryPoint, MeshNode, MeshProtocol, NodeAnomaly } from '../lib/types';
 import { routingRowToNodeAnomaly } from '../lib/types';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
 import MeshCongestionAttributionBlock from './MeshCongestionAttributionBlock';
@@ -76,6 +76,8 @@ export interface NodeInfoBodyProps {
   /** When set, Mesh Congestion can list originators by name/role (RF duplicate-prone traffic). */
   nodes?: Map<number, MeshNode>;
   useFahrenheit?: boolean;
+  /** MeshCore uses contact/advert type (`hw_model`) instead of Meshtastic role; omit short name row. */
+  protocol?: MeshProtocol;
 }
 
 const SEVERITY_STYLES: Record<RFDiagnosis['severity'], string> = {
@@ -94,6 +96,7 @@ export default function NodeInfoBody({
   traceRouteHops,
   nodes,
   useFahrenheit = false,
+  protocol = 'meshtastic',
 }: NodeInfoBodyProps) {
   const diagnosticRows = useDiagnosticsStore((s) => s.diagnosticRows);
   const routingRow = getRoutingRowForNode(diagnosticRows, node.node_id);
@@ -176,13 +179,18 @@ export default function NodeInfoBody({
     <>
       {/* Names */}
       {node.long_name && <InfoRow label="Long Name" value={node.long_name} />}
-      {node.short_name && <InfoRow label="Short Name" value={node.short_name} />}
+      {protocol !== 'meshcore' && node.short_name && (
+        <InfoRow label="Short Name" value={node.short_name} />
+      )}
 
-      {/* Role */}
-      <div className="flex justify-between items-center py-2 border-b border-gray-700/50">
-        <span className="text-sm text-muted">Role</span>
-        <RoleDisplay role={node.role} />
-      </div>
+      {protocol === 'meshcore' ? (
+        <InfoRow label="Type" value={node.hw_model || '—'} />
+      ) : (
+        <div className="flex justify-between items-center py-2 border-b border-gray-700/50">
+          <span className="text-sm text-muted">Role</span>
+          <RoleDisplay role={node.role} />
+        </div>
+      )}
 
       {/* SNR: direct 0-hop RF or our node; otherwise Last-Hop SNR when multi-hop RF context */}
       {showSnr && (
@@ -196,29 +204,54 @@ export default function NodeInfoBody({
         <InfoRow label="Last-Hop SNR" value={`${node.snr.toFixed(1)} dB`} className={snrColor} />
       )}
 
-      {/* Battery */}
-      <div className="flex justify-between items-center py-2 border-b border-gray-700/50">
-        <span className="text-sm text-muted">Battery</span>
-        <div className="flex items-center gap-2">
-          {node.battery > 0 && (
-            <div className="w-16 h-2 bg-secondary-dark rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all ${
-                  node.battery > 50
-                    ? 'bg-brand-green'
-                    : node.battery > 20
-                      ? 'bg-yellow-500'
-                      : 'bg-red-500'
-                }`}
-                style={{ width: `${Math.min(node.battery, 100)}%` }}
-              />
+      {/* Battery — Meshtastic % ; MeshCore companions rarely expose this (use repeater status / telemetry for V) */}
+      {protocol === 'meshcore' ? (
+        node.battery > 0 ? (
+          <div className="flex justify-between items-center py-2 border-b border-gray-700/50">
+            <span className="text-sm text-muted">Battery</span>
+            <div className="flex items-center gap-2">
+              <div className="w-16 h-2 bg-secondary-dark rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    node.battery > 50
+                      ? 'bg-brand-green'
+                      : node.battery > 20
+                        ? 'bg-yellow-500'
+                        : 'bg-red-500'
+                  }`}
+                  style={{ width: `${Math.min(node.battery, 100)}%` }}
+                />
+              </div>
+              <span className={`text-sm font-medium ${batteryColor}`}>{node.battery}%</span>
             </div>
-          )}
-          <span className={`text-sm font-medium ${batteryColor}`}>
-            {node.battery > 0 ? `${node.battery}%` : '—'}
-          </span>
+          </div>
+        ) : (
+          <InfoRow label="Battery" value="—" className="text-muted" />
+        )
+      ) : (
+        <div className="flex justify-between items-center py-2 border-b border-gray-700/50">
+          <span className="text-sm text-muted">Battery</span>
+          <div className="flex items-center gap-2">
+            {node.battery > 0 && (
+              <div className="w-16 h-2 bg-secondary-dark rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    node.battery > 50
+                      ? 'bg-brand-green'
+                      : node.battery > 20
+                        ? 'bg-yellow-500'
+                        : 'bg-red-500'
+                  }`}
+                  style={{ width: `${Math.min(node.battery, 100)}%` }}
+                />
+              </div>
+            )}
+            <span className={`text-sm font-medium ${batteryColor}`}>
+              {node.battery > 0 ? `${node.battery}%` : '—'}
+            </span>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Timing */}
       <InfoRow label="Last Heard" value={formatTime(node.last_heard)} />

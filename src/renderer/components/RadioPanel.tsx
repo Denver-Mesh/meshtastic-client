@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
 import type { OurPosition } from '../lib/gpsSource';
+import {
+  MESHCORE_CHANNEL_INDEX_MAX,
+  meshcoreDeriveChannelKeyHexFromName,
+  meshcoreSelfInfoBwToDisplayKhz,
+  meshcoreSelfInfoFreqToDisplayHz,
+} from '../lib/meshcoreUtils';
 import type { ProtocolCapabilities } from '../lib/radio/BaseRadioProvider';
 import { HelpTooltip } from './HelpTooltip';
 import { useToast } from './Toast';
@@ -488,17 +494,16 @@ export default function RadioPanel({
   const [codingRate, setCodingRate] = useState(8);
   const [txPower, setTxPower] = useState(17);
   const [rxBoostedGain, setRxBoostedGain] = useState(false);
-  // MeshCore-specific: frequency in Hz (displayed as MHz). MeshCore getSelfInfo returns freq in MHz.
-  const freqToHz = (f: number) => (f >= 1e6 ? f : Math.round(f * 1e6));
+  // MeshCore: selfInfo freq/BW units vary by firmware — normalize in meshcoreUtils.
   const [radioFreqHz, setRadioFreqHz] = useState(() =>
-    loraConfig?.freq != null ? freqToHz(loraConfig.freq) : 915000000,
+    loraConfig?.freq != null ? meshcoreSelfInfoFreqToDisplayHz(loraConfig.freq) : 915000000,
   );
 
   // Sync LoRa state from loraConfig prop (MeshCore device info)
   useEffect(() => {
     if (!loraConfig) return;
-    if (loraConfig.freq != null) setRadioFreqHz(freqToHz(loraConfig.freq));
-    if (loraConfig.bw != null) setBandwidth(loraConfig.bw / 1000);
+    if (loraConfig.freq != null) setRadioFreqHz(meshcoreSelfInfoFreqToDisplayHz(loraConfig.freq));
+    if (loraConfig.bw != null) setBandwidth(meshcoreSelfInfoBwToDisplayKhz(loraConfig.bw));
     if (loraConfig.sf != null) setSpreadFactor(loraConfig.sf);
     if (loraConfig.cr != null) setCodingRate(loraConfig.cr);
     if (loraConfig.txPower != null) setTxPower(loraConfig.txPower);
@@ -2225,6 +2230,7 @@ function MeshcoreChannelSection({
   const [confirmDeleteIdx, setConfirmDeleteIdx] = useState<number | null>(null);
   const [addingNew, setAddingNew] = useState(false);
   const [newIdx, setNewIdx] = useState('');
+  const [deriveKeyBusy, setDeriveKeyBusy] = useState(false);
   const detailsRef = useRef<HTMLDetailsElement>(null);
   const formRef = useRef<HTMLDivElement>(null);
 
@@ -2259,7 +2265,7 @@ function MeshcoreChannelSection({
 
   async function handleSave() {
     const idx = addingNew ? parseInt(newIdx, 10) : editingIdx!;
-    if (isNaN(idx) || idx < 0 || idx > 7) return;
+    if (isNaN(idx) || idx < 0 || idx > MESHCORE_CHANNEL_INDEX_MAX) return;
     if (!isValidHex) return;
     setSaving(true);
     try {
@@ -2290,6 +2296,19 @@ function MeshcoreChannelSection({
     const bytes = new Uint8Array(16);
     crypto.getRandomValues(bytes);
     setEditKeyHex(bytesToHex(bytes));
+  }
+
+  async function handleDeriveKeyFromChannelName() {
+    if (!editName.trim()) return;
+    setDeriveKeyBusy(true);
+    try {
+      const hex = await meshcoreDeriveChannelKeyHexFromName(editName);
+      setEditKeyHex(hex);
+    } catch (e) {
+      console.warn('[MeshcoreChannelSection] derive key failed', e);
+    } finally {
+      setDeriveKeyBusy(false);
+    }
   }
 
   const showForm = editingIdx !== null || addingNew;
@@ -2404,7 +2423,7 @@ function MeshcoreChannelSection({
             {addingNew && (
               <div className="space-y-1">
                 <label htmlFor="radio-mc-ch-idx" className="text-xs text-muted">
-                  Index (0–7)
+                  Index (0–{MESHCORE_CHANNEL_INDEX_MAX})
                 </label>
                 <input
                   id="radio-mc-ch-idx"
@@ -2414,7 +2433,7 @@ function MeshcoreChannelSection({
                     setNewIdx(e.target.value);
                   }}
                   min={0}
-                  max={7}
+                  max={MESHCORE_CHANNEL_INDEX_MAX}
                   disabled={disabled}
                   className="w-20 px-2 py-1.5 bg-secondary-dark rounded text-sm text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none disabled:opacity-50"
                 />
@@ -2439,13 +2458,30 @@ function MeshcoreChannelSection({
             </div>
 
             <div className="space-y-1">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <label htmlFor="radio-mc-ch-key" className="text-xs text-muted">
                   Key (32 hex chars = 16 bytes)
                 </label>
-                <button onClick={generateKey} className="text-xs text-blue-400 hover:text-blue-300">
-                  Generate random
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleDeriveKeyFromChannelName();
+                    }}
+                    disabled={disabled || deriveKeyBusy || !editName.trim()}
+                    className="text-xs text-brand-green hover:text-bright-green disabled:opacity-50 px-1"
+                    title="Set key from SHA-256(name) first 16 bytes (MeshCore #channels)"
+                  >
+                    {deriveKeyBusy ? 'Deriving…' : 'Derive from name'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={generateKey}
+                    className="text-xs text-blue-400 hover:text-blue-300"
+                  >
+                    Generate random
+                  </button>
+                </div>
               </div>
               <input
                 id="radio-mc-ch-key"
@@ -2500,7 +2536,9 @@ function MeshcoreChannelSection({
         )}
 
         <p className="text-xs text-muted">
-          Keys are 128-bit (16 bytes), shown as 32 hex characters.
+          Keys are 128-bit (16 bytes), shown as 32 hex characters. Up to{' '}
+          {MESHCORE_CHANNEL_INDEX_MAX + 1} channels (indices 0–{MESHCORE_CHANNEL_INDEX_MAX}). For
+          #channels, use &quot;Derive from name&quot; (SHA-256 of the name with a leading #).
         </p>
       </div>
     </details>

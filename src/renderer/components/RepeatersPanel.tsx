@@ -1,10 +1,11 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 
 import type {
   MeshCoreNeighborResult,
   MeshCoreNodeTelemetry,
   MeshCoreRepeaterStatus,
 } from '../hooks/useMeshCore';
+import { meshcoreEnsureRepeaterRemoteAuthPrompt } from '../lib/meshcoreUtils';
 import type { MeshNode } from '../lib/types';
 import { useRepeaterSignalStore } from '../stores/repeaterSignalStore';
 import { useToast } from './Toast';
@@ -62,6 +63,23 @@ function formatUptime(secs: number | undefined): string {
   if (days > 0) return `${days}d ${hours}h`;
   if (hours > 0) return `${hours}h ${mins}m`;
   return `${mins}m`;
+}
+
+/** Prefer on-demand repeater status (remote query); contact list SNR/RSSI are often stale for MeshCore. */
+function displayRepeaterSnr(node: MeshNode, status: MeshCoreRepeaterStatus | undefined): string {
+  if (status !== undefined && Number.isFinite(status.lastSnr)) {
+    return status.lastSnr.toFixed(1);
+  }
+  if (node.snr != null) return node.snr.toFixed(1);
+  return '—';
+}
+
+function displayRepeaterRssi(node: MeshNode, status: MeshCoreRepeaterStatus | undefined): string {
+  if (status !== undefined && Number.isFinite(status.lastRssi)) {
+    return String(status.lastRssi);
+  }
+  if (node.rssi != null) return String(node.rssi);
+  return '—';
 }
 
 function SignalSparkline({ points }: { points: { ts: number; snr: number }[] }) {
@@ -125,10 +143,20 @@ export default function RepeatersPanel({
   const [expandedNeighbors, setExpandedNeighbors] = useState<Set<number>>(new Set());
   const [expandedTelemetry, setExpandedTelemetry] = useState<Set<number>>(new Set());
   const [expandedPath, setExpandedPath] = useState<Set<number>>(new Set());
+  const [searchQuery, setSearchQuery] = useState('');
 
   const repeaters = Array.from(nodes.values())
     .filter((n) => n.hw_model === 'Repeater')
     .sort((a, b) => (b.last_heard ?? 0) - (a.last_heard ?? 0));
+
+  const repeatersFiltered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return repeaters;
+    return repeaters.filter(
+      (n) =>
+        n.long_name.toLowerCase().includes(q) || n.node_id.toString(16).toLowerCase().includes(q),
+    );
+  }, [repeaters, searchQuery]);
 
   const handleImport = async () => {
     setImportLoading(true);
@@ -149,6 +177,7 @@ export default function RepeatersPanel({
   };
 
   const handleStatus = async (nodeId: number) => {
+    if (!meshcoreEnsureRepeaterRemoteAuthPrompt()) return;
     setStatusLoadingSet((prev) => new Set([...prev, nodeId]));
     try {
       await onRequestRepeaterStatus(nodeId);
@@ -266,6 +295,7 @@ export default function RepeatersPanel({
       });
       return;
     }
+    if (!meshcoreEnsureRepeaterRemoteAuthPrompt()) return;
     setNeighborsLoadingSet((prev) => new Set([...prev, nodeId]));
     try {
       await onRequestNeighbors?.(nodeId);
@@ -290,6 +320,7 @@ export default function RepeatersPanel({
       });
       return;
     }
+    if (!meshcoreEnsureRepeaterRemoteAuthPrompt()) return;
     setTelemetryLoadingSet((prev) => new Set([...prev, nodeId]));
     try {
       await onRequestTelemetry?.(nodeId);
@@ -316,8 +347,18 @@ export default function RepeatersPanel({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col min-[480px]:flex-row flex-wrap items-stretch min-[480px]:items-center justify-between gap-3">
         <h2 className="text-lg font-semibold text-bright-green">Repeaters</h2>
+        <input
+          type="search"
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+          }}
+          placeholder="Search repeaters…"
+          aria-label="Search repeaters"
+          className="flex-1 min-w-[8rem] max-w-[20rem] px-3 py-1.5 bg-secondary-dark/80 rounded-lg text-gray-200 text-sm border border-gray-600/50 focus:border-brand-green/50 focus:outline-none"
+        />
         <button
           onClick={handleImport}
           disabled={importLoading}
@@ -389,6 +430,10 @@ export default function RepeatersPanel({
             pre-load nicknames.
           </p>
         </div>
+      ) : repeatersFiltered.length === 0 ? (
+        <div className="text-gray-400 text-sm mt-4 text-center">
+          No repeaters match your search.
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -397,9 +442,24 @@ export default function RepeatersPanel({
                 <th className="py-2 pr-4 font-medium">Status</th>
                 <th className="py-2 pr-4 font-medium">Name</th>
                 <th className="py-2 pr-4 font-medium">Last Heard</th>
-                <th className="py-2 pr-4 font-medium">SNR</th>
-                <th className="py-2 pr-4 font-medium">RSSI</th>
-                <th className="py-2 pr-4 font-medium">Hops</th>
+                <th
+                  className="py-2 pr-4 font-medium"
+                  title="dB — from Request Status when available, else contact list"
+                >
+                  SNR
+                </th>
+                <th
+                  className="py-2 pr-4 font-medium"
+                  title="dBm — from Request Status when available, else contact list"
+                >
+                  RSSI
+                </th>
+                <th
+                  className="py-2 pr-4 font-medium"
+                  title="Hop count from last trace (Ping); MeshCore path differs from Meshtastic"
+                >
+                  Hops
+                </th>
                 <th className="py-2 pr-4 font-medium">Uptime</th>
                 <th className="py-2 pr-4 font-medium">Air%</th>
                 <th className="py-2 pr-4 font-medium">Path History</th>
@@ -407,7 +467,7 @@ export default function RepeatersPanel({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-800">
-              {repeaters.map((node) => {
+              {repeatersFiltered.map((node) => {
                 const status = meshcoreNodeStatus.get(node.node_id);
                 const traceResult = meshcoreTraceResults.get(node.node_id);
                 const repeaterStatus = getRepeaterStatus(node.last_heard);
@@ -474,8 +534,26 @@ export default function RepeatersPanel({
                       <td className="py-2 pr-4 text-gray-400 text-xs">
                         {formatRelativeTime(node.last_heard)}
                       </td>
-                      <td className="py-2 pr-4">{node.snr != null ? node.snr.toFixed(1) : '—'}</td>
-                      <td className="py-2 pr-4">{node.rssi ?? '—'}</td>
+                      <td
+                        className="py-2 pr-4"
+                        title={
+                          status !== undefined
+                            ? 'SNR from repeater status'
+                            : 'Contact SNR — use Status for live reading'
+                        }
+                      >
+                        {displayRepeaterSnr(node, status)}
+                      </td>
+                      <td
+                        className="py-2 pr-4"
+                        title={
+                          status !== undefined
+                            ? 'RSSI from repeater status'
+                            : 'Contact RSSI — use Status for live reading'
+                        }
+                      >
+                        {displayRepeaterRssi(node, status)}
+                      </td>
                       <td className="py-2 pr-4">
                         {traceResult ? (
                           hasTraceResult ? (
