@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 
 import { EventEmitter } from 'events';
 
@@ -38,6 +39,93 @@ const BLE_DISCOVERY_TIMEOUT_MS = IS_DARWIN ? 15_000 : 30_000;
 /** Timeout for characteristic subscribeAsync(). */
 const BLE_SUBSCRIBE_TIMEOUT_MS = IS_DARWIN ? 10_000 : 20_000;
 const BLE_LINUX_CAPABILITY_MISSING = 'BLE_LINUX_CAPABILITY_MISSING';
+const CAP_NET_RAW_BIT = 13n;
+
+function hasCapNetRaw(capHex: string): boolean {
+  const normalized = capHex.trim().toLowerCase();
+  if (!/^[0-9a-f]+$/.test(normalized)) return false;
+  try {
+    const value = BigInt(`0x${normalized}`);
+    return (value & (1n << CAP_NET_RAW_BIT)) !== 0n;
+  } catch {
+    // catch-no-log-ok invalid capability hex string is treated as no capability
+    return false;
+  }
+}
+
+export interface LinuxBleCapabilityProbe {
+  hasBleCapabilities: boolean;
+  detail: string;
+  runtimeCapEffHex: string | null;
+  runtimeCapAmbHex: string | null;
+  fileCapabilityDetail: string | null;
+}
+
+export function probeLinuxRuntimeBleCapability(): LinuxBleCapabilityProbe {
+  if (process.platform !== 'linux') {
+    return {
+      hasBleCapabilities: true,
+      detail: '',
+      runtimeCapEffHex: null,
+      runtimeCapAmbHex: null,
+      fileCapabilityDetail: null,
+    };
+  }
+  try {
+    const statusText = readFileSync('/proc/self/status', 'utf8');
+    const capEffMatch = /^CapEff:\s*([0-9a-fA-F]+)$/m.exec(statusText);
+    const capAmbMatch = /^CapAmb:\s*([0-9a-fA-F]+)$/m.exec(statusText);
+    const runtimeCapEffHex = capEffMatch?.[1] ?? null;
+    const runtimeCapAmbHex = capAmbMatch?.[1] ?? null;
+    const hasEff = runtimeCapEffHex ? hasCapNetRaw(runtimeCapEffHex) : false;
+    const hasAmb = runtimeCapAmbHex ? hasCapNetRaw(runtimeCapAmbHex) : false;
+    return {
+      hasBleCapabilities: hasEff || hasAmb,
+      detail: `runtime CapEff=${runtimeCapEffHex ?? 'unknown'} CapAmb=${runtimeCapAmbHex ?? 'unknown'}`,
+      runtimeCapEffHex,
+      runtimeCapAmbHex,
+      fileCapabilityDetail: null,
+    };
+  } catch {
+    // catch-no-log-ok /proc/self/status missing/unreadable; caller falls back to file capabilities
+    return {
+      hasBleCapabilities: false,
+      detail: 'unable to read /proc/self/status',
+      runtimeCapEffHex: null,
+      runtimeCapAmbHex: null,
+      fileCapabilityDetail: null,
+    };
+  }
+}
+
+export function probeLinuxBleCapabilityStatus(): LinuxBleCapabilityProbe {
+  const runtimeProbe = probeLinuxRuntimeBleCapability();
+  if (process.platform !== 'linux' || runtimeProbe.hasBleCapabilities) {
+    return runtimeProbe;
+  }
+  try {
+    const output = execFileSync('getcap', [process.execPath], {
+      encoding: 'utf8',
+    }).trim();
+    const normalized = output.toLowerCase();
+    const hasRaw = normalized.includes('cap_net_raw');
+    const hasAdmin = normalized.includes('cap_net_admin');
+    return {
+      ...runtimeProbe,
+      hasBleCapabilities: hasRaw || hasAdmin,
+      detail: `${runtimeProbe.detail}; ${output || `no file capabilities set on ${process.execPath}`}`,
+      fileCapabilityDetail: output || null,
+    };
+  } catch {
+    // catch-no-log-ok getcap unavailable on system; caller receives actionable fallback detail
+    return {
+      ...runtimeProbe,
+      hasBleCapabilities: false,
+      detail: `${runtimeProbe.detail}; unable to read file capabilities for ${process.execPath}`,
+      fileCapabilityDetail: null,
+    };
+  }
+}
 
 function normalizeUuid(uuid: string): string {
   return uuid.toLowerCase().replace(/-/g, '');
@@ -502,27 +590,8 @@ export class NobleBleManager extends EventEmitter {
   }
 
   private probeLinuxBleCapability(): { hasBleCapabilities: boolean; detail: string } {
-    if (process.platform !== 'linux') {
-      return { hasBleCapabilities: true, detail: '' };
-    }
-    try {
-      const output = execFileSync('getcap', [process.execPath], {
-        encoding: 'utf8',
-      }).trim();
-      const normalized = output.toLowerCase();
-      const hasRaw = normalized.includes('cap_net_raw');
-      const hasAdmin = normalized.includes('cap_net_admin');
-      return {
-        hasBleCapabilities: hasRaw || hasAdmin,
-        detail: output || `no capabilities set on ${process.execPath}`,
-      };
-    } catch {
-      // catch-no-log-ok capability probe fallback: handled by returned detail message
-      return {
-        hasBleCapabilities: false,
-        detail: `unable to read capabilities for ${process.execPath}`,
-      };
-    }
+    const probe = probeLinuxBleCapabilityStatus();
+    return { hasBleCapabilities: probe.hasBleCapabilities, detail: probe.detail };
   }
 
   private doStopScanning(): Promise<void> {

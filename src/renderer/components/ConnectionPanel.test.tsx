@@ -160,6 +160,28 @@ describe('ConnectionPanel MQTT connect error', () => {
 });
 
 describe('ConnectionPanel BLE error humanization', () => {
+  it('shows startup Linux BLE capability warning before connect attempts', async () => {
+    vi.mocked(window.electronAPI.getLinuxBleCapabilityStatus).mockResolvedValueOnce({
+      platform: 'linux',
+      hasCapNetRaw: false,
+      detail: 'runtime CapEff=0 CapAmb=0',
+    });
+
+    render(
+      <ConnectionPanel
+        state={disconnectedState}
+        onConnect={vi.fn().mockResolvedValue(undefined)}
+        onAutoConnect={vi.fn().mockResolvedValue(undefined)}
+        onDisconnect={vi.fn().mockResolvedValue(undefined)}
+        mqttStatus="disconnected"
+        protocol="meshtastic"
+        onProtocolChange={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText(/Bluetooth permissions missing on Linux/i)).toBeInTheDocument();
+  });
+
   it('shows Linux setpriv-first guidance for classified Linux capability errors', async () => {
     const user = userEvent.setup();
     vi.mocked(window.electronAPI.startNobleBleScanning).mockRejectedValueOnce(

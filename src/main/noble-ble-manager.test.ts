@@ -180,6 +180,13 @@ describe('NobleBleManager — Linux BLE capability diagnostics (regression)', ()
     expect(SOURCE).toMatch(/cap_net_raw/);
   });
 
+  it('checks runtime Linux capabilities from /proc/self/status before file caps', () => {
+    expect(SOURCE).toContain('/proc/self/status');
+    expect(SOURCE).toContain('CapEff');
+    expect(SOURCE).toContain('CapAmb');
+    expect(SOURCE).toContain('probeLinuxRuntimeBleCapability');
+  });
+
   it('includes both source and release capability guidance in the classified error', () => {
     expect(SOURCE).toContain('Preferred for npm start: run with ambient capability');
     expect(SOURCE).toContain('sudo setpriv --reuid=$USER --regid=$(id -g)');

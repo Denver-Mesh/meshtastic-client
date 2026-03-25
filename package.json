@@ -34,7 +34,13 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.main.json",
     "check:log-injection": "node scripts/check-log-injection.mjs",
     "check:db-migrations": "node scripts/check-db-migrations.mjs",
-    "check:ipc-contract": "node scripts/check-ipc-contract.mjs"
+    "check:ipc-contract": "node scripts/check-ipc-contract.mjs",
+    "docs:install": "node scripts/install-mkdocs-deps.mjs",
+    "docs:build": "node scripts/run-mkdocs.mjs build",
+    "docs:serve": "node scripts/run-mkdocs.mjs serve",
+    "setup:actionlint": "node scripts/install-actionlint.mjs",
+    "setup:build-deps": "node scripts/setup-build-deps.mjs",
+    "setup:dialout": "node scripts/setup-dialout.mjs"
   },
   "author": {
     "name": "Colorado Mesh",

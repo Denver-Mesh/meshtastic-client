@@ -4,7 +4,7 @@ Thank you for your interest in contributing. This document covers setup, testing
 
 ## Getting Started
 
-See [README.md](README.md) for full setup instructions including prerequisites and platform-specific steps.
+See [docs/development-environment.md](docs/development-environment.md) for full setup instructions including shared requirements, platform-specific steps, and troubleshooting.
 
 **Node version:** Use **Node 22** (22.12.0+ recommended). CI (`.github/workflows/`) runs on Node 22 for build, test, and release; using the same version locally avoids environment drift and Linux-specific failures (e.g. native rebuilds) on older Node.
 
@@ -21,7 +21,14 @@ npm run rebuild   # Rebuild native modules (@stoprocent/noble) for current Elect
 
 **Running CI locally:** With [act](https://github.com/nektos/act) installed, run `act --container-architecture linux/amd64` so Linux jobs use the correct architecture. The test-results artifact upload step is skipped when running under act (actor `nektos/act`); all other steps run as on GitHub.
 
-**actionlint:** Install [actionlint](https://github.com/rhysd/actionlint) so the pre-commit hook can lint GitHub Actions workflows (e.g. `brew install actionlint` on macOS; see [releases](https://github.com/rhysd/actionlint/releases) for Windows/Linux binaries).
+**actionlint:** Install [actionlint](https://github.com/rhysd/actionlint) so the pre-commit hook can lint GitHub Actions workflows.
+
+Recommended (auto-install): `npm run setup:actionlint` (installs into `.githooks/bin` so the hook can find it).
+
+Manual fallback:
+
+- macOS: `brew install actionlint`
+- Windows/Linux: see [releases](https://github.com/rhysd/actionlint/releases) for prebuilt binaries.
 
 After `npm install`, the repo’s git hooks are enabled (`core.hooksPath` → `.githooks`). On every commit, the **pre-commit** hook runs in order:
 
@@ -244,6 +251,8 @@ If the input has a visible label element next to it, use `htmlFor`/`id`. If it's
 
 Vitest runs two projects (see `vitest.config.ts`): **renderer** (`src/renderer/**/*.test.{ts,tsx}`, jsdom) and **main** (`src/main/**/*.test.ts`, node). Add or extend tests in the matching project when you change renderer or main-process behavior.
 
+If you are fixing a regression, always add or update a test that reproduces the regression and verifies the fix so it does not happen again.
+
 **Accessibility tests:** `src/renderer/vitest.setup.ts` registers **vitest-axe**. New or heavily changed panels should include a test that renders the component and asserts no axe violations, following existing component tests (e.g. `await axe(container)` and `expect(results).toHaveNoViolations()`).
 
 ```bash
@@ -386,7 +395,7 @@ Fixes #35
 ## PR Process
 
 1. **Describe your changes** — What did you change and why? What did you test?
-2. **Update docs** — If you added or changed a feature, update README.md or relevant `/docs` files.
+2. **Update docs** — If you added or changed a feature, update README.md or relevant `/docs` files. If you touch docs content, install MkDocs deps (`npm run docs:install`) and run `npm run docs:build` before opening the PR.
 3. **Follow existing code style** — Run `npm run lint` (and let pre-commit run `format` or run `npm run format` yourself). Fix import-sort, type-imports, and hook dependency issues before pushing.
 4. **Keep scope tight** — Avoid refactoring unrelated code in the same PR. One concern per PR makes review faster.
 5. **Await review** — A maintainer will review and may request changes before merging.

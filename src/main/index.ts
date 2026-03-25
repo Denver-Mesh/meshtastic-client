@@ -49,7 +49,11 @@ import {
 import { MeshcoreMqttAdapter } from './meshcore-mqtt-adapter';
 import { MQTTManager } from './mqtt-manager';
 import { handleNobleBleToRadioWrite } from './noble-ble-ipc';
-import { NobleBleManager, type NobleSessionId } from './noble-ble-manager';
+import {
+  NobleBleManager,
+  type NobleSessionId,
+  probeLinuxBleCapabilityStatus,
+} from './noble-ble-manager';
 import { getCheckNow, initUpdater } from './updater';
 
 // Route main-process console through log file + Log panel (must run before other code logs)
@@ -608,7 +612,7 @@ async function showAboutDialog(): Promise<void> {
     'https://discord.com/invite/McChKR5NpS',
   ];
   const url = urls[response];
-  if (url) void shell.openExternal(url);
+  if (url) openExternalHttpOrHttpsIfExternal('', url);
 }
 
 /**
@@ -735,6 +739,28 @@ function configureRendererSpellcheck(sess: Session): void {
   }
 }
 
+function parseHttpOrHttpsUrl(raw: string): URL | null {
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return parsed;
+  } catch {
+    // catch-no-log-ok — invalid URL strings should be ignored safely
+  }
+  return null;
+}
+
+function openExternalHttpOrHttpsIfExternal(currentUrl: string, targetUrl: string): boolean {
+  const target = parseHttpOrHttpsUrl(targetUrl);
+  if (!target) return false;
+
+  // Keep same-origin navigations inside Electron; only external websites are routed to the system browser.
+  const current = parseHttpOrHttpsUrl(currentUrl);
+  if (current?.origin === target.origin) return false;
+
+  void shell.openExternal(target.toString());
+  return true;
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1200,
@@ -755,6 +781,22 @@ function createWindow() {
     },
   });
   mainWindow = win;
+
+  // External link handling: route http/https websites to the system browser.
+  // Failure point: malicious URL schemes attempting protocol-handler abuse.
+  // Guardrail: only pass validated http:/https: URLs to `shell.openExternal()`.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (typeof url !== 'string') return { action: 'deny' };
+    const currentUrl = win.webContents.getURL();
+    const openedExternal = openExternalHttpOrHttpsIfExternal(currentUrl, url);
+    return openedExternal ? { action: 'deny' } : { action: 'allow' };
+  });
+
+  win.webContents.on('will-navigate', (event, url) => {
+    const currentUrl = win.webContents.getURL();
+    const openedExternal = openExternalHttpOrHttpsIfExternal(currentUrl, url);
+    if (openedExternal) event.preventDefault();
+  });
 
   configureRendererSpellcheck(win.webContents.session);
   win.webContents.once('did-finish-load', () => {
@@ -1112,6 +1154,21 @@ ipcMain.handle('noble-ble-stop-scan', async (_event, sessionId: unknown) => {
     throw new Error('noble-ble-stop-scan: sessionId must be meshtastic or meshcore');
   }
   await nobleBleManager.stopScanning(sessionId);
+});
+ipcMain.handle('system:linux-ble-capability-status', () => {
+  if (process.platform !== 'linux') {
+    return {
+      platform: 'other' as const,
+      hasCapNetRaw: true,
+      detail: '',
+    };
+  }
+  const probe = probeLinuxBleCapabilityStatus();
+  return {
+    platform: 'linux' as const,
+    hasCapNetRaw: probe.hasBleCapabilities,
+    detail: probe.detail,
+  };
 });
 ipcMain.handle('noble-ble-connect', async (_event, sessionId: unknown, peripheralId: unknown) => {
   if (sessionId !== 'meshtastic' && sessionId !== 'meshcore') {
