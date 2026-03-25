@@ -64,7 +64,7 @@ function meshcoreNusRxScore(char: { properties?: unknown }): number {
   return s;
 }
 
-function meshcorePickBestChar(candidates: any[], score: (c: any) => number): any | null {
+function meshcorePickBestChar(candidates: any[], score: (c: any) => number): any {
   if (candidates.length === 0) return null;
   return candidates.reduce((best, c) => (score(c) > score(best) ? c : best));
 }
@@ -635,8 +635,7 @@ export class NobleBleManager extends EventEmitter {
       }
       if (
         sessionId === 'meshcore' &&
-        knownForMeshcore &&
-        peripheralId === knownForMeshcore.id &&
+        peripheralId === knownForMeshcore?.id &&
         session.connectedPeripheral?.id === knownForMeshcore.id &&
         session.meshcoreGattInflight &&
         !session.closing
@@ -646,7 +645,10 @@ export class NobleBleManager extends EventEmitter {
         );
         try {
           await session.meshcoreGattInflight.promise;
-        } catch {
+        } catch (err) {
+          console.debug(
+            `[BLE:meshcore] connect coalesce await failed — ${sanitizeLogMessage(err instanceof Error ? err.message : String(err))}`,
+          );
           // First attempt failed or session cleared; fall through to full reconnect.
         }
         if (
@@ -655,9 +657,7 @@ export class NobleBleManager extends EventEmitter {
           session.connectedPeripheral?.id === knownForMeshcore.id &&
           !session.closing
         ) {
-          console.debug(
-            `[BLE:meshcore] connect coalesce done — session ready for ${peripheralId}`,
-          );
+          console.debug(`[BLE:meshcore] connect coalesce done — session ready for ${peripheralId}`);
           return;
         }
       }
@@ -931,9 +931,7 @@ export class NobleBleManager extends EventEmitter {
       console.warn(`[BLE:${sessionId}] connect failed:`, err instanceof Error ? err.message : err); // log-injection-ok noble internal error
       if (session.meshcoreGattInflight) {
         try {
-          session.meshcoreGattInflight.reject(
-            err instanceof Error ? err : new Error(String(err)),
-          );
+          session.meshcoreGattInflight.reject(err instanceof Error ? err : new Error(String(err)));
         } catch {
           // catch-no-log-ok promise may already be settled
         }

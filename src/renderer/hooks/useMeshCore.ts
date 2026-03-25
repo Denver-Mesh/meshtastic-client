@@ -119,7 +119,7 @@ function rendererLikelyWin32(): boolean {
   try {
     if (typeof process !== 'undefined' && process.platform === 'win32') return true;
   } catch {
-    // ignore
+    // catch-no-log-ok process access can throw in some renderer bundles; fall back to UA heuristics
   }
   if (typeof navigator !== 'undefined') {
     const ua = navigator.userAgent ?? '';
@@ -127,6 +127,8 @@ function rendererLikelyWin32(): boolean {
     const plat = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData
       ?.platform;
     if (plat && /Windows/i.test(plat)) return true;
+    // Legacy fallback when userAgent / userAgentData are inconclusive (Chromium still exposes platform on Win).
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- navigator.platform is the last-resort Win hint
     if (navigator.platform && /Win/i.test(navigator.platform)) return true;
   }
   return false;
@@ -237,70 +239,70 @@ class IpcNobleConnection {
   async connect() {
     const runConnect = async () => {
       const sessionId = this.sessionId;
-    class NobleOverIpc extends (MeshcoreConnectionBase as unknown as new () => NobleIpcMeshcoreConnectionInstance) {
-      constructor(private readonly session: NobleBleSessionId) {
-        super();
+      class NobleOverIpc extends (MeshcoreConnectionBase as unknown as new () => NobleIpcMeshcoreConnectionInstance) {
+        constructor(private readonly session: NobleBleSessionId) {
+          super();
+        }
+
+        /**
+         * Raw companion frames over Nordic UART (same as meshcore.js WebBleConnection), not SerialConnection's
+         * USB framing (0x3c/0x3e + length) used for WebSerial/TCP.
+         */
+        async sendToRadioFrame(data: Uint8Array) {
+          this.emit('tx', data);
+          await this.write(data);
+        }
+
+        async write(bytes: Uint8Array) {
+          console.debug(`[IpcNobleConnection:${this.session}] write ${bytes.length} bytes`);
+          await window.electronAPI.nobleBleToRadio(this.session, bytes);
+        }
+
+        async close() {
+          await window.electronAPI.disconnectNobleBle(this.session);
+        }
       }
 
-      /**
-       * Raw companion frames over Nordic UART (same as meshcore.js WebBleConnection), not SerialConnection's
-       * USB framing (0x3c/0x3e + length) used for WebSerial/TCP.
-       */
-      async sendToRadioFrame(data: Uint8Array) {
-        this.emit('tx', data);
-        await this.write(data);
-      }
-
-      async write(bytes: Uint8Array) {
-        console.debug(`[IpcNobleConnection:${this.session}] write ${bytes.length} bytes`);
-        await window.electronAPI.nobleBleToRadio(this.session, bytes);
-      }
-
-      async close() {
-        await window.electronAPI.disconnectNobleBle(this.session);
-      }
-    }
-
-    const instance = new NobleOverIpc(sessionId) as unknown as NobleIpcMeshcoreConnectionInstance;
-    this.inner = instance;
-    const offData = window.electronAPI.onNobleBleFromRadio(({ sessionId: sid, bytes }) => {
-      if (sid !== sessionId) return;
-      console.debug(`[IpcNobleConnection:${sessionId}] fromRadio ${bytes.length} bytes`);
-      const frame = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes as ArrayBuffer);
-      instance.onFrameReceived(frame);
-    });
-    const offDisc = window.electronAPI.onNobleBleDisconnected((sid) => {
-      if (sid !== sessionId) return;
-      console.warn(`[IpcNobleConnection:${sessionId}] peripheral disconnected`);
-      instance.onDisconnected();
-    });
-    this.cleanupFns = [offData, offDisc];
-    try {
-      await withTimeout(
-        window.electronAPI.connectNobleBle(sessionId, this.peripheralId).then((result) => {
-          if (!result.ok) throw new Error(result.error || 'BLE connect failed');
-        }),
-        NOBLE_IPC_CONNECT_TIMEOUT_MS,
-        'MeshCore BLE IPC open',
-      );
-      await withTimeout(
-        instance.onConnected(),
-        NOBLE_IPC_HANDSHAKE_TIMEOUT_MS,
-        'MeshCore BLE protocol handshake',
-      );
-    } catch (err) {
+      const instance = new NobleOverIpc(sessionId) as unknown as NobleIpcMeshcoreConnectionInstance;
+      this.inner = instance;
+      const offData = window.electronAPI.onNobleBleFromRadio(({ sessionId: sid, bytes }) => {
+        if (sid !== sessionId) return;
+        console.debug(`[IpcNobleConnection:${sessionId}] fromRadio ${bytes.length} bytes`);
+        const frame = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes as ArrayBuffer);
+        instance.onFrameReceived(frame);
+      });
+      const offDisc = window.electronAPI.onNobleBleDisconnected((sid) => {
+        if (sid !== sessionId) return;
+        console.warn(`[IpcNobleConnection:${sessionId}] peripheral disconnected`);
+        instance.onDisconnected();
+      });
+      this.cleanupFns = [offData, offDisc];
       try {
-        await window.electronAPI.disconnectNobleBle(sessionId);
-      } catch (disconnectErr) {
-        console.debug(
-          '[IpcNobleConnection] best-effort disconnect after connect failure',
-          disconnectErr,
+        await withTimeout(
+          window.electronAPI.connectNobleBle(sessionId, this.peripheralId).then((result) => {
+            if (!result.ok) throw new Error(result.error || 'BLE connect failed');
+          }),
+          NOBLE_IPC_CONNECT_TIMEOUT_MS,
+          'MeshCore BLE IPC open',
         );
+        await withTimeout(
+          instance.onConnected(),
+          NOBLE_IPC_HANDSHAKE_TIMEOUT_MS,
+          'MeshCore BLE protocol handshake',
+        );
+      } catch (err) {
+        try {
+          await window.electronAPI.disconnectNobleBle(sessionId);
+        } catch (disconnectErr) {
+          console.debug(
+            '[IpcNobleConnection] best-effort disconnect after connect failure',
+            disconnectErr,
+          );
+        }
+        this.cleanup();
+        this.inner = null;
+        throw err;
       }
-      this.cleanup();
-      this.inner = null;
-      throw err;
-    }
     };
 
     if (this.sessionId !== 'meshcore') {
