@@ -452,18 +452,6 @@ For a detailed explanation of every diagnostic output — routing anomalies, RF 
 
 ---
 
-## Building a Distributable
-
-```bash
-npm run dist:mac      # macOS → .dmg + .zip in release/
-npm run dist:linux    # Linux → .AppImage + .deb in release/
-npm run dist:win      # Windows → .exe installer in release/
-```
-
-Output goes to the `release/` directory.
-
----
-
 ## Contributing / Development
 
 For full local setup (shared requirements, npm/tooling install, test harness, and OS-specific steps/troubleshooting), see [docs/development-environment.md](docs/development-environment.md).

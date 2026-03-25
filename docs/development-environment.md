@@ -69,7 +69,19 @@ Other useful test commands:
 - `npm test` (watch mode)
 - `npm run test:verbose` (verbose failures)
 
-### 5) Git hooks and pre-commit behavior
+### 5) Building a distributable
+
+Use the platform-specific packaging command:
+
+```bash
+npm run dist:mac      # macOS -> .dmg + .zip in release/
+npm run dist:linux    # Linux -> .AppImage + .deb in release/
+npm run dist:win      # Windows -> .exe installer in release/
+```
+
+Output goes to the `release/` directory.
+
+### 6) Git hooks and pre-commit behavior
 
 After `npm install`, repo hooks are enabled via `core.hooksPath` and pre-commit runs checks (format, lint, typecheck, audit, actionlint, tests).
 
@@ -81,7 +93,7 @@ git commit --no-verify
 
 Use this only as a temporary escape hatch, then run the skipped checks manually as soon as possible.
 
-### 6) CI workflow tooling (optional but recommended)
+### 7) CI workflow tooling (optional but recommended)
 
 - **Docker** (required to run `act` locally)
 - **act**: run GitHub Actions locally with Linux amd64 parity:
@@ -92,7 +104,7 @@ act --container-architecture linux/amd64
 
 - **actionlint**: required for local pre-commit if workflow files are touched.
 
-### 7) Helper scripts (auto-install where possible)
+### 8) Helper scripts (auto-install where possible)
 
 These scripts try to install optional tooling automatically. If they fail (for example, missing `sudo`/admin rights), follow the manual steps in this doc instead.
 
@@ -107,7 +119,7 @@ These scripts try to install optional tooling automatically. If they fail (for e
    - `npm run setup:dialout`
    - Adds your user to the `dialout` group (requires sudo + re-login).
 
-### 8) Optional editor/tooling
+### 9) Optional editor/tooling
 
 - VS Code (or Cursor) with TypeScript + ESLint support
 - Prettier editor extension (optional convenience; repository already defines formatting rules)
