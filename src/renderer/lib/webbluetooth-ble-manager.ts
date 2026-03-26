@@ -2,6 +2,41 @@ import type { Types } from '@meshtastic/core';
 
 import type { NobleBleSessionId } from './types';
 
+// Error types for Web Bluetooth GATT operations on Linux
+export type WebBluetoothErrorType =
+  | 'connection_failed'
+  | 'service_not_found'
+  | 'characteristic_not_found'
+  | 'notification_setup_failed'
+  | 'pairing_failed';
+
+// BlueZ error patterns that indicate pairing/authentication issues on Linux
+const BLUEZ_PAIRING_ERROR_RE =
+  /le-connection-abort-by-local|auth failed|connection rejected|pin failed|authentication failed/i;
+
+// Chrome DOMException names that often indicate pairing issues on Linux
+const CHROME_PAIRING_ERROR_NAMES = ['SecurityError', 'NetworkError'];
+
+export function isWebBluetoothPairingError(err: unknown): boolean {
+  if (err instanceof DOMException) {
+    if (CHROME_PAIRING_ERROR_NAMES.includes(err.name)) {
+      return true;
+    }
+    if (BLUEZ_PAIRING_ERROR_RE.test(err.message)) {
+      return true;
+    }
+  }
+  if (err instanceof Error) {
+    if (err.message.includes('GATT Error: Not supported')) {
+      return true;
+    }
+    if (BLUEZ_PAIRING_ERROR_RE.test(err.message)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export class WebBluetoothManager {
   private device: BluetoothDevice | null = null;
   private server: BluetoothRemoteGATTServer | null = null;
@@ -120,28 +155,63 @@ export class WebBluetoothManager {
       throw new Error('No device selected. Call requestDevice() first.');
     }
 
-    this.server = await this.device.gatt!.connect();
-    console.debug(`[WebBluetooth:${this.sessionId}] gatt connected`);
-
     const isMeshcore = this.sessionId === 'meshcore';
     const serviceUuid = isMeshcore
       ? '6e400001-b5a3-f393-e0a9-e50e24dcca9e'
       : '6ba1b218-15a8-461f-9fa8-5dcae273eafd';
 
-    const service = await this.server.getPrimaryService(serviceUuid);
+    // Wrap all GATT operations to classify errors for better user guidance
+    try {
+      this.server = await this.device.gatt!.connect();
+      console.debug(`[WebBluetooth:${this.sessionId}] gatt connected`);
+    } catch (err) {
+      const domErr = err as DOMException;
+      const isPairing = isWebBluetoothPairingError(err);
+      console.debug(
+        `[WebBluetooth:${this.sessionId}] gatt.connect() failed:`,
+        domErr?.name,
+        domErr?.message,
+        isPairing ? '(pairing-related)' : '',
+      );
+      // Wrap the error with classification info for the UI layer
+      const error = new Error(
+        `Bluetooth connection failed${isPairing ? ' (pairing issue)' : ''}: ${domErr?.message ?? String(err)}`,
+      ) as Error & { isPairingRelated?: boolean };
+      error.isPairingRelated = isPairing;
+      throw error;
+    }
 
-    if (isMeshcore) {
-      const rxUuid = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
-      const txUuid = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+    try {
+      const service = await this.server.getPrimaryService(serviceUuid);
 
-      this.toRadioCharacteristic = await service.getCharacteristic(rxUuid);
-      this.fromRadioCharacteristic = await service.getCharacteristic(txUuid);
-    } else {
-      const toRadioUuid = 'f75c76d2-129e-4dad-a1dd-7866124401e7';
-      const fromRadioUuid = '2c55e69e-4993-11ed-b878-0242ac120002';
+      if (isMeshcore) {
+        const rxUuid = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+        const txUuid = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 
-      this.toRadioCharacteristic = await service.getCharacteristic(toRadioUuid);
-      this.fromRadioCharacteristic = await service.getCharacteristic(fromRadioUuid);
+        this.toRadioCharacteristic = await service.getCharacteristic(rxUuid);
+        this.fromRadioCharacteristic = await service.getCharacteristic(txUuid);
+      } else {
+        const toRadioUuid = 'f75c76d2-129e-4dad-a1dd-7866124401e7';
+        const fromRadioUuid = '2c55e69e-4993-11ed-b878-0242ac120002';
+
+        this.toRadioCharacteristic = await service.getCharacteristic(toRadioUuid);
+        this.fromRadioCharacteristic = await service.getCharacteristic(fromRadioUuid);
+      }
+    } catch (err) {
+      const domErr = err as DOMException;
+      const isPairing = isWebBluetoothPairingError(err);
+      console.debug(
+        `[WebBluetooth:${this.sessionId}] GATT service/characteristic discovery failed:`,
+        domErr?.name,
+        domErr?.message,
+        isPairing ? '(pairing-related)' : '',
+      );
+      // "GATT Error: Not supported" typically means device requires pairing before GATT operations
+      const error = new Error(
+        `GATT Error: Not supported. The device may require pairing. ${domErr?.message ?? String(err)}`,
+      ) as Error & { isPairingRelated?: boolean };
+      error.isPairingRelated = true; // This error type is almost always pairing-related
+      throw error;
     }
 
     this.fromRadioNotifyHandler = (event: Event) => {
@@ -157,13 +227,28 @@ export class WebBluetoothManager {
       }
     };
 
-    this.fromRadioCharacteristic.addEventListener(
-      'characteristicvaluechanged',
-      this.fromRadioNotifyHandler,
-    );
-    await this.fromRadioCharacteristic.startNotifications();
-
-    console.debug(`[WebBluetooth:${this.sessionId}] notifications started`);
+    try {
+      this.fromRadioCharacteristic.addEventListener(
+        'characteristicvaluechanged',
+        this.fromRadioNotifyHandler,
+      );
+      await this.fromRadioCharacteristic.startNotifications();
+      console.debug(`[WebBluetooth:${this.sessionId}] notifications started`);
+    } catch (err) {
+      const domErr = err as DOMException;
+      const isPairing = isWebBluetoothPairingError(err);
+      console.debug(
+        `[WebBluetooth:${this.sessionId}] startNotifications failed:`,
+        domErr?.name,
+        domErr?.message,
+        isPairing ? '(pairing-related)' : '',
+      );
+      const error = new Error(
+        `Failed to start Bluetooth notifications${isPairing ? ' (pairing issue)' : ''}: ${domErr?.message ?? String(err)}`,
+      ) as Error & { isPairingRelated?: boolean };
+      error.isPairingRelated = isPairing;
+      throw error;
+    }
   }
 
   async disconnect(): Promise<void> {

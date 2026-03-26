@@ -126,6 +126,34 @@ function humanizeBleError(err: unknown): string {
   if (msg.includes('GATT Server is disconnected')) {
     return `${msg} — GATT connection dropped. Try moving closer to the device and reconnecting.`;
   }
+  // Web Bluetooth on Linux: "GATT Error: Not supported" means the device requires pairing
+  // before GATT operations are allowed. This is common with Meshtastic devices.
+  if (msg.includes('GATT Error: Not supported')) {
+    let enhanced = `${msg} The device requires pairing before connecting. Use the "Remove & Re-pair Device" button to re-initiate pairing.`;
+    if (isLinux) {
+      enhanced += ` For Meshtastic use PIN 123456. For MeshCore the PIN is shown on the device display.`;
+    }
+    return enhanced;
+  }
+  // Check error.name directly for DOMException types that indicate pairing issues
+  if (err instanceof DOMException) {
+    if (err.name === 'SecurityError') {
+      let enhanced = `Bluetooth authentication failed (${err.message}). The device may not be properly paired. Use the "Remove & Re-pair Device" button.`;
+      if (isLinux) {
+        enhanced += ` For Meshtastic use PIN 123456.`;
+      }
+      return enhanced;
+    }
+    if (err.name === 'NetworkError') {
+      let enhanced = `Bluetooth connection failed (${err.message}). The device may not be properly paired.`;
+      if (isLinux) {
+        enhanced += ` Use the "Remove & Re-pair Device" button or manage pairings via 'bluetoothctl'.`;
+      } else {
+        enhanced += ` Remove the device from Bluetooth settings and re-pair.`;
+      }
+      return enhanced;
+    }
+  }
   // Web Bluetooth on Linux: connection failed often means device not paired properly
   if (msg.includes('Connection Error: Connection attempt failed')) {
     let enhanced = `${msg} The device may not be paired with your computer. Remove the device from Bluetooth settings, then re-pair it. For Meshtastic use PIN 123456. For MeshCore the PIN is randomly generated and displayed on the device.`;
@@ -803,10 +831,16 @@ export default function ConnectionPanel({
           const bleErrMsg = humanizeBleError(err);
           if (bleErrMsg) setError(bleErrMsg);
           // Check if this is a pairing-related error - show re-pair button on Linux
-          if (
+          const errWithPairingFlag = err as { isPairingRelated?: boolean } | null | undefined;
+          const isPairingRelatedError =
             bleErrMsg.includes('not be properly paired') ||
-            bleErrMsg.includes('Connection attempt failed')
-          ) {
+            bleErrMsg.includes('Connection attempt failed') ||
+            bleErrMsg.includes('GATT Error: Not supported') ||
+            bleErrMsg.includes('authentication failed') ||
+            errWithPairingFlag?.isPairingRelated === true ||
+            (err instanceof DOMException &&
+              (err.name === 'SecurityError' || err.name === 'NetworkError'));
+          if (isPairingRelatedError) {
             setShowRePairButton(true);
           }
           setConnecting(false);
