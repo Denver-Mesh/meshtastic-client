@@ -610,8 +610,13 @@ export default function ConnectionPanel({
 
   // Debug: track showRePairButton changes
   useEffect(() => {
-    console.debug('[ConnectionPanel] showRePairButton changed:', showRePairButton);
-  }, [showRePairButton]);
+    console.debug(
+      '[ConnectionPanel] showRePairButton changed:',
+      showRePairButton,
+      'isLinux:',
+      isLinux,
+    );
+  }, [showRePairButton, isLinux]);
 
   // Update connection stage based on state transitions, and save last connection on success
   useEffect(() => {
