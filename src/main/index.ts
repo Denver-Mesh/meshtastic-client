@@ -51,11 +51,7 @@ import {
 import { MeshcoreMqttAdapter } from './meshcore-mqtt-adapter';
 import { MQTTManager } from './mqtt-manager';
 import { handleNobleBleToRadioWrite } from './noble-ble-ipc';
-import {
-  NobleBleManager,
-  type NobleSessionId,
-  probeLinuxBleCapabilityStatus,
-} from './noble-ble-manager';
+import { NobleBleManager, type NobleSessionId } from './noble-ble-manager';
 import { getCheckNow, initUpdater } from './updater';
 
 // Route main-process console through log file + Log panel (must run before other code logs)
@@ -461,6 +457,11 @@ function validateMqttPublishArgs(args: unknown): void {
 
 // Enable Web Serial (experimental)
 app.commandLine.appendSwitch('enable-blink-features', 'Serial');
+
+// Enable Web Bluetooth on Linux (experimental - required for BLE on Linux)
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('enable-experimental-web-platform-features');
+}
 
 // ─── Icon Path Helper ──────────────────────────────────────────────
 /**
@@ -1156,21 +1157,6 @@ ipcMain.handle('noble-ble-stop-scan', async (_event, sessionId: unknown) => {
     throw new Error('noble-ble-stop-scan: sessionId must be meshtastic or meshcore');
   }
   await nobleBleManager.stopScanning(sessionId);
-});
-ipcMain.handle('system:linux-ble-capability-status', () => {
-  if (process.platform !== 'linux') {
-    return {
-      platform: 'other' as const,
-      hasCapNetRaw: true,
-      detail: '',
-    };
-  }
-  const probe = probeLinuxBleCapabilityStatus();
-  return {
-    platform: 'linux' as const,
-    hasCapNetRaw: probe.hasBleCapabilities,
-    detail: probe.detail,
-  };
 });
 ipcMain.handle('noble-ble-connect', async (_event, sessionId: unknown, peripheralId: unknown) => {
   if (sessionId !== 'meshtastic' && sessionId !== 'meshcore') {

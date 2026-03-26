@@ -60,8 +60,7 @@ npm install
 ### 3) Run the app
 
 - Dev mode (hot reload): `npm run dev`
-- **Linux (BLE + desktop GUI from source):** `npm run linux` — preferred over plain `npm start` so Bluetooth scanning has `CAP_NET_RAW` without `setcap` on local Electron (see [Linux Bluetooth (BLE) Permissions](#linux-bluetooth-ble-permissions)).
-- Production-like local start (other platforms, or Linux without BLE): `npm start`
+- Production-like local start: `npm start`
 
 ### Common npm commands
 
@@ -70,7 +69,6 @@ Use these from the repository root:
 ```bash
 # App run/build
 npm run dev
-npm run linux   # Linux: BLE + GUI from source (see Linux BLE section)
 npm start
 npm run build
 
@@ -344,25 +342,18 @@ sudo usermod -a -G dialout $USER
 
 Log out/in after changing groups.
 
-### Linux Bluetooth (BLE) Permissions
+### Linux Bluetooth (BLE)
 
-BLE scanning with `@stoprocent/noble` requires `CAP_NET_RAW`.
+Linux uses Web Bluetooth (Chromium's built-in BLE API) instead of `@stoprocent/noble`. This approach:
 
-**From the repo root, preferred:** run `npm run linux`. It wraps `sudo setpriv …` so your process gets ambient `CAP_NET_RAW`, preserves `DISPLAY` / `XAUTHORITY` / `PATH` for the desktop session, and runs `npm start -- -no-sandbox` (production-like build + Electron). You need `sudo` once per launch for `setpriv`.
+- Requires no special permissions (setcap, setpriv, etc.)
+- Works within Chromium's sandbox
+- Requires the user to manually select their device via Chromium's native BLE picker
+- Requires a user gesture (button click) to trigger device selection
 
-**Manual (equivalent to `npm run linux`):**
+The app automatically enables `--enable-experimental-web-platform-features` on Linux at startup.
 
-```bash
-sudo setpriv --reuid=$USER --regid=$(id -g) --init-groups --inh-caps +net_raw --ambient-caps +net_raw --reset-env bash -lc "export DISPLAY=$DISPLAY; export XAUTHORITY=$XAUTHORITY; npm start -- -no-sandbox"
-```
-
-Packaged installs (`.deb`, AppImage, etc.) do **not** use `npm run linux`; apply file capabilities to the **installed or extracted app binary** as described elsewhere in this doc — that path is separate from development.
-
-If you see lines like `cannot create /sys/kernel/debug/bluetooth/hci0/conn_min_interval: Permission denied`, those are emitted by native noble internals trying to write debugfs connection tuning. Those lines alone do **not** prove `CAP_NET_RAW` is missing and can appear even when `setpriv` is correct.
-
-Treat this as actionable only when paired with BLE data-path failures (for example, MeshCore protocol handshake timeout with zero inbound `fromRadio` packets). In that case: keep the device awake/nearby, reset the adapter (`bluetoothctl power off; power on`), retry, or use Serial/TCP fallback.
-
-If you reinstall dependencies (`npm install`/`npm ci`) or switch binaries, re-apply capability setup.
+For MeshCore connections on Linux, ensure your device is in Bluetooth Companion mode and paired with your computer using a PIN before attempting to connect.
 
 ### Sandbox and ARM notes
 

@@ -2,7 +2,6 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 import type {
   ElectronAPI,
-  LinuxBleCapabilityStatus,
   NobleBleConnectResult,
   NobleBleDevice,
   NobleBleSessionId,
@@ -291,8 +290,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('noble-ble-disconnect', sessionId),
   nobleBleToRadio: (sessionId: NobleBleSessionId, bytes: Uint8Array): Promise<void> =>
     ipcRenderer.invoke('noble-ble-to-radio', sessionId, bytes),
-  getLinuxBleCapabilityStatus: (): Promise<LinuxBleCapabilityStatus> =>
-    ipcRenderer.invoke('system:linux-ble-capability-status'),
 
   // ─── Serial port selection ──────────────────────────────────────
   // Main process intercepts select-serial-port and sends the port

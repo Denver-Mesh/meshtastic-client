@@ -1,9 +1,5 @@
-import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-
 import { EventEmitter } from 'events';
 
-import { linuxBleNobleCapabilityErrorBody } from '../shared/linuxBleDevLaunch';
 import { withTimeout } from '../shared/withTimeout';
 import { logDeviceConnection, sanitizeLogMessage } from './log-service';
 
@@ -29,109 +25,16 @@ const BLE_FROM_RADIO_READ_TIMEOUT_MS = 2000;
 /** Delay before kicking read pump after a write (device prep time). */
 const POST_WRITE_READ_PUMP_DELAY_MS = 100;
 
-// BlueZ (Linux) and WinRT (Windows) BLE stacks are significantly slower than macOS
-// CBCentralManager. Use generous timeouts on those platforms.
+// BlueZ (Windows) BLE stack is significantly slower than macOS CBCentralManager.
+// Use generous timeouts on Windows.
 const IS_DARWIN = process.platform === 'darwin';
 const IS_WIN32 = process.platform === 'win32';
-const IS_LINUX = process.platform === 'linux';
 /** Timeout for peripheral.connectAsync(). */
 const BLE_CONNECT_TIMEOUT_MS = IS_DARWIN ? 15_000 : 30_000;
 /** Timeout for GATT service/characteristic discovery. */
 const BLE_DISCOVERY_TIMEOUT_MS = IS_DARWIN ? 15_000 : 30_000;
 /** Timeout for characteristic subscribeAsync(). */
 const BLE_SUBSCRIBE_TIMEOUT_MS = IS_DARWIN ? 10_000 : 20_000;
-/** Linux MeshCore: keep polling briefly for first packet when notify delivers nothing yet. */
-const MESHCORE_LINUX_EARLY_READ_POLL_MAX_ATTEMPTS = 40;
-const MESHCORE_LINUX_EARLY_READ_POLL_BACKOFF_MS = 250;
-
-const BLE_LINUX_CAPABILITY_MISSING = 'BLE_LINUX_CAPABILITY_MISSING';
-const CAP_NET_RAW_BIT = 13n;
-
-function hasCapNetRaw(capHex: string): boolean {
-  const normalized = capHex.trim().toLowerCase();
-  if (!/^[0-9a-f]+$/.test(normalized)) return false;
-  try {
-    const value = BigInt(`0x${normalized}`);
-    return (value & (1n << CAP_NET_RAW_BIT)) !== 0n;
-  } catch {
-    // catch-no-log-ok invalid capability hex string is treated as no capability
-    return false;
-  }
-}
-
-export interface LinuxBleCapabilityProbe {
-  hasBleCapabilities: boolean;
-  detail: string;
-  runtimeCapEffHex: string | null;
-  runtimeCapAmbHex: string | null;
-  fileCapabilityDetail: string | null;
-}
-
-export function probeLinuxRuntimeBleCapability(): LinuxBleCapabilityProbe {
-  if (process.platform !== 'linux') {
-    return {
-      hasBleCapabilities: true,
-      detail: '',
-      runtimeCapEffHex: null,
-      runtimeCapAmbHex: null,
-      fileCapabilityDetail: null,
-    };
-  }
-  try {
-    const statusText = readFileSync('/proc/self/status', 'utf8');
-    const capEffMatch = /^CapEff:\s*([0-9a-fA-F]+)$/m.exec(statusText);
-    const capAmbMatch = /^CapAmb:\s*([0-9a-fA-F]+)$/m.exec(statusText);
-    const runtimeCapEffHex = capEffMatch?.[1] ?? null;
-    const runtimeCapAmbHex = capAmbMatch?.[1] ?? null;
-    const hasEff = runtimeCapEffHex ? hasCapNetRaw(runtimeCapEffHex) : false;
-    const hasAmb = runtimeCapAmbHex ? hasCapNetRaw(runtimeCapAmbHex) : false;
-    return {
-      hasBleCapabilities: hasEff || hasAmb,
-      detail: `runtime CapEff=${runtimeCapEffHex ?? 'unknown'} CapAmb=${runtimeCapAmbHex ?? 'unknown'}`,
-      runtimeCapEffHex,
-      runtimeCapAmbHex,
-      fileCapabilityDetail: null,
-    };
-  } catch {
-    // catch-no-log-ok /proc/self/status missing/unreadable; caller falls back to file capabilities
-    return {
-      hasBleCapabilities: false,
-      detail: 'unable to read /proc/self/status',
-      runtimeCapEffHex: null,
-      runtimeCapAmbHex: null,
-      fileCapabilityDetail: null,
-    };
-  }
-}
-
-export function probeLinuxBleCapabilityStatus(): LinuxBleCapabilityProbe {
-  const runtimeProbe = probeLinuxRuntimeBleCapability();
-  if (process.platform !== 'linux' || runtimeProbe.hasBleCapabilities) {
-    return runtimeProbe;
-  }
-  try {
-    const output = execFileSync('getcap', [process.execPath], {
-      encoding: 'utf8',
-    }).trim();
-    const normalized = output.toLowerCase();
-    const hasRaw = normalized.includes('cap_net_raw');
-    const hasAdmin = normalized.includes('cap_net_admin');
-    return {
-      ...runtimeProbe,
-      hasBleCapabilities: hasRaw || hasAdmin,
-      detail: `${runtimeProbe.detail}; ${output || `no file capabilities set on ${process.execPath}`}`,
-      fileCapabilityDetail: output || null,
-    };
-  } catch {
-    // catch-no-log-ok getcap unavailable on system; caller receives actionable fallback detail
-    return {
-      ...runtimeProbe,
-      hasBleCapabilities: false,
-      detail: `${runtimeProbe.detail}; unable to read file capabilities for ${process.execPath}`,
-      fileCapabilityDetail: null,
-    };
-  }
-}
 
 function normalizeUuid(uuid: string): string {
   return uuid.toLowerCase().replace(/-/g, '');
@@ -244,6 +147,7 @@ export class NobleBleManager extends EventEmitter {
   /** True only while noble.startScanning() has actually been called and confirmed active. */
   private scanningActive = false;
   private lastAdapterState = String(noble.state ?? 'unknown');
+  private releaseHandlesCallCount = 0;
 
   constructor() {
     super();
@@ -373,28 +277,14 @@ export class NobleBleManager extends EventEmitter {
       session.firstPacketLogged = true;
       const latencyMs =
         session.connectStartedAtMs == null ? null : Date.now() - session.connectStartedAtMs;
-      console.info(
-        `[BLE:meshcore] first fromRadio packet via ${source} after ${latencyMs ?? 'unknown'}ms (bytes=${bytes.length} readPumpFallbackUsed=${session.fromRadioUsedReadPumpFallback} linuxEarlyPollAttempts=${session.meshcoreLinuxEarlyReadPollAttempts})`,
+      const hexDump = Array.from(bytes.subarray(0, Math.min(bytes.length, 50)))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join(' ');
+      console.debug(
+        `[BLE:meshcore] first fromRadio packet via ${source} after ${latencyMs ?? 'unknown'}ms (bytes=${bytes.length} data=[${hexDump}${bytes.length > 50 ? '...' : ''}] readPumpFallbackUsed=${session.fromRadioUsedReadPumpFallback} linuxEarlyPollAttempts=${session.meshcoreLinuxEarlyReadPollAttempts})`,
       );
     }
     this.emit('fromRadio', { sessionId, bytes });
-  }
-
-  private maybeScheduleLinuxMeshcoreEarlyReadPoll(sessionId: NobleSessionId): boolean {
-    if (!(sessionId === 'meshcore' && IS_LINUX)) return false;
-    const session = this.getSession(sessionId);
-    if (!session.fromRadioNotifyOnly || session.fromRadioDeliveryCount > 0 || session.closing) {
-      return false;
-    }
-    if (session.meshcoreLinuxEarlyReadPollAttempts >= MESHCORE_LINUX_EARLY_READ_POLL_MAX_ATTEMPTS) {
-      console.warn(
-        `[BLE:meshcore] linux early-read polling exhausted after ${session.meshcoreLinuxEarlyReadPollAttempts} attempts with no fromRadio payload; debugfs conn_* permission-denied lines from noble internals may be non-fatal noise, but this session still saw zero inbound data.`,
-      );
-      return false;
-    }
-    session.meshcoreLinuxEarlyReadPollAttempts += 1;
-    session.readPumpRequested = true;
-    return true;
   }
 
   /**
@@ -403,6 +293,8 @@ export class NobleBleManager extends EventEmitter {
    * - Darwin: skip reads when notify is active — CoreBluetooth delivers notifications reliably.
    * - MeshCore + Win32 + notify active: skip reads — WinRT returns "Protocol error" on NUS TX read while
    *   notifications are enabled (logs: readPump-read-error). Rely on notify only.
+   * - Linux + MeshCore: use read pump as fallback — BlueZ may not reliably deliver notifications
+   *   for some devices, causing handshake hangs (device sends data but notify events never fire).
    * - Other non-Darwin: keep read pump alongside notify as a safety net when noble drops notifies.
    */
   private shouldUseFromRadioReadPump(sessionId: NobleSessionId, session: NobleBleSession): boolean {
@@ -415,10 +307,15 @@ export class NobleBleManager extends EventEmitter {
   private requestFromRadioReadPump(sessionId: NobleSessionId): void {
     const session = this.getSession(sessionId);
     if (session.closing) return;
-    if (!this.shouldUseFromRadioReadPump(sessionId, session)) return;
+    if (!this.shouldUseFromRadioReadPump(sessionId, session)) {
+      return;
+    }
     session.readPumpRequested = true;
     if (session.readPumpActive) return;
     session.readPumpActive = true;
+    console.info(
+      `[BLE:${sessionId}] read pump started platform=${process.platform} timeSinceConnect=${session.connectStartedAtMs != null ? Date.now() - session.connectStartedAtMs : 'unknown'}ms`,
+    );
     void this.runFromRadioReadPump(sessionId);
   }
 
@@ -464,13 +361,6 @@ export class NobleBleManager extends EventEmitter {
             );
             if (meshcoreWinEarlyReadPoll && !session.closing) {
               session.readPumpRequested = true;
-            } else if (
-              this.maybeScheduleLinuxMeshcoreEarlyReadPoll(sessionId) &&
-              !session.closing
-            ) {
-              await new Promise<void>((r) =>
-                setTimeout(r, MESHCORE_LINUX_EARLY_READ_POLL_BACKOFF_MS),
-              );
             }
             // Back off before the outer while can re-trigger to avoid hammering a failing characteristic.
             await new Promise<void>((r) => setTimeout(r, 500));
@@ -481,14 +371,6 @@ export class NobleBleManager extends EventEmitter {
             if (meshcoreWinEarlyReadPoll && i === 0 && !session.closing) {
               session.readPumpRequested = true;
               await new Promise<void>((r) => setTimeout(r, 150));
-            } else if (
-              i === 0 &&
-              this.maybeScheduleLinuxMeshcoreEarlyReadPoll(sessionId) &&
-              !session.closing
-            ) {
-              await new Promise<void>((r) =>
-                setTimeout(r, MESHCORE_LINUX_EARLY_READ_POLL_BACKOFF_MS),
-              );
             }
             break;
           }
@@ -559,10 +441,6 @@ export class NobleBleManager extends EventEmitter {
       await this.waitForAdapterReady(5000);
     }
     if (!this.adapterReady) {
-      const capabilityErr = this.getLinuxCapabilityError(
-        `Adapter state remained ${this.lastAdapterState} after startup wait`,
-      );
-      if (capabilityErr) throw capabilityErr;
       throw new Error('Bluetooth adapter is not powered on');
     }
     await this.doStartScanning();
@@ -593,9 +471,8 @@ export class NobleBleManager extends EventEmitter {
     return new Promise((resolve, reject) => {
       noble.startScanning(filter, false, (err: Error | null) => {
         if (err) {
-          const classifiedErr = this.classifyLinuxBleError(err);
-          console.error('[NobleBleManager] startScanning error:', classifiedErr); // log-injection-ok noble internal error
-          reject(classifiedErr);
+          console.error('[NobleBleManager] startScanning error:', err); // log-injection-ok noble internal error
+          reject(err);
           return;
         }
         this.scanningActive = true;
@@ -636,34 +513,6 @@ export class NobleBleManager extends EventEmitter {
     });
   }
 
-  private classifyLinuxBleError(err: unknown): Error {
-    if (!(err instanceof Error)) return new Error(String(err));
-    const capabilityErr = this.getLinuxCapabilityError(err.message);
-    return capabilityErr ?? err;
-  }
-
-  private getLinuxCapabilityError(context: string): Error | null {
-    if (process.platform !== 'linux') return null;
-    const lowerContext = context.toLowerCase();
-    const looksPermissionRelated =
-      /\beperm\b|operation not permitted|permission denied|not permitted|set scan parameters/i.test(
-        lowerContext,
-      ) || /\bhci\d+\b/.test(lowerContext);
-    const capabilityProbe = this.probeLinuxBleCapability();
-    if (!looksPermissionRelated && capabilityProbe.hasBleCapabilities) {
-      return null;
-    }
-    const detail = capabilityProbe.detail ? ` (${capabilityProbe.detail})` : '';
-    return new Error(
-      `${BLE_LINUX_CAPABILITY_MISSING}: Linux BLE scan permissions are missing or not applied${detail}. ${linuxBleNobleCapabilityErrorBody()}`,
-    );
-  }
-
-  private probeLinuxBleCapability(): { hasBleCapabilities: boolean; detail: string } {
-    const probe = probeLinuxBleCapabilityStatus();
-    return { hasBleCapabilities: probe.hasBleCapabilities, detail: probe.detail };
-  }
-
   private doStopScanning(): Promise<void> {
     if (!this.scanningActive) return Promise.resolve();
     // Mark stopped immediately — noble's stopScanning callback is unreliable on some platforms
@@ -684,7 +533,7 @@ export class NobleBleManager extends EventEmitter {
    * Without this, the active GCD thread keeps the macOS process alive indefinitely.
    */
   releaseNobleProcessHandles(): void {
-    // Mark all sessions closing FIRST so any in-flight readAsync loop exits without issuing
+    this.releaseHandlesCallCount += 1; // Mark all sessions closing FIRST so any in-flight readAsync loop exits without issuing
     // more GATT reads. This prevents the CBCentralManager delegate firing into freed memory
     // after _bindings.stop() releases the native handle.
     for (const session of this.sessions.values()) {
@@ -692,6 +541,9 @@ export class NobleBleManager extends EventEmitter {
     }
     // Clear scan requesters to prevent any deferred scan restart during teardown.
     this.scanRequesters.clear();
+    if (process.platform === 'linux') {
+      return;
+    }
     // Only call noble.stopScanning() if scanning is actually active.
     // Calling it twice in a row (e.g. once in before-quit and again here)
     // is a known SIGSEGV trigger in noble's native XPC layer.
@@ -715,8 +567,7 @@ export class NobleBleManager extends EventEmitter {
         err,
       ); // log-injection-ok noble internal error
     }
-    this.removeAllListeners();
-    // Release the native BLEManager and its CBqueue dispatch queue (macOS only).
+    this.removeAllListeners(); // Release the native BLEManager and its CBqueue dispatch queue (macOS only).
     // noble.stop() → _bindings.stop() → CFRelease(BLEManager) → CBCentralManager + dispatch queue released.
     try {
       noble.stop();
@@ -746,15 +597,11 @@ export class NobleBleManager extends EventEmitter {
     );
     try {
       if (!this.adapterReady) {
-        const capabilityErr = this.getLinuxCapabilityError(
-          `connect() called while adapter state is ${this.lastAdapterState}`,
-        );
-        if (capabilityErr) throw capabilityErr;
         throw new Error('Bluetooth adapter is not powered on');
       }
       // CBCentralManager on macOS cannot scan and connect simultaneously.
       // Stop scanning without clearing scanRequesters — it will resume in the finally block.
-      // On Linux (BlueZ) and Windows (WinRT) this restriction does not apply.
+      // On Windows (WinRT) this restriction does not apply.
       if (process.platform === 'darwin' && this.scanningActive) {
         await this.doStopScanning();
       }
@@ -893,6 +740,20 @@ export class NobleBleManager extends EventEmitter {
       peripheral.once('mtu', (mtu: number) => {
         console.debug(`[BLE:${sessionId}] MTU updated: ${mtu}`);
       });
+
+      // Stop scanning before connecting — many Linux/BlueZ drivers abort connections while scanning.
+      if (this.scanningActive) {
+        console.debug(`[BLE:${sessionId}] stopping scan before connect`);
+        await new Promise<void>((resolve) => {
+          const onScanStop = () => {
+            noble.removeListener('scanStop', onScanStop);
+            resolve();
+          };
+          noble.on('scanStop', onScanStop);
+          void this.doStopScanning();
+        });
+      }
+
       const tConnect = Date.now();
       try {
         await withTimeout(peripheral.connectAsync(), BLE_CONNECT_TIMEOUT_MS, 'BLE connectAsync');
@@ -965,6 +826,9 @@ export class NobleBleManager extends EventEmitter {
           if (uuid === MESHCORE_RX_UUID) rxCandidates.push(char);
           else if (uuid === MESHCORE_TX_UUID) txCandidates.push(char);
         }
+        console.debug(
+          `[BLE:${sessionId}] meshcore candidates: rxCandidates=${rxCandidates.length} (${rxCandidates.map((c) => `${normalizeUuid(c.uuid)}[${(c.properties ?? []).join(',')}]`).join(', ')}), txCandidates=${txCandidates.length} (${txCandidates.map((c) => `${normalizeUuid(c.uuid)}[${(c.properties ?? []).join(',')}]`).join(', ')})`,
+        );
         const viableRx = rxCandidates.filter((c) => meshcoreNusRxScore(c) > 0);
         const viableTx = txCandidates.filter((c) => meshcoreNusTxScore(c) > 0);
         session.toRadioChar = meshcorePickBestChar(
@@ -975,6 +839,12 @@ export class NobleBleManager extends EventEmitter {
           viableTx.length > 0 ? viableTx : txCandidates,
           meshcoreNusTxScore,
         );
+        if (session.fromRadioChar) {
+          const selectedProps = session.fromRadioChar.properties ?? [];
+          console.debug(
+            `[BLE:${sessionId}] selected fromRadioChar: uuid=${normalizeUuid(session.fromRadioChar.uuid)} props=[${selectedProps.join(',')}] viableTx=${viableTx.length}`,
+          );
+        }
       } else {
         for (const char of characteristics) {
           const uuid = normalizeUuid(char.uuid);
@@ -986,6 +856,13 @@ export class NobleBleManager extends EventEmitter {
       console.debug(
         `[BLE:${sessionId}] discovered chars in ${Date.now() - tDiscover}ms — toRadio=${Boolean(session.toRadioChar)} fromRadio=${Boolean(session.fromRadioChar)} fromNum=${Boolean(session.fromNumChar)} toRadioProps=${JSON.stringify(session.toRadioChar?.properties)} fromRadioProps=${JSON.stringify(session.fromRadioChar?.properties)} fromNumProps=${JSON.stringify(session.fromNumChar?.properties)}`,
       );
+      if (isMeshcore) {
+        console.debug(
+          `[BLE:${sessionId}] ALL discovered characteristics for meshcore: ${characteristics
+            .map((c: any) => `${normalizeUuid(c.uuid)}[${(c.properties ?? []).join(',')}]`)
+            .join(', ')}`,
+        );
+      }
 
       // FROMNUM is optional for notification-based flow; require only TX/RX characteristics.
       if (!session.toRadioChar || !session.fromRadioChar) {
@@ -1026,8 +903,23 @@ export class NobleBleManager extends EventEmitter {
       let fromRadioSubscribed = false;
       if (fromRadioSupportsNotify) {
         try {
+          const fromRadioNotifyStateHandler = (state: boolean) => {
+            console.debug(
+              `[BLE:${sessionId}] fromRadio notify state=${state} platform=${process.platform} timeSinceConnect=${session.connectStartedAtMs != null ? Date.now() - session.connectStartedAtMs : 'unknown'}ms`,
+            );
+          };
+          session.fromRadioChar.on?.('notify', fromRadioNotifyStateHandler);
           session.fromRadioDataHandler = (data: Buffer, isNotification: boolean) => {
-            if (!data || data.length === 0) return;
+            const byteLen = data?.length ?? 0;
+            if (byteLen === 0) {
+              console.debug(
+                `[BLE:${sessionId}] fromRadio data handler called with 0 bytes isNotification=${isNotification} — ${isNotification ? 'BlueZ notification received but empty' : 'readAsync returned empty'} timeSinceConnect=${session.connectStartedAtMs != null ? Date.now() - session.connectStartedAtMs : 'unknown'}ms`,
+              );
+              return;
+            }
+            console.debug(
+              `[BLE:${sessionId}] fromRadio DATA received: ${byteLen} bytes isNotification=${isNotification} platform=${process.platform} timeSinceConnect=${session.connectStartedAtMs != null ? Date.now() - session.connectStartedAtMs : 'unknown'}ms`,
+            );
             console.debug(
               `[BLE:${sessionId}] fromRadio data: ${data.length} bytes isNotification=${isNotification}`,
             );
@@ -1041,6 +933,10 @@ export class NobleBleManager extends EventEmitter {
           );
           fromRadioSubscribed = true;
           session.fromRadioNotifyOnly = true;
+          const notifyProps = session.fromRadioChar.properties ?? [];
+          console.debug(
+            `[BLE:${sessionId}] fromRadio subscribe succeeded hasNotify=${fromRadioSupportsNotify} canRead=${fromRadioCanRead} platform=${process.platform} readPumpEnabled=${this.shouldUseFromRadioReadPump(sessionId, session)} fromRadioProps=[${notifyProps.join(',')}]`,
+          );
           console.debug(
             `[BLE:${sessionId}] fromRadio strategy=notify-first (hasNotify=${fromRadioSupportsNotify} canRead=${fromRadioCanRead})`,
           );
@@ -1065,6 +961,7 @@ export class NobleBleManager extends EventEmitter {
 
       // One-shot initial read in case the device already queued bytes before the first FROMNUM notify.
       this.requestFromRadioReadPump(sessionId);
+
       if (session.meshcoreGattInflight) {
         session.meshcoreGattInflight.resolve();
         session.meshcoreGattInflight = null;
@@ -1129,11 +1026,21 @@ export class NobleBleManager extends EventEmitter {
     const session = this.getSession(sessionId);
     if (!session.toRadioChar)
       throw new Error(`Not connected to a BLE device for session ${sessionId}`);
-    console.debug(`[BLE:${sessionId}] writeToRadio: ${data.length} bytes`);
+    const timeSinceConnect =
+      session.connectStartedAtMs != null ? Date.now() - session.connectStartedAtMs : 'unknown';
+    const hexDump = Array.from(data.subarray(0, Math.min(data.length, 20)))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join(' ');
+    console.info(
+      `[BLE:${sessionId}] writeToRadio: ${data.length} bytes timeSinceConnect=${timeSinceConnect}ms data=[${hexDump}${data.length > 20 ? '...' : ''}]`,
+    );
     await session.toRadioChar.writeAsync(data, false);
+    console.info(
+      `[BLE:${sessionId}] writeToRadio done bytes=${data.length} timeSinceConnect=${timeSinceConnect}ms`,
+    );
     const scheduleReadPump = this.shouldUseFromRadioReadPump(sessionId, session);
     console.debug(
-      `[BLE:${sessionId}] writeToRadio done — ${scheduleReadPump ? `scheduling post-write read pump in ${POST_WRITE_READ_PUMP_DELAY_MS}ms` : 'skipping post-write read pump (notify-only / meshcore NUS)'}`,
+      `[BLE:${sessionId}] post-write: ${scheduleReadPump ? `scheduling read pump in ${POST_WRITE_READ_PUMP_DELAY_MS}ms` : 'skipping read pump (notify-only mode)'}`,
     );
     if (scheduleReadPump) {
       if (session.postWriteReadPumpTimer !== null) {

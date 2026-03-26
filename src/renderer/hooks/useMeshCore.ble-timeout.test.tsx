@@ -11,7 +11,6 @@ import { useMeshCore } from './useMeshCore';
 describe('useMeshCore BLE Noble IPC timeout handling', () => {
   const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
   const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-  const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -123,7 +122,6 @@ describe('useMeshCore BLE Noble IPC timeout handling', () => {
         /\[useMeshCore\] connect: BLE Noble IPC attempt failed \{"attempt":2,"maxAttempts":2,"isTimeout":true,"isRetryable":true,"stage":"protocol-handshake"/,
       ),
     );
-    expect(infoSpy).not.toHaveBeenCalled();
   });
 
   it('does not retry non-timeout BLE failures', async () => {

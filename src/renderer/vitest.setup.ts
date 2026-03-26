@@ -114,9 +114,6 @@ const electronAPIMock = {
   connectNobleBle: vi.fn().mockResolvedValue({ ok: true }),
   disconnectNobleBle: vi.fn().mockResolvedValue(undefined),
   nobleBleToRadio: vi.fn().mockResolvedValue(undefined),
-  getLinuxBleCapabilityStatus: vi
-    .fn()
-    .mockResolvedValue({ platform: 'other', hasCapNetRaw: true, detail: '' }),
   onSerialPortsDiscovered: vi.fn().mockReturnValue(() => {}),
   selectSerialPort: vi.fn(),
   cancelSerialSelection: vi.fn(),

@@ -160,61 +160,6 @@ describe('ConnectionPanel MQTT connect error', () => {
 });
 
 describe('ConnectionPanel BLE error humanization', () => {
-  it('shows startup Linux BLE capability warning before connect attempts', async () => {
-    vi.mocked(window.electronAPI.getLinuxBleCapabilityStatus).mockResolvedValueOnce({
-      platform: 'linux',
-      hasCapNetRaw: false,
-      detail: 'runtime CapEff=0 CapAmb=0',
-    });
-
-    render(
-      <ConnectionPanel
-        state={disconnectedState}
-        onConnect={vi.fn().mockResolvedValue(undefined)}
-        onAutoConnect={vi.fn().mockResolvedValue(undefined)}
-        onDisconnect={vi.fn().mockResolvedValue(undefined)}
-        mqttStatus="disconnected"
-        protocol="meshtastic"
-        onProtocolChange={vi.fn()}
-      />,
-    );
-
-    expect(await screen.findByText(/Bluetooth permissions missing on Linux/i)).toBeInTheDocument();
-    expect(screen.getByText(/npm run linux/i)).toBeInTheDocument();
-  });
-
-  it('shows Linux setpriv-first guidance for classified Linux capability errors', async () => {
-    const user = userEvent.setup();
-    vi.mocked(window.electronAPI.startNobleBleScanning).mockRejectedValueOnce(
-      new Error(
-        'BLE_LINUX_CAPABILITY_MISSING: Linux BLE scan permissions are missing or not applied',
-      ),
-    );
-
-    render(
-      <ConnectionPanel
-        state={disconnectedState}
-        onConnect={vi.fn().mockResolvedValue(undefined)}
-        onAutoConnect={vi.fn().mockResolvedValue(undefined)}
-        onDisconnect={vi.fn().mockResolvedValue(undefined)}
-        mqttStatus="disconnected"
-        protocol="meshtastic"
-        onProtocolChange={vi.fn()}
-      />,
-    );
-
-    const radioCard = screen.getByText('Radio Connection').closest('.bg-deep-black');
-    expect(radioCard).toBeTruthy();
-    await user.click(within(radioCard as HTMLElement).getByRole('button', { name: 'Connect' }));
-
-    expect(await screen.findByText(/Linux BLE permissions are missing/i)).toBeInTheDocument();
-    expect(screen.getByText(/npm run linux/i)).toBeInTheDocument();
-    expect(screen.getByText(/setpriv --reuid=\$USER/i)).toBeInTheDocument();
-    expect(
-      screen.getByText(/setcap -r \.\/node_modules\/electron\/dist\/electron/i),
-    ).toBeInTheDocument();
-  });
-
   it('shows Windows handshake guidance for MeshCore BLE handshake timeout/disconnect', async () => {
     const user = userEvent.setup();
     const userAgentSpy = vi.spyOn(window.navigator, 'userAgent', 'get');

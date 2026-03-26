@@ -250,6 +250,11 @@ export interface NobleBleDevice {
 export type NobleBleSessionId = 'meshtastic' | 'meshcore';
 export type NobleBleConnectResult = { ok: true } | { ok: false; error: string };
 
+export interface WebBluetoothDevice {
+  deviceId: string;
+  deviceName: string;
+}
+
 export interface SerialPortInfo {
   portId: string;
   displayName: string;

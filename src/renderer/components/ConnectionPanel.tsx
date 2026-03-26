@@ -1,10 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import {
-  linuxBleCapabilityWarningBanner,
-  linuxBleHumanizeCapabilityMaybeMessage,
-  linuxBleHumanizeCapabilityMissingMessage,
-} from '../../shared/linuxBleDevLaunch';
 import { MESHCORE_SETUP_ABORT_MESSAGE } from '../lib/bleConnectErrors';
 import {
   letsMeshPresetConfigurationDeviation,
@@ -30,6 +25,7 @@ import type {
   NobleBleDevice,
   SerialPortInfo,
 } from '../lib/types';
+import { WebBluetoothManager } from '../lib/webbluetooth-ble-manager';
 import { HelpTooltip } from './HelpTooltip';
 // ─── Last Connection (localStorage) ───────────────────────────────
 interface LastConnection {
@@ -116,15 +112,12 @@ function humanizeBleError(err: unknown): string {
           })();
   const isWindows = navigator.userAgent.toLowerCase().includes('windows');
   const isLinux = navigator.userAgent.toLowerCase().includes('linux');
-  if (msg.includes('BLE_LINUX_CAPABILITY_MISSING')) {
-    return linuxBleHumanizeCapabilityMissingMessage();
-  }
-  if (isLinux && /operation not permitted|permission denied|\beperm\b/i.test(msg)) {
-    return linuxBleHumanizeCapabilityMaybeMessage(msg);
-  }
   if (msg.includes('Bluetooth adapter not found') || msg.includes('adapter is not available')) {
     if (isWindows) {
       return `${msg} — Check Settings > Bluetooth & devices. If Bluetooth is on but unavailable, update your Bluetooth driver in Device Manager.`;
+    }
+    if (isLinux) {
+      return `${msg} — Make sure Bluetooth is enabled and the Web Bluetooth experimental flag is set. Try: systemctl status bluetooth`;
     }
     return `${msg} — Make sure Bluetooth is enabled. On Linux, run: systemctl status bluetooth`;
   }
@@ -135,25 +128,20 @@ function humanizeBleError(err: unknown): string {
     return `${msg} — GATT connection dropped. Try moving closer to the device and reconnecting.`;
   }
   if (/Bluetooth connected but MeshCore protocol handshake did not complete/i.test(msg)) {
+    let enhanced = `${msg} Ensure your MeshCore device is in Bluetooth Companion mode and paired with your computer using a PIN. Remove any existing pairing and re-pair if connection issues persist.`;
     if (isWindows) {
-      return `${msg} On Windows, toggle Bluetooth off/on, confirm no stale pairing is holding the device, then retry.`;
+      enhanced +=
+        ' On Windows, toggle Bluetooth off/on and update the adapter driver in Device Manager if disconnects persist.';
     }
-    if (isLinux) {
-      return `${msg} On Linux/BlueZ, run bluetoothctl power off; power on, then retry with the device awake and nearby.`;
-    }
-    return msg;
+    return enhanced;
   }
   if (/Bluetooth connection timed out while opening MeshCore over Noble IPC/i.test(msg)) {
+    let enhanced = `${msg} Ensure your MeshCore device is in Bluetooth Companion mode and paired with your computer using a PIN. Remove any existing pairing and re-pair if connection issues persist.`;
     if (isWindows) {
-      return `${msg} On Windows, pair in Bluetooth settings first and clear stale pairings before retrying.`;
+      enhanced +=
+        ' On Windows, toggle Bluetooth off/on and update the adapter driver in Device Manager if disconnects persist.';
     }
-    if (isLinux) {
-      return `${msg} On Linux/BlueZ, run bluetoothctl power off; power on, then retry.`;
-    }
-    return msg;
-  }
-  if (isWindows && /disconnected|timed out/i.test(msg) && /MeshCore/i.test(msg)) {
-    return `${msg} On Windows, toggle Bluetooth off/on and update the adapter driver in Device Manager if disconnects persist.`;
+    return enhanced;
   }
   return msg;
 }
@@ -417,7 +405,6 @@ export default function ConnectionPanel({
   });
   const [tcpHost, setTcpHost] = useState('localhost');
   const [error, setError] = useState<string | null>(null);
-  const [linuxBleCapabilityWarning, setLinuxBleCapabilityWarning] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [connectionStage, setConnectionStage] = useState('');
   const activeHostAddress = protocol === 'meshcore' ? tcpHost : httpAddress;
@@ -544,6 +531,11 @@ export default function ConnectionPanel({
   // ─── BLE device picker state ──────────────────────────────────
   const [bleDevices, setBleDevices] = useState<NobleBleDevice[]>([]);
   const [showBlePicker, setShowBlePicker] = useState(false);
+  const isLinux = navigator.userAgent.toLowerCase().includes('linux');
+  const [webBluetoothDevice, setWebBluetoothDevice] = useState<{
+    deviceId: string;
+    deviceName: string;
+  } | null>(null);
 
   // ─── Serial port picker state ─────────────────────────────────
   const [serialPorts, setSerialPorts] = useState<SerialPortInfo[]>([]);
@@ -575,21 +567,6 @@ export default function ConnectionPanel({
   useEffect(() => {
     setLastConnection(loadLastConnection(protocol));
   }, [protocol]);
-
-  useEffect(() => {
-    window.electronAPI
-      .getLinuxBleCapabilityStatus()
-      .then((status) => {
-        if (status.platform !== 'linux' || status.hasCapNetRaw) {
-          setLinuxBleCapabilityWarning(null);
-          return;
-        }
-        setLinuxBleCapabilityWarning(linuxBleCapabilityWarningBanner());
-      })
-      .catch((err: unknown) => {
-        console.debug('[ConnectionPanel] getLinuxBleCapabilityStatus failed', err);
-      });
-  }, []);
 
   // Update connection stage based on state transitions, and save last connection on success
   useEffect(() => {
@@ -731,6 +708,33 @@ export default function ConnectionPanel({
     setConnectionStage('Please wait...');
 
     if (connectionType === 'ble') {
+      if (isLinux) {
+        setConnectionStage('Select your Bluetooth device...');
+        try {
+          const webBleManager = new WebBluetoothManager(
+            protocol === 'meshcore' ? 'meshcore' : 'meshtastic',
+          );
+          const device = await webBleManager.requestDevice();
+          await webBleManager.connect();
+          const deviceInfo = {
+            deviceId: device.id,
+            deviceName: device.name ?? 'Unknown Device',
+          };
+          setWebBluetoothDevice(deviceInfo);
+          setConnectionStage('Connecting to device...');
+          await onConnect('ble', undefined, deviceInfo.deviceId);
+          setConnecting(false);
+          setConnectionStage('');
+          return;
+        } catch (err) {
+          console.warn('[ConnectionPanel] Web Bluetooth connection failed:', err);
+          const bleErrMsg = humanizeBleError(err);
+          if (bleErrMsg) setError(bleErrMsg);
+          setConnecting(false);
+          setConnectionStage('');
+          return;
+        }
+      }
       // Noble: start scanning — actual connection triggered when user selects a device
       setConnectionStage('Scanning — select your device when it appears below');
       try {
@@ -762,7 +766,7 @@ export default function ConnectionPanel({
       setConnecting(false);
       setConnectionStage('');
     }
-  }, [connectionType, activeHostAddress, onConnect, protocol]);
+  }, [connectionType, activeHostAddress, onConnect, protocol, isLinux]);
 
   const handleCancelConnection = useCallback(async () => {
     isAutoConnectingRef.current = false;
@@ -772,7 +776,12 @@ export default function ConnectionPanel({
       autoConnectTimeoutRef.current = null;
     }
     if (showBlePicker || connectionType === 'ble') {
-      void window.electronAPI.stopNobleBleScanning(protocol);
+      if (isLinux && webBluetoothDevice) {
+        // Web Bluetooth disconnect is handled by onDisconnect
+        setWebBluetoothDevice(null);
+      } else {
+        void window.electronAPI.stopNobleBleScanning(protocol);
+      }
     }
     if (showSerialPicker) {
       window.electronAPI.cancelSerialSelection();
@@ -788,7 +797,15 @@ export default function ConnectionPanel({
     } catch (e) {
       console.debug('[ConnectionPanel] onDisconnect best-effort cleanup', e);
     }
-  }, [showBlePicker, showSerialPicker, onDisconnect, connectionType, protocol]);
+  }, [
+    showBlePicker,
+    showSerialPicker,
+    onDisconnect,
+    connectionType,
+    protocol,
+    isLinux,
+    webBluetoothDevice,
+  ]);
 
   const handleSelectBleDevice = useCallback(
     (deviceId: string) => {
@@ -1082,8 +1099,8 @@ export default function ConnectionPanel({
             {protocol === 'meshcore' && (
               <p className="px-4 py-2 text-xs text-yellow-400 border-t border-gray-700">
                 Pair your MeshCore device in <strong>system Bluetooth settings</strong> before
-                connecting (Windows: <strong>Settings &rarr; Bluetooth &amp; devices</strong>;
-                macOS: <strong>System Settings &rarr; Bluetooth</strong>).
+                connecting. Use a PIN code if prompted — if your system does not ask for a PIN, the
+                connection will fail and you may need to remove the pairing and re-pair with a PIN.
               </p>
             )}
           </div>
@@ -1145,14 +1162,6 @@ export default function ConnectionPanel({
         {error && (
           <div className="w-full max-w-4xl bg-red-900/50 border border-red-700 text-red-300 px-4 py-2 rounded-lg text-sm">
             {error}
-          </div>
-        )}
-        {linuxBleCapabilityWarning && (
-          <div
-            role="alert"
-            className="w-full max-w-4xl bg-amber-900/40 border border-amber-700 text-amber-100 px-4 py-2 rounded-lg text-sm"
-          >
-            {linuxBleCapabilityWarning}
           </div>
         )}
 
@@ -1838,14 +1847,6 @@ export default function ConnectionPanel({
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {protocolToggle}
-      {linuxBleCapabilityWarning && (
-        <div
-          role="alert"
-          className="bg-amber-900/40 border border-amber-700 text-amber-100 px-4 py-3 rounded-lg text-sm"
-        >
-          {linuxBleCapabilityWarning}
-        </div>
-      )}
       {mqttStatus === 'connected' && (
         <button
           type="button"
