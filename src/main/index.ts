@@ -1146,6 +1146,11 @@ ipcMain.handle('noble-ble-start-scan', async (_event, sessionId: unknown) => {
   if (sessionId !== 'meshtastic' && sessionId !== 'meshcore') {
     throw new Error('noble-ble-start-scan: sessionId must be meshtastic or meshcore');
   }
+  if (process.platform === 'linux') {
+    throw new Error(
+      'BLE scanning is not supported on Linux via Noble — use Web Bluetooth in the renderer',
+    );
+  }
   if (isQuitting) {
     console.debug('[main] noble-ble-start-scan: ignoring (app is quitting)');
     return;

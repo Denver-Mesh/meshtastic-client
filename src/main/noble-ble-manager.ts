@@ -151,6 +151,10 @@ export class NobleBleManager extends EventEmitter {
 
   constructor() {
     super();
+    if (process.platform === 'linux') {
+      console.debug('[NobleBleManager] skipping init on Linux (using Web Bluetooth in renderer)');
+      return;
+    }
     this.sessions.set('meshtastic', this.createSessionState());
     this.sessions.set('meshcore', this.createSessionState());
     // Seed from the current synchronous state in case noble already transitioned before
