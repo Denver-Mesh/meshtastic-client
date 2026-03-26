@@ -126,6 +126,14 @@ function humanizeBleError(err: unknown): string {
   if (msg.includes('GATT Server is disconnected')) {
     return `${msg} — GATT connection dropped. Try moving closer to the device and reconnecting.`;
   }
+  // Web Bluetooth on Linux: connection failed often means device not paired properly
+  if (msg.includes('Connection Error: Connection attempt failed')) {
+    let enhanced = `${msg} The device may not be paired with your computer. Remove the device from Bluetooth settings, then re-pair it. For Meshtastic use PIN 123456. For MeshCore the PIN is randomly generated and displayed on the device.`;
+    if (isLinux) {
+      enhanced += ` On Linux, you can manage pairings via the system Bluetooth settings or 'bluetoothctl' tool.`;
+    }
+    return enhanced;
+  }
   if (/Bluetooth connected but MeshCore protocol handshake did not complete/i.test(msg)) {
     let enhanced = `${msg} Ensure your MeshCore device is in Bluetooth Companion mode and paired with your computer using a PIN. Remove any existing pairing and re-pair if connection issues persist.`;
     if (isWindows) {
