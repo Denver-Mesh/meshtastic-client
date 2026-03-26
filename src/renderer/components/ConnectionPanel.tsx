@@ -861,6 +861,7 @@ export default function ConnectionPanel({
           if (isPairingRelatedError) {
             console.debug('[ConnectionPanel] handleConnect SHOWING RE-PAIR BUTTON');
             setShowRePairButton(true);
+            setShowBlePicker(false);
             setConnectionStage('Pairing failed. Please re-pair your device.');
           } else {
             setConnecting(false);
@@ -1089,6 +1090,7 @@ export default function ConnectionPanel({
                 (err.name === 'SecurityError' || err.name === 'NetworkError'));
             if (isPairingRelatedError) {
               setShowRePairButton(true);
+              setShowBlePicker(false);
               setConnectionStage('Pairing failed. Please re-pair your device.');
             } else {
               setConnecting(false);
@@ -1345,16 +1347,7 @@ export default function ConnectionPanel({
           </div>
         )}
 
-        {/* Re-pair button for Linux BLE pairing issues - DEBUG */}
-        {(() => {
-          console.debug(
-            '[ConnectionPanel] RENDER: showRePairButton=',
-            showRePairButton,
-            'isLinux=',
-            isLinux,
-          );
-          return null;
-        })()}
+        {/* Re-pair button for Linux BLE pairing issues */}
         {showRePairButton && (
           <div className="w-full max-w-4xl flex flex-col gap-2">
             <button
@@ -1363,11 +1356,8 @@ export default function ConnectionPanel({
               disabled={connecting}
               className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
             >
-              Remove &amp; Re-pair Device (DEBUG)
+              Remove &amp; Re-pair Device
             </button>
-            <p className="text-xs text-gray-400">
-              showRePairButton={String(showRePairButton)} isLinux={String(isLinux)}
-            </p>
           </div>
         )}
 
