@@ -861,9 +861,11 @@ export default function ConnectionPanel({
           if (isPairingRelatedError) {
             console.debug('[ConnectionPanel] handleConnect SHOWING RE-PAIR BUTTON');
             setShowRePairButton(true);
+            setConnectionStage('Pairing failed. Please re-pair your device.');
+          } else {
+            setConnecting(false);
+            setConnectionStage('');
           }
-          setConnecting(false);
-          setConnectionStage('');
           return;
         }
       }
@@ -1076,8 +1078,22 @@ export default function ConnectionPanel({
             setIsAutoConnecting(false);
             const bleErrMsg = humanizeBleError(err);
             if (bleErrMsg) setError(bleErrMsg);
-            setConnecting(false);
-            setConnectionStage('');
+            const errWithPairingFlag = err as { isPairingRelated?: boolean } | null | undefined;
+            const isPairingRelatedError =
+              bleErrMsg.includes('not be properly paired') ||
+              bleErrMsg.includes('Connection attempt failed') ||
+              bleErrMsg.includes('GATT Error: Not supported') ||
+              bleErrMsg.includes('authentication failed') ||
+              errWithPairingFlag?.isPairingRelated === true ||
+              (err instanceof DOMException &&
+                (err.name === 'SecurityError' || err.name === 'NetworkError'));
+            if (isPairingRelatedError) {
+              setShowRePairButton(true);
+              setConnectionStage('Pairing failed. Please re-pair your device.');
+            } else {
+              setConnecting(false);
+              setConnectionStage('');
+            }
           });
         } else {
           // Noble: start scanning — no user gesture required.
