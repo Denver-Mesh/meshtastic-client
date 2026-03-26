@@ -902,9 +902,10 @@ export default function ConnectionPanel({
         .catch(onAutoConnectFailed);
     } else if (lc.type === 'ble') {
       setConnectionType('ble');
-      if (lc.bleDeviceId) {
+      if (lc.bleDeviceId && !isLinux) {
         // Noble: auto-scan on startup — no user gesture required.
         // onNobleBleDeviceDiscovered will auto-connect when the known device appears.
+        // On Linux, Web Bluetooth requires a user gesture; skip auto-scan and let user click Connect.
         isAutoConnectingRef.current = true;
         setIsAutoConnecting(true);
         setConnecting(true);
@@ -914,7 +915,7 @@ export default function ConnectionPanel({
       }
     }
     // HTTP: do not auto-trigger — show one-click reconnect card instead
-  }, [protocol]);
+  }, [protocol, isLinux]);
 
   // Cleanup timeout on unmount
   useEffect(
@@ -930,39 +931,52 @@ export default function ConnectionPanel({
 
     if (lastConnection.type === 'ble') {
       if (lastConnection.bleDeviceId) {
-        // Noble: start scanning — no user gesture required.
-        // onNobleBleDeviceDiscovered will auto-connect when the known device appears.
         setConnectionType('ble');
         setBleDevices([]);
         setShowBlePicker(false);
         isAutoConnectingRef.current = true;
         setIsAutoConnecting(true);
         setConnecting(true);
-        setConnectionStage('Scanning for last Bluetooth device…');
-        if (autoConnectTimeoutRef.current) {
-          clearTimeout(autoConnectTimeoutRef.current);
-          autoConnectTimeoutRef.current = null;
-        }
-        autoConnectTimeoutRef.current = setTimeout(() => {
-          console.warn('[ConnectionPanel] auto-connect timed out after 30s');
-          isAutoConnectingRef.current = false;
-          setIsAutoConnecting(false);
-          setError('Auto-connect timed out.');
-          setConnecting(false);
-          setConnectionStage('');
-        }, 30_000);
-        void window.electronAPI.startNobleBleScanning(protocol).catch((err: unknown) => {
+        if (isLinux) {
+          // Web Bluetooth path: this is a user gesture (button click), so requestDevice() is allowed.
+          setConnectionStage('Select your Bluetooth device...');
+          void onAutoConnect('ble', undefined).catch((err: unknown) => {
+            isAutoConnectingRef.current = false;
+            setIsAutoConnecting(false);
+            const bleErrMsg = humanizeBleError(err);
+            if (bleErrMsg) setError(bleErrMsg);
+            setConnecting(false);
+            setConnectionStage('');
+          });
+        } else {
+          // Noble: start scanning — no user gesture required.
+          // onNobleBleDeviceDiscovered will auto-connect when the known device appears.
+          setConnectionStage('Scanning for last Bluetooth device…');
           if (autoConnectTimeoutRef.current) {
             clearTimeout(autoConnectTimeoutRef.current);
             autoConnectTimeoutRef.current = null;
           }
-          isAutoConnectingRef.current = false;
-          setIsAutoConnecting(false);
-          const bleErrMsg = humanizeBleError(err);
-          if (bleErrMsg) setError(bleErrMsg);
-          setConnecting(false);
-          setConnectionStage('');
-        });
+          autoConnectTimeoutRef.current = setTimeout(() => {
+            console.warn('[ConnectionPanel] auto-connect timed out after 30s');
+            isAutoConnectingRef.current = false;
+            setIsAutoConnecting(false);
+            setError('Auto-connect timed out.');
+            setConnecting(false);
+            setConnectionStage('');
+          }, 30_000);
+          void window.electronAPI.startNobleBleScanning(protocol).catch((err: unknown) => {
+            if (autoConnectTimeoutRef.current) {
+              clearTimeout(autoConnectTimeoutRef.current);
+              autoConnectTimeoutRef.current = null;
+            }
+            isAutoConnectingRef.current = false;
+            setIsAutoConnecting(false);
+            const bleErrMsg = humanizeBleError(err);
+            if (bleErrMsg) setError(bleErrMsg);
+            setConnecting(false);
+            setConnectionStage('');
+          });
+        }
       }
     } else if (lastConnection.type === 'http') {
       const fallbackAddress = protocol === 'meshcore' ? tcpHost : httpAddress;
@@ -998,7 +1012,7 @@ export default function ConnectionPanel({
         setConnectionStage('');
       });
     }
-  }, [lastConnection, onConnect, onAutoConnect, httpAddress, protocol, tcpHost]);
+  }, [lastConnection, onConnect, onAutoConnect, httpAddress, protocol, tcpHost, isLinux]);
 
   const isConnected =
     state.status === 'connected' ||
