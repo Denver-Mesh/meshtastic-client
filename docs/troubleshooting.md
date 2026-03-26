@@ -39,6 +39,12 @@ See [development-environment.md](development-environment.md#windows) for Python 
 - If the adapter is present but scanning does not start, restart BlueZ: `sudo systemctl restart bluetooth`.
 - `cannot create /sys/kernel/debug/bluetooth/hci0/conn_*: Permission denied` lines come from native noble internals (debugfs connection tuning) and are often non-fatal by themselves.
 - If those lines appear together with MeshCore protocol-handshake timeout and zero inbound `fromRadio` bytes, treat it as a BLE data-path issue: keep the device awake/nearby, power-cycle the adapter (`bluetoothctl power off; power on`), retry, or use Serial/TCP.
+- MeshCore devices must pair using a numeric PIN prompt. If Linux pairs without asking for a number, remove and re-pair from `bluetoothctl`:
+  - Disconnect the device in the system Bluetooth settings panel. Do not forget/remove it there; only disconnect.
+  - Run `bluetoothctl`, then run: `agent on`, `default-agent`, `power on`, `scan on`.
+  - Remove the cached device: `remove <mac address>` (example: `remove F0:9E:9E:77:98:D5`).
+  - Pair again: `pair <mac address>` (example: `pair F0:9E:9E:77:98:D5`).
+  - Confirm you are prompted for the PIN, then complete pairing.
 
 ### Linux Bluetooth (BLE) Permissions
 
