@@ -53,12 +53,19 @@ export class WebBluetoothManager {
       );
     }
 
-    this.device = await navigator.bluetooth.requestDevice({
-      filters: [{ services: [serviceUuid] }],
-      optionalServices: isMeshcore
-        ? ['6e400001-b5a3-f393-e0a9-e50e24dcca9e']
-        : ['6ba1b218-15a8-461f-9fa8-5dcae273eafd'],
-    });
+    try {
+      this.device = await navigator.bluetooth.requestDevice({
+        filters: [{ services: [serviceUuid] }],
+        optionalServices: isMeshcore
+          ? ['6e400001-b5a3-f393-e0a9-e50e24dcca9e']
+          : ['6ba1b218-15a8-461f-9fa8-5dcae273eafd'],
+      });
+    } catch (err) {
+      const domErr = err as DOMException;
+      const errorDetails = domErr.name ? `${domErr.name}: ${domErr.message}` : String(err);
+      console.warn(`[WebBluetooth:${this.sessionId}] requestDevice failed:`, errorDetails);
+      throw err;
+    }
 
     console.debug(
       `[WebBluetooth:${this.sessionId}] device selected: ${this.device.id} (${this.device.name ?? 'unnamed'})`,
