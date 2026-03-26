@@ -35,16 +35,22 @@ See [development-environment.md](development-environment.md#windows) for Python 
 
 **Linux-specific:**
 
-- noble requires raw socket capability on the executable you run. **From source, prefer `npm run linux`.** See [Linux Bluetooth (BLE) Permissions](#linux-bluetooth-ble-permissions).
-- If the adapter is present but scanning does not start, restart BlueZ: `sudo systemctl restart bluetooth`.
-- `cannot create /sys/kernel/debug/bluetooth/hci0/conn_*: Permission denied` lines come from native noble internals (debugfs connection tuning) and are often non-fatal by themselves.
-- If those lines appear together with MeshCore protocol-handshake timeout and zero inbound `fromRadio` bytes, treat it as a BLE data-path issue: keep the device awake/nearby, power-cycle the adapter (`bluetoothctl power off; power on`), retry, or use Serial/TCP.
-- MeshCore devices must pair using a numeric PIN prompt. If Linux pairs without asking for a number, remove and re-pair from `bluetoothctl`:
-  - Disconnect the device in the system Bluetooth settings panel. Do not forget/remove it there; only disconnect.
-  - Run `bluetoothctl`, then run: `agent on`, `default-agent`, `power on`, `scan on`.
-  - Remove the cached device: `remove <mac address>` (example: `remove F0:9E:9E:77:98:D5`).
-  - Pair again: `pair <mac address>` (example: `pair F0:9E:9E:77:98:D5`).
-  - Confirm you are prompted for the PIN, then complete pairing.
+- The app uses Web Bluetooth (Chromium's built-in BLE API) which requires no special permissions.
+- If the Bluetooth adapter isn't detected, check: `systemctl status bluetooth` and `rfkill list`.
+- If device pairing fails with "Connection attempt failed", try the **"Remove & Re-pair Device"** button in the app, or manually remove via `bluetoothctl`:
+  ```bash
+  bluetoothctl
+  # Inside bluetoothctl:
+  remove XX:XX:XX:XX:XX:XX  # Replace with your device MAC
+  # Then re-pair from the app
+  ```
+- For Meshtastic devices, the app automatically uses PIN `123456`. For MeshCore devices, enter the PIN shown on the device.
+- If devices won't pair or connect, power-cycle Bluetooth:
+  ```bash
+  bluetoothctl power off
+  bluetoothctl power on
+  ```
+- MeshCore devices must be in Bluetooth Companion mode and paired with a PIN. If Linux pairs without asking for a PIN, remove and re-pair using the steps above.
 
 ### Linux Bluetooth (BLE) Permissions
 

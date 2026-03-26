@@ -333,6 +333,32 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.send('bluetooth-device-cancelled');
   },
 
+  // ─── Bluetooth pairing (Linux) ──────────────────────────────────────
+  // Unpair a device via bluetoothctl remove
+  bluetoothUnpair: (macAddress: string): Promise<void> =>
+    ipcRenderer.invoke('bluetooth-unpair', macAddress),
+
+  // Listen for PIN required event from main process
+  onBluetoothPinRequired: (callback: (data: { deviceId: string }) => void) => {
+    const handler = (_event: unknown, data: { deviceId: string }) => {
+      callback(data);
+    };
+    ipcRenderer.on('bluetooth-pin-required', handler);
+    return () => {
+      ipcRenderer.removeListener('bluetooth-pin-required', handler);
+    };
+  },
+
+  // Provide PIN for pairing
+  provideBluetoothPin: (pin: string) => {
+    ipcRenderer.send('bluetooth-provide-pin', pin);
+  },
+
+  // Cancel pending pairing
+  cancelBluetoothPairing: () => {
+    ipcRenderer.send('bluetooth-cancel-pairing');
+  },
+
   // ─── Session management ────────────────────────────────────────
   clearSessionData: () => ipcRenderer.invoke('session:clearData'),
 

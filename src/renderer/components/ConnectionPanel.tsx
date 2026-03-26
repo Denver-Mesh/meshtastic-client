@@ -414,6 +414,9 @@ export default function ConnectionPanel({
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [connectionStage, setConnectionStage] = useState('');
+  const [showRePairButton, setShowRePairButton] = useState(false);
+  const [showPinPrompt, setShowPinPrompt] = useState(false);
+  const [pinInputValue, setPinInputValue] = useState('');
   const activeHostAddress = protocol === 'meshcore' ? tcpHost : httpAddress;
 
   // ─── MQTT settings state ───────────────────────────────────────
@@ -558,6 +561,8 @@ export default function ConnectionPanel({
   const [isAutoConnecting, setIsAutoConnecting] = useState(false);
   // Tracks BLE device name at selection time, used when saving LastConnection
   const lastSelectedBleNameRef = useRef<string | null>(null);
+  // Tracks BLE device MAC for potential re-pairing on Linux
+  const lastSelectedBleMacRef = useRef<string | null>(null);
   const lastConnectionBleDeviceNameFallbackRef = useRef(lastConnection?.bleDeviceName);
   lastConnectionBleDeviceNameFallbackRef.current = lastConnection?.bleDeviceName;
   /** Mount-only auto-connect reads latest props/state via refs so the effect can stay `[]`. */
@@ -688,6 +693,65 @@ export default function ConnectionPanel({
     return cleanup;
   }, []); // no deps — this listener is stable for the lifetime of the component
 
+  // Listen for Bluetooth PIN required event (Linux Web Bluetooth pairing)
+  useEffect(() => {
+    if (!isLinux) return;
+    const cleanup = window.electronAPI.onBluetoothPinRequired((data) => {
+      console.debug('[ConnectionPanel] Bluetooth PIN required for', data.deviceId);
+      setShowPinPrompt(true);
+      setPinInputValue('');
+      setConnectionStage('Enter the PIN shown on your device');
+    });
+    return cleanup;
+  }, [isLinux]);
+
+  // Handle re-pair button click (remove device from bluetoothctl and retry)
+  const handleRePair = useCallback(async () => {
+    const mac = lastSelectedBleMacRef.current;
+    if (!mac) {
+      setError('No device MAC address available for re-pairing');
+      return;
+    }
+
+    setConnecting(true);
+    setConnectionStage('Removing device pairing...');
+    setShowRePairButton(false);
+    setError(null);
+
+    try {
+      await window.electronAPI.bluetoothUnpair(mac);
+      console.debug('[ConnectionPanel] Successfully unpaired device:', mac);
+      setConnectionStage('Re-select your Bluetooth device...');
+      // The user will need to click BLE connect again to trigger device selection
+    } catch (err) {
+      console.warn('[ConnectionPanel] Failed to unpair device:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(`Failed to remove device pairing: ${msg}. Try removing manually via bluetoothctl.`);
+      setConnecting(false);
+      setConnectionStage('');
+    }
+  }, []);
+
+  // Handle PIN submission for pairing
+  const handlePinSubmit = useCallback(() => {
+    if (!pinInputValue) return;
+    console.debug('[ConnectionPanel] Providing PIN for pairing');
+    window.electronAPI.provideBluetoothPin(pinInputValue);
+    setShowPinPrompt(false);
+    setPinInputValue('');
+    setConnectionStage('Pairing...');
+  }, [pinInputValue]);
+
+  // Handle PIN prompt cancel
+  const handlePinCancel = useCallback(() => {
+    console.debug('[ConnectionPanel] Cancelling pairing');
+    window.electronAPI.cancelBluetoothPairing();
+    setShowPinPrompt(false);
+    setPinInputValue('');
+    setConnecting(false);
+    setConnectionStage('');
+  }, []);
+
   // Listen for serial ports discovered by main process
   useEffect(() => {
     const cleanup = window.electronAPI.onSerialPortsDiscovered((ports) => {
@@ -738,6 +802,13 @@ export default function ConnectionPanel({
           console.warn('[ConnectionPanel] Web Bluetooth connection failed:', err);
           const bleErrMsg = humanizeBleError(err);
           if (bleErrMsg) setError(bleErrMsg);
+          // Check if this is a pairing-related error - show re-pair button on Linux
+          if (
+            bleErrMsg.includes('not be properly paired') ||
+            bleErrMsg.includes('Connection attempt failed')
+          ) {
+            setShowRePairButton(true);
+          }
           setConnecting(false);
           setConnectionStage('');
           return;
@@ -827,8 +898,11 @@ export default function ConnectionPanel({
       // Save BLE advertisement name for use in LastConnection display
       const found = bleDevices.find((d) => d.deviceId === deviceId);
       lastSelectedBleNameRef.current = found?.deviceName ?? null;
+      // Store MAC address for potential re-pairing on Linux
+      lastSelectedBleMacRef.current = deviceId;
       setShowBlePicker(false);
       setConnectionStage('Connecting to device...');
+      setShowRePairButton(false);
       if (isLinux) {
         // Web Bluetooth path: requestDevice() is already in-flight in the renderer.
         // Resolving the main-process select-bluetooth-device callback will let it complete.
@@ -1195,6 +1269,57 @@ export default function ConnectionPanel({
         {error && (
           <div className="w-full max-w-4xl bg-red-900/50 border border-red-700 text-red-300 px-4 py-2 rounded-lg text-sm">
             {error}
+          </div>
+        )}
+
+        {/* Re-pair button for Linux BLE pairing issues */}
+        {showRePairButton && isLinux && (
+          <div className="w-full max-w-4xl flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={handleRePair}
+              disabled={connecting}
+              className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+            >
+              Remove &amp; Re-pair Device
+            </button>
+            <p className="text-xs text-gray-400">
+              This will remove the device from Bluetooth settings and allow you to pair it again.
+            </p>
+          </div>
+        )}
+
+        {/* PIN input prompt for Linux BLE pairing */}
+        {showPinPrompt && (
+          <div className="w-full max-w-4xl bg-blue-900/50 border border-blue-700 text-blue-300 px-4 py-3 rounded-lg">
+            <p className="text-sm mb-2">Enter the PIN shown on your device:</p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={pinInputValue}
+                onChange={(e) => {
+                  setPinInputValue(e.target.value);
+                }}
+                placeholder="PIN"
+                className="flex-1 px-3 py-1.5 bg-gray-800 border border-gray-600 rounded text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                maxLength={6}
+              />
+              <button
+                type="button"
+                onClick={handlePinSubmit}
+                disabled={!pinInputValue}
+                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded disabled:opacity-50"
+              >
+                Submit
+              </button>
+              <button
+                type="button"
+                onClick={handlePinCancel}
+                className="px-4 py-1.5 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         )}
 

@@ -1,3 +1,4 @@
+import { spawn } from 'child_process';
 import {
   app,
   BrowserWindow,
@@ -168,6 +169,12 @@ let lastSerialPortIds = new Set<string>();
 // Pending Web Bluetooth callback (Linux only — select-bluetooth-device on webContents)
 let pendingBluetoothCallback: ((deviceId: string) => void) | null = null;
 let lastBluetoothDeviceIds = new Set<string>();
+
+// Bluetooth pairing state (Linux only — bluetooth-pairing-request event)
+let pendingPairingCallback: ((response: { pin?: string; confirmed?: boolean }) => void) | null =
+  null;
+let pendingPairingRetryCount = 0;
+
 let hasInstalledOsmReferrerHook = false;
 const OSM_HTTP_REFERRER = 'https://meshtastic-client.app/';
 
@@ -212,6 +219,57 @@ process.on('unhandledRejection', (reason) => {
 });
 
 app.on('browser-window-created', () => {});
+
+// ─── Bluetooth pairing handler (Linux only) ──────────────────────────
+// Electron fires this event when a BLE device requires pairing during
+// Web Bluetooth connection. We intercept it to:
+// 1. Auto-provide Meshtastic PIN (123456) on first attempt
+// 2. Prompt user for MeshCore PIN (random) via renderer
+// Note: TypeScript definitions may not include this event, but it exists in Electron 30+
+type BluetoothPairingCallback = (response: { pin?: string; confirmed?: boolean }) => void;
+
+const electronApp = app as unknown as {
+  on: (event: string, listener: (...args: unknown[]) => void) => void;
+};
+
+electronApp.on('bluetooth-pairing-request', (...args: unknown[]) => {
+  const event = args[0] as { preventDefault: () => void };
+  const details = args[1] as { pairingKind: string; deviceId: string };
+  const callback = args[2] as BluetoothPairingCallback;
+
+  event.preventDefault();
+
+  console.debug('[main] bluetooth-pairing-request:', details.pairingKind, details.deviceId);
+
+  if (details.pairingKind === 'providePin') {
+    // First attempt: try default Meshtastic PIN
+    // If that fails, the renderer will prompt for user input
+    if (pendingPairingRetryCount === 0) {
+      console.debug('[main] bluetooth-pairing: auto-providing default PIN (attempt 1)');
+      pendingPairingRetryCount++;
+      callback({ pin: '123456' });
+      return;
+    }
+
+    // Second attempt: prompt user via renderer
+    console.debug('[main] bluetooth-pairing: prompting user for PIN (attempt 2+)');
+    pendingPairingCallback = (response) => {
+      callback(response);
+      pendingPairingCallback = null;
+    };
+    mainWindow?.webContents.send('bluetooth-pin-required', {
+      deviceId: details.deviceId,
+    });
+  } else if (details.pairingKind === 'confirmPin') {
+    // User confirms the PIN matches device display
+    console.debug('[main] bluetooth-pairing: confirming PIN match');
+    callback({ confirmed: true });
+  } else {
+    // Unknown pairing kind - just confirm
+    console.debug('[main] bluetooth-pairing: unknown kind, confirming', details.pairingKind);
+    callback({ confirmed: true });
+  }
+});
 
 process.on('exit', () => {});
 
@@ -463,14 +521,8 @@ function validateMqttPublishArgs(args: unknown): void {
 app.commandLine.appendSwitch('enable-blink-features', 'Serial');
 
 // Enable Web Bluetooth on Linux (experimental - required for BLE on Linux)
-// --no-sandbox is required for navigator.bluetooth to be available in the renderer on Linux;
-// without it the Web Bluetooth API is undefined and BLE cannot be used.
-// --disable-setuid-sandbox prevents a fatal crash when the chrome-sandbox binary exists
-// in node_modules/electron/dist but has not been given root/setuid permissions (common in dev).
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('enable-experimental-web-platform-features');
-  app.commandLine.appendSwitch('no-sandbox');
-  app.commandLine.appendSwitch('disable-setuid-sandbox');
 }
 
 // ─── Icon Path Helper ──────────────────────────────────────────────
@@ -1165,6 +1217,73 @@ ipcMain.on('bluetooth-device-cancelled', () => {
     pendingBluetoothCallback = null;
   }
   lastBluetoothDeviceIds.clear();
+});
+
+// ─── IPC: Unpair Bluetooth device (Linux) ─────────────────────────────
+ipcMain.handle('bluetooth-unpair', async (_event, macAddress: unknown) => {
+  if (typeof macAddress !== 'string') {
+    throw new Error('bluetooth-unpair: macAddress must be a string');
+  }
+  // Validate MAC format (XX:XX:XX:XX:XX:XX)
+  if (!/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(macAddress)) {
+    throw new Error('bluetooth-unpair: invalid MAC address format');
+  }
+
+  console.debug('[IPC] bluetooth-unpair:', macAddress);
+
+  return new Promise<void>((resolve, reject) => {
+    const proc = spawn('bluetoothctl', ['remove', macAddress]);
+    let stderr = '';
+    let stdout = '';
+
+    proc.stdout.on('data', (data: Buffer) => {
+      stdout += data.toString();
+    });
+    proc.stderr.on('data', (data: Buffer) => {
+      stderr += data.toString();
+    });
+    proc.on('close', (code) => {
+      if (code !== 0) {
+        console.error('[IPC] bluetooth-unpair failed:', stderr);
+        reject(new Error(stderr || 'Failed to unpair device'));
+        return;
+      }
+      console.debug('[IPC] bluetooth-unpair success:', stdout.trim());
+      resolve();
+    });
+    proc.on('error', (err) => {
+      console.error(
+        '[IPC] bluetooth-unpair error:',
+        sanitizeLogMessage(err?.message ?? String(err)),
+      );
+      reject(err);
+    });
+  });
+});
+
+// ─── IPC: Provide Bluetooth PIN (Linux) ───────────────────────────────
+ipcMain.on('bluetooth-provide-pin', (_event, pin: unknown) => {
+  if (!pendingPairingCallback) {
+    console.warn('[IPC] bluetooth-provide-pin: no pending pairing callback');
+    return;
+  }
+  const pinStr = typeof pin === 'string' ? pin : '';
+  console.debug('[IPC] bluetooth-provide-pin:', pinStr.length > 0 ? '****' : '(empty)');
+  pendingPairingCallback({ pin: pinStr });
+  pendingPairingCallback = null;
+  // Reset retry count so next pairing starts fresh
+  pendingPairingRetryCount = 0;
+});
+
+// ─── IPC: Cancel Bluetooth pairing (Linux) ────────────────────────────
+ipcMain.on('bluetooth-cancel-pairing', () => {
+  if (pendingPairingCallback) {
+    console.debug('[IPC] bluetooth-cancel-pairing: cancelling');
+    pendingPairingCallback({ pin: '' }); // Empty pin cancels
+    pendingPairingCallback = null;
+  }
+  // Reset retry count so next pairing starts fresh
+  pendingPairingRetryCount = 0;
 });
 
 // ─── IPC: Connection status tracking (module-scope, not per-window) ─

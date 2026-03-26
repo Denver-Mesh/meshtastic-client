@@ -232,6 +232,12 @@ export interface ElectronAPI {
   selectBluetoothDevice: (deviceId: string) => void;
   cancelBluetoothSelection: () => void;
 
+  // ─── Bluetooth pairing (Linux) ──────────────────────────────────────────────
+  bluetoothUnpair: (macAddress: string) => Promise<void>;
+  onBluetoothPinRequired: (callback: (data: { deviceId: string }) => void) => () => void;
+  provideBluetoothPin: (pin: string) => void;
+  cancelBluetoothPairing: () => void;
+
   // ─── Session management ──────────────────────────────────────────────────────
   clearSessionData: () => Promise<unknown>;
 

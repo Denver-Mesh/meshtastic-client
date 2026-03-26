@@ -353,7 +353,27 @@ Linux uses Web Bluetooth (Chromium's built-in BLE API) instead of `@stoprocent/n
 
 The app automatically enables `--enable-experimental-web-platform-features` on Linux at startup.
 
-For MeshCore connections on Linux, ensure your device is in Bluetooth Companion mode and paired with your computer using a PIN before attempting to connect.
+#### Bluetooth Pairing on Linux
+
+For Meshtastic devices, the app will automatically use the default PIN `123456` when pairing. If that fails, you'll be prompted to enter the PIN.
+
+For MeshCore devices, you'll be prompted to enter the random PIN displayed on the device.
+
+If you encounter pairing issues (e.g., "Connection attempt failed" or device was previously paired with wrong PIN):
+
+1. Use the **"Remove & Re-pair Device"** button in the app
+2. Or manually remove via `bluetoothctl`:
+   ```bash
+   bluetoothctl
+   # Inside bluetoothctl:
+   remove XX:XX:XX:XX:XX:XX  # Replace with your device MAC
+   # Then re-pair from the app
+   ```
+3. If the device still won't connect, power cycle Bluetooth:
+   ```bash
+   bluetoothctl power off
+   bluetoothctl power on
+   ```
 
 ### Sandbox and ARM notes
 

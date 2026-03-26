@@ -484,6 +484,10 @@ declare global {
       onBluetoothDevicesDiscovered: (cb: (devices: NobleBleDevice[]) => void) => () => void;
       selectBluetoothDevice: (deviceId: string) => void;
       cancelBluetoothSelection: () => void;
+      bluetoothUnpair: (macAddress: string) => Promise<void>;
+      onBluetoothPinRequired: (cb: (data: { deviceId: string }) => void) => () => void;
+      provideBluetoothPin: (pin: string) => void;
+      cancelBluetoothPairing: () => void;
       clearSessionData: () => Promise<void>;
       notifyDeviceConnected: () => void;
       notifyDeviceDisconnected: () => void;
