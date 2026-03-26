@@ -338,6 +338,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
   bluetoothUnpair: (macAddress: string): Promise<void> =>
     ipcRenderer.invoke('bluetooth-unpair', macAddress),
 
+  // Start BLE scan
+  bluetoothStartScan: (): Promise<void> => ipcRenderer.invoke('bluetooth-start-scan'),
+
+  // Stop BLE scan
+  bluetoothStopScan: (): Promise<void> => ipcRenderer.invoke('bluetooth-stop-scan'),
+
+  // Pair a device
+  bluetoothPair: (macAddress: string): Promise<void> =>
+    ipcRenderer.invoke('bluetooth-pair', macAddress),
+
+  // Connect to a paired device
+  bluetoothConnect: (macAddress: string): Promise<void> =>
+    ipcRenderer.invoke('bluetooth-connect', macAddress),
+
+  // Untrust a device (best-effort, ignore failures)
+  bluetoothUntrust: (macAddress: string): Promise<void> =>
+    ipcRenderer.invoke('bluetooth-untrust', macAddress),
+
   // Listen for PIN required event from main process
   onBluetoothPinRequired: (callback: (data: { deviceId: string }) => void) => {
     const handler = (_event: unknown, data: { deviceId: string }) => {

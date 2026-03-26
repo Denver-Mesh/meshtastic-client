@@ -1258,6 +1258,139 @@ ipcMain.handle('bluetooth-unpair', async (_event, macAddress: unknown) => {
   });
 });
 
+// ─── IPC: Start BLE scan (Linux) ─────────────────────────────────────
+ipcMain.handle('bluetooth-start-scan', async () => {
+  console.debug('[IPC] bluetooth-start-scan');
+  return new Promise<void>((resolve, reject) => {
+    const proc = spawn('bluetoothctl', ['scan', 'on']);
+    proc.on('close', (code) => {
+      if (code === 0) {
+        console.debug('[IPC] bluetooth-start-scan success');
+        resolve();
+      } else {
+        console.warn('[IPC] bluetooth-start-scan failed with code', code);
+        reject(new Error(`scan on failed with code ${code}`));
+      }
+    });
+    proc.on('error', (err) => {
+      console.warn(
+        '[IPC] bluetooth-start-scan error:',
+        sanitizeLogMessage(err?.message ?? String(err)),
+      );
+      reject(err);
+    });
+  });
+});
+
+// ─── IPC: Stop BLE scan (Linux) ──────────────────────────────────────
+ipcMain.handle('bluetooth-stop-scan', async () => {
+  console.debug('[IPC] bluetooth-stop-scan');
+  return new Promise<void>((resolve) => {
+    const proc = spawn('bluetoothctl', ['scan', 'off']);
+    proc.on('close', () => {
+      console.debug('[IPC] bluetooth-stop-scan done');
+      resolve();
+    });
+    proc.on('error', (err) => {
+      console.warn(
+        '[IPC] bluetooth-stop-scan error:',
+        sanitizeLogMessage(err?.message ?? String(err)),
+      );
+      resolve(); // Don't reject - stop scan failure is not critical
+    });
+  });
+});
+
+// ─── IPC: Pair Bluetooth device (Linux) ───────────────────────────────
+ipcMain.handle('bluetooth-pair', async (_event, macAddress: unknown) => {
+  if (typeof macAddress !== 'string') {
+    throw new Error('bluetooth-pair: macAddress must be a string');
+  }
+  if (!/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(macAddress)) {
+    throw new Error('bluetooth-pair: invalid MAC address format');
+  }
+  console.debug('[IPC] bluetooth-pair:', macAddress);
+  return new Promise<void>((resolve, reject) => {
+    const proc = spawn('bluetoothctl', ['pair', macAddress]);
+    let stderr = '';
+    proc.stderr.on('data', (data: Buffer) => {
+      stderr += data.toString();
+    });
+    proc.on('close', (code) => {
+      if (code === 0) {
+        console.debug('[IPC] bluetooth-pair success');
+        resolve();
+      } else {
+        console.warn('[IPC] bluetooth-pair failed:', stderr.trim() || `code ${code}`);
+        reject(new Error(stderr.trim() || `pair failed with code ${code}`));
+      }
+    });
+    proc.on('error', (err) => {
+      console.warn('[IPC] bluetooth-pair error:', sanitizeLogMessage(err?.message ?? String(err)));
+      reject(err);
+    });
+  });
+});
+
+// ─── IPC: Connect Bluetooth device (Linux) ────────────────────────────
+ipcMain.handle('bluetooth-connect', async (_event, macAddress: unknown) => {
+  if (typeof macAddress !== 'string') {
+    throw new Error('bluetooth-connect: macAddress must be a string');
+  }
+  if (!/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(macAddress)) {
+    throw new Error('bluetooth-connect: invalid MAC address format');
+  }
+  console.debug('[IPC] bluetooth-connect:', macAddress);
+  return new Promise<void>((resolve, reject) => {
+    const proc = spawn('bluetoothctl', ['connect', macAddress]);
+    let stderr = '';
+    proc.stderr.on('data', (data: Buffer) => {
+      stderr += data.toString();
+    });
+    proc.on('close', (code) => {
+      if (code === 0) {
+        console.debug('[IPC] bluetooth-connect success');
+        resolve();
+      } else {
+        console.warn('[IPC] bluetooth-connect failed:', stderr.trim() || `code ${code}`);
+        reject(new Error(stderr.trim() || `connect failed with code ${code}`));
+      }
+    });
+    proc.on('error', (err) => {
+      console.warn(
+        '[IPC] bluetooth-connect error:',
+        sanitizeLogMessage(err?.message ?? String(err)),
+      );
+      reject(err);
+    });
+  });
+});
+
+// ─── IPC: Untrust Bluetooth device (Linux) ────────────────────────────
+// This is best-effort - failures are ignored
+ipcMain.handle('bluetooth-untrust', async (_event, macAddress: unknown) => {
+  if (typeof macAddress !== 'string') {
+    throw new Error('bluetooth-untrust: macAddress must be a string');
+  }
+  if (!/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(macAddress)) {
+    throw new Error('bluetooth-untrust: invalid MAC address format');
+  }
+  console.debug('[IPC] bluetooth-untrust:', macAddress);
+  return new Promise<void>((resolve) => {
+    const proc = spawn('bluetoothctl', ['untrust', macAddress]);
+    proc.on('close', () => {
+      // Ignore failure - untrust is best-effort
+      console.debug('[IPC] bluetooth-untrust done');
+      resolve();
+    });
+    proc.on('error', () => {
+      // Ignore error - untrust is best-effort
+      console.debug('[IPC] bluetooth-untrust ignored error');
+      resolve();
+    });
+  });
+});
+
 // ─── IPC: Provide Bluetooth PIN (Linux) ───────────────────────────────
 ipcMain.on('bluetooth-provide-pin', (_event, pin: unknown) => {
   if (!pendingPairingCallback) {

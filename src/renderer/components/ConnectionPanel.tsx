@@ -733,7 +733,7 @@ export default function ConnectionPanel({
     return cleanup;
   }, [isLinux]);
 
-  // Handle re-pair button click (remove device from bluetoothctl and retry)
+  // Handle re-pair button click (automated remove, scan, pair, and connect)
   const handleRePair = useCallback(async () => {
     const mac = lastSelectedBleMacRef.current;
     if (!mac) {
@@ -742,22 +742,28 @@ export default function ConnectionPanel({
     }
 
     setConnecting(true);
-    setConnectionStage('Removing device pairing...');
+    setConnectionStage('Removing device...');
     setShowRePairButton(false);
     setError(null);
 
     try {
+      // Step 1: Remove device from bluez
       await window.electronAPI.bluetoothUnpair(mac);
       console.debug('[ConnectionPanel] Successfully unpaired device:', mac);
 
-      // After unpairing from bluez, we MUST also clear the Web Bluetooth device cache.
-      // Chromium caches paired devices per-origin. Without this, requestDevice() returns
-      // the stale cached device, causing connection failures.
+      // Step 2: Untrust device (ignore failures - best effort)
+      try {
+        await window.electronAPI.bluetoothUntrust(mac);
+      } catch {
+        // catch-no-log-ok -- untrust is best-effort, ignore all failures
+      }
+
+      // Step 3: Clear Chromium's Web Bluetooth cache
       if (navigator.bluetooth) {
         try {
           const devices = await navigator.bluetooth.getDevices();
           for (const device of devices) {
-            if (device.name?.includes(mac) || device.id.includes(mac)) {
+            if (device.id.includes(mac)) {
               console.debug(
                 '[ConnectionPanel] Forgetting cached Web Bluetooth device:',
                 device.name,
@@ -771,17 +777,53 @@ export default function ConnectionPanel({
         }
       }
 
-      // Show the BLE picker so user can re-select the device after unpairing
+      // Step 4: Start BLE scan
+      setConnectionStage('Scanning for device...');
+      try {
+        await window.electronAPI.bluetoothStartScan();
+      } catch (e) {
+        console.warn('[ConnectionPanel] bluetoothStartScan warning:', e);
+      }
+
+      // Step 5: Wait 10 seconds for device to appear
+      await new Promise((r) => setTimeout(r, 10000));
+
+      // Step 6: Stop scan
+      try {
+        await window.electronAPI.bluetoothStopScan();
+      } catch (e) {
+        console.warn('[ConnectionPanel] bluetoothStopScan warning:', e);
+      }
+
+      // Step 7: Pair with device (this triggers PIN flow automatically)
+      setConnectionStage('Pairing with device...');
+      window.electronAPI.resetBlePairingRetryCount();
+      try {
+        await window.electronAPI.bluetoothPair(mac);
+      } catch (pairErr) {
+        console.warn('[ConnectionPanel] bluetoothPair warning:', pairErr);
+        // Continue anyway - the pairing might still be in progress
+      }
+
+      // Step 8: Connect at OS level
+      setConnectionStage('Connecting to device...');
+      try {
+        await window.electronAPI.bluetoothConnect(mac);
+      } catch (connectErr) {
+        console.warn('[ConnectionPanel] bluetoothConnect warning:', connectErr);
+        // Continue anyway - OS-level connect might already be established
+      }
+
+      // Step 9: Complete connection via handleConnect (this goes through Web Bluetooth flow)
+      setConnectionStage('Completing connection...');
+      setConnecting(false);
       setShowBlePicker(true);
       setBleDevices([]);
-      setConnecting(false);
-      setConnectionStage(
-        'Select your Bluetooth device below. If your device does not appear, click Connect again.',
-      );
+      setConnectionStage('Select your device and complete pairing...');
     } catch (err) {
-      console.warn('[ConnectionPanel] Failed to unpair device:', err);
+      console.warn('[ConnectionPanel] Re-pair failed:', err);
       const msg = err instanceof Error ? err.message : String(err);
-      setError(`Failed to remove device pairing: ${msg}. Try removing manually via bluetoothctl.`);
+      setError(`Re-pairing failed: ${msg}. Try power-cycling your device.`);
       setConnecting(false);
       setConnectionStage('');
     }
