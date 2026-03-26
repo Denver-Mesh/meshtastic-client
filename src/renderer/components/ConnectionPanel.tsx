@@ -948,70 +948,11 @@ export default function ConnectionPanel({
       if (isLinux) {
         // Web Bluetooth path: requestDevice() is already in-flight in the renderer.
         // Resolving the main-process select-bluetooth-device callback will let it complete.
-        // Then onConnect() will call createBleConnection which will call transport.connect()
-        // and that can throw on error, so we need to catch it here.
-        console.debug('[ConnectionPanel] handleSelectBleDevice Linux: ENTRY');
+        // handleConnect's await onConnect will continue and use the resolved device.
         console.debug(
-          '[ConnectionPanel] handleSelectBleDevice Linux: calling selectBluetoothDevice',
+          '[ConnectionPanel] handleSelectBleDevice Linux: resolving pending requestDevice',
         );
         window.electronAPI.selectBluetoothDevice(deviceId);
-        console.debug(
-          '[ConnectionPanel] handleSelectBleDevice Linux: selectBluetoothDevice done, calling onConnect',
-        );
-        onConnect('ble', undefined)
-          .then(() => {
-            console.debug('[ConnectionPanel] handleSelectBleDevice Linux: onConnect succeeded');
-          })
-          .catch((err: unknown) => {
-            console.warn('[ConnectionPanel] handleSelectBleDevice Linux: onConnect rejected:', err);
-            console.debug(
-              '[ConnectionPanel] handleSelectBleDevice Linux: error name:',
-              err instanceof Error ? err.constructor.name : typeof err,
-            );
-            console.debug(
-              '[ConnectionPanel] handleSelectBleDevice Linux: error message:',
-              err instanceof Error ? err.message : String(err),
-            );
-            const bleErrMsg = humanizeBleError(err);
-            console.debug('[ConnectionPanel] handleSelectBleDevice Linux: humanized:', bleErrMsg);
-            if (bleErrMsg) {
-              console.debug('[ConnectionPanel] handleSelectBleDevice Linux: calling setError');
-              setError(bleErrMsg);
-            }
-            const errWithPairingFlag = err as { isPairingRelated?: boolean } | null | undefined;
-            console.debug(
-              '[ConnectionPanel] handleSelectBleDevice Linux: isPairingRelated flag:',
-              errWithPairingFlag?.isPairingRelated,
-            );
-            console.debug(
-              '[ConnectionPanel] handleSelectBleDevice Linux: DOMException name:',
-              err instanceof DOMException ? err.name : 'not a DOMException',
-            );
-            const isPairingRelatedError =
-              bleErrMsg.includes('not be properly paired') ||
-              bleErrMsg.includes('Connection attempt failed') ||
-              bleErrMsg.includes('GATT Error: Not supported') ||
-              bleErrMsg.includes('authentication failed') ||
-              errWithPairingFlag?.isPairingRelated === true ||
-              (err instanceof DOMException &&
-                (err.name === 'SecurityError' || err.name === 'NetworkError'));
-            console.debug(
-              '[ConnectionPanel] handleSelectBleDevice Linux: isPairingRelatedError:',
-              isPairingRelatedError,
-            );
-            if (isPairingRelatedError) {
-              console.debug(
-                '[ConnectionPanel] handleSelectBleDevice Linux: SHOWING RE-PAIR BUTTON',
-              );
-              setShowRePairButton(true);
-            }
-            console.debug(
-              '[ConnectionPanel] handleSelectBleDevice Linux: calling setConnecting(false) and setConnectionStage',
-            );
-            setConnecting(false);
-            setConnectionStage('');
-          });
-        console.debug('[ConnectionPanel] handleSelectBleDevice Linux: handlers attached');
       } else {
         void window.electronAPI.stopNobleBleScanning(protocol);
         // Trigger the actual connection with the peripheral ID
