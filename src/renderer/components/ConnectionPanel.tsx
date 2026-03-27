@@ -795,31 +795,63 @@ export default function ConnectionPanel({
       }
       console.debug('[ConnectionPanel] handleRePair: Step 4 complete');
 
-      // Step 5: Wait 10 seconds for device to appear
-      console.debug('[ConnectionPanel] handleRePair: Step 5 - waiting 10s');
-      await new Promise((r) => setTimeout(r, 10000));
+      // Step 5: Wait for device to appear (up to 10 seconds)
+      console.debug('[ConnectionPanel] handleRePair: Step 5 - waiting for device to be discovered');
+      const scanStartTime = Date.now();
+      let deviceFound = false;
+      while (Date.now() - scanStartTime < 10000 && !deviceFound) {
+        await new Promise((r) => setTimeout(r, 1000));
+        // Check if device is in the list of discovered devices
+        if (bleDevices.some((d) => d.deviceId === mac)) {
+          deviceFound = true;
+          console.debug('[ConnectionPanel] Device found after', Date.now() - scanStartTime, 'ms');
+        }
+      }
+      if (!deviceFound) {
+        console.debug(
+          '[ConnectionPanel] Device not found after 10s, continuing with manual pairing',
+        );
+      }
       console.debug('[ConnectionPanel] handleRePair: Step 5 complete');
 
-      // Step 6: Stop scan
-      console.debug('[ConnectionPanel] handleRePair: Step 6 - bluetoothStopScan');
-      try {
-        await window.electronAPI.bluetoothStopScan();
-      } catch (e) {
-        console.warn('[ConnectionPanel] bluetoothStopScan warning:', e);
-      }
-      console.debug('[ConnectionPanel] handleRePair: Step 6 complete');
-
-      // Step 7: Pair with device (this triggers PIN flow automatically)
-      console.debug('[ConnectionPanel] handleRePair: Step 7 - bluetoothPair');
+      // Step 6: Pair with device (while scan is still running)
+      console.debug('[ConnectionPanel] handleRePair: Step 6 - bluetoothPair');
       setConnectionStage('Pairing with device...');
       window.electronAPI.resetBlePairingRetryCount();
       try {
         await window.electronAPI.bluetoothPair(mac);
       } catch (pairErr) {
         console.warn('[ConnectionPanel] bluetoothPair warning:', pairErr);
-        // Continue anyway - the pairing might still be in progress
+      }
+      console.debug('[ConnectionPanel] handleRePair: Step 6 complete');
+
+      // Step 7: Connect at OS level
+      console.debug('[ConnectionPanel] handleRePair: Step 7 - bluetoothConnect');
+      setConnectionStage('Connecting to device...');
+      try {
+        await window.electronAPI.bluetoothConnect(mac);
+      } catch (connectErr) {
+        console.warn('[ConnectionPanel] bluetoothConnect warning:', connectErr);
       }
       console.debug('[ConnectionPanel] handleRePair: Step 7 complete');
+
+      // Step 8: Stop scan
+      console.debug('[ConnectionPanel] handleRePair: Step 8 - bluetoothStopScan');
+      try {
+        await window.electronAPI.bluetoothStopScan();
+      } catch (e) {
+        console.warn('[ConnectionPanel] bluetoothStopScan warning:', e);
+      }
+      console.debug('[ConnectionPanel] handleRePair: Step 8 complete');
+
+      // Step 9: Complete connection via handleConnect (this goes through Web Bluetooth flow)
+      console.debug('[ConnectionPanel] handleRePair: Step 9 - showing picker');
+      setConnectionStage('Completing connection...');
+      setConnecting(false);
+      setShowBlePicker(true);
+      setBleDevices([]);
+      setConnectionStage('Select your device and complete pairing...');
+      console.debug('[ConnectionPanel] handleRePair END');
 
       // Step 8: Connect at OS level
       console.debug('[ConnectionPanel] handleRePair: Step 8 - bluetoothConnect');
@@ -847,7 +879,7 @@ export default function ConnectionPanel({
       setConnecting(false);
       setConnectionStage('');
     }
-  }, []);
+  }, [bleDevices]);
 
   // Handle PIN submission for pairing
   const handlePinSubmit = useCallback(() => {
