@@ -324,7 +324,6 @@ export class NobleBleManager extends EventEmitter {
   private async runFromRadioReadPump(sessionId: NobleSessionId): Promise<void> {
     const session = this.getSession(sessionId);
     try {
-      console.debug(`[BLE:${sessionId}] read pump start`);
       while (session.readPumpRequested && !session.closing) {
         session.readPumpRequested = false;
         if (!session.fromRadioChar || !session.connectedPeripheral) return;
@@ -337,11 +336,9 @@ export class NobleBleManager extends EventEmitter {
             session.fromRadioDeliveryCount === 0;
           // Exit immediately if session was torn down between reads.
           if (session.closing || session.connectedPeripheral?.state !== 'connected') {
-            console.debug(`[BLE:${sessionId}] read pump: peripheral disconnected, exiting`);
             return;
           }
           if (!session.fromRadioChar) {
-            console.debug(`[BLE:${sessionId}] read pump: fromRadioChar gone, exiting`);
             return;
           }
           let data: Buffer;
@@ -378,7 +375,6 @@ export class NobleBleManager extends EventEmitter {
       }
     } finally {
       session.readPumpActive = false;
-      console.debug(`[BLE:${sessionId}] read pump stop`);
     }
   }
 
