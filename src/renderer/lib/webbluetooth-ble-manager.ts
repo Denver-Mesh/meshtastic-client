@@ -75,7 +75,6 @@ export class WebBluetoothManager {
   private fromRadioCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
   private fromRadioNotifyHandler: ((event: Event) => void) | null = null;
   private _fromDeviceController: ReadableStreamDefaultController<Types.DeviceOutput> | null = null;
-  private connectStartedAtMs: number | null = null;
   private sessionId: NobleBleSessionId;
   private fromRadioDescriptorUuids: string[] = [];
   /** When true, `fromRadio` uses GATT readValue pump (Linux/BlueZ may lack CCCD for notify on 2c55…). */
@@ -182,7 +181,6 @@ export class WebBluetoothManager {
         console.debug(
           `[WebBluetooth:${this.sessionId}] device selected: ${device.id} (${device.name ?? 'unnamed'})`,
         );
-        this.connectStartedAtMs = Date.now();
         device.addEventListener('gattserverdisconnected', () => {
           console.debug(`[WebBluetooth:${this.sessionId}] device disconnected`);
           this.cleanup();
@@ -235,7 +233,6 @@ export class WebBluetoothManager {
       `[WebBluetooth:${this.sessionId}] reusing granted device: ${device.id} (${device.name ?? 'unnamed'})`,
     );
     this.device = device;
-    this.connectStartedAtMs = Date.now();
     device.addEventListener('gattserverdisconnected', () => {
       console.debug(`[WebBluetooth:${this.sessionId}] device disconnected`);
       this.cleanup();
@@ -466,7 +463,6 @@ export class WebBluetoothManager {
     this.toRadioCharacteristic = null;
     this.fromRadioCharacteristic = null;
     this.fromRadioNotifyHandler = null;
-    this.connectStartedAtMs = null;
     this.meshtasticFromRadioReadPump = false;
   }
 
@@ -475,22 +471,10 @@ export class WebBluetoothManager {
       throw new Error('Not connected');
     }
 
-    const timeSinceConnect =
-      this.connectStartedAtMs != null ? Date.now() - this.connectStartedAtMs : 'unknown';
-    const hexDump = Array.from(data.subarray(0, Math.min(data.length, 20)))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join(' ');
-    console.info(
-      `[WebBluetooth:${this.sessionId}] writeToRadio: ${data.length} bytes timeSinceConnect=${timeSinceConnect}ms data=[${hexDump}${data.length > 20 ? '...' : ''}]`,
-    );
-
     await this.toRadioCharacteristic.writeValue(data);
     if (this.sessionId === 'meshtastic' && this.meshtasticFromRadioReadPump) {
       await this.drainMeshtasticFromRadioReads();
     }
-    console.info(
-      `[WebBluetooth:${this.sessionId}] writeToRadio done bytes=${data.length} timeSinceConnect=${timeSinceConnect}ms`,
-    );
   }
 
   isConnected(): boolean {
