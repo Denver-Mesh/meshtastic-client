@@ -18,11 +18,18 @@ const BLUEZ_PAIRING_ERROR_RE =
 const GATT_CONNECT_TIMEOUT_MS = 30_000;
 const GATT_DISCOVERY_TIMEOUT_MS = 30_000;
 const GATT_NOTIFICATION_TIMEOUT_MS = 20_000;
+/** Align with `noble-ble-manager.ts` — drain burst cap for Meshtastic fromRadio read pump. */
+const BLE_READ_PUMP_MAX_ITERATIONS = 512;
 
 /**
  * Wrap a Promise with a timeout that rejects if it doesn't complete within the specified time.
  * Unlike withTimeout, this doesn't require a label and wraps timeout errors with better context.
  */
+/** Web Bluetooth experimental API not in all TS DOM libs (descriptor discovery). */
+type BluetoothRemoteGATTCharacteristicWithDescriptors = BluetoothRemoteGATTCharacteristic & {
+  getDescriptors(): Promise<{ uuid: string }[]>;
+};
+
 function withGattTimeout<T>(promise: Promise<T>, ms: number, context: string): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
@@ -70,6 +77,9 @@ export class WebBluetoothManager {
   private _fromDeviceController: ReadableStreamDefaultController<Types.DeviceOutput> | null = null;
   private connectStartedAtMs: number | null = null;
   private sessionId: NobleBleSessionId;
+  private fromRadioDescriptorUuids: string[] = [];
+  /** When true, `fromRadio` uses GATT readValue pump (Linux/BlueZ may lack CCCD for notify on 2c55…). */
+  private meshtasticFromRadioReadPump = false;
   private _pendingDevicePromise?: Promise<BluetoothDevice>;
   private _resolvePendingDevice?: (device: BluetoothDevice) => void;
   private _rejectPendingDevice?: (reason?: unknown) => void;
@@ -199,6 +209,37 @@ export class WebBluetoothManager {
     }
   }
 
+  private enqueueFromRadioBytes(bytes: Uint8Array, source: 'notify' | 'read-pump'): void {
+    if (bytes.length === 0) return;
+    console.debug(`[WebBluetooth:${this.sessionId}] fromRadio ${source}: ${bytes.length} bytes`);
+    if (this._fromDeviceController) {
+      this._fromDeviceController.enqueue({ type: 'packet', data: bytes });
+    }
+  }
+
+  private async drainMeshtasticFromRadioReads(): Promise<void> {
+    if (!this.meshtasticFromRadioReadPump || !this.fromRadioCharacteristic) return;
+    const ch = this.fromRadioCharacteristic;
+    for (let i = 0; i < BLE_READ_PUMP_MAX_ITERATIONS; i++) {
+      if (!this.device?.gatt?.connected) return;
+      let dataView: DataView;
+      try {
+        dataView = await withGattTimeout(
+          ch.readValue(),
+          GATT_DISCOVERY_TIMEOUT_MS,
+          'GATT fromRadio readValue',
+        );
+      } catch {
+        // catch-no-log-ok read pump end — expected when characteristic is drained or stack errors
+        break;
+      }
+      if (!dataView.byteLength) break;
+      const bytes = new Uint8Array(dataView.buffer, dataView.byteOffset, dataView.byteLength);
+      this.enqueueFromRadioBytes(bytes, 'read-pump');
+      await Promise.resolve();
+    }
+  }
+
   async connect(): Promise<void> {
     if (!this.device) {
       throw new Error('No device selected. Call requestDevice() first.');
@@ -235,8 +276,9 @@ export class WebBluetoothManager {
       throw error;
     }
 
+    let service: BluetoothRemoteGATTService | null = null;
     try {
-      const service = await withGattTimeout(
+      service = await withGattTimeout(
         this.server.getPrimaryService(serviceUuid),
         GATT_DISCOVERY_TIMEOUT_MS,
         'GATT service discovery',
@@ -271,6 +313,19 @@ export class WebBluetoothManager {
           'GATT characteristic discovery (fromRadio)',
         );
       }
+      try {
+        const descriptors = await withGattTimeout(
+          (
+            this.fromRadioCharacteristic as BluetoothRemoteGATTCharacteristicWithDescriptors
+          ).getDescriptors(),
+          GATT_DISCOVERY_TIMEOUT_MS,
+          'GATT descriptor discovery (fromRadio)',
+        );
+        this.fromRadioDescriptorUuids = descriptors.map((d) => d.uuid.toLowerCase());
+      } catch {
+        // catch-no-log-ok BlueZ may omit descriptor enumeration; notify path uses empty list
+        this.fromRadioDescriptorUuids = [];
+      }
     } catch (err) {
       const domErr = err as DOMException;
       const isPairing = isWebBluetoothPairingError(err);
@@ -294,11 +349,8 @@ export class WebBluetoothManager {
       if (!target) return;
       const value = target.value;
       if (value && value.byteLength > 0) {
-        const bytes = new Uint8Array(value.buffer);
-        console.debug(`[WebBluetooth:${this.sessionId}] fromRadio notify: ${bytes.length} bytes`);
-        if (this._fromDeviceController) {
-          this._fromDeviceController.enqueue({ type: 'packet', data: bytes });
-        }
+        const slicedBytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+        this.enqueueFromRadioBytes(slicedBytes, 'notify');
       }
     };
 
@@ -316,6 +368,23 @@ export class WebBluetoothManager {
     } catch (err) {
       const domErr = err as DOMException;
       const isPairing = isWebBluetoothPairingError(err);
+      const isDescriptorMissingNotSupported =
+        domErr?.name === 'NotSupportedError' && this.fromRadioDescriptorUuids.length === 0;
+      if (this.sessionId === 'meshtastic' && isDescriptorMissingNotSupported && service) {
+        // `ed9da18c-…` is **fromNum**, not fromRadio — see `noble-ble-manager.ts` (FROMNUM_UUID).
+        // Do not subscribe there for the Meshtastic protobuf stream. When Linux exposes no CCCD on
+        // canonical fromRadio (`2c55…`), fall back to GATT read pump like Noble does.
+        const primary = this.fromRadioCharacteristic;
+        if (primary?.properties.read) {
+          primary.removeEventListener('characteristicvaluechanged', this.fromRadioNotifyHandler);
+          this.meshtasticFromRadioReadPump = true;
+          console.debug(
+            `[WebBluetooth:${this.sessionId}] fromRadio: notify unavailable (no CCCD); using read pump`,
+          );
+          void this.drainMeshtasticFromRadioReads();
+          return;
+        }
+      }
       console.debug(
         `[WebBluetooth:${this.sessionId}] startNotifications failed:`,
         domErr?.name,
@@ -365,6 +434,7 @@ export class WebBluetoothManager {
     this.fromRadioCharacteristic = null;
     this.fromRadioNotifyHandler = null;
     this.connectStartedAtMs = null;
+    this.meshtasticFromRadioReadPump = false;
   }
 
   async writeToRadio(data: Uint8Array): Promise<void> {
@@ -382,6 +452,9 @@ export class WebBluetoothManager {
     );
 
     await this.toRadioCharacteristic.writeValue(data);
+    if (this.sessionId === 'meshtastic' && this.meshtasticFromRadioReadPump) {
+      await this.drainMeshtasticFromRadioReads();
+    }
     console.info(
       `[WebBluetooth:${this.sessionId}] writeToRadio done bytes=${data.length} timeSinceConnect=${timeSinceConnect}ms`,
     );
