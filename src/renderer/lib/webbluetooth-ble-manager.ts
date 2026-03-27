@@ -47,6 +47,8 @@ export class WebBluetoothManager {
   private fromRadioUnsub: (() => void) | null = null;
   private connectStartedAtMs: number | null = null;
   private sessionId: NobleBleSessionId;
+  private _pendingDevicePromise?: Promise<BluetoothDevice>;
+  private _resolvePendingDevice?: (device: BluetoothDevice) => void;
 
   public readonly toDevice: WritableStream<Uint8Array>;
   public readonly fromDevice: ReadableStream<Types.DeviceOutput>;
@@ -75,6 +77,16 @@ export class WebBluetoothManager {
   }
 
   async requestDevice(): Promise<BluetoothDevice> {
+    // If device already selected (e.g., resolved via picker), return it
+    if (this.device) {
+      return this.device;
+    }
+
+    // If a pending request exists, return that promise (allows deferred resolution)
+    if (this._pendingDevicePromise) {
+      return this._pendingDevicePromise;
+    }
+
     const isMeshcore = this.sessionId === 'meshcore';
     const serviceUuid = isMeshcore
       ? '6e400001-b5a3-f393-e0a9-e50e24dcca9e'
@@ -102,52 +114,43 @@ export class WebBluetoothManager {
       console.debug('[WebBluetooth] getAvailability failed (expected on some platforms):', err);
     }
 
-    console.debug(`[WebBluetooth:${this.sessionId}] calling navigator.bluetooth.requestDevice...`);
-    try {
-      // Only filter by the service UUID for the current mode
-      this.device = await navigator.bluetooth.requestDevice({
-        filters: [{ services: [serviceUuid] }],
-      });
-      console.debug('[WebBluetooth] requestDevice succeeded');
-    } catch (err) {
-      const domErr = err as DOMException;
-      const errName = domErr?.name ?? 'unknown';
-      const errMessage = domErr?.message ?? String(err);
-
-      console.error(
-        `[WebBluetooth:${this.sessionId}] requestDevice EXCEPTION:`,
-        err,
-        'name:',
-        errName,
-        'message:',
-        errMessage,
-      );
-
-      // Distinguish between user cancellation and "no devices found"
-      // On Linux, "no devices found" often shows as NotFoundError with "User cancelled" message
-      if (errName === 'NotFoundError') {
-        if (errMessage.includes('No devices')) {
-          throw new Error(
-            `No BLE devices found with Meshtastic or Meshcore services. Make sure your device is powered on and nearby.`,
-          );
-        }
-        // Otherwise re-throw the original error
-      }
-      throw err;
-    }
-
-    console.debug(
-      `[WebBluetooth:${this.sessionId}] device selected: ${this.device.id} (${this.device.name ?? 'unnamed'})`,
-    );
-
-    this.connectStartedAtMs = Date.now();
-
-    this.device.addEventListener('gattserverdisconnected', () => {
-      console.debug(`[WebBluetooth:${this.sessionId}] device disconnected`);
-      this.cleanup();
+    // Create deferred promise for custom picker flow on Linux
+    // The promise will be resolved when resolveDevice() is called from handleSelectBleDevice
+    this._pendingDevicePromise = new Promise<BluetoothDevice>((resolve) => {
+      this._resolvePendingDevice = resolve;
     });
 
-    return this.device;
+    console.debug(`[WebBluetooth:${this.sessionId}] waiting for device selection via picker...`);
+
+    // Set up listener for when device is resolved from the picker
+    // The actual device resolution happens via resolveDevice() called from ConnectionPanel
+    this._pendingDevicePromise
+      .then((device) => {
+        console.debug(
+          `[WebBluetooth:${this.sessionId}] device selected: ${device.id} (${device.name ?? 'unnamed'})`,
+        );
+        this.connectStartedAtMs = Date.now();
+        device.addEventListener('gattserverdisconnected', () => {
+          console.debug(`[WebBluetooth:${this.sessionId}] device disconnected`);
+          this.cleanup();
+        });
+      })
+      .catch((err: unknown) => {
+        console.error(`[WebBluetooth:${this.sessionId}] requestDevice failed:`, err);
+        this._pendingDevicePromise = undefined;
+        this._resolvePendingDevice = undefined;
+      });
+
+    return this._pendingDevicePromise;
+  }
+
+  resolveDevice(device: BluetoothDevice): void {
+    if (this._resolvePendingDevice) {
+      this.device = device;
+      this._resolvePendingDevice(device);
+      this._pendingDevicePromise = undefined;
+      this._resolvePendingDevice = undefined;
+    }
   }
 
   async connect(): Promise<void> {

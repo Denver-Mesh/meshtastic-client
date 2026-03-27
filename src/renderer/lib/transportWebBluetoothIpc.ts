@@ -3,6 +3,8 @@ import type { Types } from '@meshtastic/core';
 import type { NobleBleSessionId } from './types';
 import { WebBluetoothManager } from './webbluetooth-ble-manager';
 
+const webBluetoothManagerBySession = new Map<NobleBleSessionId, WebBluetoothManager>();
+
 export class TransportWebBluetoothIpc implements Types.Transport {
   private readonly sessionId: NobleBleSessionId;
   private _fromDeviceController: ReadableStreamDefaultController<Types.DeviceOutput> | null = null;
@@ -22,6 +24,7 @@ export class TransportWebBluetoothIpc implements Types.Transport {
         if (this._bleManager) {
           this._bleManager.disconnect().catch(console.error);
           this._bleManager = null;
+          webBluetoothManagerBySession.delete(this.sessionId);
         }
         this._fromDeviceController = null;
       },
@@ -38,6 +41,7 @@ export class TransportWebBluetoothIpc implements Types.Transport {
         if (this._bleManager) {
           this._bleManager.disconnect().catch(console.error);
           this._bleManager = null;
+          webBluetoothManagerBySession.delete(this.sessionId);
         }
       },
     });
@@ -45,11 +49,20 @@ export class TransportWebBluetoothIpc implements Types.Transport {
 
   async requestDevice(): Promise<{ deviceId: string; deviceName: string }> {
     this._bleManager = new WebBluetoothManager(this.sessionId);
+    webBluetoothManagerBySession.set(this.sessionId, this._bleManager);
     const device = await this._bleManager.requestDevice();
     return {
       deviceId: device.id,
       deviceName: device.name ?? 'Unknown Device',
     };
+  }
+
+  static getManager(sessionId: NobleBleSessionId): WebBluetoothManager | undefined {
+    return webBluetoothManagerBySession.get(sessionId);
+  }
+
+  pushConfig(): Promise<void> {
+    return Promise.resolve();
   }
 
   async connect(): Promise<void> {

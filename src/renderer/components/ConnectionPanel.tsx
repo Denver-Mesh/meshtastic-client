@@ -16,6 +16,7 @@ import {
 import { meshcoreMqttUserFacingHint } from '../lib/meshcoreMqttUserHint';
 import { parseStoredJson } from '../lib/parseStoredJson';
 import { LAST_SERIAL_PORT_KEY } from '../lib/serialPortSignature';
+import { TransportWebBluetoothIpc } from '../lib/transportWebBluetoothIpc';
 import type {
   ConnectionType,
   DeviceState,
@@ -1048,24 +1049,20 @@ export default function ConnectionPanel({
       setConnectionStage('Connecting to device...');
       setShowRePairButton(false);
       if (isLinux) {
-        // Web Bluetooth path: requestDevice() is already in-flight in the renderer.
-        // Resolving the main-process select-bluetooth-device callback will let it complete.
-        // Then re-enter onConnect to call transport.connect() which triggers the pairing handler.
+        // Web Bluetooth path: requestDevice() is pending. Resolve the deferred promise
+        // so that the original onConnect's requestDevice() returns and proceeds to connect().
         console.debug(
           '[ConnectionPanel] handleSelectBleDevice Linux: resolving pending requestDevice',
         );
         window.electronAPI.selectBluetoothDevice(deviceId);
-        // Re-enter onConnect to call transport.connect() which triggers the pairing handler
-        console.debug(
-          '[ConnectionPanel] handleSelectBleDevice Linux: calling onConnect to establish connection',
-        );
-        onConnect('ble', undefined).catch((err: unknown) => {
-          console.warn('[ConnectionPanel] BLE re-connect after selection failed', err);
-          const bleErrMsg = humanizeBleError(err);
-          if (bleErrMsg) setError(bleErrMsg);
-          setConnecting(false);
-          setConnectionStage('');
-        });
+        const found = bleDevices.find((d) => d.deviceId === deviceId);
+        const manager = TransportWebBluetoothIpc.getManager(protocol);
+        if (found && manager) {
+          const device = { id: found.deviceId, name: found.deviceName } as BluetoothDevice;
+          manager.resolveDevice(device);
+        }
+        // Don't call onConnect again - the original onConnect will continue from requestDevice()
+        // and proceed to connect(), which triggers the pairing handler.
       } else {
         void window.electronAPI.stopNobleBleScanning(protocol);
         // Trigger the actual connection with the peripheral ID
@@ -1171,9 +1168,10 @@ export default function ConnectionPanel({
         setIsAutoConnecting(true);
         setConnecting(true);
         if (isLinux) {
-          // Web Bluetooth path: this is a user gesture (button click), so requestDevice() is allowed.
+          // Web Bluetooth path: use onConnect directly (NOT connectAutomatic which skips BLE for MeshCore)
+          // This is a user gesture, so requestDevice() is allowed.
           setConnectionStage('Select your Bluetooth device...');
-          void onAutoConnect('ble', undefined).catch((err: unknown) => {
+          void onConnect('ble', undefined).catch((err: unknown) => {
             isAutoConnectingRef.current = false;
             setIsAutoConnecting(false);
             const bleErrMsg = humanizeBleError(err);
