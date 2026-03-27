@@ -275,7 +275,7 @@ export async function createConnection(
       host = host.replace(/^https?:\/\//, '');
       // Strip trailing slashes
       host = host.replace(/\/+$/, '');
-      // Normalize bare IPv6 addresses — browsers require brackets: [fe80::1]
+      // Normalize bare IPv6 addresses - browsers require brackets: [fe80::1]
       if (host.includes(':') && !host.startsWith('[')) {
         host = `[${host}]`;
       }
@@ -364,7 +364,7 @@ export async function safeDisconnect(device: MeshDevice): Promise<void> {
       msg.includes('already been closed') ||
       msg.includes('locked')
     ) {
-      // HTTP transport doesn't implement disconnect() — manually close the streams
+      // HTTP transport doesn't implement disconnect() - manually close the streams
       try {
         await device.transport.toDevice.close();
       } catch (e) {
