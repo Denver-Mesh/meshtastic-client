@@ -710,7 +710,6 @@ export function useDevice() {
       // ─── Device status ─────────────────────────────────────────
       const unsub1 = device.events.onDeviceStatus.subscribe((status) => {
         touchLastData();
-        console.debug('[useDevice] onDeviceStatus', status, type);
         const statusMap: Record<number, DeviceState['status']> = {
           1: 'connecting', // DeviceRestarting
           2: 'disconnected', // DeviceDisconnected

@@ -318,9 +318,6 @@ export class NobleBleManager extends EventEmitter {
     session.readPumpRequested = true;
     if (session.readPumpActive) return;
     session.readPumpActive = true;
-    console.info(
-      `[BLE:${sessionId}] read pump started platform=${process.platform} timeSinceConnect=${session.connectStartedAtMs != null ? Date.now() - session.connectStartedAtMs : 'unknown'}ms`,
-    );
     void this.runFromRadioReadPump(sessionId);
   }
 
@@ -350,14 +347,10 @@ export class NobleBleManager extends EventEmitter {
           let data: Buffer;
           const t0 = Date.now();
           try {
-            console.debug(`[BLE:${sessionId}] readAsync #${i} start`);
             data = await withTimeout<Buffer>(
               session.fromRadioChar.readAsync(),
               BLE_FROM_RADIO_READ_TIMEOUT_MS,
               'BLE fromRadio read',
-            );
-            console.debug(
-              `[BLE:${sessionId}] readAsync #${i} done: ${data?.length ?? 0} bytes in ${Date.now() - t0}ms`,
             );
           } catch (err) {
             console.warn(
@@ -372,14 +365,12 @@ export class NobleBleManager extends EventEmitter {
             break;
           }
           if (!data || data.length === 0) {
-            console.debug(`[BLE:${sessionId}] readAsync #${i} empty — draining done`);
             if (meshcoreWinEarlyReadPoll && i === 0 && !session.closing) {
               session.readPumpRequested = true;
               await new Promise<void>((r) => setTimeout(r, 150));
             }
             break;
           }
-          console.debug(`[BLE:${sessionId}] emitting fromRadio: ${data.length} bytes → renderer`);
           this.emitFromRadio(sessionId, new Uint8Array(Buffer.from(data)), 'read-pump');
           // Small floor delay between consecutive reads to avoid flooding the CBQueue.
           await new Promise<void>((r) => setTimeout(r, 10));
@@ -879,9 +870,6 @@ export class NobleBleManager extends EventEmitter {
 
       if (session.fromNumChar) {
         session.fromNumDataHandler = () => {
-          console.debug(
-            `[BLE:${sessionId}] fromNum notify — pump active=${session.readPumpActive}`,
-          );
           this.requestFromRadioReadPump(sessionId);
         };
         session.fromNumChar.on('data', session.fromNumDataHandler);
@@ -914,20 +902,11 @@ export class NobleBleManager extends EventEmitter {
             );
           };
           session.fromRadioChar.on?.('notify', fromRadioNotifyStateHandler);
-          session.fromRadioDataHandler = (data: Buffer, isNotification: boolean) => {
+          session.fromRadioDataHandler = (data: Buffer) => {
             const byteLen = data?.length ?? 0;
             if (byteLen === 0) {
-              console.debug(
-                `[BLE:${sessionId}] fromRadio data handler called with 0 bytes isNotification=${isNotification} — ${isNotification ? 'BlueZ notification received but empty' : 'readAsync returned empty'} timeSinceConnect=${session.connectStartedAtMs != null ? Date.now() - session.connectStartedAtMs : 'unknown'}ms`,
-              );
               return;
             }
-            console.debug(
-              `[BLE:${sessionId}] fromRadio DATA received: ${byteLen} bytes isNotification=${isNotification} platform=${process.platform} timeSinceConnect=${session.connectStartedAtMs != null ? Date.now() - session.connectStartedAtMs : 'unknown'}ms`,
-            );
-            console.debug(
-              `[BLE:${sessionId}] fromRadio data: ${data.length} bytes isNotification=${isNotification}`,
-            );
             this.emitFromRadio(sessionId, new Uint8Array(Buffer.from(data)), 'notify');
           };
           session.fromRadioChar.on('data', session.fromRadioDataHandler);
@@ -1031,22 +1010,8 @@ export class NobleBleManager extends EventEmitter {
     const session = this.getSession(sessionId);
     if (!session.toRadioChar)
       throw new Error(`Not connected to a BLE device for session ${sessionId}`);
-    const timeSinceConnect =
-      session.connectStartedAtMs != null ? Date.now() - session.connectStartedAtMs : 'unknown';
-    const hexDump = Array.from(data.subarray(0, Math.min(data.length, 20)))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join(' ');
-    console.info(
-      `[BLE:${sessionId}] writeToRadio: ${data.length} bytes timeSinceConnect=${timeSinceConnect}ms data=[${hexDump}${data.length > 20 ? '...' : ''}]`,
-    );
     await session.toRadioChar.writeAsync(data, false);
-    console.info(
-      `[BLE:${sessionId}] writeToRadio done bytes=${data.length} timeSinceConnect=${timeSinceConnect}ms`,
-    );
     const scheduleReadPump = this.shouldUseFromRadioReadPump(sessionId, session);
-    console.debug(
-      `[BLE:${sessionId}] post-write: ${scheduleReadPump ? `scheduling read pump in ${POST_WRITE_READ_PUMP_DELAY_MS}ms` : 'skipping read pump (notify-only mode)'}`,
-    );
     if (scheduleReadPump) {
       if (session.postWriteReadPumpTimer !== null) {
         clearTimeout(session.postWriteReadPumpTimer);
