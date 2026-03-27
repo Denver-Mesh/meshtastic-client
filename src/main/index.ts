@@ -963,12 +963,30 @@ function createWindow() {
   // This is called by Chromium when a device requires pairing during GATT connect.
   mainWindow.webContents.session.setBluetoothPairingHandler((details, callback) => {
     console.debug('[main] bluetooth-pairing-request:', details.pairingKind, details.deviceId);
+    postDebugLog(
+      'pre-fix',
+      'H6',
+      'src/main/index.ts:setBluetoothPairingHandler',
+      'pairing-request',
+      {
+        pairingKind: details.pairingKind,
+        deviceId: details.deviceId,
+        retryCount: pendingPairingRetryCount,
+      },
+    );
 
     if (details.pairingKind === 'providePin') {
       // Meshtastic devices use fixed PIN 123456. MeshCore uses random PIN displayed on device.
       // On first attempt, try the Meshtastic default PIN. If it fails, prompt user.
       if (pendingPairingRetryCount === 0) {
         console.debug('[main] bluetooth-pairing: auto-providing default PIN (attempt 1)');
+        postDebugLog(
+          'pre-fix',
+          'H6',
+          'src/main/index.ts:setBluetoothPairingHandler',
+          'pairing-auto-default-pin',
+          { deviceId: details.deviceId },
+        );
         pendingPairingRetryCount++;
         callback({ pin: '123456', confirmed: true });
         return;
@@ -977,9 +995,23 @@ function createWindow() {
       // Second attempt: prompt user for PIN (MeshCore or failed Meshtastic pairing)
       console.debug('[main] bluetooth-pairing: prompting user for PIN (attempt 2+)');
       pendingPairingCallback = (response: BluetoothPairingResponse) => {
+        postDebugLog(
+          'pre-fix',
+          'H7',
+          'src/main/index.ts:setBluetoothPairingHandler',
+          'pairing-callback-resolved',
+          { hasPin: Boolean(response?.pin), confirmed: response?.confirmed ?? null },
+        );
         callback(response);
         pendingPairingCallback = null;
       };
+      postDebugLog(
+        'pre-fix',
+        'H7',
+        'src/main/index.ts:setBluetoothPairingHandler',
+        'pairing-pin-required-sent-to-renderer',
+        { deviceId: details.deviceId },
+      );
       mainWindow?.webContents.send('bluetooth-pin-required', {
         deviceId: details.deviceId,
       });
@@ -1301,33 +1333,238 @@ ipcMain.handle('bluetooth-stop-scan', async () => {
   });
 });
 
+function postDebugLog(
+  runId: string,
+  hypothesisId: string,
+  location: string,
+  message: string,
+  data: Record<string, unknown>,
+): void {
+  void runId;
+  void hypothesisId;
+  void location;
+  void message;
+  void data;
+}
+
 // ─── IPC: Pair Bluetooth device (Linux) ───────────────────────────────
-ipcMain.handle('bluetooth-pair', async (_event, macAddress: unknown) => {
+ipcMain.handle('bluetooth-pair', async (_event, macAddress: unknown, pin: unknown) => {
   if (typeof macAddress !== 'string') {
     throw new Error('bluetooth-pair: macAddress must be a string');
   }
   if (!/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(macAddress)) {
     throw new Error('bluetooth-pair: invalid MAC address format');
   }
+  const normalizedPin = typeof pin === 'string' && pin.trim().length > 0 ? pin.trim() : undefined;
   console.debug('[IPC] bluetooth-pair:', macAddress);
+  postDebugLog('pre-fix', 'H1', 'src/main/index.ts:bluetooth-pair', 'pair-start', {
+    macAddress,
+    hasPin: Boolean(normalizedPin),
+  });
   return new Promise<void>((resolve, reject) => {
-    const proc = spawn('bluetoothctl', ['pair', macAddress]);
+    const pairTimeoutMs = 45000;
+    let settled = false;
+    const trustDeviceBestEffort = (): Promise<void> =>
+      new Promise((resolveTrust) => {
+        const trustProc = spawn('bluetoothctl', ['trust', macAddress]);
+        let trustErr = '';
+        let trustOut = '';
+        trustProc.stdout.on('data', (data: Buffer) => {
+          trustOut += data.toString();
+        });
+        trustProc.stderr.on('data', (data: Buffer) => {
+          trustErr += data.toString();
+        });
+        trustProc.on('close', (trustCode) => {
+          postDebugLog('pre-fix', 'H13', 'src/main/index.ts:bluetooth-pair', 'pair-trust-close', {
+            macAddress,
+            trustCode,
+            stdout: trustOut.slice(-500),
+            stderr: trustErr.slice(-500),
+          });
+          resolveTrust();
+        });
+        trustProc.on('error', (err) => {
+          postDebugLog('pre-fix', 'H13', 'src/main/index.ts:bluetooth-pair', 'pair-trust-error', {
+            macAddress,
+            message: err?.message ?? String(err),
+          });
+          resolveTrust();
+        });
+      });
+
+    const proc = spawn('bluetoothctl', [], { stdio: ['pipe', 'pipe', 'pipe'] });
     let stderr = '';
+    let stdout = '';
+    let pinSubmitted = false;
+    let confirmSubmitted = false;
+    let pairRequested = false;
+    const finishReject = (err: Error): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(pairTimeout);
+      reject(err);
+    };
+    const finishResolve = (): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(pairTimeout);
+      resolve();
+    };
+    const pairTimeout = setTimeout(() => {
+      postDebugLog('pre-fix', 'H15', 'src/main/index.ts:bluetooth-pair', 'pair-timeout', {
+        macAddress,
+        pinSubmitted,
+        confirmSubmitted,
+        stdout: stdout.slice(-1200),
+        stderr: stderr.slice(-1200),
+      });
+      try {
+        proc.stdin.write('scan off\n');
+      } catch {
+        // catch-no-log-ok -- best-effort cleanup during timeout
+      }
+      try {
+        proc.stdin.write('quit\n');
+      } catch {
+        // catch-no-log-ok -- best-effort cleanup during timeout
+      }
+      try {
+        proc.kill('SIGTERM');
+      } catch {
+        // catch-no-log-ok -- best-effort cleanup during timeout
+      }
+      finishReject(new Error('Bluetooth pairing timed out; please retry'));
+    }, pairTimeoutMs);
+    const requestPair = (): void => {
+      if (pairRequested) return;
+      pairRequested = true;
+      postDebugLog(
+        'pre-fix',
+        'H17',
+        'src/main/index.ts:bluetooth-pair',
+        'pair-requested-after-discovery',
+        { macAddress },
+      );
+      proc.stdin.write(`pair ${macAddress}\n`);
+    };
+    proc.stdin.write('agent KeyboardOnly\n');
+    proc.stdin.write('default-agent\n');
+    proc.stdin.write('scan on\n');
+    proc.stdout.on('data', (data: Buffer) => {
+      const chunk = data.toString();
+      stdout += chunk;
+      if (!pairRequested) {
+        const discoveredTarget =
+          chunk.includes(macAddress) &&
+          (chunk.includes('Device') || chunk.includes('[NEW]') || chunk.includes('[CHG]'));
+        if (discoveredTarget) {
+          postDebugLog(
+            'pre-fix',
+            'H17',
+            'src/main/index.ts:bluetooth-pair',
+            'pair-target-discovered',
+            { macAddress, chunk: chunk.slice(-500) },
+          );
+          requestPair();
+        }
+      }
+      if (chunk.includes('not available')) {
+        postDebugLog('pre-fix', 'H16', 'src/main/index.ts:bluetooth-pair', 'pair-not-available', {
+          macAddress,
+          stdout: stdout.slice(-600),
+          pairRequested,
+        });
+        if (!pairRequested) {
+          requestPair();
+          return;
+        }
+        finishReject(new Error('Pairing failed: device not available. Re-scan and retry.'));
+        return;
+      }
+      if (
+        normalizedPin &&
+        !pinSubmitted &&
+        (chunk.includes('PIN code:') ||
+          chunk.includes('Enter PIN code') ||
+          chunk.includes('Request PIN code') ||
+          chunk.includes('Enter passkey') ||
+          chunk.includes('passkey (number in 0-999999)'))
+      ) {
+        pinSubmitted = true;
+        proc.stdin.write(`${normalizedPin}\n`);
+        postDebugLog('pre-fix', 'H11', 'src/main/index.ts:bluetooth-pair', 'pair-pin-submitted', {
+          macAddress,
+        });
+      }
+      if (
+        !confirmSubmitted &&
+        (chunk.includes('Confirm passkey') || chunk.includes('[agent] Confirm'))
+      ) {
+        confirmSubmitted = true;
+        proc.stdin.write('yes\n');
+        postDebugLog(
+          'pre-fix',
+          'H11',
+          'src/main/index.ts:bluetooth-pair',
+          'pair-confirm-submitted',
+          {
+            macAddress,
+          },
+        );
+      }
+      if (chunk.includes('Pairing successful') || chunk.includes('Failed to pair')) {
+        proc.stdin.write('scan off\n');
+        proc.stdin.write('quit\n');
+      }
+    });
     proc.stderr.on('data', (data: Buffer) => {
       stderr += data.toString();
     });
     proc.on('close', (code) => {
-      if (code === 0) {
-        console.debug('[IPC] bluetooth-pair success');
-        resolve();
+      if (settled) return;
+      const stdoutTail = stdout.slice(-1200);
+      const stderrTail = stderr.slice(-1200);
+      const pairingFailedByOutput =
+        stdout.includes('Failed to pair') ||
+        stdout.includes('AuthenticationCanceled') ||
+        stderr.includes('Failed to pair') ||
+        stderr.includes('AuthenticationCanceled');
+      const pairingSucceededByOutput = stdout.includes('Pairing successful');
+      postDebugLog('pre-fix', 'H2', 'src/main/index.ts:bluetooth-pair', 'pair-close', {
+        code,
+        stdout: stdoutTail,
+        stderr: stderrTail,
+        pinSubmitted,
+        confirmSubmitted,
+        pairingFailedByOutput,
+        pairingSucceededByOutput,
+        pairRequested,
+      });
+      if (!pairingFailedByOutput && (pairingSucceededByOutput || code === 0)) {
+        void trustDeviceBestEffort().then(() => {
+          if (settled) return;
+          console.debug('[IPC] bluetooth-pair success');
+          finishResolve();
+        });
       } else {
         console.warn('[IPC] bluetooth-pair failed:', stderr.trim() || `code ${code}`);
-        reject(new Error(stderr.trim() || `pair failed with code ${code}`));
+        finishReject(
+          new Error(
+            stderr.trim() ||
+              (pairingFailedByOutput ? 'pair failed (bluetoothctl reported failure)' : '') ||
+              `pair failed with code ${code}`,
+          ),
+        );
       }
     });
     proc.on('error', (err) => {
+      if (settled) return;
+      postDebugLog('pre-fix', 'H5', 'src/main/index.ts:bluetooth-pair', 'pair-proc-error', {
+        message: err?.message ?? String(err),
+      });
       console.warn('[IPC] bluetooth-pair error:', sanitizeLogMessage(err?.message ?? String(err)));
-      reject(err);
+      finishReject(err instanceof Error ? err : new Error(String(err)));
     });
   });
 });
@@ -1341,13 +1578,25 @@ ipcMain.handle('bluetooth-connect', async (_event, macAddress: unknown) => {
     throw new Error('bluetooth-connect: invalid MAC address format');
   }
   console.debug('[IPC] bluetooth-connect:', macAddress);
+  postDebugLog('pre-fix', 'H3', 'src/main/index.ts:bluetooth-connect', 'connect-start', {
+    macAddress,
+  });
   return new Promise<void>((resolve, reject) => {
     const proc = spawn('bluetoothctl', ['connect', macAddress]);
     let stderr = '';
+    let stdout = '';
+    proc.stdout.on('data', (data: Buffer) => {
+      stdout += data.toString();
+    });
     proc.stderr.on('data', (data: Buffer) => {
       stderr += data.toString();
     });
     proc.on('close', (code) => {
+      postDebugLog('pre-fix', 'H4', 'src/main/index.ts:bluetooth-connect', 'connect-close', {
+        code,
+        stdout: stdout.slice(-1200),
+        stderr: stderr.slice(-1200),
+      });
       if (code === 0) {
         console.debug('[IPC] bluetooth-connect success');
         resolve();
@@ -1357,6 +1606,9 @@ ipcMain.handle('bluetooth-connect', async (_event, macAddress: unknown) => {
       }
     });
     proc.on('error', (err) => {
+      postDebugLog('pre-fix', 'H5', 'src/main/index.ts:bluetooth-connect', 'connect-proc-error', {
+        message: err?.message ?? String(err),
+      });
       console.warn(
         '[IPC] bluetooth-connect error:',
         sanitizeLogMessage(err?.message ?? String(err)),
@@ -1407,14 +1659,67 @@ ipcMain.handle('bluetooth-untrust', async (_event, macAddress: unknown) => {
   });
 });
 
+ipcMain.handle('bluetooth-get-info', async (_event, macAddress: unknown) => {
+  if (typeof macAddress !== 'string') {
+    throw new Error('bluetooth-get-info: macAddress must be a string');
+  }
+  if (!/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(macAddress)) {
+    throw new Error('bluetooth-get-info: invalid MAC address format');
+  }
+  return new Promise<string>((resolve) => {
+    const proc = spawn('bluetoothctl', ['info', macAddress]);
+    let stdout = '';
+    let stderr = '';
+    proc.stdout.on('data', (data: Buffer) => {
+      stdout += data.toString();
+    });
+    proc.stderr.on('data', (data: Buffer) => {
+      stderr += data.toString();
+    });
+    proc.on('close', (code) => {
+      const output = (stdout.trim() || stderr.trim() || `code ${code}`).slice(-2000);
+      postDebugLog('pre-fix', 'H18', 'src/main/index.ts:bluetooth-get-info', 'bluetooth-info', {
+        macAddress,
+        code,
+        output,
+      });
+      resolve(output);
+    });
+    proc.on('error', (err) => {
+      const msg = err?.message ?? String(err);
+      postDebugLog(
+        'pre-fix',
+        'H18',
+        'src/main/index.ts:bluetooth-get-info',
+        'bluetooth-info-error',
+        {
+          macAddress,
+          message: msg,
+        },
+      );
+      resolve(msg);
+    });
+  });
+});
+
 // ─── IPC: Provide Bluetooth PIN (Linux) ───────────────────────────────
 ipcMain.on('bluetooth-provide-pin', (_event, pin: unknown) => {
   if (!pendingPairingCallback) {
     console.warn('[IPC] bluetooth-provide-pin: no pending pairing callback');
+    postDebugLog(
+      'pre-fix',
+      'H7',
+      'src/main/index.ts:bluetooth-provide-pin',
+      'pairing-pin-provided-without-pending-callback',
+      { pinLength: typeof pin === 'string' ? pin.length : null },
+    );
     return;
   }
   const pinStr = typeof pin === 'string' ? pin : '';
   console.debug('[IPC] bluetooth-provide-pin:', pinStr.length > 0 ? '****' : '(empty)');
+  postDebugLog('pre-fix', 'H7', 'src/main/index.ts:bluetooth-provide-pin', 'pairing-pin-provided', {
+    pinLength: pinStr.length,
+  });
   pendingPairingCallback({ pin: pinStr, confirmed: pinStr.length > 0 });
   pendingPairingCallback = null;
   // Reset retry count so next pairing starts fresh

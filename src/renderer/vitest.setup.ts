@@ -126,6 +126,7 @@ const electronAPIMock = {
   bluetoothPair: vi.fn().mockResolvedValue(undefined),
   bluetoothConnect: vi.fn().mockResolvedValue(undefined),
   bluetoothUntrust: vi.fn().mockResolvedValue(undefined),
+  bluetoothGetInfo: vi.fn().mockResolvedValue(''),
   onBluetoothPinRequired: vi.fn().mockReturnValue(() => {}),
   provideBluetoothPin: vi.fn(),
   cancelBluetoothPairing: vi.fn(),

@@ -487,9 +487,10 @@ declare global {
       bluetoothUnpair: (macAddress: string) => Promise<void>;
       bluetoothStartScan: () => Promise<void>;
       bluetoothStopScan: () => Promise<void>;
-      bluetoothPair: (macAddress: string) => Promise<void>;
+      bluetoothPair: (macAddress: string, pin?: string) => Promise<void>;
       bluetoothConnect: (macAddress: string) => Promise<void>;
       bluetoothUntrust: (macAddress: string) => Promise<void>;
+      bluetoothGetInfo: (macAddress: string) => Promise<string>;
       onBluetoothPinRequired: (cb: (data: { deviceId: string }) => void) => () => void;
       provideBluetoothPin: (pin: string) => void;
       cancelBluetoothPairing: () => void;
