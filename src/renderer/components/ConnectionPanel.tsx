@@ -241,9 +241,10 @@ function shouldForgetGrantedWebBluetoothDevice(
   );
 }
 
-function normalizeSixDigitPin(raw: string): string | null {
+/** BLE pairing PIN: 1–6 digits (Linux Web Bluetooth / bluetoothctl; MeshCore may show shorter codes). */
+function normalizePairingPin(raw: string): string | null {
   const digits = raw.replace(/\D/g, '');
-  return /^\d{6}$/.test(digits) ? digits : null;
+  return /^\d{1,6}$/.test(digits) ? digits : null;
 }
 
 function loadLastConnection(p: MeshProtocol): LastConnection | null {
@@ -510,8 +511,6 @@ export default function ConnectionPanel({
   const [showRePairButton, setShowRePairButton] = useState(false);
   const [showPinPrompt, setShowPinPrompt] = useState(false);
   const showPinPromptRef = useRef(false);
-  /** True when the PIN prompt was triggered by the Noble BLE pairing path (Win32), not Linux Web Bluetooth. */
-  const noblePairingActiveRef = useRef(false);
   const [manualPairingFallback, setManualPairingFallback] = useState(false);
   const [pinInputValue, setPinInputValue] = useState('');
   const pinPromptSeenSinceRePairRef = useRef(false);
@@ -900,37 +899,6 @@ export default function ConnectionPanel({
     return cleanup;
   }, [isLinux, stopPinCountdown]);
 
-  // Listen for noble BLE PIN required (Win32 — device needs WinRT pairing)
-  useEffect(() => {
-    if (isLinux) return;
-    const cleanup = window.electronAPI.onNoblePinRequired(() => {
-      console.debug('[ConnectionPanel] noble BLE PIN required');
-      noblePairingActiveRef.current = true;
-      pinPromptSeenSinceRePairRef.current = true;
-      setShowPinPrompt(true);
-      setManualPairingFallback(false);
-      setPinInputValue('');
-      setConnectionStage('Enter the PIN shown on your device');
-      // No countdown timer — WinRT does not have the 25s BlueZ window
-    });
-    return cleanup;
-  }, [isLinux]);
-
-  // Clear noble PIN prompt on pairing result (success handled by reconnect; failure closes dialog)
-  useEffect(() => {
-    if (isLinux) return;
-    const cleanup = window.electronAPI.onNoblePairingResult((result) => {
-      if (!result.success) {
-        noblePairingActiveRef.current = false;
-        setShowPinPrompt(false);
-        setConnectionStage('');
-        setError(`Pairing failed: ${result.status}`);
-      }
-      // On success the noble session disconnects → useMeshCore retries automatically
-    });
-    return cleanup;
-  }, [isLinux]);
-
   // Handle re-pair button click: always capture PIN before re-pair actions.
   const handleRePair = useCallback(() => {
     console.debug('[ConnectionPanel] handleRePair START');
@@ -956,9 +924,9 @@ export default function ConnectionPanel({
   // Handle PIN submission for pairing
   const handlePinSubmit = useCallback(async () => {
     stopPinCountdown();
-    const normalizedPin = normalizeSixDigitPin(pinInputValue);
+    const normalizedPin = normalizePairingPin(pinInputValue);
     if (!normalizedPin) {
-      setError('PIN must be exactly 6 digits.');
+      setError('PIN must be 1–6 digits (use the code shown on the device).');
       return;
     }
     const pendingWbMac = pendingMeshcoreLinuxWbMacRef.current;
@@ -988,6 +956,7 @@ export default function ConnectionPanel({
       return;
     }
     const manualMac = lastSelectedBleMacRef.current;
+    // Explicit "Remove & Re-pair" only (Linux). Normal Cancel / disconnect never hits this — it does not run on Win/macOS.
     if (manualPairingFallback && isLinux && manualMac) {
       let scanStarted = false;
       try {
@@ -1060,13 +1029,8 @@ export default function ConnectionPanel({
       }
     }
     console.debug('[ConnectionPanel] Providing PIN for pairing');
-    if (noblePairingActiveRef.current) {
-      window.electronAPI.provideNobleBlePin(normalizedPin);
-      setConnectionStage('Pairing...');
-    } else {
-      window.electronAPI.provideBluetoothPin(normalizedPin);
-      setConnectionStage('Pairing...');
-    }
+    window.electronAPI.provideBluetoothPin(normalizedPin);
+    setConnectionStage('Pairing...');
     setShowPinPrompt(false);
     setPinInputValue('');
   }, [pinInputValue, manualPairingFallback, isLinux, protocol, stopPinCountdown]);
@@ -1085,10 +1049,7 @@ export default function ConnectionPanel({
       return;
     }
     console.debug('[ConnectionPanel] Cancelling pairing');
-    if (noblePairingActiveRef.current) {
-      noblePairingActiveRef.current = false;
-      window.electronAPI.cancelNobleBlePin();
-    } else if (!manualPairingFallback) {
+    if (!manualPairingFallback) {
       window.electronAPI.cancelBluetoothPairing();
     }
     setShowPinPrompt(false);
@@ -1742,7 +1703,7 @@ export default function ConnectionPanel({
               <button
                 type="button"
                 onClick={handlePinSubmit}
-                disabled={!normalizeSixDigitPin(pinInputValue)}
+                disabled={!normalizePairingPin(pinInputValue)}
                 className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded disabled:opacity-50"
               >
                 Submit
@@ -2570,7 +2531,7 @@ export default function ConnectionPanel({
                 onClick={() => {
                   void handlePinSubmit();
                 }}
-                disabled={!normalizeSixDigitPin(pinInputValue)}
+                disabled={!normalizePairingPin(pinInputValue)}
                 className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded disabled:opacity-50"
               >
                 Submit

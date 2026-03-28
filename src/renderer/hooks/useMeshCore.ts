@@ -298,6 +298,11 @@ class IpcNobleConnection {
 
       const instance = new NobleOverIpc(sessionId) as unknown as NobleIpcMeshcoreConnectionInstance;
       this.inner = instance;
+      /** Reject pending companion handshake when noble disconnects (e.g. Win32 PIN pairing completed in main). */
+      let rejectHandshakeOnDisconnect: ((err: Error) => void) | undefined;
+      const disconnectAbortsHandshake = new Promise<never>((_, reject) => {
+        rejectHandshakeOnDisconnect = reject;
+      });
       const offData = window.electronAPI.onNobleBleFromRadio(({ sessionId: sid, bytes }) => {
         if (sid !== sessionId) return;
         const frame = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes as ArrayBuffer);
@@ -307,6 +312,13 @@ class IpcNobleConnection {
         if (sid !== sessionId) return;
         console.warn(`[IpcNobleConnection:${sessionId}] peripheral disconnected`);
         instance.onDisconnected();
+        const r = rejectHandshakeOnDisconnect;
+        rejectHandshakeOnDisconnect = undefined;
+        r?.(
+          new Error(
+            'BLE peripheral disconnected during handshake (pairing step finished or link lost — retry connect)',
+          ),
+        );
       });
       this.cleanupFns = [offData, offDisc];
       try {
@@ -318,15 +330,19 @@ class IpcNobleConnection {
           'MeshCore BLE IPC open',
         );
         console.info(
-          `[IpcNobleConnection:${sessionId}] waiting for onConnected() with timeout=${NOBLE_IPC_HANDSHAKE_TIMEOUT_MS}ms`,
+          `[IpcNobleConnection:${sessionId}] waiting on onConnected() (raced with disconnect) timeout=${NOBLE_IPC_HANDSHAKE_TIMEOUT_MS}ms`,
         );
         const handshakeStart = Date.now();
         await withTimeout(
-          instance.onConnected().then(() => {
-            console.info(
-              `[IpcNobleConnection:${sessionId}] onConnected() resolved after ${Date.now() - handshakeStart}ms`,
-            );
-          }),
+          Promise.race([
+            instance.onConnected().then(() => {
+              rejectHandshakeOnDisconnect = undefined;
+              console.info(
+                `[IpcNobleConnection:${sessionId}] onConnected() resolved after ${Date.now() - handshakeStart}ms`,
+              );
+            }),
+            disconnectAbortsHandshake,
+          ]),
           NOBLE_IPC_HANDSHAKE_TIMEOUT_MS,
           'MeshCore BLE protocol handshake',
         );
@@ -757,8 +773,6 @@ export function useMeshCore() {
   const connRef = useRef<MeshCoreConnection | null>(null);
   const ipcTcpRef = useRef<IpcTcpConnection | null>(null);
   const ipcNobleRef = useRef<IpcNobleConnection | null>(null);
-  /** Set to true when Win32 noble BLE pairing succeeds; causes one extra retry after forced disconnect. */
-  const noblePairingJustCompletedRef = useRef(false);
   const webBluetoothTransportRef = useRef<TransportWebBluetoothIpc | null>(null);
   const bleConnectInProgressRef = useRef(false);
   /** Incremented on `disconnect()` so in-flight `initConn` can abort instead of timing out. */
@@ -792,17 +806,6 @@ export function useMeshCore() {
     return () => {
       meshcoreHookMountedRef.current = false;
     };
-  }, []);
-
-  // Win32: when noble BLE pairing succeeds, the main process disconnects the session so we
-  // can reconnect with the now-paired device. Flag the ref so the retry loop allows one extra attempt.
-  useEffect(() => {
-    if (rendererLikelyLinux()) return;
-    return window.electronAPI.onNoblePairingResult((result) => {
-      if (result.success) {
-        noblePairingJustCompletedRef.current = true;
-      }
-    });
   }, []);
 
   useEffect(() => {
@@ -1755,22 +1758,14 @@ export function useMeshCore() {
                 const rawBleMessage = serializeErrorLike(bleErr) || 'BLE connect failed';
                 const stage = classifyMeshcoreBleTimeoutStage(rawBleMessage);
                 const isTimeout = stage !== 'unknown';
-                // Allow one extra retry when noble BLE pairing just completed and the session was
-                // deliberately disconnected to force a reconnect with the now-paired device.
-                const isPairingReconnect = noblePairingJustCompletedRef.current;
-                if (isPairingReconnect) noblePairingJustCompletedRef.current = false;
-                const isRetryable =
-                  isPairingReconnect || isMeshcoreRetryableBleErrorMessage(rawBleMessage);
-                const effectiveMaxAttempts = isPairingReconnect
-                  ? NOBLE_IPC_CONNECT_MAX_ATTEMPTS + 1
-                  : NOBLE_IPC_CONNECT_MAX_ATTEMPTS;
+                const isRetryable = isMeshcoreRetryableBleErrorMessage(rawBleMessage);
+                const effectiveMaxAttempts = NOBLE_IPC_CONNECT_MAX_ATTEMPTS;
                 console.warn(
                   `[useMeshCore] connect: BLE Noble IPC attempt failed ${formatStructuredLogDetail({
                     attempt,
                     maxAttempts: effectiveMaxAttempts,
                     isTimeout,
                     isRetryable,
-                    ...(isPairingReconnect && { isPairingReconnect }),
                     stage,
                     elapsedMs: Date.now() - attemptStartedAt,
                     message: rawBleMessage,
@@ -2069,6 +2064,8 @@ export function useMeshCore() {
 
   const disconnect = useCallback(async () => {
     console.debug('[useMeshCore] disconnect');
+    // Transport teardown only: GATT disconnect / noble IPC / TCP close. Never OS-unpair or
+    // BluetoothDevice.forget() here — pairing must survive disconnect so users can reconnect.
     meshcoreSetupGenerationRef.current += 1;
     // Cancel all pending ACK timers
     for (const { timeoutId } of pendingAcksRef.current.values()) {
