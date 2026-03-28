@@ -73,6 +73,13 @@ const BROADCAST_ID = 0xffffffff >>> 0;
 
 /** TCP/TLS/WSS + MQTT CONNACK window (30s, same as meshcore-mqtt-adapter). */
 const MESHTASTIC_MQTT_CONNECT_ACK_MS = 30_000;
+/** Send WebSocket-level ping frames so LB/proxy idle timers see traffic before the first MQTT PINGREQ. */
+const MESHTASTIC_MQTT_WSS_PING_MS = 25_000;
+/**
+ * Periodic reschedulePing(true) resets mqtt.js KeepaliveManager without waiting for PINGRESP/SUBACK
+ * on proxied WSS paths (LetsMesh broker).
+ */
+const MESHTASTIC_MQTT_RESCHEDULE_MS = 30_000;
 
 export class MQTTManager extends EventEmitter {
   private client: mqtt.MqttClient | null = null;
@@ -85,6 +92,12 @@ export class MQTTManager extends EventEmitter {
   private clientId = '';
   /** Parsed additional PSKs from settings.channelPsks, tried after DEFAULT_PSK. */
   private extraPsks: Buffer[] = [];
+  private wssPingTimer: ReturnType<typeof setInterval> | null = null;
+  private keepaliveRescheduleTimer: ReturnType<typeof setInterval> | null = null;
+  /** Wall time at start of last `_doConnect` (CONNACK timing in connect logs). */
+  private meshtasticConnectT0 = 0;
+  /** After `connack timeout`, reconnect quickly instead of the full exponential backoff. */
+  private preferFastMqttReconnect = false;
 
   connect(settings: MQTTSettings): void {
     // Disconnect any existing connection first
@@ -102,17 +115,31 @@ export class MQTTManager extends EventEmitter {
   private _doConnect(settings: MQTTSettings): void {
     this.clientId = `meshtastic-electron-${Math.random().toString(36).slice(2, 8)}`;
     const clientId = this.clientId;
+    this.meshtasticConnectT0 = Date.now();
+    const hostTrim = settings.server.trim();
 
     // Port 8883 is the conventional MQTT-over-TLS port: use mqtts and verify certs unless tlsInsecure is set.
     const useTls = settings.port === 8883;
     const rejectUnauthorized = useTls ? !settings.tlsInsecure : false;
+
+    const logUrl = settings.useWebSocket
+      ? `${settings.port === 443 || settings.tlsInsecure !== true ? 'wss' : 'ws'}://${hostTrim}:${settings.port}/mqtt`
+      : useTls
+        ? `mqtts://${hostTrim}:${settings.port}`
+        : `mqtt://${hostTrim}:${settings.port}`;
+    console.debug(
+      '[MQTT] connect start',
+      sanitizeLogMessage(logUrl),
+      'ws:',
+      settings.useWebSocket === true,
+    );
 
     let connectOpts: mqtt.IClientOptions;
     if (settings.useWebSocket) {
       const wsScheme = settings.port === 443 || settings.tlsInsecure !== true ? 'wss' : 'ws';
       connectOpts = {
         protocol: wsScheme,
-        host: settings.server.trim(),
+        host: hostTrim,
         port: settings.port,
         path: '/mqtt',
         clientId,
@@ -122,12 +149,15 @@ export class MQTTManager extends EventEmitter {
         keepalive: 60,
         connectTimeout: MESHTASTIC_MQTT_CONNECT_ACK_MS,
         reconnectPeriod: 0,
+        protocolVersion: 4, // force MQTT 3.1.1; avoids v5 negotiation issues
         rejectUnauthorized: settings.port === 443 ? true : rejectUnauthorized,
+        // Prefer IPv4 when DNS returns AAAA first but the path is broken (same as MeshcoreMqttAdapter).
+        wsOptions: { family: 4 },
       };
       this.client = mqtt.connect(connectOpts);
     } else {
       connectOpts = {
-        host: settings.server,
+        host: hostTrim,
         port: settings.port,
         protocol: useTls ? 'mqtts' : 'mqtt',
         protocolVersion: 4, // force MQTT 3.1.1; avoids v5 negotiation issues
@@ -144,6 +174,7 @@ export class MQTTManager extends EventEmitter {
     }
 
     this.client.on('connect', () => {
+      console.debug('[MQTT] CONNACK received', `${Date.now() - this.meshtasticConnectT0}ms`); // log-filter-ok Meshtastic MQTT logs → App log panel
       this.setStatus('connected');
       this.emit('clientId', this.clientId);
 
@@ -168,15 +199,28 @@ export class MQTTManager extends EventEmitter {
               sanitizeLogMessage(err.message),
             );
           } else {
-            console.error('[MQTT] Subscribe failed:', sanitizeLogMessage(err.message));
+            console.error('[MQTT] Subscribe failed:', sanitizeLogMessage(err.message)); // log-filter-ok Meshtastic MQTT logs → App log panel
             this.setError(`Subscribe failed: ${err.message}`);
           }
         } else {
           // Only reset retry count after a fully stable connection + subscribe
           this.retryCount = 0;
-          console.debug('[MQTT] Subscribed to', topic);
+          console.debug('[MQTT] Subscribed to', topic); // log-filter-ok Meshtastic MQTT logs → App log panel
         }
       });
+
+      if (settings.useWebSocket) {
+        this.clearWssPing();
+        this.wssPingTimer = setInterval(() => {
+          const s = this.client?.stream as { ping?: () => void } | undefined;
+          try {
+            s?.ping?.();
+          } catch {
+            // catch-no-log-ok ws ping after teardown
+          }
+        }, MESHTASTIC_MQTT_WSS_PING_MS);
+        this.startKeepaliveReschedule();
+      }
     });
 
     this.client.on('message', (topic: string, payload: Buffer | string) => {
@@ -187,20 +231,36 @@ export class MQTTManager extends EventEmitter {
       // Transient network errors will trigger 'close' → our backoff handler; don't
       // flip status to "error" for them — that would hide the "connecting" state.
       const code = String(err.code ?? '');
-      const isTransient =
+      const isCodeTransient =
         code === 'ECONNRESET' ||
         code === 'ECONNREFUSED' ||
         code === 'ETIMEDOUT' ||
         code === 'ENOTFOUND';
+      // mqtt.js emits these with no .code; they're transient broker/proxy conditions.
+      const isMsgTransient =
+        err.message === 'Keepalive timeout' || err.message === 'connack timeout';
+      const isTransient = isCodeTransient || isMsgTransient;
+      if (err.message === 'connack timeout') {
+        this.preferFastMqttReconnect = true;
+      }
       if (isTransient) {
-        console.warn('[MQTT] Network error (will reconnect):', sanitizeLogMessage(err.message));
+        if (isMsgTransient) {
+          console.warn(
+            '[MQTT] Connection timeout (will reconnect):',
+            sanitizeLogMessage(err.message),
+          );
+        } else {
+          console.warn('[MQTT] Network error (will reconnect):', sanitizeLogMessage(err.message)); // log-filter-ok Meshtastic MQTT logs → App log panel
+        }
       } else {
-        console.error('[MQTT] Fatal connection error:', sanitizeLogMessage(err.message));
+        console.error('[MQTT] Fatal connection error:', sanitizeLogMessage(err.message)); // log-filter-ok Meshtastic MQTT logs → App log panel
         this.setError(err.message);
       }
     });
 
     this.client.on('close', () => {
+      this.clearWssPing();
+      this.clearKeepaliveReschedule();
       if (this.status === 'disconnected' || !this.currentSettings) return;
 
       const maxRetries = this.currentSettings.maxRetries ?? 5;
@@ -212,8 +272,11 @@ export class MQTTManager extends EventEmitter {
       }
 
       this.retryCount++;
-      const delay = Math.min(2000 * Math.pow(2, this.retryCount - 1), 60_000);
-      console.warn(`[MQTT] Reconnecting in ${delay}ms (attempt ${this.retryCount}/${maxRetries})`);
+      const backoff = Math.min(2000 * Math.pow(2, this.retryCount - 1), 60_000);
+      const useFast = this.preferFastMqttReconnect;
+      this.preferFastMqttReconnect = false;
+      const delay = useFast ? 250 : backoff;
+      console.warn(`[MQTT] Reconnecting in ${delay}ms (attempt ${this.retryCount}/${maxRetries})`); // log-filter-ok Meshtastic MQTT logs → App log panel
       this.setStatus('connecting');
 
       this.reconnectTimer = setTimeout(() => {
@@ -229,6 +292,35 @@ export class MQTTManager extends EventEmitter {
         this.setStatus('connecting');
       }
     });
+  }
+
+  private clearWssPing(): void {
+    if (this.wssPingTimer) {
+      clearInterval(this.wssPingTimer);
+      this.wssPingTimer = null;
+    }
+  }
+
+  private clearKeepaliveReschedule(): void {
+    if (this.keepaliveRescheduleTimer) {
+      clearInterval(this.keepaliveRescheduleTimer);
+      this.keepaliveRescheduleTimer = null;
+    }
+  }
+
+  private startKeepaliveReschedule(): void {
+    this.clearKeepaliveReschedule();
+    this.keepaliveRescheduleTimer = setInterval(() => {
+      if (!this.client?.connected) return;
+      try {
+        this.client.reschedulePing(true);
+      } catch (e) {
+        console.debug(
+          '[MQTT] reschedulePing failed',
+          sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+        );
+      }
+    }, MESHTASTIC_MQTT_RESCHEDULE_MS);
   }
 
   /**
@@ -373,10 +465,13 @@ export class MQTTManager extends EventEmitter {
   }
 
   disconnect(): void {
+    this.preferFastMqttReconnect = false;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    this.clearWssPing();
+    this.clearKeepaliveReschedule();
     this.currentSettings = null;
     this.retryCount = 0;
     if (this.client) {
@@ -419,7 +514,7 @@ export class MQTTManager extends EventEmitter {
     // Hard cap: if the map is still very large after cleanup, clear it entirely to prevent
     // unbounded memory growth from a malicious or misbehaving broker.
     if (this.seenPacketIds.size > 50_000) {
-      console.warn('[MQTT] seenPacketIds exceeded 50k entries after cleanup — clearing dedup map');
+      console.warn('[MQTT] seenPacketIds exceeded 50k entries after cleanup — clearing dedup map'); // log-filter-ok Meshtastic MQTT logs → App log panel
       this.seenPacketIds.clear();
     }
     if (this.seenPacketIds.has(packetId)) {
@@ -714,7 +809,7 @@ export class MQTTManager extends EventEmitter {
         };
       } catch {
         // Wrong PSK produces garbage bytes that fail protobuf decode — try next key
-        console.debug('[MQTT] decrypt attempt failed (wrong key), trying next');
+        console.debug('[MQTT] decrypt attempt failed (wrong key), trying next'); // log-filter-ok Meshtastic MQTT logs → App log panel
       }
     }
     return null;

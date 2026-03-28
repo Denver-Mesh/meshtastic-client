@@ -33,6 +33,15 @@ import {
 } from './lazyTabPanels';
 import { DEFAULT_ADMIN_SETTINGS_SHARED } from './lib/defaultAdminSettings';
 import {
+  fetchLatestMeshCoreRelease,
+  fetchLatestMeshtasticRelease,
+  type FirmwareCheckResult,
+  MESHCORE_FIRMWARE_RELEASES_URL,
+  MESHTASTIC_FIRMWARE_RELEASES_URL,
+  parseMeshCoreBuildDate,
+  semverGt,
+} from './lib/firmwareCheck';
+import {
   validateLetsMeshManualCredentials,
   validateLetsMeshPresetConnect,
 } from './lib/letsMeshConnectionGuards';
@@ -46,7 +55,7 @@ import { parseStoredJson } from './lib/parseStoredJson';
 import { useRadioProvider } from './lib/radio/providerFactory';
 import { getStoredMeshProtocol, MESH_PROTOCOL_STORAGE_KEY } from './lib/storedMeshProtocol';
 import { applyThemeColors, loadThemeColors } from './lib/themeColors';
-import type { ChatMessage, MeshProtocol, MQTTSettings } from './lib/types';
+import type { ChatMessage, DeviceState, MeshProtocol, MQTTSettings, MQTTStatus } from './lib/types';
 import { useDiagnosticsStore } from './stores/diagnosticsStore';
 
 // Tabs (0-indexed) that are disabled in MeshCore mode
@@ -143,10 +152,18 @@ function PanelSkeleton() {
   );
 }
 
-function MqttGlobeIcon({ connected }: { connected: boolean }) {
+function MqttGlobeIcon({ status }: { status: MQTTStatus }) {
+  const color =
+    status === 'connected'
+      ? 'text-brand-green'
+      : status === 'connecting'
+        ? 'text-yellow-400'
+        : status === 'error'
+          ? 'text-red-400'
+          : 'text-gray-400';
   return (
     <svg
-      className={`w-4 h-4 ${connected ? 'text-brand-green' : 'text-gray-400'}`}
+      className={`w-4 h-4 ${color}`}
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -187,6 +204,12 @@ export default function App() {
   const isMeshtasticInitialRef = useRef(true);
   const isMeshcoreInitialRef = useRef(true);
   const [updateState, setUpdateState] = useState<UpdateState>({ phase: 'idle' });
+  const [firmwareCheckState, setFirmwareCheckState] = useState<FirmwareCheckResult>({
+    phase: 'idle',
+  });
+  const handleFirmwareResult = useCallback((r: FirmwareCheckResult) => {
+    setFirmwareCheckState(r);
+  }, []);
   const [telemetryNoticeDismissed, setTelemetryNoticeDismissed] = useState(false);
   const [useFahrenheit, setUseFahrenheit] = useState(
     () => localStorage.getItem('mesh-client:useFahrenheit') === 'true',
@@ -659,6 +682,13 @@ export default function App() {
         meshtasticDevice={meshtasticDevice}
         meshcoreDevice={meshcoreDevice}
       />
+      {/* Firmware update check on connect */}
+      <FirmwareUpdateNotifier
+        meshtasticState={meshtasticDevice.state}
+        meshcoreState={meshcoreDevice.state}
+        protocol={protocol}
+        onResult={handleFirmwareResult}
+      />
       <div className="flex flex-col h-screen">
         {/* Header */}
         <header
@@ -730,14 +760,20 @@ export default function App() {
 
           <div className="flex min-w-0 shrink-0 items-center justify-end gap-2 xl:justify-self-end">
             <div className="flex items-center gap-1.5 mr-3 pr-3 border-r border-gray-700">
-              <MqttGlobeIcon connected={device.mqttStatus === 'connected'} />
+              <MqttGlobeIcon status={device.mqttStatus ?? 'disconnected'} />
               <span
-                aria-label={
-                  device.mqttStatus === 'connected' ? 'MQTT connected' : 'MQTT disconnected'
-                }
-                className={`text-xs ${device.mqttStatus === 'connected' ? 'text-brand-green' : 'text-gray-500'}`}
+                aria-label={`MQTT ${device.mqttStatus ?? 'disconnected'}`}
+                className={`text-xs ${
+                  device.mqttStatus === 'connected'
+                    ? 'text-brand-green'
+                    : device.mqttStatus === 'connecting'
+                      ? 'text-yellow-400 animate-pulse'
+                      : device.mqttStatus === 'error'
+                        ? 'text-red-400'
+                        : 'text-gray-500'
+                }`}
               >
-                MQTT {device.mqttStatus === 'connected' ? 'connected' : 'disconnected'}
+                MQTT {device.mqttStatus ?? 'disconnected'}
               </span>
             </div>
             {isConnectedOrOperational && <LinkIcon className="w-4 h-4" aria-hidden="true" />}
@@ -749,7 +785,15 @@ export default function App() {
             <div role="status" aria-live="polite" aria-atomic="true">
               <span
                 aria-label={`${device.state.status}${device.state.connectionType ? ` (${device.state.connectionType.toUpperCase()})` : ''}`}
-                className="text-sm text-muted capitalize"
+                className={`text-xs capitalize ${
+                  device.state.status === 'connecting'
+                    ? 'text-yellow-400 animate-pulse'
+                    : device.state.status === 'stale'
+                      ? 'text-yellow-400 animate-pulse'
+                      : device.state.status === 'reconnecting'
+                        ? 'text-orange-400 animate-pulse'
+                        : 'text-muted'
+                }`}
               >
                 {device.state.status}
                 {device.state.connectionType
@@ -841,6 +885,18 @@ export default function App() {
                       }
                       protocol="meshtastic"
                       onProtocolChange={handleProtocolChange}
+                      firmwareCheckState={
+                        protocol === 'meshtastic' ? firmwareCheckState : undefined
+                      }
+                      onOpenFirmwareReleases={
+                        protocol === 'meshtastic'
+                          ? () => {
+                              void window.electronAPI.update.openReleases(
+                                firmwareCheckState.releaseUrl ?? MESHTASTIC_FIRMWARE_RELEASES_URL,
+                              );
+                            }
+                          : undefined
+                      }
                     />
                   </div>
                   <div hidden={protocol !== 'meshcore'}>
@@ -869,6 +925,16 @@ export default function App() {
                       onSendAdvert={meshcoreDevice.sendAdvert}
                       manualAddContacts={meshcoreDevice.manualAddContacts}
                       onToggleManualContacts={meshcoreDevice.toggleManualAddContacts}
+                      firmwareCheckState={protocol === 'meshcore' ? firmwareCheckState : undefined}
+                      onOpenFirmwareReleases={
+                        protocol === 'meshcore'
+                          ? () => {
+                              void window.electronAPI.update.openReleases(
+                                firmwareCheckState.releaseUrl ?? MESHCORE_FIRMWARE_RELEASES_URL,
+                              );
+                            }
+                          : undefined
+                      }
                     />
                   </div>
                 </div>
@@ -1374,6 +1440,87 @@ function InactiveProtocolNotifier({
     }
     prevMeshcoreRef.current = count;
   }, [meshcoreDevice.messages, protocol, addToast]);
+
+  return null;
+}
+
+// ─── Firmware update check on device connect ──────────────────────
+function FirmwareUpdateNotifier({
+  meshtasticState,
+  meshcoreState,
+  protocol,
+  onResult,
+}: {
+  meshtasticState: DeviceState;
+  meshcoreState: DeviceState;
+  protocol: MeshProtocol;
+  onResult: (r: FirmwareCheckResult) => void;
+}) {
+  const { addToast } = useToast();
+  const toastShownRef = useRef(false);
+  const activeState = protocol === 'meshcore' ? meshcoreState : meshtasticState;
+
+  useEffect(() => {
+    const { status, firmwareVersion } = activeState;
+    if (status !== 'configured' || !firmwareVersion) return;
+
+    toastShownRef.current = false;
+    onResult({ phase: 'checking' });
+    let cancelled = false;
+
+    const doCheck =
+      protocol === 'meshcore'
+        ? fetchLatestMeshCoreRelease().then((release) => {
+            const deviceDate = parseMeshCoreBuildDate(firmwareVersion);
+            const updateAvailable = deviceDate === null || deviceDate < release.publishedAt;
+            return { updateAvailable, release };
+          })
+        : fetchLatestMeshtasticRelease().then((release) => {
+            const updateAvailable = semverGt(release.version, firmwareVersion);
+            return { updateAvailable, release };
+          });
+
+    doCheck
+      .then(({ updateAvailable, release }) => {
+        if (cancelled) return;
+        onResult(
+          updateAvailable
+            ? {
+                phase: 'update-available',
+                latestVersion: release.version,
+                releaseUrl: release.releaseUrl,
+              }
+            : {
+                phase: 'up-to-date',
+                latestVersion: release.version,
+                releaseUrl: release.releaseUrl,
+              },
+        );
+        if (updateAvailable && !toastShownRef.current) {
+          toastShownRef.current = true;
+          addToast(`Firmware update available: v${release.version}`, 'warning', 8000);
+        }
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        console.warn(
+          '[FirmwareUpdateNotifier] check failed:',
+          err instanceof Error ? err.message : String(err),
+        );
+        onResult({ phase: 'error' });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeState, protocol, onResult, addToast]);
+
+  useEffect(() => {
+    if (activeState.status === 'disconnected') {
+      onResult({ phase: 'idle' });
+      toastShownRef.current = false;
+    }
+  }, [activeState.status, onResult]);
 
   return null;
 }

@@ -167,10 +167,8 @@ const NOBLE_IPC_HANDSHAKE_TIMEOUT_MS = rendererLikelyWin32()
 const NOBLE_IPC_CONNECT_MAX_ATTEMPTS = 2;
 const WEB_BLUETOOTH_CONNECT_MAX_ATTEMPTS = 2;
 const WEB_BLUETOOTH_CONNECT_RETRY_DELAY_MS = 1_500;
-// BlueZ GATT round-trips are significantly slower than macOS; use a longer timeout on Linux.
-const MESHCORE_INIT_TIMEOUT_MS = navigator.userAgent.toLowerCase().includes('linux')
-  ? 25_000
-  : 10_000;
+// Contact list streaming is O(N contacts) — use a generous timeout across all platforms.
+const MESHCORE_INIT_TIMEOUT_MS = 60_000;
 
 function serializeErrorLike(value: unknown): string {
   if (value instanceof Error) return value.message;
@@ -542,6 +540,11 @@ interface MeshCoreConnection {
   setOtherParams(manualAddContacts: boolean): Promise<void>;
   setAutoAddContacts(): Promise<void>;
   setManualAddContacts(): Promise<void>;
+  deviceQuery(appTargetVer: number): Promise<{
+    firmwareVer: number;
+    firmware_build_date: string;
+    manufacturerModel: string;
+  }>;
 }
 
 async function meshcoreTryRepeaterLogin(
@@ -1553,6 +1556,15 @@ export function useMeshCore() {
       setState((prev) => ({ ...prev, myNodeNum: myNodeId, status: 'configured' }));
       if (getStoredMeshProtocol() === 'meshcore') {
         useDiagnosticsStore.getState().migrateForeignLoraFromZero(myNodeId);
+      }
+
+      try {
+        const deviceInfo = await conn.deviceQuery(0);
+        if (deviceInfo?.firmware_build_date) {
+          setState((prev) => ({ ...prev, firmwareVersion: deviceInfo.firmware_build_date }));
+        }
+      } catch (e) {
+        console.debug('[useMeshCore] deviceQuery failed (firmware version unavailable):', e);
       }
 
       const contacts = await awaitUnlessMeshcoreSetupCancelled(
