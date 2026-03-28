@@ -24,7 +24,9 @@ interface ImportResult {
 interface Props {
   nodes: Map<number, MeshNode>;
   meshcoreNodeStatus: Map<number, MeshCoreRepeaterStatus>;
+  meshcoreStatusErrors?: Map<number, string>;
   meshcoreTraceResults: Map<number, { hops: { snr: number }[]; lastSnr: number }>;
+  meshcorePingErrors?: Map<number, string>;
   onRequestRepeaterStatus: (nodeId: number) => Promise<void>;
   onPing: (nodeId: number) => Promise<void>;
   onImportRepeaters: () => Promise<ImportResult>;
@@ -122,7 +124,9 @@ function SignalSparkline({ points }: { points: { ts: number; snr: number }[] }) 
 export default function RepeatersPanel({
   nodes,
   meshcoreNodeStatus,
+  meshcoreStatusErrors,
   meshcoreTraceResults,
+  meshcorePingErrors,
   onRequestRepeaterStatus,
   onPing,
   onImportRepeaters,
@@ -143,7 +147,6 @@ export default function RepeatersPanel({
   const signalHistory = useRepeaterSignalStore((s) => s.history);
   const [statusLoadingSet, setStatusLoadingSet] = useState<Set<number>>(new Set());
   const [pingLoadingSet, setPingLoadingSet] = useState<Set<number>>(new Set());
-  const [pingErrorSet, setPingErrorSet] = useState<Set<number>>(new Set());
   const [deleteLoadingSet, setDeleteLoadingSet] = useState<Set<number>>(new Set());
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [importLoading, setImportLoading] = useState(false);
@@ -209,23 +212,10 @@ export default function RepeatersPanel({
 
   const handlePing = async (nodeId: number) => {
     setPingLoadingSet((prev) => new Set([...prev, nodeId]));
-    setPingErrorSet((prev) => {
-      const next = new Set(prev);
-      next.delete(nodeId);
-      return next;
-    });
     try {
       await onPing(nodeId);
     } catch (e) {
       console.warn('[RepeatersPanel] ping error', e);
-      setPingErrorSet((prev) => new Set([...prev, nodeId]));
-      setTimeout(() => {
-        setPingErrorSet((prev) => {
-          const next = new Set(prev);
-          next.delete(nodeId);
-          return next;
-        });
-      }, 3000);
     } finally {
       setPingLoadingSet((prev) => {
         const next = new Set(prev);
@@ -497,7 +487,8 @@ export default function RepeatersPanel({
                     : null;
                 const isStatusLoading = statusLoadingSet.has(node.node_id);
                 const isPingLoading = pingLoadingSet.has(node.node_id);
-                const hasPingError = pingErrorSet.has(node.node_id);
+                const statusError = meshcoreStatusErrors?.get(node.node_id);
+                const pingError = meshcorePingErrors?.get(node.node_id);
                 const isDeleteLoading = deleteLoadingSet.has(node.node_id);
                 const isDeleteConfirm = deleteConfirmId === node.node_id;
                 const isNeighborsLoading = neighborsLoadingSet.has(node.node_id);
@@ -604,14 +595,14 @@ export default function RepeatersPanel({
                             onClick={() => void handlePing(node.node_id)}
                             disabled={!isConnected || isPingLoading}
                             className={`px-2 py-0.5 rounded text-xs font-medium transition-colors disabled:opacity-40 ${
-                              hasPingError
+                              pingError
                                 ? 'bg-red-900/60 text-red-300 border border-red-700'
                                 : 'bg-blue-900/60 text-blue-300 border border-blue-700 hover:bg-blue-800/60'
                             }`}
                           >
                             {isPingLoading ? (
                               <span className="w-3 h-3 border border-blue-400 border-t-transparent rounded-full animate-spin inline-block" />
-                            ) : hasPingError ? (
+                            ) : pingError ? (
                               'Error'
                             ) : (
                               'Ping'
@@ -620,10 +611,16 @@ export default function RepeatersPanel({
                           <button
                             onClick={() => void handleStatus(node.node_id)}
                             disabled={!isConnected || isStatusLoading}
-                            className="px-2 py-0.5 rounded text-xs font-medium bg-gray-800 text-gray-300 border border-gray-600 hover:bg-gray-700 transition-colors disabled:opacity-40"
+                            className={`px-2 py-0.5 rounded text-xs font-medium transition-colors disabled:opacity-40 ${
+                              statusError
+                                ? 'bg-red-900/60 text-red-300 border border-red-700'
+                                : 'bg-gray-800 text-gray-300 border border-gray-600 hover:bg-gray-700'
+                            }`}
                           >
                             {isStatusLoading ? (
                               <span className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin inline-block" />
+                            ) : statusError ? (
+                              'Error'
                             ) : (
                               'Status'
                             )}
@@ -682,6 +679,13 @@ export default function RepeatersPanel({
                             )}
                           </button>
                         </div>
+                        {(statusError || pingError) && (
+                          <div className="text-xs text-red-400 mt-1">
+                            {statusError && <span>Status: {statusError}</span>}
+                            {statusError && pingError && <span className="mx-2">|</span>}
+                            {pingError && <span>Ping: {pingError}</span>}
+                          </div>
+                        )}
                       </td>
                     </tr>
 

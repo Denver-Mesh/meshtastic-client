@@ -1154,7 +1154,9 @@ export default function App() {
                         <RepeatersPanel
                           nodes={meshcoreDevice.nodes}
                           meshcoreNodeStatus={meshcoreDevice.meshcoreNodeStatus}
+                          meshcoreStatusErrors={meshcoreDevice.meshcoreStatusErrors}
                           meshcoreTraceResults={meshcoreDevice.meshcoreTraceResults}
+                          meshcorePingErrors={meshcoreDevice.meshcorePingErrors}
                           onRequestRepeaterStatus={meshcoreDevice.requestRepeaterStatus}
                           onPing={meshcoreDevice.traceRoute}
                           onImportRepeaters={meshcoreDevice.importRepeaters}

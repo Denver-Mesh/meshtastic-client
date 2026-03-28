@@ -495,7 +495,10 @@ interface MeshCoreConnection {
   reboot(): Promise<void>;
   getBatteryVoltage(): Promise<{ batteryMilliVolts: number }>;
   syncDeviceTime(): Promise<void>;
-  tracePath(pubKeys: Uint8Array[]): Promise<{
+  tracePath(
+    pubKeys: Uint8Array[],
+    extraTimeoutMillis?: number,
+  ): Promise<{
     pathLen: number;
     pathHashes: number[];
     pathSnrs: number[];
@@ -507,7 +510,10 @@ interface MeshCoreConnection {
     password: string,
     extraTimeoutMillis?: number,
   ): Promise<unknown>;
-  getStatus(pubKey: Uint8Array): Promise<{
+  getStatus(
+    pubKey: Uint8Array,
+    extraTimeoutMillis?: number,
+  ): Promise<{
     batt_milli_volts: number;
     curr_tx_queue_len: number;
     noise_floor: number;
@@ -608,6 +614,9 @@ const INITIAL_STATE: DeviceState = {
 };
 
 const MAX_DEVICE_LOGS = 500;
+const MESHCORE_STATUS_TIMEOUT_MS = 10000;
+const MESHCORE_TELEMETRY_TIMEOUT_MS = 10000;
+const MESHCORE_TRACE_TIMEOUT_MS = 15000;
 const MAX_TELEMETRY_POINTS = 50;
 
 const MAX_ENV_TELEMETRY_POINTS = 50;
@@ -774,6 +783,8 @@ export function useMeshCore() {
   const [meshcoreTelemetryErrors, setMeshcoreTelemetryErrors] = useState<Map<number, string>>(
     new Map(),
   );
+  const [meshcoreStatusErrors, setMeshcoreStatusErrors] = useState<Map<number, string>>(new Map());
+  const [meshcorePingErrors, setMeshcorePingErrors] = useState<Map<number, string>>(new Map());
   const [meshcoreNeighbors, setMeshcoreNeighbors] = useState<Map<number, MeshCoreNeighborResult>>(
     new Map(),
   );
@@ -2565,11 +2576,30 @@ export function useMeshCore() {
   const traceRoute = useCallback(
     async (nodeId: number) => {
       const pubKey = pubKeyMapRef.current.get(nodeId);
-      if (!pubKey || !connRef.current) return;
+      if (!pubKey) {
+        setMeshcorePingErrors((prev) => {
+          const next = new Map(prev);
+          next.set(nodeId, 'Node not found (no encryption key)');
+          return next;
+        });
+        return;
+      }
+      if (!connRef.current) {
+        setMeshcorePingErrors((prev) => {
+          const next = new Map(prev);
+          next.set(nodeId, 'Not connected to device');
+          return next;
+        });
+        return;
+      }
       console.debug('[useMeshCore] traceRoute nodeId=', nodeId.toString(16).toUpperCase());
+      setMeshcorePingErrors((prev) => {
+        const next = new Map(prev);
+        next.delete(nodeId);
+        return next;
+      });
       try {
-        const result = await connRef.current.tracePath([pubKey]);
-        // pathSnrs are signed bytes in 0.25dB units
+        const result = await connRef.current.tracePath([pubKey], MESHCORE_TRACE_TIMEOUT_MS);
         const hops = (result.pathSnrs ?? []).map((raw) => {
           const signed = raw > 127 ? raw - 256 : raw;
           return { snr: signed * 0.25 };
@@ -2587,7 +2617,16 @@ export function useMeshCore() {
           'lastSnr=',
           result.lastSnr * 0.25,
         );
-      } catch (e) {
+      } catch (e: unknown) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        const friendlyErr = errMsg.toLowerCase().includes('timeout')
+          ? `Request timed out (~${Math.round(MESHCORE_TRACE_TIMEOUT_MS / 1000)}s)`
+          : `Failed: ${errMsg}`;
+        setMeshcorePingErrors((prev) => {
+          const next = new Map(prev);
+          next.set(nodeId, friendlyErr);
+          return next;
+        });
         console.warn('[useMeshCore] traceRoute error', e);
       }
     },
@@ -2597,14 +2636,34 @@ export function useMeshCore() {
   const requestRepeaterStatus = useCallback(
     async (nodeId: number) => {
       const pubKey = pubKeyMapRef.current.get(nodeId);
-      if (!pubKey || !connRef.current) return;
+      if (!pubKey) {
+        setMeshcoreStatusErrors((prev) => {
+          const next = new Map(prev);
+          next.set(nodeId, 'Node not found (no encryption key)');
+          return next;
+        });
+        return;
+      }
+      if (!connRef.current) {
+        setMeshcoreStatusErrors((prev) => {
+          const next = new Map(prev);
+          next.set(nodeId, 'Not connected to device');
+          return next;
+        });
+        return;
+      }
       console.debug(
         '[useMeshCore] requestRepeaterStatus nodeId=',
         nodeId.toString(16).toUpperCase(),
       );
+      setMeshcoreStatusErrors((prev) => {
+        const next = new Map(prev);
+        next.delete(nodeId);
+        return next;
+      });
       try {
         await meshcoreTryRepeaterLogin(connRef.current, pubKey);
-        const raw = await connRef.current.getStatus(pubKey);
+        const raw = await connRef.current.getStatus(pubKey, MESHCORE_STATUS_TIMEOUT_MS);
         const status: MeshCoreRepeaterStatus = {
           battMilliVolts: raw.batt_milli_volts,
           noiseFloor: raw.noise_floor,
@@ -2630,7 +2689,18 @@ export function useMeshCore() {
         });
         useRepeaterSignalStore.getState().recordSignal(nodeId, status.lastSnr);
         bumpMeshcoreNodeLastHeardFromRpc(nodeId);
-      } catch (e) {
+      } catch (e: unknown) {
+        const errMsg = e instanceof Error ? e.message : String(e);
+        const friendlyErr = errMsg.toLowerCase().includes('timeout')
+          ? `Request timed out (~${Math.round(MESHCORE_STATUS_TIMEOUT_MS / 1000)}s)`
+          : errMsg.toLowerCase().includes('auth') || errMsg.toLowerCase().includes('login')
+            ? 'Authentication failed'
+            : `Failed: ${errMsg}`;
+        setMeshcoreStatusErrors((prev) => {
+          const next = new Map(prev);
+          next.set(nodeId, friendlyErr);
+          return next;
+        });
         console.warn('[useMeshCore] requestRepeaterStatus error', e);
       }
     },
@@ -2638,7 +2708,6 @@ export function useMeshCore() {
   );
 
   const requestTelemetry = useCallback(async (nodeId: number) => {
-    const TELEMTRY_TIMEOUT_MS = 10000;
     setMeshcoreTelemetryErrors((prev) => {
       const next = new Map(prev);
       next.delete(nodeId);
@@ -2664,7 +2733,7 @@ export function useMeshCore() {
     console.debug('[useMeshCore] requestTelemetry nodeId=', nodeId.toString(16).toUpperCase());
     try {
       await meshcoreTryRepeaterLogin(connRef.current, pubKey);
-      const raw = await connRef.current.getTelemetry(pubKey, TELEMTRY_TIMEOUT_MS);
+      const raw = await connRef.current.getTelemetry(pubKey, MESHCORE_TELEMETRY_TIMEOUT_MS);
       let entries: CayenneLppEntry[] = [];
       try {
         entries = CayenneLpp.parse(raw.lppSensorData) as CayenneLppEntry[];
@@ -2723,7 +2792,7 @@ export function useMeshCore() {
     } catch (e: unknown) {
       const errMsg = e instanceof Error ? e.message : String(e);
       const friendlyErr = errMsg.toLowerCase().includes('timeout')
-        ? 'Request timed out'
+        ? `Request timed out (~${Math.round(MESHCORE_TELEMETRY_TIMEOUT_MS / 1000)}s)`
         : errMsg.toLowerCase().includes('auth') || errMsg.toLowerCase().includes('login')
           ? 'Authentication failed'
           : `Failed: ${errMsg}`;
@@ -3134,8 +3203,10 @@ export function useMeshCore() {
     deviceLogs,
     meshcoreTraceResults,
     meshcoreNodeStatus,
+    meshcoreStatusErrors,
     meshcoreNodeTelemetry,
     meshcoreTelemetryErrors,
+    meshcorePingErrors,
     meshcoreNeighbors,
     manualAddContacts,
     // Stubs for interface compatibility
