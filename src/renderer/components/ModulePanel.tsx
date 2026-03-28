@@ -80,7 +80,9 @@ function ConfigNumber({
           type="number"
           value={value}
           onChange={(e) => {
-            onChange(Number(e.target.value));
+            const n = Number(e.target.value);
+            if (!Number.isFinite(n)) return;
+            onChange(n);
           }}
           min={min}
           max={max}
