@@ -43,8 +43,13 @@ const PATTERN_CATEGORIES: PatternCategory[] = [
       /gatt server is disconnected/i,
       /le-connection-abort/i,
       /gatt operation failed/i,
-      /BLE disconnected/i,
+      /BLE.*disconnect/i,
+      /BLE.*fail/i,
+      /BLE.*timeout/i,
       /Bluetooth.*unavailable/i,
+      /Bluetooth.*fail/i,
+      /connection.*timeout/i,
+      /peripheral.*disconnect/i,
     ],
     recommendation:
       'BLE connection unstable. Check distance to device and Bluetooth adapter status.',
@@ -58,8 +63,10 @@ const PATTERN_CATEGORIES: PatternCategory[] = [
       /Fatal connection error/i,
       /Subscribe failed/i,
       /MQTT disconnected/i,
-      /MQTT.*failed/i,
+      /MQTT.*fail/i,
+      /MQTT.*error/i,
       /Connection refused/i,
+      /connection refused/i,
     ],
     recommendation:
       'MQTT connection issues. Verify broker URL, credentials, and network connectivity.',
@@ -68,7 +75,7 @@ const PATTERN_CATEGORIES: PatternCategory[] = [
   {
     id: 'watchdog',
     label: 'Watchdog Triggers',
-    patterns: [/watchdog:.*stale for/i, /watchdog:.*dead for/i, /watchdog triggered/i],
+    patterns: [/watchdog.*stale/i, /watchdog.*dead/i, /watchdog triggered/i],
     recommendation: 'Watchdog triggered reconnection. Device communication may be unstable.',
     severity: 'warning',
   },
@@ -78,7 +85,7 @@ const PATTERN_CATEGORIES: PatternCategory[] = [
     patterns: [
       /peripheral disconnected during handshake/i,
       /connect aborted by main/i,
-      /handshake.*failed/i,
+      /handshake.*fail/i,
       /handshake.*timeout/i,
     ],
     recommendation: 'Connection handshake failed. Try reconnecting manually.',
@@ -87,7 +94,13 @@ const PATTERN_CATEGORIES: PatternCategory[] = [
   {
     id: 'auth-decrypt',
     label: 'Auth/Decryption Failures',
-    patterns: [/auth failed/i, /decrypt attempt failed/i, /wrong key/i, /decryption failed/i],
+    patterns: [
+      /auth failed/i,
+      /decrypt attempt failed/i,
+      /decrypt.*failed/i,
+      /wrong key/i,
+      /decryption failed/i,
+    ],
     recommendation:
       'Authentication or decryption failure. Verify channel keys match between devices.',
     severity: 'error',
@@ -95,11 +108,7 @@ const PATTERN_CATEGORIES: PatternCategory[] = [
   {
     id: 'sdk-meshtastic',
     label: 'Meshtastic SDK Errors',
-    patterns: [
-      /\[iMeshDevice\].*error/i,
-      /\[TransportNobleIpc\].*error/i,
-      /\[NobleBleManager\].*error/i,
-    ],
+    patterns: [/\[iMeshDevice\]/i, /\[TransportNobleIpc\]/i, /\[NobleBleManager\]/i],
     recommendation: 'Meshtastic SDK error. Check device compatibility and firmware version.',
     severity: 'warning',
     protocols: ['meshtastic'],
@@ -107,11 +116,7 @@ const PATTERN_CATEGORIES: PatternCategory[] = [
   {
     id: 'sdk-meshcore',
     label: 'MeshCore SDK Errors',
-    patterns: [
-      /\[useMeshCore\].*error/i,
-      /\[MeshcoreMqttAdapter\].*error/i,
-      /\[BLE:meshcore\].*error/i,
-    ],
+    patterns: [/\[useMeshCore\]/i, /\[MeshcoreMqttAdapter\]/i, /\[BLE:meshcore\]/i],
     recommendation: 'MeshCore SDK error. Check device connection and protocol settings.',
     severity: 'warning',
     protocols: ['meshcore'],
@@ -119,17 +124,6 @@ const PATTERN_CATEGORIES: PatternCategory[] = [
 ];
 
 function matchesCategory(entry: LogEntry, category: PatternCategory): boolean {
-  if (category.protocols && entry.source) {
-    const sourceMatch = category.protocols.some(
-      (p) =>
-        entry.source.includes(p) ||
-        entry.source.includes(p.toLowerCase()) ||
-        entry.source === 'sdk',
-    );
-    if (!sourceMatch && !category.protocols.includes(entry.source as MeshProtocol)) {
-      return category.patterns.some((p) => p.test(entry.message));
-    }
-  }
   return category.patterns.some((p) => p.test(entry.message));
 }
 
