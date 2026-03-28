@@ -65,8 +65,9 @@ export async function fetchLatestMeshCoreRelease(): Promise<{
     html_url: string;
     published_at: string;
   };
+  const raw = new Date(data.published_at);
   return {
-    publishedAt: new Date(data.published_at),
+    publishedAt: new Date(Date.UTC(raw.getUTCFullYear(), raw.getUTCMonth(), raw.getUTCDate())),
     version: data.tag_name.replace(/^v/, ''),
     releaseUrl: data.html_url,
   };

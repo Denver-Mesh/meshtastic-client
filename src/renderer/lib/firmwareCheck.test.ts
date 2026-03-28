@@ -120,7 +120,25 @@ describe('fetchLatestMeshCoreRelease', () => {
     expect(result.version).toBe('1.14.1');
     expect(result.releaseUrl).toBe('https://github.com/meshcore/releases/tag/v1.14.1');
     expect(result.publishedAt).toBeInstanceOf(Date);
-    expect(result.publishedAt.toISOString()).toBe('2025-03-20T10:00:00.000Z');
+    expect(result.publishedAt.toISOString()).toBe('2025-03-20T00:00:00.000Z');
+  });
+
+  it('normalizes publishedAt to UTC midnight regardless of publication time', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          tag_name: 'vcompanion-v1.14.1',
+          html_url: 'https://github.com/meshcore/releases/tag/vcompanion-v1.14.1',
+          published_at: '2026-03-20T18:45:00Z',
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const result = await fetchLatestMeshCoreRelease();
+    // published_at time component must be stripped so same-day device firmware
+    // ("20 Mar 2026" → 2026-03-20T00:00:00Z) is not falsely flagged as outdated
+    expect(result.publishedAt.toISOString()).toBe('2026-03-20T00:00:00.000Z');
   });
 
   it('rejects on non-OK response', async () => {
