@@ -1437,6 +1437,7 @@ export default function App() {
           <ContactGroupsModal
             groups={contactGroups.groups}
             contacts={meshcoreDevice.nodes}
+            selfNodeId={meshcoreDevice.selfNodeId}
             onClose={() => {
               setShowGroupsModal(false);
             }}

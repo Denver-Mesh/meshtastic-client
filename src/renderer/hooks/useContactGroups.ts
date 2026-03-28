@@ -22,6 +22,7 @@ export function useContactGroups(selfNodeId: number | null): UseContactGroupsRes
   const [groupMemberIds, setGroupMemberIds] = useState<Set<number>>(new Set());
   const selfNodeIdRef = useRef(selfNodeId);
   selfNodeIdRef.current = selfNodeId;
+  const loadedGroupIdRef = useRef<number | null>(null);
 
   const reloadGroups = useCallback(async () => {
     const id = selfNodeIdRef.current;
@@ -61,6 +62,7 @@ export function useContactGroups(selfNodeId: number | null): UseContactGroupsRes
   }, []);
 
   const loadMembers = useCallback(async (groupId: number) => {
+    loadedGroupIdRef.current = groupId;
     const ids = await window.electronAPI.db.getContactGroupMembers(groupId);
     setGroupMemberIds(new Set(ids));
   }, []);
@@ -103,7 +105,7 @@ export function useContactGroups(selfNodeId: number | null): UseContactGroupsRes
     async (groupId: number, contactNodeId: number): Promise<void> => {
       await window.electronAPI.db.addContactToGroup(groupId, contactNodeId);
       setSelectedGroupIdState((prev) => {
-        if (prev === groupId) {
+        if (prev === groupId || loadedGroupIdRef.current === groupId) {
           setGroupMemberIds((ids) => new Set([...ids, contactNodeId]));
         }
         return prev;
@@ -117,7 +119,7 @@ export function useContactGroups(selfNodeId: number | null): UseContactGroupsRes
     async (groupId: number, contactNodeId: number): Promise<void> => {
       await window.electronAPI.db.removeContactFromGroup(groupId, contactNodeId);
       setSelectedGroupIdState((prev) => {
-        if (prev === groupId) {
+        if (prev === groupId || loadedGroupIdRef.current === groupId) {
           setGroupMemberIds((ids) => {
             const next = new Set(ids);
             next.delete(contactNodeId);

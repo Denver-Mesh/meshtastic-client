@@ -176,7 +176,7 @@ export default function NodeListPanel({
 
     // Filter by group membership (meshcore mode only)
     if (mode === 'meshcore' && selectedGroupId != null && groupMemberIds) {
-      list = list.filter((n) => n.node_id === myNodeNum || groupMemberIds.has(n.node_id));
+      list = list.filter((n) => groupMemberIds.has(n.node_id));
     }
 
     // Filter MQTT-only nodes

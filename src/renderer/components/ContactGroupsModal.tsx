@@ -6,6 +6,7 @@ import type { MeshNode } from '../lib/types';
 interface ContactGroupsModalProps {
   groups: ContactGroup[];
   contacts: Map<number, MeshNode>;
+  selfNodeId: number | null;
   onClose: () => void;
   onCreate: (name: string) => Promise<number>;
   onRename: (groupId: number, name: string) => Promise<void>;
@@ -19,6 +20,7 @@ interface ContactGroupsModalProps {
 export default function ContactGroupsModal({
   groups,
   contacts,
+  selfNodeId,
   onClose,
   onCreate,
   onRename,
@@ -140,9 +142,9 @@ export default function ContactGroupsModal({
     }
   }
 
-  const sortedContacts = Array.from(contacts.values()).sort((a, b) =>
-    (a.long_name || '').localeCompare(b.long_name || ''),
-  );
+  const sortedContacts = Array.from(contacts.values())
+    .filter((c) => c.node_id !== selfNodeId)
+    .sort((a, b) => (a.long_name || '').localeCompare(b.long_name || ''));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
