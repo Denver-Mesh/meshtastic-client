@@ -127,6 +127,11 @@ export interface ElectronAPI {
       advLat: number | null,
       advLon: number | null,
     ) => Promise<unknown>;
+    updateMeshcoreContactLastRf: (
+      nodeId: number,
+      lastSnr: number,
+      lastRssi: number,
+    ) => Promise<unknown>;
     updateMeshcoreMessageStatus: (packetId: number, status: string) => Promise<unknown>;
     deleteMeshcoreContact: (nodeId: number) => Promise<unknown>;
     clearMeshcoreMessages: () => Promise<unknown>;

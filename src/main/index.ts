@@ -3203,6 +3203,30 @@ ipcMain.handle(
   },
 );
 
+ipcMain.handle(
+  'db:updateMeshcoreContactLastRf',
+  (_e, nodeId: number, lastSnr: number, lastRssi: number) => {
+    try {
+      const safeNodeId = safeNonNegativeInt(nodeId);
+      if (typeof lastSnr !== 'number' || !Number.isFinite(lastSnr)) {
+        throw new Error('db:updateMeshcoreContactLastRf: lastSnr must be a finite number');
+      }
+      if (typeof lastRssi !== 'number' || !Number.isFinite(lastRssi)) {
+        throw new Error('db:updateMeshcoreContactLastRf: lastRssi must be a finite number');
+      }
+      getDatabase()
+        .prepareOnce('UPDATE meshcore_contacts SET last_snr = ?, last_rssi = ? WHERE node_id = ?')
+        .run(lastSnr, lastRssi, safeNodeId);
+    } catch (err) {
+      console.error(
+        '[IPC] db:updateMeshcoreContactLastRf error:',
+        sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+      );
+      throw err;
+    }
+  },
+);
+
 // ─── IPC: Position history ────────────────────────────────────────
 ipcMain.handle(
   'db:savePositionHistory',

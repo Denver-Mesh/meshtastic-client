@@ -2688,8 +2688,22 @@ export function useMeshCore() {
           next.set(nodeId, status);
           return next;
         });
+        setNodes((prev) => {
+          const cur = prev.get(nodeId);
+          if (!cur) return prev;
+          const next = new Map(prev);
+          next.set(nodeId, { ...cur, snr: raw.last_snr, rssi: raw.last_rssi });
+          return next;
+        });
         useRepeaterSignalStore.getState().recordSignal(nodeId, status.lastSnr);
         bumpMeshcoreNodeLastHeardFromRpc(nodeId);
+        if (Number.isFinite(raw.last_snr) && Number.isFinite(raw.last_rssi)) {
+          void window.electronAPI.db
+            .updateMeshcoreContactLastRf(nodeId, raw.last_snr, raw.last_rssi)
+            .catch((e: unknown) => {
+              console.warn('[useMeshCore] updateMeshcoreContactLastRf error', e);
+            });
+        }
       } catch (e: unknown) {
         const rawErr = e instanceof Error ? e.message : String(e);
         const errMsg = rawErr && rawErr !== 'undefined' ? rawErr : 'request failed';

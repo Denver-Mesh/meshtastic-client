@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 
 import type {
   MeshCoreNeighborResult,
@@ -44,12 +44,15 @@ interface Props {
 }
 
 const STALE_THRESHOLD_MS = 15 * 60 * 1000;
+/** Delay between auto Status RPCs per repeater to avoid flooding the radio. */
+const AUTO_REPEATER_STATUS_STAGGER_MS = 1_200;
 
 function getRepeaterStatus(lastHeard: number | null | undefined): 'active' | 'stale' | 'unknown' {
   if (!lastHeard) return 'unknown';
   const lastMs = normalizeLastHeardMs(lastHeard);
   if (!lastMs) return 'unknown';
   const ageMs = Date.now() - lastMs;
+  if (ageMs < 0) return 'unknown';
   return ageMs < STALE_THRESHOLD_MS ? 'active' : 'stale';
 }
 
@@ -83,7 +86,7 @@ function displayRepeaterSnr(node: MeshNode, status: MeshCoreRepeaterStatus | und
   if (status !== undefined && Number.isFinite(status.lastSnr)) {
     return status.lastSnr.toFixed(1);
   }
-  if (node.snr != null) return node.snr.toFixed(1);
+  if (node.snr != null && node.snr !== 0) return node.snr.toFixed(1);
   return '—';
 }
 
@@ -91,7 +94,7 @@ function displayRepeaterRssi(node: MeshNode, status: MeshCoreRepeaterStatus | un
   if (status !== undefined && Number.isFinite(status.lastRssi)) {
     return String(status.lastRssi);
   }
-  if (node.rssi != null) return String(node.rssi);
+  if (node.rssi != null && node.rssi !== 0) return String(node.rssi);
   return '—';
 }
 
@@ -175,6 +178,48 @@ export default function RepeatersPanel({
         n.long_name.toLowerCase().includes(q) || n.node_id.toString(16).toLowerCase().includes(q),
     );
   }, [repeaters, searchQuery]);
+
+  const repeaterIdsKey = useMemo(
+    () =>
+      repeaters
+        .map((r) => r.node_id)
+        .sort((a, b) => a - b)
+        .join(','),
+    [repeaters],
+  );
+
+  const meshcoreStatusRef = useRef(meshcoreNodeStatus);
+  meshcoreStatusRef.current = meshcoreNodeStatus;
+
+  useEffect(() => {
+    if (!isConnected || repeaterIdsKey.length === 0) return;
+    let cancelled = false;
+    const nodeIds = repeaterIdsKey
+      .split(',')
+      .map((s) => Number(s))
+      .filter((n) => n > 0);
+    void (async () => {
+      for (const nodeId of nodeIds) {
+        if (cancelled) return;
+        const st = meshcoreStatusRef.current.get(nodeId);
+        if (st !== undefined && Number.isFinite(st.lastSnr)) continue;
+        await new Promise((r) => {
+          setTimeout(r, AUTO_REPEATER_STATUS_STAGGER_MS);
+        });
+        if (cancelled) return;
+        const again = meshcoreStatusRef.current.get(nodeId);
+        if (again !== undefined && Number.isFinite(again.lastSnr)) continue;
+        try {
+          await onRequestRepeaterStatus(nodeId);
+        } catch {
+          // catch-no-log-ok auto-fetch is best-effort; per-row Status shows errors
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isConnected, repeaterIdsKey, onRequestRepeaterStatus]);
 
   const handleImport = async () => {
     setImportLoading(true);
@@ -378,6 +423,11 @@ export default function RepeatersPanel({
       <p className="text-xs text-gray-500 max-w-2xl">
         Imported repeaters use the import time as Last heard until an RF advert or Ping / Status
         updates it.
+      </p>
+      <p className="text-xs text-gray-500 max-w-2xl">
+        SNR, RSSI, uptime, and airtime come from the Status action (or auto-fetch while this panel
+        is open). Hops and path history need Ping. MeshCore does not fill those columns from adverts
+        alone.
       </p>
 
       {/* Device Action Bar */}

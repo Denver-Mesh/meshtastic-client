@@ -357,6 +357,11 @@ declare global {
           advLat: number | null,
           advLon: number | null,
         ) => Promise<unknown>;
+        updateMeshcoreContactLastRf: (
+          nodeId: number,
+          lastSnr: number,
+          lastRssi: number,
+        ) => Promise<unknown>;
         getMeshcoreMessages: (channelIdx?: number, limit?: number) => Promise<unknown[]>;
         searchMessages: (query: string, limit?: number) => Promise<unknown[]>;
         searchMeshcoreMessages: (query: string, limit?: number) => Promise<unknown[]>;
