@@ -32,6 +32,12 @@ type SortField =
   | 'altitude'
   | 'redundancy';
 
+const BUILTIN_TYPE_FILTERS = [
+  { group_id: -1, label: 'Chat', hw_model: 'Chat' },
+  { group_id: -2, label: 'Repeater', hw_model: 'Repeater' },
+  { group_id: -3, label: 'Room', hw_model: 'Room' },
+] as const;
+
 /** Sort fields that do not apply when the Nodes table is in MeshCore (contacts) layout. */
 const MESHCORE_INAPPLICABLE_SORT_FIELDS: readonly SortField[] = [
   'short_name',
@@ -174,9 +180,14 @@ export default function NodeListPanel({
       );
     }
 
-    // Filter by group membership (meshcore mode only)
-    if (mode === 'meshcore' && selectedGroupId != null && groupMemberIds) {
-      list = list.filter((n) => groupMemberIds.has(n.node_id));
+    // Filter by group membership or built-in type filter (meshcore mode only)
+    if (mode === 'meshcore' && selectedGroupId != null) {
+      if (selectedGroupId < 0) {
+        const typeFilter = BUILTIN_TYPE_FILTERS.find((f) => f.group_id === selectedGroupId);
+        if (typeFilter) list = list.filter((n) => n.hw_model === typeFilter.hw_model);
+      } else if (groupMemberIds) {
+        list = list.filter((n) => groupMemberIds.has(n.node_id));
+      }
     }
 
     // Filter MQTT-only nodes
@@ -359,24 +370,33 @@ export default function NodeListPanel({
       {/* Group filter (MeshCore mode only) */}
       {mode === 'meshcore' && onManageGroups && (
         <div className="flex items-center gap-2 shrink-0">
-          {groups && groups.length > 0 && (
-            <select
-              value={selectedGroupId ?? ''}
-              onChange={(e) => {
-                const val = e.target.value;
-                onGroupChange?.(val === '' ? null : Number(val));
-              }}
-              aria-label="Filter by contact group"
-              className="flex-1 px-3 py-1.5 bg-secondary-dark/80 rounded-lg text-gray-200 text-sm border border-gray-600/50 focus:border-brand-green/50 focus:outline-none"
-            >
-              <option value="">All contacts</option>
-              {groups.map((g) => (
-                <option key={g.group_id} value={g.group_id}>
-                  {g.name} ({g.member_count})
+          <select
+            value={selectedGroupId ?? ''}
+            onChange={(e) => {
+              const val = e.target.value;
+              onGroupChange?.(val === '' ? null : Number(val));
+            }}
+            aria-label="Filter by contact group"
+            className="flex-1 px-3 py-1.5 bg-secondary-dark/80 rounded-lg text-gray-200 text-sm border border-gray-600/50 focus:border-brand-green/50 focus:outline-none"
+          >
+            <option value="">All contacts</option>
+            <optgroup label="By type">
+              {BUILTIN_TYPE_FILTERS.map((f) => (
+                <option key={f.group_id} value={f.group_id}>
+                  {f.label}
                 </option>
               ))}
-            </select>
-          )}
+            </optgroup>
+            {groups && groups.length > 0 && (
+              <optgroup label="My groups">
+                {groups.map((g) => (
+                  <option key={g.group_id} value={g.group_id}>
+                    {g.name} ({g.member_count})
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </select>
           <button
             type="button"
             onClick={onManageGroups}

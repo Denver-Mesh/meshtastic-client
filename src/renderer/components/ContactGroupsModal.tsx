@@ -143,7 +143,7 @@ export default function ContactGroupsModal({
   }
 
   const sortedContacts = Array.from(contacts.values())
-    .filter((c) => c.node_id !== selfNodeId)
+    .filter((c) => c.node_id !== selfNodeId && c.hw_model !== 'Room')
     .sort((a, b) => (a.long_name || '').localeCompare(b.long_name || ''));
 
   return (

@@ -49,7 +49,7 @@ export function useContactGroups(selfNodeId: number | null): UseContactGroupsRes
   const setSelectedGroupId = useCallback((id: number | null) => {
     setSelectedGroupIdState(id);
     setGroupMemberIds(new Set());
-    if (id != null) {
+    if (id != null && id > 0) {
       window.electronAPI.db
         .getContactGroupMembers(id)
         .then((ids) => {
