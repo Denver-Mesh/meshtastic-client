@@ -1700,6 +1700,12 @@ nobleBleManager.on('disconnected', ({ sessionId }: { sessionId: NobleSessionId }
   mainWindow?.webContents.send('noble-ble-disconnected', { sessionId });
 });
 nobleBleManager.on(
+  'connect-aborted',
+  ({ sessionId, message }: { sessionId: NobleSessionId; message: string }) => {
+    mainWindow?.webContents.send('noble-ble-connect-aborted', { sessionId, message });
+  },
+);
+nobleBleManager.on(
   'fromRadio',
   ({ sessionId, bytes }: { sessionId: NobleSessionId; bytes: Uint8Array }) => {
     mainWindow?.webContents.send('noble-ble-from-radio', { sessionId, bytes });

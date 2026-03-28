@@ -104,8 +104,6 @@ interface NobleBleSession {
   postWriteReadPumpTimer: ReturnType<typeof setTimeout> | null;
   /** Win32+MeshCore: timer to detect silent notify (pairing may be required; do not use read pump). */
   notifyWatchdogTimer: ReturnType<typeof setTimeout> | null;
-  /** True once the notify watchdog fires (subscribe succeeded but no data arrived in 5s). */
-  notifyWatchdogFired: boolean;
   /**
    * True when fromRadioChar delivers data via notifications and does not support GATT reads.
    * When set, the read pump and post-write read-pump timer are skipped entirely.
@@ -221,7 +219,6 @@ export class NobleBleManager extends EventEmitter {
       closing: false,
       postWriteReadPumpTimer: null,
       notifyWatchdogTimer: null,
-      notifyWatchdogFired: false,
       fromRadioNotifyOnly: false,
       fromRadioDeliveryCount: 0,
       fromRadioDeliveryBytes: 0,
@@ -258,7 +255,6 @@ export class NobleBleManager extends EventEmitter {
       clearTimeout(session.notifyWatchdogTimer);
       session.notifyWatchdogTimer = null;
     }
-    session.notifyWatchdogFired = false;
     session.connectedPeripheral = null;
     session.connectedPeripheralDisconnectHandler = null;
     session.toRadioChar = null;
@@ -940,10 +936,10 @@ export class NobleBleManager extends EventEmitter {
             session.notifyWatchdogTimer = setTimeout(() => {
               session.notifyWatchdogTimer = null;
               if (session.closing || session.fromRadioDeliveryCount > 0) return;
-              session.notifyWatchdogFired = true;
-              console.warn(
-                `[BLE:meshcore] notify watchdog: no data in 5s on Win32; notify silent (read-pump not used; NUS TX reads fail on WinRT). Pair the radio in Windows Settings → Bluetooth first (use the PIN on the device), then retry Connect here.`,
-              );
+              const msg =
+                'BLE notify silent on Windows: pair the radio in Windows Settings → Bluetooth first (use the PIN shown on the device), then retry Connect.';
+              console.warn(`[BLE:meshcore] notify watchdog: no data in 5s on Win32. ${msg}`);
+              this.emit('connect-aborted', { sessionId, message: msg });
             }, 5_000);
           }
         } catch (err) {

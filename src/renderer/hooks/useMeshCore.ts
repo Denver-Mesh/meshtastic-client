@@ -298,11 +298,13 @@ class IpcNobleConnection {
 
       const instance = new NobleOverIpc(sessionId) as unknown as NobleIpcMeshcoreConnectionInstance;
       this.inner = instance;
-      /** Reject pending companion handshake when noble disconnects (e.g. Win32 PIN pairing completed in main). */
+      /** Reject pending companion handshake when noble disconnects or aborts (e.g. Win32 pairing / watchdog). */
       let rejectHandshakeOnDisconnect: ((err: Error) => void) | undefined;
       const disconnectAbortsHandshake = new Promise<never>((_, reject) => {
         rejectHandshakeOnDisconnect = reject;
       });
+      // Guard against unhandled rejection if the outer withTimeout rejects before disconnect fires.
+      disconnectAbortsHandshake.catch(() => {});
       const offData = window.electronAPI.onNobleBleFromRadio(({ sessionId: sid, bytes }) => {
         if (sid !== sessionId) return;
         const frame = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes as ArrayBuffer);
@@ -320,7 +322,16 @@ class IpcNobleConnection {
           ),
         );
       });
-      this.cleanupFns = [offData, offDisc];
+      const offAbort = window.electronAPI.onNobleBleConnectAborted(
+        ({ sessionId: sid, message }) => {
+          if (sid !== sessionId) return;
+          console.warn(`[IpcNobleConnection:${sessionId}] connect aborted by main: ${message}`);
+          const r = rejectHandshakeOnDisconnect;
+          rejectHandshakeOnDisconnect = undefined;
+          r?.(new Error(message));
+        },
+      );
+      this.cleanupFns = [offData, offDisc, offAbort];
       try {
         await withTimeout(
           window.electronAPI.connectNobleBle(sessionId, this.peripheralId).then((result) => {
@@ -1759,11 +1770,10 @@ export function useMeshCore() {
                 const stage = classifyMeshcoreBleTimeoutStage(rawBleMessage);
                 const isTimeout = stage !== 'unknown';
                 const isRetryable = isMeshcoreRetryableBleErrorMessage(rawBleMessage);
-                const effectiveMaxAttempts = NOBLE_IPC_CONNECT_MAX_ATTEMPTS;
                 console.warn(
                   `[useMeshCore] connect: BLE Noble IPC attempt failed ${formatStructuredLogDetail({
                     attempt,
-                    maxAttempts: effectiveMaxAttempts,
+                    maxAttempts: NOBLE_IPC_CONNECT_MAX_ATTEMPTS,
                     isTimeout,
                     isRetryable,
                     stage,
@@ -1773,7 +1783,7 @@ export function useMeshCore() {
                 );
                 ipcNobleRef.current?.cleanup();
                 ipcNobleRef.current = null;
-                if (!isRetryable || attempt >= effectiveMaxAttempts) {
+                if (!isRetryable || attempt >= NOBLE_IPC_CONNECT_MAX_ATTEMPTS) {
                   throw bleErr;
                 }
                 console.debug(
