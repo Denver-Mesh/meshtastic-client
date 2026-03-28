@@ -1,6 +1,12 @@
 import { useEffect, useRef } from 'react';
 
-import { analyzeLogs, formatTimeAgo, formatTimeRange, type LogEntry } from '../lib/logAnalyzer';
+import {
+  analyzeLogs,
+  dedupeRecommendations,
+  formatTimeAgo,
+  formatTimeRange,
+  type LogEntry,
+} from '../lib/logAnalyzer';
 import type { MeshProtocol } from '../lib/types';
 
 interface LogAnalyzeModalProps {
@@ -20,6 +26,7 @@ export default function LogAnalyzeModal({
 
   const result = analyzeLogs(entries, protocol);
   const timeRange = formatTimeRange(result.oldestTs, result.newestTs);
+  const dedupedRecs = dedupeRecommendations(result.categories);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -135,22 +142,29 @@ export default function LogAnalyzeModal({
           ) : (
             <div className="space-y-2">
               {result.categories.map((cat) => (
-                <div
-                  key={cat.id}
-                  className="flex items-center justify-between py-2 px-3 rounded-lg bg-secondary-dark/50"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-gray-200">{cat.label}</span>
-                    <span
-                      className={`text-xs px-1.5 py-0.5 rounded ${severityBadge(cat.severity)}`}
+                <div key={cat.id} className="py-2 px-3 rounded-lg bg-secondary-dark/50 space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-sm text-gray-200 shrink-0">{cat.label}</span>
+                      <span
+                        className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${severityBadge(cat.severity)}`}
+                      >
+                        {cat.severity}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-sm font-mono text-gray-300">{cat.count}</span>
+                      <span className="text-xs text-muted">{formatTimeAgo(cat.lastTs)}</span>
+                    </div>
+                  </div>
+                  {cat.lastMessage ? (
+                    <p
+                      className="text-xs text-muted font-mono break-all pl-0.5"
+                      title={cat.lastMessage}
                     >
-                      {cat.severity}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-mono text-gray-300">{cat.count}</span>
-                    <span className="text-xs text-muted">{formatTimeAgo(cat.lastTs)}</span>
-                  </div>
+                      Last: {cat.lastMessage}
+                    </p>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -161,10 +175,20 @@ export default function LogAnalyzeModal({
           <div className="px-5 py-4 border-t border-gray-700 shrink-0">
             <h3 className="text-xs uppercase tracking-wide text-muted mb-2">Recommendations</h3>
             <ul className="space-y-1.5">
-              {result.categories.map((cat) => (
-                <li key={`rec-${cat.id}`} className="text-sm text-gray-300 flex items-start gap-2">
-                  <span className={`${severityColor(cat.severity)} mt-0.5`}>•</span>
-                  <span>{cat.recommendation}</span>
+              {dedupedRecs.map((row) => (
+                <li
+                  key={row.recommendation}
+                  className="text-sm text-gray-300 flex items-start gap-2"
+                >
+                  <span className={`${severityColor(row.severity)} mt-0.5`}>•</span>
+                  <span>
+                    {row.recommendation}
+                    {row.appliesToLabels.length > 1 ? (
+                      <span className="block text-xs text-muted mt-0.5">
+                        Applies to: {row.appliesToLabels.join(', ')}
+                      </span>
+                    ) : null}
+                  </span>
                 </li>
               ))}
             </ul>

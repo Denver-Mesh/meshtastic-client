@@ -14,6 +14,8 @@ export interface PatternCategory {
   recommendation: string;
   severity: 'error' | 'warning' | 'info';
   protocols?: MeshProtocol[];
+  /** When true, only warn/error level entries can match (reduces false positives on debug noise). */
+  requireWarnOrError?: boolean;
 }
 
 export interface CategoryFinding {
@@ -23,6 +25,8 @@ export interface CategoryFinding {
   severity: 'error' | 'warning' | 'info';
   recommendation: string;
   lastTs: number;
+  /** Truncated message from the most recent matching line. */
+  lastMessage: string;
 }
 
 export interface AnalysisResult {
@@ -32,6 +36,22 @@ export interface AnalysisResult {
   oldestTs: number;
   newestTs: number;
   categories: CategoryFinding[];
+}
+
+const LAST_MESSAGE_MAX = 100;
+
+/** Grouped recommendation for the modal (deduped by recommendation text). */
+export interface DedupedRecommendation {
+  recommendation: string;
+  severity: 'error' | 'warning' | 'info';
+  /** Category labels that share this recommendation (for context when duplicated). */
+  appliesToLabels: string[];
+}
+
+function truncateLastMessage(message: string): string {
+  const oneLine = message.replace(/\s+/g, ' ').trim();
+  if (oneLine.length <= LAST_MESSAGE_MAX) return oneLine;
+  return `${oneLine.slice(0, LAST_MESSAGE_MAX - 1)}…`;
 }
 
 const PATTERN_CATEGORIES: PatternCategory[] = [
@@ -65,11 +85,19 @@ const PATTERN_CATEGORIES: PatternCategory[] = [
       /MQTT disconnected/i,
       /MQTT.*fail/i,
       /MQTT.*error/i,
-      /Connection refused/i,
-      /connection refused/i,
+      /(?:\[MQTT\]|MQTT|mqtt|broker|:1883|:8883|ECONNREFUSED).*connection refused/i,
+      /connection refused.*(?:\[MQTT\]|MQTT|mqtt|broker|:1883|:8883|ECONNREFUSED)/i,
     ],
     recommendation:
       'MQTT connection issues. Verify broker URL, credentials, and network connectivity.',
+    severity: 'warning',
+  },
+  {
+    id: 'mqtt-retries-exhausted',
+    label: 'MQTT Reconnect Limit',
+    patterns: [/Connection lost after \d+ reconnect attempt/i],
+    recommendation:
+      'MQTT gave up after max reconnects. Confirm the broker is reachable, credentials and port (1883 / 8883 TLS) are correct, and firewalls allow outbound traffic.',
     severity: 'warning',
   },
   {
@@ -106,25 +134,99 @@ const PATTERN_CATEGORIES: PatternCategory[] = [
     severity: 'error',
   },
   {
+    id: 'native-module',
+    label: 'Native Module Load Failure',
+    patterns: [/native module failed to load/i],
+    recommendation:
+      'A native add-on failed to load — often wrong Electron ABI after an upgrade. Run npm install in the project folder (or npm run rebuild), quit all app instances, and retry.',
+    severity: 'error',
+  },
+  {
+    id: 'database-writable',
+    label: 'Database Not Writable',
+    patterns: [/Database directory is not writable/i],
+    recommendation:
+      'The app cannot write its database folder. Fix permissions on the mesh-client userData directory (see troubleshooting: Database directory is not writable).',
+    severity: 'error',
+  },
+  {
+    id: 'ble-meshcore-notify-watchdog',
+    label: 'BLE Notify Watchdog (MeshCore)',
+    patterns: [/\[BLE:meshcore\] notify watchdog/i],
+    recommendation:
+      'No GATT notify data within the watchdog window (common on Windows). Retry connect; ensure the radio is paired in OS Bluetooth settings before connecting.',
+    severity: 'warning',
+  },
+  {
+    id: 'bluetooth-pairing-timeout',
+    label: 'Bluetooth Pairing Timeout',
+    patterns: [/bluetooth-pairing: PIN prompt timed out/i],
+    recommendation:
+      'PIN entry timed out. Open the app window when pairing, enter the PIN shown on the device promptly, or remove and re-pair from Bluetooth settings.',
+    severity: 'warning',
+  },
+  {
     id: 'sdk-meshtastic',
-    label: 'Meshtastic SDK Errors',
+    label: 'Meshtastic SDK Warnings/Errors',
     patterns: [/\[iMeshDevice\]/i, /\[TransportNobleIpc\]/i, /\[NobleBleManager\]/i],
-    recommendation: 'Meshtastic SDK error. Check device compatibility and firmware version.',
+    recommendation:
+      'Meshtastic stack reported a warning or error. If it repeats, check firmware, transport (BLE/serial), and reconnect.',
     severity: 'warning',
     protocols: ['meshtastic'],
+    requireWarnOrError: true,
   },
   {
     id: 'sdk-meshcore',
-    label: 'MeshCore SDK Errors',
+    label: 'MeshCore SDK Warnings/Errors',
     patterns: [/\[useMeshCore\]/i, /\[MeshcoreMqttAdapter\]/i, /\[BLE:meshcore\]/i],
-    recommendation: 'MeshCore SDK error. Check device connection and protocol settings.',
+    recommendation:
+      'MeshCore stack reported a warning or error. If it repeats, check BLE pairing, MQTT settings, and reconnect.',
     severity: 'warning',
     protocols: ['meshcore'],
+    requireWarnOrError: true,
   },
 ];
 
+function isWarnOrErrorLevel(level: string): boolean {
+  return level === 'warn' || level === 'error';
+}
+
 function matchesCategory(entry: LogEntry, category: PatternCategory): boolean {
+  if (category.requireWarnOrError && !isWarnOrErrorLevel(entry.level)) {
+    return false;
+  }
   return category.patterns.some((p) => p.test(entry.message));
+}
+
+export function dedupeRecommendations(categories: CategoryFinding[]): DedupedRecommendation[] {
+  const byRec = new Map<string, { severity: 'error' | 'warning' | 'info'; labels: string[] }>();
+  const severityOrder = { error: 0, warning: 1, info: 2 };
+
+  for (const cat of categories) {
+    const existing = byRec.get(cat.recommendation);
+    if (!existing) {
+      byRec.set(cat.recommendation, { severity: cat.severity, labels: [cat.label] });
+    } else {
+      existing.labels.push(cat.label);
+      if (severityOrder[cat.severity] < severityOrder[existing.severity]) {
+        existing.severity = cat.severity;
+      }
+    }
+  }
+
+  const rows: DedupedRecommendation[] = Array.from(byRec.entries()).map(([recommendation, v]) => ({
+    recommendation,
+    severity: v.severity,
+    appliesToLabels: [...new Set(v.labels)].sort((a, b) => a.localeCompare(b)),
+  }));
+
+  rows.sort((a, b) => {
+    const s = severityOrder[a.severity] - severityOrder[b.severity];
+    if (s !== 0) return s;
+    return a.recommendation.localeCompare(b.recommendation);
+  });
+
+  return rows;
 }
 
 export function analyzeLogs(entries: LogEntry[], protocol: MeshProtocol): AnalysisResult {
@@ -139,7 +241,7 @@ export function analyzeLogs(entries: LogEntry[], protocol: MeshProtocol): Analys
     };
   }
 
-  const errorCount = entries.filter((e) => e.level === 'error' || e.level === 'warn').length;
+  const errorCount = entries.filter((e) => e.level === 'error').length;
   const warningCount = entries.filter((e) => e.level === 'warn').length;
 
   const timestamps = entries.map((e) => e.ts);
@@ -156,7 +258,9 @@ export function analyzeLogs(entries: LogEntry[], protocol: MeshProtocol): Analys
     const matchingEntries = entries.filter((e) => matchesCategory(e, category));
     if (matchingEntries.length === 0) continue;
 
-    const lastTs = Math.max(...matchingEntries.map((e) => e.ts));
+    const lastEntry = matchingEntries.reduce((a, b) => (a.ts >= b.ts ? a : b));
+    const lastTs = lastEntry.ts;
+    const lastMessage = truncateLastMessage(lastEntry.message);
 
     categoryFindings.push({
       id: category.id,
@@ -165,6 +269,7 @@ export function analyzeLogs(entries: LogEntry[], protocol: MeshProtocol): Analys
       severity: category.severity,
       recommendation: category.recommendation,
       lastTs,
+      lastMessage,
     });
   }
   categoryFindings.sort((a, b) => {
