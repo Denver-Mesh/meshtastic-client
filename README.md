@@ -346,7 +346,7 @@ mesh-client/
 │       ├── components/           # Panels and UI (many have co-located *.test.tsx)
 │       │   ├── ChatPanel.tsx         # Chat UI, DMs, emoji reactions, channel switching
 │       │   ├── SearchModal.tsx       # Cross-channel chat search (`user:` / `channel:` filters)
-│       │   ├── NodeListPanel.tsx     # Node browser with online/stale/offline/MQTT filter
+│       │   ├── NodeListPanel.tsx     # Node & contact list; MeshCore: groups, Import Contacts JSON; online/stale/MQTT
 │       │   ├── MapPanel.tsx          # Node positions on OpenStreetMap (Leaflet)
 │       │   ├── TelemetryPanel.tsx    # Battery/voltage/SNR charts (Recharts)
 │       │   ├── ModulePanel.tsx       # Meshtastic: modules tab (telemetry, MQTT, etc.)
@@ -355,7 +355,7 @@ mesh-client/
 │       │   ├── MeshCongestionAttributionBlock.tsx  # Shared mesh congestion / duplicate-traffic copy
 │       │   ├── LogPanel.tsx          # Live app log, debug toggle, export/delete log file
 │       │   ├── RadioPanel.tsx        # Radio settings, position, GPS send; MeshCore: channels, Import Config JSON
-│       │   ├── RepeatersPanel.tsx    # MeshCore: repeater list, status, trace SNR, neighbors, console actions
+│       │   ├── RepeatersPanel.tsx    # MeshCore: repeater status/trace/neighbors/console (contacts: Nodes tab)
 │       │   ├── AppPanel.tsx          # App settings, theme presets, GPS interval, database management
 │       │   ├── NodeDetailModal.tsx   # Node info overlay; MeshCore: trace, repeater status, telemetry, neighbors
 │       │   ├── NodeInfoBody.tsx      # Shared node info content (modal + map popup)

@@ -2968,7 +2968,7 @@ ipcMain.handle(
 ipcMain.handle('meshcore:openJsonFile', async () => {
   if (!mainWindow) return null;
   const result = await dialog.showOpenDialog(mainWindow, {
-    title: 'Import Repeaters JSON',
+    title: 'Import Contacts JSON',
     filters: [{ name: 'JSON', extensions: ['json'] }],
     properties: ['openFile'],
   });
