@@ -21,6 +21,7 @@ import { resolveOurPosition } from '../lib/gpsSource';
 import { isLetsMeshSettings } from '../lib/letsMeshJwt';
 import {
   buildMeshcoreChannelIncomingMessage,
+  buildMeshcoreDmIncomingMessage,
   normalizeMeshcoreIncomingText,
 } from '../lib/meshcoreChannelText';
 import { readMeshcoreMqttSettingsFromStorage } from '../lib/meshcoreMqttSettingsStorage';
@@ -1631,16 +1632,18 @@ export function useMeshCore() {
                   logTransportLineAsDevice(d.text);
                 } else {
                   addMessage({
-                    sender_id: senderId,
-                    sender_name: sender?.long_name ?? `Node-${senderId.toString(16).toUpperCase()}`,
-                    payload: d.text,
-                    channel: -1,
-                    timestamp: d.senderTimestamp * 1000,
-                    status: 'acked',
-                    to: myNodeNumRef.current || undefined,
-                    receivedVia: 'rf',
+                    ...buildMeshcoreDmIncomingMessage(messagesRef.current, {
+                      rawText: d.text,
+                      senderId,
+                      displayName:
+                        sender?.long_name ?? `Node-${senderId.toString(16).toUpperCase()}`,
+                      timestamp: d.senderTimestamp * 1000,
+                      receivedVia: 'rf',
+                      peerNodeId: senderId,
+                      myNodeId: myNodeNumRef.current || 0,
+                      to: myNodeNumRef.current || undefined,
+                    }),
                     isHistory: true,
-                    meshcoreDedupeKey: d.text,
                   });
                 }
               }
@@ -1756,17 +1759,18 @@ export function useMeshCore() {
           logTransportLineAsDevice(d.text);
           return;
         }
-        addMessage({
-          sender_id: senderId,
-          sender_name: sender?.long_name ?? `Node-${senderId.toString(16).toUpperCase()}`,
-          payload: d.text,
-          channel: -1, // DM channel sentinel
-          timestamp: d.senderTimestamp * 1000,
-          status: 'acked',
-          to: myNodeNumRef.current || undefined,
-          receivedVia: 'rf',
-          meshcoreDedupeKey: d.text,
-        });
+        addMessage(
+          buildMeshcoreDmIncomingMessage(messagesRef.current, {
+            rawText: d.text,
+            senderId,
+            displayName: sender?.long_name ?? `Node-${senderId.toString(16).toUpperCase()}`,
+            timestamp: d.senderTimestamp * 1000,
+            receivedVia: 'rf',
+            peerNodeId: senderId,
+            myNodeId: myNodeNumRef.current || 0,
+            to: myNodeNumRef.current || undefined,
+          }),
+        );
       });
 
       // Incoming channel message — event 8
@@ -3760,17 +3764,48 @@ export function useMeshCore() {
       const targetName = reactedTo?.sender_name || 'Unknown';
       const emojiChar = String.fromCodePoint(emoji);
       const tapbackText = `@[${targetName}] ${emojiChar}`;
-      await connRef.current.sendChannelTextMessage(channel, tapbackText);
-      addMessage({
-        sender_id: myNodeNumRef.current,
-        sender_name: selfInfo?.name ?? 'Me',
-        payload: emojiChar,
-        channel,
-        timestamp: Date.now(),
-        status: 'acked',
-        emoji,
-        replyId,
-      });
+      const conn = connRef.current;
+      const me = myNodeNumRef.current;
+      if (reactedTo?.to != null) {
+        const peerNodeId =
+          reactedTo.sender_id === me && reactedTo.to != null ? reactedTo.to : reactedTo.sender_id;
+        const pubKey = pubKeyMapRef.current.get(peerNodeId);
+        if (!pubKey) {
+          throw new Error(
+            'Cannot send reaction: no encryption key for this contact. Wait for a full contact exchange, refresh contacts, or remove name-only stubs.',
+          );
+        }
+        await conn.sendTextMessage(pubKey, tapbackText);
+        addMessage({
+          sender_id: me,
+          sender_name: selfInfo?.name ?? 'Me',
+          payload: emojiChar,
+          channel: -1,
+          timestamp: Date.now(),
+          status: 'acked',
+          emoji,
+          replyId,
+          to: peerNodeId,
+        });
+      } else {
+        const outboundChannel =
+          reactedTo != null && typeof reactedTo.channel === 'number' && reactedTo.channel >= 0
+            ? reactedTo.channel
+            : channel === -1
+              ? 0
+              : channel;
+        await conn.sendChannelTextMessage(outboundChannel, tapbackText);
+        addMessage({
+          sender_id: me,
+          sender_name: selfInfo?.name ?? 'Me',
+          payload: emojiChar,
+          channel: outboundChannel,
+          timestamp: Date.now(),
+          status: 'acked',
+          emoji,
+          replyId,
+        });
+      }
     },
     [addMessage, selfInfo?.name],
   );

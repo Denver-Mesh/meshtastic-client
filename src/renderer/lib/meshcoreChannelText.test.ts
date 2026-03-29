@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildMeshcoreChannelIncomingMessage,
+  buildMeshcoreDmIncomingMessage,
   meshcorePayloadIsTapbackEmojiOnly,
   normalizeMeshcoreIncomingText,
+  parseMeshcorePlainBracketLine,
   resolveMeshcoreBracketParentKey,
+  resolveMeshcoreBracketParentKeyDm,
 } from './meshcoreChannelText';
 import type { ChatMessage } from './types';
 
@@ -23,6 +26,81 @@ describe('normalizeMeshcoreIncomingText', () => {
       payload: 'hello there',
       bracketTargetName: 'Bob',
     });
+  });
+});
+
+describe('parseMeshcorePlainBracketLine', () => {
+  it('parses DM tapback line without Sender: prefix', () => {
+    expect(parseMeshcorePlainBracketLine('@[Alice] 👍')).toEqual({
+      bracketTargetName: 'Alice',
+      payload: '👍',
+    });
+  });
+
+  it('returns full string as payload when no bracket', () => {
+    expect(parseMeshcorePlainBracketLine('hello')).toEqual({ payload: 'hello' });
+  });
+});
+
+describe('resolveMeshcoreBracketParentKeyDm', () => {
+  const me = 100;
+  const peer = 200;
+  const t0 = 3_000_000;
+  const parents: ChatMessage[] = [
+    {
+      sender_id: peer,
+      sender_name: 'Alice',
+      payload: 'yo',
+      channel: -1,
+      timestamp: t0,
+      status: 'acked',
+      to: me,
+    },
+  ];
+
+  it('resolves parent in DM thread by display name', () => {
+    const key = resolveMeshcoreBracketParentKeyDm(parents, {
+      peerNodeId: peer,
+      myNodeId: me,
+      targetName: 'Alice',
+      beforeTimestamp: t0 + 500,
+    });
+    expect(key).toBe(t0);
+  });
+});
+
+describe('buildMeshcoreDmIncomingMessage', () => {
+  const me = 50;
+  const peer = 60;
+  const t0 = 4_000_000;
+  const thread: ChatMessage[] = [
+    {
+      sender_id: peer,
+      sender_name: 'Bob',
+      payload: 'ping',
+      channel: -1,
+      timestamp: t0,
+      status: 'acked',
+      to: me,
+    },
+  ];
+
+  it('builds DM reaction when plain @[Name] emoji', () => {
+    const thumb = String.fromCodePoint(0x1f44d);
+    const msg = buildMeshcoreDmIncomingMessage(thread, {
+      rawText: `@[Bob] ${thumb}`,
+      senderId: peer,
+      displayName: 'Bob',
+      timestamp: t0 + 100,
+      receivedVia: 'rf',
+      peerNodeId: peer,
+      myNodeId: me,
+      to: me,
+    });
+    expect(msg.emoji).toBe(0x1f44d);
+    expect(msg.replyId).toBe(t0);
+    expect(msg.payload).toBe(thumb);
+    expect(msg.channel).toBe(-1);
   });
 });
 

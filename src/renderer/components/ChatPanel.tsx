@@ -625,11 +625,13 @@ function ChatPanel({
   };
 
   const handleReact = async (emojiCode: number, packetId: number, msgChannel: number) => {
+    // Match handleSend: UI uses channel -1 as "primary"; MeshCore/Meshtastic send expects 0.
+    const sendChannel = msgChannel === -1 ? 0 : msgChannel;
     setPickerOpenFor(null);
     setChatActionError(null);
     try {
-      console.debug('[ChatPanel] handleReact', emojiCode, packetId, msgChannel);
-      await onReact(emojiCode, packetId, msgChannel);
+      console.debug('[ChatPanel] handleReact', emojiCode, packetId, sendChannel);
+      await onReact(emojiCode, packetId, sendChannel);
     } catch (err) {
       console.error('[ChatPanel] React failed:', err);
       setChatActionError({
