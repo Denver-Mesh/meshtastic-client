@@ -59,6 +59,8 @@ export interface ProtocolCapabilities {
   hasFullPositionConfig: boolean;
   /** Whether Security panel (PKI config) is available */
   hasSecurityPanel: boolean;
+  /** Whether the TAK server panel is available (Meshtastic only) */
+  hasTakPanel: boolean;
 }
 
 export const MESHTASTIC_CAPABILITIES: ProtocolCapabilities = {
@@ -90,6 +92,7 @@ export const MESHTASTIC_CAPABILITIES: ProtocolCapabilities = {
   hasFactoryReset: true,
   hasFullPositionConfig: true,
   hasSecurityPanel: true,
+  hasTakPanel: true,
 };
 
 export const MESHCORE_CAPABILITIES: ProtocolCapabilities = {
@@ -122,4 +125,5 @@ export const MESHCORE_CAPABILITIES: ProtocolCapabilities = {
   hasFactoryReset: false,
   hasFullPositionConfig: false,
   hasSecurityPanel: false,
+  hasTakPanel: false,
 };

@@ -24,6 +24,7 @@ import UpdateStatusIndicator from './components/UpdateStatusIndicator';
 import { useContactGroups } from './hooks/useContactGroups';
 import { useDevice } from './hooks/useDevice';
 import { useMeshCore } from './hooks/useMeshCore';
+import { useTakServer } from './hooks/useTakServer';
 import {
   AppPanel,
   DiagnosticsPanel,
@@ -77,7 +78,7 @@ const TAB_CAPABILITY_REQUIREMENTS: (keyof ProtocolCapabilities | undefined)[] = 
   undefined, // Modules
   undefined, // Telemetry
   'hasSecurityPanel', // Security
-  undefined, // TAK
+  'hasTakPanel', // TAK
   undefined, // App
   undefined, // Diagnostics
 ];
@@ -173,6 +174,15 @@ function PanelSkeleton() {
   );
 }
 
+function TakStatusIcon({ running }: { running: boolean }) {
+  const color = running ? 'text-brand-green' : 'text-gray-400';
+  return (
+    <svg aria-hidden="true" className={`w-4 h-4 ${color}`} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8M3.05,13H1V11H3.05C3.5,6.83 6.83,3.5 11,3.05V1H13V3.05C17.17,3.5 20.5,6.83 20.95,11H23V13H20.95C20.5,17.17 17.17,20.5 13,20.95V23H11V20.95C6.83,20.5 3.5,17.17 3.05,13M12,5A7,7 0 0,0 5,12A7,7 0 0,0 12,19A7,7 0 0,0 19,12A7,7 0 0,0 12,5Z" />
+    </svg>
+  );
+}
+
 function MqttGlobeIcon({ status }: { status: MQTTStatus }) {
   const color =
     status === 'connected'
@@ -252,6 +262,7 @@ export default function App() {
 
   const meshtasticDevice = useDevice();
   const meshcoreDevice = useMeshCore();
+  const { status: takStatus } = useTakServer();
   const contactGroupsSelfId =
     protocol === 'meshcore'
       ? meshcoreDevice.selfNodeId
@@ -811,6 +822,17 @@ export default function App() {
           </div>
 
           <div className="flex min-w-0 shrink-0 items-center justify-end gap-2 xl:justify-self-end">
+            {capabilities.hasTakPanel && (
+              <div className="flex items-center gap-1.5 mr-3 pr-3 border-r border-gray-700">
+                <TakStatusIcon running={takStatus.running} />
+                <span
+                  aria-label={`TAK server ${takStatus.running ? 'running' : 'stopped'}`}
+                  className={`text-xs ${takStatus.running ? 'text-brand-green' : 'text-gray-500'}`}
+                >
+                  TAK {takStatus.running ? 'running' : 'stopped'}
+                </span>
+              </div>
+            )}
             <div className="flex items-center gap-1.5 mr-3 pr-3 border-r border-gray-700">
               <MqttGlobeIcon status={device.mqttStatus ?? 'disconnected'} />
               <span
