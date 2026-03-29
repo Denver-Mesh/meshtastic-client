@@ -30,6 +30,7 @@ export default function TakServerPanel() {
   const [localPort, setLocalPort] = useState(String(settings.port));
   const [localServerName, setLocalServerName] = useState(settings.serverName);
   const [localRequireCert, setLocalRequireCert] = useState(settings.requireClientCert);
+  const [localAutoStart, setLocalAutoStart] = useState(settings.autoStart);
   const [packageGenerated, setPackageGenerated] = useState(false);
 
   const portNum = parseInt(localPort, 10);
@@ -40,6 +41,7 @@ export default function TakServerPanel() {
     port: portNum,
     serverName: localServerName.trim() || 'mesh-client',
     requireClientCert: localRequireCert,
+    autoStart: localAutoStart,
   });
 
   const handleStart = async () => {
@@ -155,6 +157,21 @@ export default function TakServerPanel() {
             />
             <label htmlFor={`${id}-cert`} className="text-sm text-gray-300 cursor-pointer">
               Require client certificate (mTLS)
+            </label>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              id={`${id}-autostart`}
+              type="checkbox"
+              checked={localAutoStart}
+              onChange={(e) => {
+                setLocalAutoStart(e.target.checked);
+              }}
+              className="accent-brand-green"
+            />
+            <label htmlFor={`${id}-autostart`} className="text-sm text-gray-300 cursor-pointer">
+              Auto-start on application launch
             </label>
           </div>
         </div>

@@ -397,6 +397,7 @@ function validateTakSettings(settings: unknown): asserts settings is TAKSettings
     throw new Error('tak:start: serverName must be a non-empty string ≤ 256 chars');
   if (typeof s.requireClientCert !== 'boolean')
     throw new Error('tak:start: requireClientCert must be boolean');
+  if (typeof s.autoStart !== 'boolean') throw new Error('tak:start: autoStart must be boolean');
 }
 
 function validateMqttSettings(settings: unknown): void {
@@ -3517,13 +3518,13 @@ void app.whenReady().then(() => {
 
     initDatabase();
 
-    // Auto-restore TAK server if it was running on last exit
+    // Auto-restore TAK server if auto-start is enabled
     const takSettingsPath = path.join(app.getPath('userData'), 'tak-settings.json');
     try {
       if (fs.existsSync(takSettingsPath)) {
         const saved = JSON.parse(fs.readFileSync(takSettingsPath, 'utf-8')) as unknown;
         validateTakSettings(saved);
-        if (saved.enabled) {
+        if (saved.autoStart) {
           void takServerManager.start(saved).catch((e: unknown) => {
             console.error(
               '[TAK] Auto-start failed:',

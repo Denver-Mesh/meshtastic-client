@@ -51,6 +51,7 @@ describe('TakServerPanel', () => {
       port: 8089,
       serverName: 'mesh-client',
       requireClientCert: true,
+      autoStart: false,
     });
   });
 

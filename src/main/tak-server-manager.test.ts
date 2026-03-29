@@ -83,6 +83,7 @@ const DEFAULT_SETTINGS = {
   port: 8089,
   serverName: 'mesh-client',
   requireClientCert: false,
+  autoStart: false,
 };
 
 describe('TakServerManager', () => {

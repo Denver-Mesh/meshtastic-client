@@ -3,6 +3,7 @@ export interface TAKSettings {
   port: number;
   serverName: string;
   requireClientCert: boolean;
+  autoStart: boolean;
 }
 
 export interface TAKServerStatus {

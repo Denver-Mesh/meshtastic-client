@@ -7,6 +7,7 @@ const DEFAULT_SETTINGS: TAKSettings = {
   port: 8089,
   serverName: 'mesh-client',
   requireClientCert: true,
+  autoStart: false,
 };
 
 interface UseTakServerResult {
