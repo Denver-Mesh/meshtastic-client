@@ -79,6 +79,8 @@ const PATTERN_CATEGORIES: PatternCategory[] = [
     label: 'MQTT Issues',
     patterns: [
       /MQTT Network error/i,
+      /MQTT Connection timeout/i,
+      /MQTT.*will reconnect/i,
       /Fatal connection error/i,
       /Subscribe failed/i,
       /MQTT disconnected/i,
@@ -117,6 +119,18 @@ const PATTERN_CATEGORIES: PatternCategory[] = [
     ],
     recommendation: 'Connection handshake failed. Try reconnecting manually.',
     severity: 'error',
+  },
+  {
+    id: 'ble-connect-race',
+    label: 'BLE Connect Race/Timeout',
+    patterns: [
+      /waiting on onConnected.*raced with disconnect/i,
+      /IpcNobleConnection.*timeout.*onConnected/i,
+    ],
+    recommendation:
+      'BLE handshake timed out or raced with disconnect. Check BLE connection stability and distance to device.',
+    severity: 'warning',
+    protocols: ['meshcore'],
   },
   {
     id: 'auth-decrypt',
