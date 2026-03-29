@@ -409,9 +409,16 @@ class IpcNobleConnection {
           NOBLE_IPC_CONNECT_TIMEOUT_MS,
           'MeshCore BLE IPC open',
         );
-        console.info(
-          `[IpcNobleConnection:${sessionId}] waiting on onConnected() (raced with disconnect) timeout=${NOBLE_IPC_HANDSHAKE_TIMEOUT_MS}ms`,
-        );
+        const disconnectAlreadyFired = rejectHandshakeOnDisconnect === undefined;
+        if (disconnectAlreadyFired) {
+          console.warn(
+            `[IpcNobleConnection:${sessionId}] disconnect raced ahead of handshake — will fail immediately`,
+          );
+        } else {
+          console.info(
+            `[IpcNobleConnection:${sessionId}] waiting on onConnected() timeout=${NOBLE_IPC_HANDSHAKE_TIMEOUT_MS}ms`,
+          );
+        }
         const handshakeStart = Date.now();
         await withTimeout(
           Promise.race([

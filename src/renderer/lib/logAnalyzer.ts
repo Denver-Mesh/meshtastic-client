@@ -124,10 +124,7 @@ const PATTERN_CATEGORIES: PatternCategory[] = [
   {
     id: 'ble-connect-race',
     label: 'BLE Connect Race/Timeout',
-    patterns: [
-      /waiting on onConnected.*raced with disconnect/i,
-      /IpcNobleConnection.*timeout.*onConnected/i,
-    ],
+    patterns: [/disconnect raced ahead of handshake/i, /IpcNobleConnection.*timeout.*onConnected/i],
     recommendation:
       'BLE handshake timed out or raced with disconnect. Check BLE connection stability and distance to device.',
     severity: 'warning',
