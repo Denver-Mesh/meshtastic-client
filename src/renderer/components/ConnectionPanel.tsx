@@ -18,7 +18,9 @@ import {
 } from '../lib/letsMeshJwt';
 import { meshcoreMqttUserFacingHint } from '../lib/meshcoreMqttUserHint';
 import {
+  isLiamBrokerSettings,
   isMeshtasticOfficialBrokerSettings,
+  MESHTASTIC_LIAM_1883,
   MESHTASTIC_OFFICIAL_1883,
   MESHTASTIC_OFFICIAL_8883,
   MESHTASTIC_OFFICIAL_PRESET_DEFAULTS,
@@ -572,9 +574,10 @@ export default function ConnectionPanel({
     return 'custom';
   });
   const [meshtasticPreset, setMeshtasticPreset] = useState<
-    'official-tls' | 'official-plain' | 'custom'
+    'official-tls' | 'official-plain' | 'liam' | 'custom'
   >(() => {
     const s = loadMqttSettings();
+    if (isLiamBrokerSettings(s)) return 'liam';
     if (!isMeshtasticOfficialBrokerSettings(s)) return 'custom';
     if (s.port === 8883) return 'official-tls';
     if (s.port === 1883) return 'official-plain';
@@ -1909,6 +1912,7 @@ export default function ConnectionPanel({
                   [
                     { id: 'official-tls' as const, label: 'TLS :8883' },
                     { id: 'official-plain' as const, label: 'MQTT :1883' },
+                    { id: 'liam' as const, label: "Liam's" },
                     { id: 'custom' as const, label: 'Custom' },
                   ] as const
                 ).map(({ id, label }) => (
@@ -1927,6 +1931,11 @@ export default function ConnectionPanel({
                           ...MESHTASTIC_OFFICIAL_1883,
                           topicPrefix: mqttSettings.topicPrefix,
                         });
+                      } else if (id === 'liam') {
+                        setMqttSettings({
+                          ...MESHTASTIC_LIAM_1883,
+                          topicPrefix: mqttSettings.topicPrefix,
+                        });
                       }
                     }}
                     className={`flex-1 px-2 py-1.5 text-xs font-medium rounded border transition-colors ${
@@ -1939,6 +1948,12 @@ export default function ConnectionPanel({
                   </button>
                 ))}
               </div>
+              {meshtasticPreset === 'liam' && (
+                <p className="text-xs text-amber-400">
+                  Liam's server is uplink-only — your node appears on his map but you won't receive
+                  messages from it.
+                </p>
+              )}
             </div>
           )}
           {protocol === 'meshcore' && (

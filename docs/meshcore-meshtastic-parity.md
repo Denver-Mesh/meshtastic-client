@@ -62,6 +62,19 @@ Interim broker format until a binary/official MeshCore MQTT layout ships:
 
 Subscribes under `{topicPrefix}/#`. Outbound optional publish uses `mqtt:publishMeshcore` → `{topicPrefix}/meshcore/chat` (JSON same shape). **LetsMesh public brokers** do not use that path for MQTT-only chat without a radio; optional `mqtt:publishMeshcorePacketLog` → `{topicPrefix}/meshcore/packets` for Analyzer (see [letsmesh-mqtt-auth.md](letsmesh-mqtt-auth.md) § Packet logger).
 
+## Meshtastic MQTT network presets
+
+In **Meshtastic** mode, [`ConnectionPanel.tsx`](../src/renderer/components/ConnectionPanel.tsx) shows **TLS :8883**, **MQTT :1883**, **Liam's**, and **Custom** preset buttons. They populate `MQTTSettings` used by [`mqtt-manager.ts`](../src/main/mqtt-manager.ts).
+
+| Preset     | Broker host                      | Port | Notes                                                                                                                                                         |
+| ---------- | -------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TLS :8883  | `mqtt.meshtastic.org`            | 8883 | Recommended. TLS cert verification enabled; `meshdev` / `large4cats` credentials                                                                              |
+| MQTT :1883 | `mqtt.meshtastic.org`            | 1883 | Plaintext; may be blocked on some networks                                                                                                                    |
+| Liam's     | `mqtt.meshtastic.liamcottle.net` | 1883 | **Uplink-only** (puts your node on Liam Cottle's map; no downlink). `uplink` / `uplink` credentials, no TLS. Useful when `mqtt.meshtastic.org` is unreachable |
+| Custom     | (user)                           | —    | No automatic changes — use for private brokers                                                                                                                |
+
+Topic prefix defaults to `msh/US/`; users can edit fields after choosing a preset. Defined in [`meshtasticMqttTlsMigration.ts`](../src/renderer/lib/meshtasticMqttTlsMigration.ts).
+
 ## MeshCore MQTT network presets
 
 In **MeshCore** mode only, [`ConnectionPanel.tsx`](../src/renderer/components/ConnectionPanel.tsx) shows **LetsMesh**, **Ripple Networks**, and **Custom** preset buttons. They populate the same `MQTTSettings` the main process uses for [`meshcore-mqtt-adapter.ts`](../src/main/meshcore-mqtt-adapter.ts) (with `mqttTransportProtocol: 'meshcore'`).

@@ -2,6 +2,7 @@ import type { MQTTSettings } from '@/renderer/lib/types';
 import { MESHTASTIC_MQTT_MAX_RECONNECT_ATTEMPTS } from '@/shared/meshtasticMqttReconnect';
 
 export const MESHTASTIC_OFFICIAL_BROKER_HOST = 'mqtt.meshtastic.org';
+export const LIAM_BROKER_HOST = 'mqtt.meshtastic.liamcottle.net';
 
 const MESHTASTIC_OFFICIAL_SHARED: Pick<
   MQTTSettings,
@@ -30,8 +31,23 @@ export const MESHTASTIC_OFFICIAL_8883: MQTTSettings = {
 /** Default merged preset for new installs / missing keys (TLS recommended when 1883 is blocked). */
 export const MESHTASTIC_OFFICIAL_PRESET_DEFAULTS: MQTTSettings = MESHTASTIC_OFFICIAL_8883;
 
+/** Liam Cottle's uplink-only map server — plaintext MQTT :1883, no TLS. */
+export const MESHTASTIC_LIAM_1883: MQTTSettings = {
+  server: LIAM_BROKER_HOST,
+  port: 1883,
+  username: 'uplink',
+  password: 'uplink',
+  topicPrefix: 'msh/US/',
+  autoLaunch: false,
+  maxRetries: MESHTASTIC_MQTT_MAX_RECONNECT_ATTEMPTS,
+};
+
 export function isMeshtasticOfficialBrokerSettings(s: MQTTSettings): boolean {
   return s.server?.trim().toLowerCase() === MESHTASTIC_OFFICIAL_BROKER_HOST.toLowerCase();
+}
+
+export function isLiamBrokerSettings(s: MQTTSettings): boolean {
+  return s.server?.trim().toLowerCase() === LIAM_BROKER_HOST.toLowerCase();
 }
 
 /** Extra context for Connection tab MQTT errors (broker TLS issues). */
