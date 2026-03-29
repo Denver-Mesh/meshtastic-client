@@ -47,11 +47,24 @@ export default defineConfig({
   worker: {
     format: 'es',
   },
-  // meshcore-decoder's Emscripten glue sets ENVIRONMENT_IS_NODE using (process.type != "renderer").
-  // In Vite dev, process.type is often undefined, so undefined != "renderer" is true and the glue
-  // wrongly takes the Node branch (require("fs")) — browser error: cannot resolve module "fs".
-  // Electron's renderer already has process.type === "renderer"; this matches that.
   define: {
+    // Polyfill bare `process` — browser contexts don't have this global.
+    // @meshtastic/transport-web-serial's bundled core accesses process?.version and
+    // process.cwd() without browser-guarding, causing ReferenceError in the renderer.
+    // esbuild specificity: dotted-path defines (process.type below) take precedence
+    // over the bare identifier for their specific access pattern.
+    process: JSON.stringify({
+      type: 'renderer',
+      env: {},
+      version: '',
+      versions: {},
+      platform: '',
+      browser: true,
+    }),
+    // meshcore-decoder's Emscripten glue sets ENVIRONMENT_IS_NODE using (process.type != "renderer").
+    // In Vite dev, process.type is often undefined, so undefined != "renderer" is true and the glue
+    // wrongly takes the Node branch (require("fs")) — browser error: cannot resolve module "fs".
+    // Electron's renderer already has process.type === "renderer"; this matches that.
     'process.type': JSON.stringify('renderer'),
   },
   root: path.resolve(__dirname, 'src/renderer'),
