@@ -53,6 +53,25 @@ describe('analyzeLogs', () => {
     expect(bleCategory?.lastMessage).toBeTruthy();
   });
 
+  it('does not flag MQTT connection timeout as BLE issue', () => {
+    const entries: LogEntry[] = [
+      makeEntry('[MQTT] Connection timeout (will reconnect): connack timeout', 'error'),
+    ];
+    const result = analyzeLogs(entries, 'meshtastic');
+    expect(result.categories.find((c) => c.id === 'ble-connection')).toBeUndefined();
+  });
+
+  it('does not flag BLE peripheral info state=disconnected as BLE issue', () => {
+    const entries: LogEntry[] = [
+      makeEntry(
+        '[BLE:meshcore] peripheral info — address= addressType=unknown rssi=-69 state=disconnected platform=darwin',
+        'log',
+      ),
+    ];
+    const result = analyzeLogs(entries, 'meshcore');
+    expect(result.categories.find((c) => c.id === 'ble-connection')).toBeUndefined();
+  });
+
   it('detects MQTT issues', () => {
     const entries: LogEntry[] = [
       makeEntry('MQTT Network error (will reconnect)'),
