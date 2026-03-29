@@ -55,6 +55,7 @@ import {
   letsMeshMqttUsernameFromIdentity,
   readMeshcoreIdentity,
 } from './lib/letsMeshJwt';
+import { MESHTASTIC_OFFICIAL_PRESET_DEFAULTS } from './lib/meshtasticMqttTlsMigration';
 import { parseStoredJson } from './lib/parseStoredJson';
 import type { ProtocolCapabilities } from './lib/radio/BaseRadioProvider';
 import { useRadioProvider } from './lib/radio/providerFactory';
@@ -463,8 +464,12 @@ export default function App() {
           'App MQTT auto-launch',
         );
         if (settings?.autoLaunch) {
+          const base =
+            prot === 'meshtastic'
+              ? { ...MESHTASTIC_OFFICIAL_PRESET_DEFAULTS, ...settings }
+              : settings;
           const connectSettings: MQTTSettings = {
-            ...settings,
+            ...base,
             mqttTransportProtocol: prot === 'meshcore' ? 'meshcore' : 'meshtastic',
           };
           const tryConnect = async () => {

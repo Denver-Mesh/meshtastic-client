@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { MESHTASTIC_MQTT_MAX_RECONNECT_ATTEMPTS } from '@/shared/meshtasticMqttReconnect';
+
 import { MESHCORE_SETUP_ABORT_MESSAGE } from '../lib/bleConnectErrors';
 import type { FirmwareCheckResult } from '../lib/firmwareCheck';
 import {
@@ -15,6 +17,13 @@ import {
   readMeshcoreIdentity,
 } from '../lib/letsMeshJwt';
 import { meshcoreMqttUserFacingHint } from '../lib/meshcoreMqttUserHint';
+import {
+  isMeshtasticOfficialBrokerSettings,
+  MESHTASTIC_OFFICIAL_1883,
+  MESHTASTIC_OFFICIAL_8883,
+  MESHTASTIC_OFFICIAL_PRESET_DEFAULTS,
+  meshtasticMqttErrorUserHint,
+} from '../lib/meshtasticMqttTlsMigration';
 import { parseStoredJson } from '../lib/parseStoredJson';
 import { LAST_SERIAL_PORT_KEY } from '../lib/serialPortSignature';
 import type {
@@ -398,15 +407,7 @@ function Spinner({ className = '' }: { className?: string }) {
   );
 }
 
-const MQTT_DEFAULTS: MQTTSettings = {
-  server: 'mqtt.meshtastic.org',
-  port: 1883,
-  username: 'meshdev',
-  password: 'large4cats',
-  topicPrefix: 'msh/US/',
-  autoLaunch: false,
-  maxRetries: 5,
-};
+const MQTT_DEFAULTS: MQTTSettings = { ...MESHTASTIC_OFFICIAL_PRESET_DEFAULTS };
 
 const MESHCORE_MQTT_DEFAULTS: MQTTSettings = {
   server: '',
@@ -435,7 +436,12 @@ migrateMqttSettingsOnce();
 function loadMqttSettings(): MQTTSettings {
   const raw = localStorage.getItem('mesh-client:mqttSettings');
   const parsed = parseStoredJson<Partial<MQTTSettings>>(raw, 'ConnectionPanel loadMqttSettings');
-  return parsed ? { ...MQTT_DEFAULTS, ...parsed } : MQTT_DEFAULTS;
+  const merged = parsed ? { ...MQTT_DEFAULTS, ...parsed } : MQTT_DEFAULTS;
+  const r = merged.maxRetries ?? MESHTASTIC_MQTT_MAX_RECONNECT_ATTEMPTS;
+  return {
+    ...merged,
+    maxRetries: Math.min(MESHTASTIC_MQTT_MAX_RECONNECT_ATTEMPTS, Math.max(1, r)),
+  };
 }
 
 function loadMeshcoreMqttSettings(): MQTTSettings {
@@ -548,9 +554,14 @@ export default function ConnectionPanel({
     if (saved === 'letsmesh' || saved === 'ripple') return saved;
     return 'custom';
   });
-  const [meshtasticPreset, setMeshtasticPreset] = useState<'official' | 'custom'>(() => {
+  const [meshtasticPreset, setMeshtasticPreset] = useState<
+    'official-tls' | 'official-plain' | 'custom'
+  >(() => {
     const s = loadMqttSettings();
-    return s.server === MQTT_DEFAULTS.server ? 'official' : 'custom';
+    if (!isMeshtasticOfficialBrokerSettings(s)) return 'custom';
+    if (s.port === 8883) return 'official-tls';
+    if (s.port === 1883) return 'official-plain';
+    return 'custom';
   });
 
   // Persist Meshtastic MQTT settings with debounce
@@ -587,7 +598,11 @@ export default function ConnectionPanel({
   useEffect(() => {
     return window.electronAPI.mqtt.onError(({ error, protocol: mqttProtocol }) => {
       if (mqttProtocol !== protocol) return;
-      setMqttError(protocol === 'meshcore' ? meshcoreMqttUserFacingHint(error) : error);
+      setMqttError(
+        protocol === 'meshcore'
+          ? meshcoreMqttUserFacingHint(error)
+          : meshtasticMqttErrorUserHint(error),
+      );
     });
   }, [protocol]);
   useEffect(() => {
@@ -1808,6 +1823,40 @@ export default function ConnectionPanel({
               #
             </span>
           </div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5">
+              <label htmlFor="mqtt-max-retries-when-connected" className="text-xs text-muted">
+                Max reconnect attempts
+              </label>
+              <HelpTooltip
+                text={
+                  protocol === 'meshcore'
+                    ? 'Reconnect tries before giving up (1–20). Saved with settings; press Connect again after changing so the main process picks it up.'
+                    : `Meshtastic allows 1–${MESHTASTIC_MQTT_MAX_RECONNECT_ATTEMPTS}. Saved with settings; disconnect and Connect again so the running session uses the new value.`
+                }
+              />
+            </div>
+            <input
+              id="mqtt-max-retries-when-connected"
+              type="number"
+              aria-label="Max MQTT reconnect attempts"
+              min={1}
+              max={protocol === 'meshcore' ? 20 : MESHTASTIC_MQTT_MAX_RECONNECT_ATTEMPTS}
+              value={
+                activeMqttSettings.maxRetries ??
+                (protocol === 'meshcore' ? 5 : MESHTASTIC_MQTT_MAX_RECONNECT_ATTEMPTS)
+              }
+              onChange={(e) => {
+                const fallback =
+                  protocol === 'meshcore' ? 5 : MESHTASTIC_MQTT_MAX_RECONNECT_ATTEMPTS;
+                const cap = protocol === 'meshcore' ? 20 : MESHTASTIC_MQTT_MAX_RECONNECT_ATTEMPTS;
+                const n = parseInt(e.target.value, 10);
+                const v = Number.isFinite(n) ? Math.min(cap, Math.max(1, n)) : fallback;
+                updateMqtt('maxRetries', v, false);
+              }}
+              className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
+            />
+          </div>
           <button
             onClick={() =>
               window.electronAPI.mqtt.disconnect().catch((err: unknown) => {
@@ -1841,8 +1890,9 @@ export default function ConnectionPanel({
               >
                 {(
                   [
-                    { id: 'official', label: 'Official' },
-                    { id: 'custom', label: 'Custom' },
+                    { id: 'official-tls' as const, label: 'TLS :8883' },
+                    { id: 'official-plain' as const, label: 'MQTT :1883' },
+                    { id: 'custom' as const, label: 'Custom' },
                   ] as const
                 ).map(({ id, label }) => (
                   <button
@@ -1850,9 +1900,14 @@ export default function ConnectionPanel({
                     type="button"
                     onClick={() => {
                       setMeshtasticPreset(id);
-                      if (id === 'official') {
+                      if (id === 'official-tls') {
                         setMqttSettings({
-                          ...MQTT_DEFAULTS,
+                          ...MESHTASTIC_OFFICIAL_8883,
+                          topicPrefix: mqttSettings.topicPrefix,
+                        });
+                      } else if (id === 'official-plain') {
+                        setMqttSettings({
+                          ...MESHTASTIC_OFFICIAL_1883,
                           topicPrefix: mqttSettings.topicPrefix,
                         });
                       }
@@ -2155,16 +2210,30 @@ export default function ConnectionPanel({
               <label htmlFor="mqtt-max-retries" className="text-xs text-muted">
                 Max Retries
               </label>
-              <HelpTooltip text="Number of reconnect attempts before giving up. Higher values allow more time for network recovery before showing an error." />
+              <HelpTooltip
+                text={
+                  protocol === 'meshcore'
+                    ? 'Reconnect attempts (1–20) before giving up.'
+                    : `Meshtastic reconnect attempts (1–${MESHTASTIC_MQTT_MAX_RECONNECT_ATTEMPTS}) before giving up.`
+                }
+              />
             </div>
             <input
               id="mqtt-max-retries"
               type="number"
               min={1}
-              max={20}
-              value={activeMqttSettings.maxRetries ?? 5}
+              max={protocol === 'meshcore' ? 20 : MESHTASTIC_MQTT_MAX_RECONNECT_ATTEMPTS}
+              value={
+                activeMqttSettings.maxRetries ??
+                (protocol === 'meshcore' ? 5 : MESHTASTIC_MQTT_MAX_RECONNECT_ATTEMPTS)
+              }
               onChange={(e) => {
-                updateMqtt('maxRetries', parseInt(e.target.value) || 5, false);
+                const fallback =
+                  protocol === 'meshcore' ? 5 : MESHTASTIC_MQTT_MAX_RECONNECT_ATTEMPTS;
+                const cap = protocol === 'meshcore' ? 20 : MESHTASTIC_MQTT_MAX_RECONNECT_ATTEMPTS;
+                const n = parseInt(e.target.value, 10);
+                const v = Number.isFinite(n) ? Math.min(cap, Math.max(1, n)) : fallback;
+                updateMqtt('maxRetries', v, false);
               }}
               className="w-full px-2 py-1.5 bg-secondary-dark rounded text-gray-200 border border-gray-600 focus:border-brand-green focus:outline-none text-sm"
             />
