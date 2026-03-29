@@ -132,6 +132,20 @@ pnpm run dist:win      # Windows -> .exe installer in release/
 
 Output goes to the `release/` directory.
 
+### Build analysis
+
+To analyze the main process bundle size and composition:
+
+```bash
+pnpm run build:main:minify-meta
+```
+
+This generates `dist-electron/main/meta.json`. Upload this file to [esbuild's online analyzer](https://esbuild.github.io/analyze/) to visualize:
+
+- Bundle size by dependency
+- Code that could be externalized
+- Minification effectiveness
+
 ### 6) Git hooks and pre-commit behavior
 
 After `pnpm install`, repo hooks are enabled via `core.hooksPath` and pre-commit runs checks (format, lint, typecheck, audit, actionlint, tests).
