@@ -130,6 +130,19 @@ describe('analyzeLogs', () => {
     expect(mqttCategory?.count).toBe(1);
   });
 
+  it('detects MQTT issues with various formats including [MQTT] prefix', () => {
+    const entries: LogEntry[] = [
+      makeEntry('[MQTT] Connection timeout (will reconnect): connack timeout', 'warn'),
+      makeEntry('[MQTT] Network error (will reconnect): socket hang up', 'warn'),
+      makeEntry('[MQTT] Fatal connection error: certificate has expired', 'error'),
+      makeEntry('[MQTT] Reconnecting in 500ms (attempt 1/3)', 'warn'),
+    ];
+    const result = analyzeLogs(entries, 'meshtastic');
+    const mqttCategory = result.categories.find((c) => c.id === 'mqtt');
+    expect(mqttCategory).toBeDefined();
+    expect(mqttCategory?.count).toBe(4);
+  });
+
   it('does not flag bare connection refused as MQTT', () => {
     const entries: LogEntry[] = [makeEntry('Error: connection refused', 'error')];
     const result = analyzeLogs(entries, 'meshtastic');
