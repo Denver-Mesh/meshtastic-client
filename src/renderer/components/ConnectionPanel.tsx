@@ -42,7 +42,6 @@ import type {
 import ConnectionBatteryGauge from './ConnectionBatteryGauge';
 import FirmwareStatusIndicator from './FirmwareStatusIndicator';
 import { HelpTooltip } from './HelpTooltip';
-import { useToast } from './Toast';
 // ─── Last Connection (localStorage) ───────────────────────────────
 interface LastConnection {
   type: ConnectionType;
@@ -490,8 +489,6 @@ interface Props {
     httpAddress?: string,
     blePeripheralId?: string,
   ) => Promise<void>;
-  onRefreshContacts?: () => Promise<void>;
-  onSendAdvert?: () => Promise<void>;
   onAutoConnect: (
     type: ConnectionType,
     httpAddress?: string,
@@ -512,8 +509,6 @@ interface Props {
 export default function ConnectionPanel({
   state,
   onConnect,
-  onRefreshContacts,
-  onSendAdvert,
   onAutoConnect,
   onDisconnect,
   mqttStatus,
@@ -542,23 +537,7 @@ export default function ConnectionPanel({
   const pinPromptSeenSinceRePairRef = useRef(false);
   const [pinCountdown, setPinCountdown] = useState<number | null>(null);
   const pinCountdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [advertLoading, setAdvertLoading] = useState(false);
-  const { addToast } = useToast();
   const activeHostAddress = protocol === 'meshcore' ? tcpHost : httpAddress;
-
-  const handleSendAdvert = useCallback(async () => {
-    if (!onSendAdvert) return;
-    setAdvertLoading(true);
-    try {
-      await onSendAdvert();
-      addToast('Flood advert sent', 'success');
-    } catch (e) {
-      console.warn('[ConnectionPanel] sendAdvert failed:', e instanceof Error ? e.message : e);
-      addToast(`Advert failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
-    } finally {
-      setAdvertLoading(false);
-    }
-  }, [onSendAdvert, addToast]);
 
   // ─── MQTT settings state ───────────────────────────────────────
   const [mqttSettings, setMqttSettings] = useState<MQTTSettings>(loadMqttSettings);
@@ -2477,32 +2456,6 @@ export default function ConnectionPanel({
             >
               Disconnect
             </button>
-            {onRefreshContacts && (
-              <button
-                onClick={onRefreshContacts}
-                className="w-full px-4 py-2.5 border border-purple-600 text-purple-400 hover:bg-purple-900/30 hover:text-purple-300 text-sm font-medium rounded-lg transition-colors"
-              >
-                Refresh Contacts
-              </button>
-            )}
-            {onSendAdvert && (
-              <button
-                type="button"
-                onClick={() => void handleSendAdvert()}
-                disabled={advertLoading || state.status === 'reconnecting'}
-                aria-label={advertLoading ? 'Sending advert' : 'Send flood advert'}
-                className="w-full px-4 py-2.5 border border-gray-600 text-gray-300 hover:bg-secondary-dark hover:text-gray-100 text-sm font-medium rounded-lg transition-colors disabled:opacity-40"
-              >
-                {advertLoading ? (
-                  <span
-                    className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin inline-block align-middle"
-                    aria-hidden
-                  />
-                ) : (
-                  'Send Advert'
-                )}
-              </button>
-            )}
           </div>
         </div>
 

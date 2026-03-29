@@ -1105,8 +1105,6 @@ export default function App() {
                         }
                         protocol="meshcore"
                         onProtocolChange={handleProtocolChange}
-                        onRefreshContacts={meshcoreDevice.refreshContacts}
-                        onSendAdvert={meshcoreDevice.sendAdvert}
                         firmwareCheckState={
                           protocol === 'meshcore' ? firmwareCheckState : undefined
                         }
