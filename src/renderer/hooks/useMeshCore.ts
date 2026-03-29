@@ -716,6 +716,16 @@ function coerceOptionalDbInt(v: number | string | null | undefined): number | un
   return Number.isFinite(n) ? n : undefined;
 }
 
+/** 32-byte pubkey from `meshcore_contacts.public_key` hex, or null if synthetic / invalid length. */
+function meshcoreFullPubKeyBytesFromContactDbHex(raw: string): Uint8Array | null {
+  const hex = raw.replace(/\s/g, '');
+  if (meshcoreIsSyntheticPlaceholderPubKeyHex(hex)) return null;
+  if (hex.length !== 64) return null;
+  const pairs = hex.match(/.{2}/g);
+  if (pairs?.length !== 32) return null;
+  return new Uint8Array(pairs.map((b) => parseInt(b, 16)));
+}
+
 /** Map persisted MeshCore message rows to chat messages (stub sender id; trust stored payload). */
 function mapMeshcoreDbRowsToChatMessages(rows: MeshcoreMessageDbRow[]): ChatMessage[] {
   const mapped: ChatMessage[] = [];
@@ -1160,6 +1170,16 @@ export function useMeshCore() {
       try {
         const dbContacts =
           (await window.electronAPI.db.getMeshcoreContacts()) as MeshcoreContactDbRow[];
+        for (const row of dbContacts) {
+          if (pubKeyMapRef.current.has(row.node_id)) continue;
+          const bytes = meshcoreFullPubKeyBytesFromContactDbHex(row.public_key);
+          if (!bytes) continue;
+          pubKeyMapRef.current.set(row.node_id, bytes);
+          const prefix = Array.from(bytes.slice(0, 6))
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join('');
+          pubKeyPrefixMapRef.current.set(prefix, row.node_id);
+        }
         for (const row of dbContacts) {
           if (!nextNodes.has(row.node_id)) {
             const last_heard = mergeMeshcoreLastHeardFromAdvert(
