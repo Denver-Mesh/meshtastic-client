@@ -252,9 +252,13 @@ export default function App() {
 
   const meshtasticDevice = useDevice();
   const meshcoreDevice = useMeshCore();
-  const contactGroups = useContactGroups(
-    protocol === 'meshcore' ? meshcoreDevice.selfNodeId : null,
-  );
+  const contactGroupsSelfId =
+    protocol === 'meshcore'
+      ? meshcoreDevice.selfNodeId
+      : protocol === 'meshtastic'
+        ? meshtasticDevice.selfNodeId
+        : null;
+  const contactGroups = useContactGroups(contactGroupsSelfId);
   const [showGroupsModal, setShowGroupsModal] = useState(false);
   const device =
     protocol === 'meshcore'
@@ -1033,23 +1037,18 @@ export default function App() {
                       locationFilter={locationFilter}
                       onToggleFavorite={device.setNodeFavorited}
                       mode={protocol}
-                      groups={protocol === 'meshcore' ? contactGroups.groups : undefined}
-                      selectedGroupId={
-                        protocol === 'meshcore' ? contactGroups.selectedGroupId : undefined
-                      }
-                      onGroupChange={
-                        protocol === 'meshcore' ? contactGroups.setSelectedGroupId : undefined
-                      }
+                      groups={contactGroups.groups}
+                      selectedGroupId={contactGroups.selectedGroupId}
+                      onGroupChange={contactGroups.setSelectedGroupId}
                       onManageGroups={
-                        protocol === 'meshcore'
+                        capabilities.hasUserManagedContactGroups
                           ? () => {
                               setShowGroupsModal(true);
                             }
                           : undefined
                       }
-                      groupMemberIds={
-                        protocol === 'meshcore' ? contactGroups.groupMemberIds : undefined
-                      }
+                      groupMemberIds={contactGroups.groupMemberIds}
+                      contactGroupsEnabled={capabilities.hasUserManagedContactGroups}
                       onImportContacts={
                         protocol === 'meshcore' ? meshcoreDevice.importContacts : undefined
                       }
@@ -1478,11 +1477,14 @@ export default function App() {
         />
 
         {/* Contact Groups Modal */}
-        {showGroupsModal && protocol === 'meshcore' && (
+        {showGroupsModal && capabilities.hasUserManagedContactGroups && (
           <ContactGroupsModal
             groups={contactGroups.groups}
-            contacts={meshcoreDevice.nodes}
-            selfNodeId={meshcoreDevice.selfNodeId}
+            contacts={protocol === 'meshcore' ? meshcoreDevice.nodes : meshtasticDevice.nodes}
+            selfNodeId={
+              protocol === 'meshcore' ? meshcoreDevice.selfNodeId : meshtasticDevice.selfNodeId
+            }
+            protocol={protocol}
             onClose={() => {
               setShowGroupsModal(false);
             }}

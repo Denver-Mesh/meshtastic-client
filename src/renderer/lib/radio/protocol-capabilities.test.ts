@@ -35,6 +35,7 @@ const REQUIRED_CAPABILITY_KEYS: (keyof ProtocolCapabilities)[] = [
   'hasPowerConfig',
   'hasWifiConfig',
   'hasTelemetryIntervalConfig',
+  'hasUserManagedContactGroups',
   'hasCompanionContactManagementConfig',
   'hasCompanionTelemetryPrivacyConfig',
   'hasShutdown',
@@ -93,6 +94,7 @@ describe('ProtocolCapabilities contract', () => {
         "hasShutdown": true,
         "hasTelemetryIntervalConfig": true,
         "hasTraceRoute": true,
+        "hasUserManagedContactGroups": true,
         "hasWifiConfig": true,
         "hopLimitRange": [
           1,
@@ -130,6 +132,7 @@ describe('ProtocolCapabilities contract', () => {
         "hasShutdown": false,
         "hasTelemetryIntervalConfig": false,
         "hasTraceRoute": true,
+        "hasUserManagedContactGroups": true,
         "hasWifiConfig": false,
         "hopLimitRange": [
           1,

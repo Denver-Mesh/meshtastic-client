@@ -2,13 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { ContactGroup } from '../../shared/electron-api.types';
 import { isMeshcoreContactEligibleForUserGroup } from '../lib/meshcoreUtils';
-import type { MeshNode } from '../lib/types';
+import { isMeshtasticContactEligibleForUserGroup } from '../lib/meshtasticContactGroupUtils';
+import type { MeshNode, MeshProtocol } from '../lib/types';
 import { useToast } from './Toast';
 
 interface ContactGroupsModalProps {
   groups: ContactGroup[];
   contacts: Map<number, MeshNode>;
   selfNodeId: number | null;
+  protocol: MeshProtocol;
   onClose: () => void;
   onCreate: (name: string) => Promise<number>;
   onRename: (groupId: number, name: string) => Promise<void>;
@@ -23,6 +25,7 @@ export default function ContactGroupsModal({
   groups,
   contacts,
   selfNodeId,
+  protocol,
   onClose,
   onCreate,
   onRename,
@@ -154,7 +157,11 @@ export default function ContactGroupsModal({
   }
 
   const sortedContacts = Array.from(contacts.values())
-    .filter((c) => c.node_id !== selfNodeId && isMeshcoreContactEligibleForUserGroup(c))
+    .filter((c) =>
+      protocol === 'meshtastic'
+        ? isMeshtasticContactEligibleForUserGroup(c, selfNodeId)
+        : c.node_id !== selfNodeId && isMeshcoreContactEligibleForUserGroup(c),
+    )
     .sort((a, b) => (a.long_name || '').localeCompare(b.long_name || ''));
 
   return (

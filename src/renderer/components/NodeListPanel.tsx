@@ -5,6 +5,13 @@ import type { LocationFilter } from '../App';
 import { formatCoordColumns } from '../lib/coordUtils';
 import { getRoutingRowForNode } from '../lib/diagnostics/diagnosticRows';
 import { snrMeaningfulForNodeDiagnostics } from '../lib/diagnostics/snrMeaningfulForNodeDiagnostics';
+import {
+  MESHTASTIC_BUILTIN_CONTACT_GROUP_FILTERS,
+  MESHTASTIC_CONTACT_GROUP_BUILTIN_GPS,
+  MESHTASTIC_CONTACT_GROUP_BUILTIN_RF_MQTT,
+  meshtasticContactGroupMatchesBuiltinGps,
+  meshtasticContactGroupMatchesBuiltinRfMqtt,
+} from '../lib/meshtasticContactGroupUtils';
 import { getNodeStatus, haversineDistanceKm, normalizeLastHeardMs } from '../lib/nodeStatus';
 import { RoleDisplay } from '../lib/roleInfo';
 import type { MeshNode } from '../lib/types';
@@ -117,6 +124,8 @@ interface Props {
   onManageGroups?: () => void;
   groupMemberIds?: Set<number>;
   onImportContacts?: () => Promise<ImportContactsResult>;
+  /** When false, hide contact-group filter UI even if onManageGroups is set */
+  contactGroupsEnabled?: boolean;
 }
 
 export default function NodeListPanel({
@@ -133,6 +142,7 @@ export default function NodeListPanel({
   onManageGroups,
   groupMemberIds,
   onImportContacts,
+  contactGroupsEnabled = true,
 }: Props) {
   const { addToast } = useToast();
   const coordinateFormat = useCoordFormatStore((s) => s.coordinateFormat);
@@ -210,13 +220,23 @@ export default function NodeListPanel({
       );
     }
 
-    // Filter by group membership or built-in type filter (meshcore mode only)
-    if (mode === 'meshcore' && selectedGroupId != null) {
-      if (selectedGroupId < 0) {
-        const typeFilter = BUILTIN_TYPE_FILTERS.find((f) => f.group_id === selectedGroupId);
-        if (typeFilter) list = list.filter((n) => n.hw_model === typeFilter.hw_model);
-      } else if (groupMemberIds) {
-        list = list.filter((n) => groupMemberIds.has(n.node_id));
+    // Filter by group membership or built-in filters (MeshCore: contact type; Meshtastic: GPS / RF+MQTT)
+    if (selectedGroupId != null) {
+      if (mode === 'meshcore') {
+        if (selectedGroupId < 0) {
+          const typeFilter = BUILTIN_TYPE_FILTERS.find((f) => f.group_id === selectedGroupId);
+          if (typeFilter) list = list.filter((n) => n.hw_model === typeFilter.hw_model);
+        } else if (groupMemberIds) {
+          list = list.filter((n) => groupMemberIds.has(n.node_id));
+        }
+      } else if (mode === 'meshtastic') {
+        if (selectedGroupId === MESHTASTIC_CONTACT_GROUP_BUILTIN_GPS) {
+          list = list.filter((n) => meshtasticContactGroupMatchesBuiltinGps(n, myNodeNum));
+        } else if (selectedGroupId === MESHTASTIC_CONTACT_GROUP_BUILTIN_RF_MQTT) {
+          list = list.filter((n) => meshtasticContactGroupMatchesBuiltinRfMqtt(n, myNodeNum));
+        } else if (selectedGroupId > 0 && groupMemberIds) {
+          list = list.filter((n) => groupMemberIds.has(n.node_id));
+        }
       }
     }
 
@@ -413,8 +433,8 @@ export default function NodeListPanel({
         </p>
       )}
 
-      {/* Group filter (MeshCore mode only) */}
-      {mode === 'meshcore' && onManageGroups && (
+      {/* Group filter (MeshCore + Meshtastic when contactGroupsEnabled) */}
+      {contactGroupsEnabled && onManageGroups && (
         <div className="flex items-center gap-2 shrink-0">
           <select
             value={selectedGroupId ?? ''}
@@ -425,12 +445,18 @@ export default function NodeListPanel({
             aria-label="Filter by contact group"
             className="flex-1 px-3 py-1.5 bg-secondary-dark/80 rounded-lg text-gray-200 text-sm border border-gray-600/50 focus:border-brand-green/50 focus:outline-none"
           >
-            <option value="">All contacts</option>
-            {BUILTIN_TYPE_FILTERS.map((f) => (
-              <option key={f.group_id} value={f.group_id}>
-                Type: {f.label}
-              </option>
-            ))}
+            <option value="">{mode === 'meshcore' ? 'All contacts' : 'All nodes'}</option>
+            {mode === 'meshcore'
+              ? BUILTIN_TYPE_FILTERS.map((f) => (
+                  <option key={f.group_id} value={f.group_id}>
+                    Type: {f.label}
+                  </option>
+                ))
+              : MESHTASTIC_BUILTIN_CONTACT_GROUP_FILTERS.map((f) => (
+                  <option key={f.group_id} value={f.group_id}>
+                    {f.label}
+                  </option>
+                ))}
             {groups?.map((g) => (
               <option key={g.group_id} value={g.group_id}>
                 Group: {g.name} ({g.member_count})

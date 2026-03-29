@@ -128,8 +128,13 @@ describe('meshcore_messages dedup index and fresh DB version', () => {
     expect(DB_SOURCE).toMatch(/meshcore_contacts[\s\S]*contact_flags INTEGER DEFAULT 0/s);
   });
 
-  it('fresh DB init stamps user_version 19 inside isFreshDb', () => {
-    expect(DB_SOURCE).toMatch(/if \(isFreshDb\) \{[\s\S]*?pragma\('user_version = 19'\)/);
+  it('fresh DB init stamps user_version 20 inside isFreshDb', () => {
+    expect(DB_SOURCE).toMatch(/if \(isFreshDb\) \{[\s\S]*?pragma\('user_version = 20'\)/);
+  });
+
+  it('createBaseTables defines protocol-neutral contact_groups tables', () => {
+    expect(DB_SOURCE).toMatch(/CREATE TABLE IF NOT EXISTS contact_groups/s);
+    expect(DB_SOURCE).toMatch(/CREATE TABLE IF NOT EXISTS contact_group_members/s);
   });
 });
 
