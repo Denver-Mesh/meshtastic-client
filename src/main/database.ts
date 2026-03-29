@@ -64,7 +64,7 @@ export function initDatabase(): void {
            WHERE packet_id IS NOT NULL`,
           )
           .run();
-        db!.pragma('user_version = 18');
+        db!.pragma('user_version = 20');
       } else {
         runMigrations();
       }
@@ -169,7 +169,8 @@ function createBaseTables(): void {
         last_snr     REAL,
         last_rssi    REAL,
         favorited    INTEGER DEFAULT 0,
-        nickname     TEXT
+        nickname     TEXT,
+        contact_flags INTEGER DEFAULT 0
       );
 
       CREATE TABLE IF NOT EXISTS meshcore_messages (
@@ -205,16 +206,16 @@ function createBaseTables(): void {
         ON position_history(node_id, recorded_at);
       CREATE INDEX IF NOT EXISTS idx_position_history_time ON position_history(recorded_at);
 
-      CREATE TABLE IF NOT EXISTS meshcore_contact_groups (
+      CREATE TABLE IF NOT EXISTS contact_groups (
         group_id      INTEGER PRIMARY KEY AUTOINCREMENT,
         self_node_id  INTEGER NOT NULL,
         name          TEXT    NOT NULL
       );
-      CREATE INDEX IF NOT EXISTS idx_mcg_self ON meshcore_contact_groups(self_node_id);
+      CREATE INDEX IF NOT EXISTS idx_contact_groups_self ON contact_groups(self_node_id);
 
-      CREATE TABLE IF NOT EXISTS meshcore_contact_group_members (
+      CREATE TABLE IF NOT EXISTS contact_group_members (
         group_id         INTEGER NOT NULL
-          REFERENCES meshcore_contact_groups(group_id) ON DELETE CASCADE,
+          REFERENCES contact_groups(group_id) ON DELETE CASCADE,
         contact_node_id  INTEGER NOT NULL,
         PRIMARY KEY (group_id, contact_node_id)
       );
@@ -588,6 +589,109 @@ function runMigrations(): void {
       throw new Error(`Migration v18 failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
+
+  if (userVersion < 19) {
+    try {
+      const columns = db!.prepare('PRAGMA table_info(meshcore_contacts)').all() as {
+        name: string;
+      }[];
+      if (!columns.some((c) => c.name === 'contact_flags')) {
+        db!
+          .prepare('ALTER TABLE meshcore_contacts ADD COLUMN contact_flags INTEGER DEFAULT 0')
+          .run();
+      }
+      db!.pragma('user_version = 19');
+    } catch (e) {
+      console.error(
+        '[db] migration v19 failed',
+        sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+      );
+      throw new Error(`Migration v19 failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  if (userVersion < 20) {
+    try {
+      const hasLegacy = db!
+        .prepare(
+          "SELECT 1 FROM sqlite_master WHERE type='table' AND name='meshcore_contact_groups' LIMIT 1",
+        )
+        .get();
+      const hasNew = db!
+        .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='contact_groups' LIMIT 1")
+        .get();
+
+      if (hasLegacy) {
+        if (!hasNew) {
+          db!
+            .prepare(
+              `CREATE TABLE contact_groups (
+                 group_id      INTEGER PRIMARY KEY AUTOINCREMENT,
+                 self_node_id  INTEGER NOT NULL,
+                 name          TEXT    NOT NULL
+               )`,
+            )
+            .run();
+          db!
+            .prepare(
+              `CREATE TABLE contact_group_members (
+                 group_id         INTEGER NOT NULL
+                   REFERENCES contact_groups(group_id) ON DELETE CASCADE,
+                 contact_node_id  INTEGER NOT NULL,
+                 PRIMARY KEY (group_id, contact_node_id)
+               )`,
+            )
+            .run();
+        } else {
+          db!.prepare('DELETE FROM contact_group_members').run();
+          db!.prepare('DELETE FROM contact_groups').run();
+        }
+        db!.prepare('INSERT INTO contact_groups SELECT * FROM meshcore_contact_groups').run();
+        db!
+          .prepare('INSERT INTO contact_group_members SELECT * FROM meshcore_contact_group_members')
+          .run();
+        db!.prepare('DROP TABLE IF EXISTS meshcore_contact_group_members').run();
+        db!.prepare('DROP TABLE IF EXISTS meshcore_contact_groups').run();
+        db!
+          .prepare(
+            'CREATE INDEX IF NOT EXISTS idx_contact_groups_self ON contact_groups(self_node_id)',
+          )
+          .run();
+      } else if (!hasNew) {
+        db!
+          .prepare(
+            `CREATE TABLE IF NOT EXISTS contact_groups (
+               group_id      INTEGER PRIMARY KEY AUTOINCREMENT,
+               self_node_id  INTEGER NOT NULL,
+               name          TEXT    NOT NULL
+             )`,
+          )
+          .run();
+        db!
+          .prepare(
+            `CREATE TABLE IF NOT EXISTS contact_group_members (
+               group_id         INTEGER NOT NULL
+                 REFERENCES contact_groups(group_id) ON DELETE CASCADE,
+               contact_node_id  INTEGER NOT NULL,
+               PRIMARY KEY (group_id, contact_node_id)
+             )`,
+          )
+          .run();
+        db!
+          .prepare(
+            'CREATE INDEX IF NOT EXISTS idx_contact_groups_self ON contact_groups(self_node_id)',
+          )
+          .run();
+      }
+      db!.pragma('user_version = 20');
+    } catch (e) {
+      console.error(
+        '[db] migration v20 failed',
+        sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+      );
+      throw new Error(`Migration v20 failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
 }
 
 /** Export DB to a file. Best-effort for very large databases; may take a long time with no progress callback. */
@@ -766,8 +870,8 @@ export function getContactGroups(
   return getDatabase()
     .prepare(
       `SELECT g.group_id, g.name, COUNT(m.contact_node_id) AS member_count
-         FROM meshcore_contact_groups g
-         LEFT JOIN meshcore_contact_group_members m ON m.group_id = g.group_id
+         FROM contact_groups g
+         LEFT JOIN contact_group_members m ON m.group_id = g.group_id
         WHERE g.self_node_id = ?
         GROUP BY g.group_id
         ORDER BY g.name ASC`,
@@ -777,25 +881,23 @@ export function getContactGroups(
 
 export function createContactGroup(selfNodeId: number, name: string): number {
   const result = getDatabase()
-    .prepare(`INSERT INTO meshcore_contact_groups (self_node_id, name) VALUES (?, ?)`)
+    .prepare(`INSERT INTO contact_groups (self_node_id, name) VALUES (?, ?)`)
     .run(selfNodeId, name);
   return Number(result.lastInsertRowid);
 }
 
 export function updateContactGroup(groupId: number, name: string): void {
-  getDatabase()
-    .prepare(`UPDATE meshcore_contact_groups SET name = ? WHERE group_id = ?`)
-    .run(name, groupId);
+  getDatabase().prepare(`UPDATE contact_groups SET name = ? WHERE group_id = ?`).run(name, groupId);
 }
 
 export function deleteContactGroup(groupId: number): void {
-  getDatabase().prepare(`DELETE FROM meshcore_contact_groups WHERE group_id = ?`).run(groupId);
+  getDatabase().prepare(`DELETE FROM contact_groups WHERE group_id = ?`).run(groupId);
 }
 
 export function addContactToGroup(groupId: number, contactNodeId: number): void {
   getDatabase()
     .prepare(
-      `INSERT OR IGNORE INTO meshcore_contact_group_members (group_id, contact_node_id)
+      `INSERT OR IGNORE INTO contact_group_members (group_id, contact_node_id)
        VALUES (?, ?)`,
     )
     .run(groupId, contactNodeId);
@@ -803,15 +905,13 @@ export function addContactToGroup(groupId: number, contactNodeId: number): void 
 
 export function removeContactFromGroup(groupId: number, contactNodeId: number): void {
   getDatabase()
-    .prepare(
-      `DELETE FROM meshcore_contact_group_members WHERE group_id = ? AND contact_node_id = ?`,
-    )
+    .prepare(`DELETE FROM contact_group_members WHERE group_id = ? AND contact_node_id = ?`)
     .run(groupId, contactNodeId);
 }
 
 export function getContactGroupMembers(groupId: number): number[] {
   const rows = getDatabase()
-    .prepare(`SELECT contact_node_id FROM meshcore_contact_group_members WHERE group_id = ?`)
+    .prepare(`SELECT contact_node_id FROM contact_group_members WHERE group_id = ?`)
     .all(groupId) as { contact_node_id: number }[];
   return rows.map((r) => r.contact_node_id);
 }

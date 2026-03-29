@@ -5,6 +5,13 @@ import type { LocationFilter } from '../App';
 import { formatCoordColumns } from '../lib/coordUtils';
 import { getRoutingRowForNode } from '../lib/diagnostics/diagnosticRows';
 import { snrMeaningfulForNodeDiagnostics } from '../lib/diagnostics/snrMeaningfulForNodeDiagnostics';
+import {
+  MESHTASTIC_BUILTIN_CONTACT_GROUP_FILTERS,
+  MESHTASTIC_CONTACT_GROUP_BUILTIN_GPS,
+  MESHTASTIC_CONTACT_GROUP_BUILTIN_RF_MQTT,
+  meshtasticContactGroupMatchesBuiltinGps,
+  meshtasticContactGroupMatchesBuiltinRfMqtt,
+} from '../lib/meshtasticContactGroupUtils';
 import { getNodeStatus, haversineDistanceKm, normalizeLastHeardMs } from '../lib/nodeStatus';
 import { RoleDisplay } from '../lib/roleInfo';
 import type { MeshNode } from '../lib/types';
@@ -117,6 +124,13 @@ interface Props {
   onManageGroups?: () => void;
   groupMemberIds?: Set<number>;
   onImportContacts?: () => Promise<ImportContactsResult>;
+  /** When false, hide contact-group filter UI even if onManageGroups is set */
+  contactGroupsEnabled?: boolean;
+  /** MeshCore: show Refresh button on Contacts tab (paired with onRefreshContacts) */
+  meshcoreShowRefreshControl?: boolean;
+  onRefreshContacts?: () => Promise<void>;
+  meshcoreShowPublicKeys?: boolean;
+  meshcorePublicKeyHexByNodeId?: Map<number, string>;
 }
 
 export default function NodeListPanel({
@@ -133,6 +147,11 @@ export default function NodeListPanel({
   onManageGroups,
   groupMemberIds,
   onImportContacts,
+  contactGroupsEnabled = true,
+  meshcoreShowRefreshControl = false,
+  onRefreshContacts,
+  meshcoreShowPublicKeys = false,
+  meshcorePublicKeyHexByNodeId,
 }: Props) {
   const { addToast } = useToast();
   const coordinateFormat = useCoordFormatStore((s) => s.coordinateFormat);
@@ -143,6 +162,7 @@ export default function NodeListPanel({
   const [sortAsc, setSortAsc] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [importLoading, setImportLoading] = useState(false);
+  const [refreshLoading, setRefreshLoading] = useState(false);
 
   useEffect(() => {
     if (mode === 'meshcore' && MESHCORE_INAPPLICABLE_SORT_FIELDS.includes(sortField)) {
@@ -166,6 +186,20 @@ export default function NodeListPanel({
 
   const scrollToTop = () =>
     document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
+
+  const handleRefreshContacts = async () => {
+    if (!onRefreshContacts) return;
+    setRefreshLoading(true);
+    try {
+      await onRefreshContacts();
+      addToast('Contacts refreshed.', 'success');
+    } catch (e) {
+      console.warn('[NodeListPanel] refresh failed:', e instanceof Error ? e.message : e);
+      addToast(`Refresh failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
+    } finally {
+      setRefreshLoading(false);
+    }
+  };
 
   const handleImport = async () => {
     if (!onImportContacts) return;
@@ -210,13 +244,23 @@ export default function NodeListPanel({
       );
     }
 
-    // Filter by group membership or built-in type filter (meshcore mode only)
-    if (mode === 'meshcore' && selectedGroupId != null) {
-      if (selectedGroupId < 0) {
-        const typeFilter = BUILTIN_TYPE_FILTERS.find((f) => f.group_id === selectedGroupId);
-        if (typeFilter) list = list.filter((n) => n.hw_model === typeFilter.hw_model);
-      } else if (groupMemberIds) {
-        list = list.filter((n) => groupMemberIds.has(n.node_id));
+    // Filter by group membership or built-in filters (MeshCore: contact type; Meshtastic: GPS / RF+MQTT)
+    if (selectedGroupId != null) {
+      if (mode === 'meshcore') {
+        if (selectedGroupId < 0) {
+          const typeFilter = BUILTIN_TYPE_FILTERS.find((f) => f.group_id === selectedGroupId);
+          if (typeFilter) list = list.filter((n) => n.hw_model === typeFilter.hw_model);
+        } else if (groupMemberIds) {
+          list = list.filter((n) => groupMemberIds.has(n.node_id));
+        }
+      } else if (mode === 'meshtastic') {
+        if (selectedGroupId === MESHTASTIC_CONTACT_GROUP_BUILTIN_GPS) {
+          list = list.filter((n) => meshtasticContactGroupMatchesBuiltinGps(n, myNodeNum));
+        } else if (selectedGroupId === MESHTASTIC_CONTACT_GROUP_BUILTIN_RF_MQTT) {
+          list = list.filter((n) => meshtasticContactGroupMatchesBuiltinRfMqtt(n, myNodeNum));
+        } else if (selectedGroupId > 0 && groupMemberIds) {
+          list = list.filter((n) => groupMemberIds.has(n.node_id));
+        }
       }
     }
 
@@ -379,8 +423,9 @@ export default function NodeListPanel({
 
   return (
     <div className="flex flex-col min-h-0 h-full gap-3">
-      <div className="flex flex-col min-[480px]:flex-row flex-wrap items-stretch min-[480px]:items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-bright-green">
+      {/* 1fr | auto | 1fr keeps the search visually centered on wide screens (matches MeshCore’s title | search | import row). */}
+      <div className="grid grid-cols-1 min-[480px]:grid-cols-[1fr_auto_1fr] gap-3 items-center">
+        <h2 className="text-lg font-semibold text-bright-green min-[480px]:justify-self-start">
           {mode === 'meshcore' ? 'Contacts' : 'Node Database'} ({headerCountLabel})
         </h2>
         <input
@@ -391,20 +436,40 @@ export default function NodeListPanel({
           }}
           placeholder={mode === 'meshcore' ? 'Search contacts…' : 'Search nodes…'}
           aria-label={mode === 'meshcore' ? 'Search contacts' : 'Search nodes'}
-          className="flex-1 min-w-[8rem] max-w-[20rem] px-3 py-1.5 bg-secondary-dark/80 rounded-lg text-gray-200 text-sm border border-gray-600/50 focus:border-brand-green/50 focus:outline-none"
+          className="w-full min-w-[8rem] max-w-[20rem] min-[480px]:justify-self-center px-3 py-1.5 bg-secondary-dark/80 rounded-lg text-gray-200 text-sm border border-gray-600/50 focus:border-brand-green/50 focus:outline-none"
         />
-        {mode === 'meshcore' && onImportContacts && (
-          <button
-            onClick={handleImport}
-            disabled={importLoading}
-            className="flex items-center gap-2 px-3 py-1.5 rounded bg-brand-green/20 text-brand-green border border-brand-green/30 hover:bg-brand-green/30 transition-colors text-sm font-medium disabled:opacity-50"
-          >
-            {importLoading ? (
-              <span className="w-3 h-3 border border-brand-green border-t-transparent rounded-full animate-spin inline-block" />
-            ) : null}
-            Import Contacts
-          </button>
-        )}
+        <div className="flex justify-stretch min-[480px]:justify-end gap-2 flex-wrap">
+          {mode === 'meshcore' && meshcoreShowRefreshControl && onRefreshContacts ? (
+            <button
+              type="button"
+              onClick={() => {
+                void handleRefreshContacts();
+              }}
+              disabled={refreshLoading}
+              aria-label="Refresh contacts from radio"
+              className="flex w-full min-[480px]:w-auto items-center justify-center gap-2 px-3 py-1.5 rounded border border-purple-600 text-purple-400 hover:bg-purple-900/30 hover:text-purple-300 transition-colors text-sm font-medium disabled:opacity-50"
+            >
+              {refreshLoading ? (
+                <span className="w-3 h-3 border border-purple-400 border-t-transparent rounded-full animate-spin inline-block" />
+              ) : null}
+              Refresh
+            </button>
+          ) : null}
+          {mode === 'meshcore' && onImportContacts ? (
+            <button
+              onClick={handleImport}
+              disabled={importLoading}
+              className="flex w-full min-[480px]:w-auto items-center justify-center gap-2 px-3 py-1.5 rounded bg-brand-green/20 text-brand-green border border-brand-green/30 hover:bg-brand-green/30 transition-colors text-sm font-medium disabled:opacity-50"
+            >
+              {importLoading ? (
+                <span className="w-3 h-3 border border-brand-green border-t-transparent rounded-full animate-spin inline-block" />
+              ) : null}
+              Import Contacts
+            </button>
+          ) : (
+            <div className="hidden min-[480px]:block min-w-0" aria-hidden />
+          )}
+        </div>
       </div>
       {mode === 'meshcore' && (
         <p className="text-xs text-gray-500 max-w-2xl">
@@ -413,8 +478,8 @@ export default function NodeListPanel({
         </p>
       )}
 
-      {/* Group filter (MeshCore mode only) */}
-      {mode === 'meshcore' && onManageGroups && (
+      {/* Group filter (MeshCore + Meshtastic when contactGroupsEnabled) */}
+      {contactGroupsEnabled && onManageGroups && (
         <div className="flex items-center gap-2 shrink-0">
           <select
             value={selectedGroupId ?? ''}
@@ -425,12 +490,18 @@ export default function NodeListPanel({
             aria-label="Filter by contact group"
             className="flex-1 px-3 py-1.5 bg-secondary-dark/80 rounded-lg text-gray-200 text-sm border border-gray-600/50 focus:border-brand-green/50 focus:outline-none"
           >
-            <option value="">All contacts</option>
-            {BUILTIN_TYPE_FILTERS.map((f) => (
-              <option key={f.group_id} value={f.group_id}>
-                Type: {f.label}
-              </option>
-            ))}
+            <option value="">{mode === 'meshcore' ? 'All contacts' : 'All nodes'}</option>
+            {mode === 'meshcore'
+              ? BUILTIN_TYPE_FILTERS.map((f) => (
+                  <option key={f.group_id} value={f.group_id}>
+                    Type: {f.label}
+                  </option>
+                ))
+              : MESHTASTIC_BUILTIN_CONTACT_GROUP_FILTERS.map((f) => (
+                  <option key={f.group_id} value={f.group_id}>
+                    {f.label}
+                  </option>
+                ))}
             {groups?.map((g) => (
               <option key={g.group_id} value={g.group_id}>
                 Group: {g.name} ({g.member_count})
@@ -853,37 +924,50 @@ export default function NodeListPanel({
                     <td
                       className={`px-3 py-2 ${isSelf ? 'text-bright-green font-medium' : 'text-gray-200'} ${isMqttOnlyDimmed ? 'line-through' : ''}`}
                     >
-                      {node.long_name || '-'}
-                      {isSelf && (
-                        <span className="text-[10px] text-bright-green/60 ml-1.5">(you)</span>
-                      )}
-                      {!isSelf &&
-                        (() => {
-                          const routingRow = getRoutingRowForNode(diagnosticRows, node.node_id);
-                          if (!routingRow) return null;
-                          return (
-                            <svg
-                              className={`w-4 h-4 ml-1 inline shrink-0 ${
-                                routingRow.severity === 'error'
-                                  ? 'text-red-400'
-                                  : routingRow.severity === 'info'
-                                    ? 'text-blue-400'
-                                    : 'text-orange-400'
-                              }`}
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                              strokeWidth={2}
-                            >
-                              <title>{routingRow.description}</title>
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                              />
-                            </svg>
-                          );
-                        })()}
+                      <div className="flex flex-col gap-0.5 min-w-0">
+                        <span className="inline-flex items-center gap-1 min-w-0">
+                          <span className="truncate">
+                            {node.long_name || '-'}
+                            {isSelf && (
+                              <span className="text-[10px] text-bright-green/60 ml-1.5">(you)</span>
+                            )}
+                          </span>
+                          {!isSelf &&
+                            (() => {
+                              const routingRow = getRoutingRowForNode(diagnosticRows, node.node_id);
+                              if (!routingRow) return null;
+                              return (
+                                <svg
+                                  className={`w-4 h-4 shrink-0 ${
+                                    routingRow.severity === 'error'
+                                      ? 'text-red-400'
+                                      : routingRow.severity === 'info'
+                                        ? 'text-blue-400'
+                                        : 'text-orange-400'
+                                  }`}
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                  strokeWidth={2}
+                                >
+                                  <title>{routingRow.description}</title>
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                                  />
+                                </svg>
+                              );
+                            })()}
+                        </span>
+                        {mode === 'meshcore' &&
+                          meshcoreShowPublicKeys &&
+                          meshcorePublicKeyHexByNodeId?.get(node.node_id) && (
+                            <span className="font-mono text-[10px] text-muted break-all whitespace-normal">
+                              {meshcorePublicKeyHexByNodeId.get(node.node_id)}
+                            </span>
+                          )}
+                      </div>
                     </td>
                     {mode !== 'meshcore' && (
                       <td

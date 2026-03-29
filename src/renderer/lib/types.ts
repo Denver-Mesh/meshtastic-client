@@ -1,3 +1,7 @@
+import type { TAKClientInfo, TAKServerStatus, TAKSettings } from '@/shared/tak-types';
+
+export type { TAKClientInfo, TAKServerStatus, TAKSettings };
+
 export type ConnectionType = 'ble' | 'serial' | 'http';
 
 export type MeshProtocol = 'meshtastic' | 'meshcore';
@@ -241,6 +245,9 @@ export interface DeviceState {
   reconnectAttempt?: number;
   lastDataReceived?: number;
   firmwareVersion?: string;
+  /** 0–100 from device metrics; omit until first reading */
+  batteryPercent?: number;
+  batteryCharging?: boolean;
 }
 
 export interface NobleBleDevice {
@@ -349,6 +356,7 @@ declare global {
           last_snr?: number | null;
           last_rssi?: number | null;
           nickname?: string | null;
+          contact_flags?: number | null;
         }) => Promise<unknown>;
         updateMeshcoreMessageStatus: (packetId: number, status: string) => Promise<unknown>;
         updateMeshcoreContactAdvert: (
@@ -356,6 +364,7 @@ declare global {
           lastAdvert: number | null,
           advLat: number | null,
           advLon: number | null,
+          advName?: string | null,
         ) => Promise<unknown>;
         updateMeshcoreContactLastRf: (
           nodeId: number,
@@ -551,6 +560,18 @@ declare global {
         encrypt: (plaintext: string) => Promise<string | null>;
         decrypt: (ciphertext: string) => Promise<string | null>;
         isAvailable: () => Promise<boolean>;
+      };
+      tak: {
+        start: (settings: TAKSettings) => Promise<void>;
+        stop: () => Promise<void>;
+        getStatus: () => Promise<TAKServerStatus>;
+        getConnectedClients: () => Promise<TAKClientInfo[]>;
+        generateDataPackage: () => Promise<void>;
+        regenerateCertificates: () => Promise<void>;
+        pushNodeUpdate: (node: Record<string, unknown>) => Promise<void>;
+        onStatus: (cb: (status: TAKServerStatus) => void) => () => void;
+        onClientConnected: (cb: (client: TAKClientInfo) => void) => () => void;
+        onClientDisconnected: (cb: (clientId: string) => void) => () => void;
       };
     };
   }

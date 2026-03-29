@@ -43,6 +43,12 @@ export interface ProtocolCapabilities {
   hasWifiConfig: boolean;
   /** Whether telemetry device metrics update interval config is available */
   hasTelemetryIntervalConfig: boolean;
+  /** User-defined contact groups + built-in filters on the Nodes/Contacts list */
+  hasUserManagedContactGroups: boolean;
+  /** MeshCore companion: contact auto-add / manual mode and related Radio UI */
+  hasCompanionContactManagementConfig: boolean;
+  /** MeshCore companion: telemetry request / location / environment privacy (NodePrefs telemetry modes) */
+  hasCompanionTelemetryPrivacyConfig: boolean;
   /** Whether shutdown button is available */
   hasShutdown: boolean;
   /** Whether Reset NodeDB button is available */
@@ -53,6 +59,8 @@ export interface ProtocolCapabilities {
   hasFullPositionConfig: boolean;
   /** Whether Security panel (PKI config) is available */
   hasSecurityPanel: boolean;
+  /** Whether the TAK server panel is available (Meshtastic only) */
+  hasTakPanel: boolean;
 }
 
 export const MESHTASTIC_CAPABILITIES: ProtocolCapabilities = {
@@ -76,11 +84,15 @@ export const MESHTASTIC_CAPABILITIES: ProtocolCapabilities = {
   hasPowerConfig: true,
   hasWifiConfig: true,
   hasTelemetryIntervalConfig: true,
+  hasUserManagedContactGroups: true,
+  hasCompanionContactManagementConfig: false,
+  hasCompanionTelemetryPrivacyConfig: false,
   hasShutdown: true,
   hasNodeDbReset: true,
   hasFactoryReset: true,
   hasFullPositionConfig: true,
   hasSecurityPanel: true,
+  hasTakPanel: true,
 };
 
 export const MESHCORE_CAPABILITIES: ProtocolCapabilities = {
@@ -105,9 +117,13 @@ export const MESHCORE_CAPABILITIES: ProtocolCapabilities = {
   hasPowerConfig: false,
   hasWifiConfig: false,
   hasTelemetryIntervalConfig: false,
+  hasUserManagedContactGroups: true,
+  hasCompanionContactManagementConfig: true,
+  hasCompanionTelemetryPrivacyConfig: true,
   hasShutdown: false,
   hasNodeDbReset: false,
   hasFactoryReset: false,
   hasFullPositionConfig: false,
   hasSecurityPanel: false,
+  hasTakPanel: false,
 };

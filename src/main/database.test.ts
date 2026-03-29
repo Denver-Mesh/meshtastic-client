@@ -115,7 +115,7 @@ describe('placeholder name format', () => {
 /**
  * MeshCore message dedup + fresh-install stamp — INSERT OR IGNORE must not drop
  * distinct lines that share sender + second-resolution timestamp + channel only.
- * Fresh installs skip runMigrations(), so base DDL + user_version must match v17.
+ * Fresh installs skip runMigrations(), so base DDL + user_version must match latest stamp.
  */
 describe('meshcore_messages dedup index and fresh DB version', () => {
   it('createBaseTables defines idx_mc_msg_dedup including payload', () => {
@@ -124,8 +124,17 @@ describe('meshcore_messages dedup index and fresh DB version', () => {
     );
   });
 
-  it('fresh DB init stamps user_version 17 inside isFreshDb', () => {
-    expect(DB_SOURCE).toMatch(/if \(isFreshDb\) \{[\s\S]*?pragma\('user_version = 17'\)/);
+  it('createBaseTables defines meshcore_contacts.contact_flags', () => {
+    expect(DB_SOURCE).toMatch(/meshcore_contacts[\s\S]*contact_flags INTEGER DEFAULT 0/s);
+  });
+
+  it('fresh DB init stamps user_version 20 inside isFreshDb', () => {
+    expect(DB_SOURCE).toMatch(/if \(isFreshDb\) \{[\s\S]*?pragma\('user_version = 20'\)/);
+  });
+
+  it('createBaseTables defines protocol-neutral contact_groups tables', () => {
+    expect(DB_SOURCE).toMatch(/CREATE TABLE IF NOT EXISTS contact_groups/s);
+    expect(DB_SOURCE).toMatch(/CREATE TABLE IF NOT EXISTS contact_group_members/s);
   });
 });
 

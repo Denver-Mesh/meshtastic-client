@@ -5,6 +5,7 @@ import { EventEmitter } from 'events';
 import * as mqtt from 'mqtt';
 
 import type { ChatMessage, MeshNode, MQTTSettings, MQTTStatus } from '../renderer/lib/types';
+import { MESHTASTIC_MQTT_MAX_RECONNECT_ATTEMPTS } from '../shared/meshtasticMqttReconnect';
 import { meshtasticShortNameAfterClearingDefault } from '../shared/nodeNameUtils';
 import { sanitizeLogMessage } from './log-service';
 
@@ -71,8 +72,13 @@ function coordWarning(lat: number, lon: number): string | null {
 
 const BROADCAST_ID = 0xffffffff >>> 0;
 
-/** TCP/TLS/WSS + MQTT CONNACK window (30s, same as meshcore-mqtt-adapter). */
-const MESHTASTIC_MQTT_CONNECT_ACK_MS = 30_000;
+/** TCP/TLS/WSS + MQTT CONNACK window — shorter than MeshCore so bad brokers fail fast in UI. */
+const MESHTASTIC_MQTT_CONNECT_ACK_MS = 12_000;
+/** Reconnect delay after `close`: 0.5s → 1s → 2s → … capped (was 2s base, 60s cap). */
+const MESHTASTIC_MQTT_RECONNECT_BACKOFF_BASE_MS = 500;
+const MESHTASTIC_MQTT_RECONNECT_BACKOFF_CAP_MS = 8_000;
+/** After `connack timeout`, next attempt starts quickly instead of waiting for backoff. */
+const MESHTASTIC_MQTT_RECONNECT_AFTER_CONNACK_TIMEOUT_MS = 250;
 /** Send WebSocket-level ping frames so LB/proxy idle timers see traffic before the first MQTT PINGREQ. */
 const MESHTASTIC_MQTT_WSS_PING_MS = 25_000;
 /**
@@ -96,7 +102,7 @@ export class MQTTManager extends EventEmitter {
   private keepaliveRescheduleTimer: ReturnType<typeof setInterval> | null = null;
   /** Wall time at start of last `_doConnect` (CONNACK timing in connect logs). */
   private meshtasticConnectT0 = 0;
-  /** After `connack timeout`, reconnect quickly instead of the full exponential backoff. */
+  /** After `connack timeout`, reconnect with {@link MESHTASTIC_MQTT_RECONNECT_AFTER_CONNACK_TIMEOUT_MS}. */
   private preferFastMqttReconnect = false;
 
   connect(settings: MQTTSettings): void {
@@ -261,9 +267,17 @@ export class MQTTManager extends EventEmitter {
     this.client.on('close', () => {
       this.clearWssPing();
       this.clearKeepaliveReschedule();
-      if (this.status === 'disconnected' || !this.currentSettings) return;
+      const skipReconnect =
+        this.status === 'disconnected' || this.status === 'error' || !this.currentSettings;
+      const maxRetries = Math.max(
+        1,
+        Math.min(
+          this.currentSettings?.maxRetries ?? MESHTASTIC_MQTT_MAX_RECONNECT_ATTEMPTS,
+          MESHTASTIC_MQTT_MAX_RECONNECT_ATTEMPTS,
+        ),
+      );
+      if (skipReconnect) return;
 
-      const maxRetries = this.currentSettings.maxRetries ?? 5;
       if (this.retryCount >= maxRetries) {
         this.setError(
           `Connection lost after ${maxRetries} reconnect attempt${maxRetries === 1 ? '' : 's'}`,
@@ -272,10 +286,13 @@ export class MQTTManager extends EventEmitter {
       }
 
       this.retryCount++;
-      const backoff = Math.min(2000 * Math.pow(2, this.retryCount - 1), 60_000);
+      const backoff = Math.min(
+        MESHTASTIC_MQTT_RECONNECT_BACKOFF_BASE_MS * Math.pow(2, this.retryCount - 1),
+        MESHTASTIC_MQTT_RECONNECT_BACKOFF_CAP_MS,
+      );
       const useFast = this.preferFastMqttReconnect;
       this.preferFastMqttReconnect = false;
-      const delay = useFast ? 250 : backoff;
+      const delay = useFast ? MESHTASTIC_MQTT_RECONNECT_AFTER_CONNACK_TIMEOUT_MS : backoff;
       console.warn(`[MQTT] Reconnecting in ${delay}ms (attempt ${this.retryCount}/${maxRetries})`); // log-filter-ok Meshtastic MQTT logs → App log panel
       this.setStatus('connecting');
 

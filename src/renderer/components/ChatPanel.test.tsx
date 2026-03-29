@@ -532,6 +532,28 @@ describe('ChatPanel StatusBadge', () => {
     expect(screen.queryByText('USBno ACK')).not.toBeInTheDocument();
   });
 
+  it('passes full message to onResend so App can forward replyId', async () => {
+    const user = userEvent.setup();
+    const onResend = vi.fn();
+    const failedWithReply = {
+      ...failedMsg,
+      replyId: 4242,
+      packetId: 99,
+    };
+    render(
+      <ToastProvider>
+        <ChatPanel {...baseProps} onResend={onResend} messages={[failedWithReply]} />
+      </ToastProvider>,
+    );
+    await user.click(screen.getByTitle('Resend message'));
+    expect(onResend).toHaveBeenCalledTimes(1);
+    expect(onResend.mock.calls[0][0]).toMatchObject({
+      payload: 'Hello',
+      replyId: 4242,
+      channel: 0,
+    });
+  });
+
   it('renders "BT ✓" with a space for BLE acked messages', () => {
     render(
       <ToastProvider>
@@ -543,6 +565,88 @@ describe('ChatPanel StatusBadge', () => {
       </ToastProvider>,
     );
     expect(screen.getByText('BT ✓')).toBeInTheDocument();
+  });
+
+  it('shows per-reactor tap-back labels; hides own name on others’ messages', () => {
+    const t0 = Date.now() - 10_000;
+    const t1 = t0 + 1000;
+    const t2 = t0 + 2000;
+    render(
+      <ToastProvider>
+        <ChatPanel
+          {...baseProps}
+          myNodeNum={99}
+          messages={[
+            {
+              sender_id: 2,
+              sender_name: 'Alice',
+              payload: 'hi',
+              channel: 0,
+              timestamp: t0,
+              packetId: 100,
+              status: 'acked',
+            },
+            {
+              sender_id: 3,
+              sender_name: 'Bob',
+              payload: '👍',
+              channel: 0,
+              timestamp: t1,
+              emoji: 0x1f44d,
+              replyId: 100,
+              status: 'acked',
+            },
+            {
+              sender_id: 99,
+              sender_name: 'Me',
+              payload: '❤️',
+              channel: 0,
+              timestamp: t2,
+              emoji: 0x2764,
+              replyId: 100,
+              status: 'acked',
+            },
+          ]}
+        />
+      </ToastProvider>,
+    );
+    expect(screen.getByLabelText(/Bob reacted with Like/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Your reaction: Love/i)).toBeInTheDocument();
+  });
+
+  it('renders quoted reply control with jump label for Meshtastic-style replyId', () => {
+    const t0 = Date.now() - 5000;
+    const t1 = t0 + 1000;
+    render(
+      <ToastProvider>
+        <ChatPanel
+          {...baseProps}
+          messages={[
+            {
+              sender_id: 2,
+              sender_name: 'Alice',
+              payload: 'original',
+              channel: 0,
+              timestamp: t0,
+              packetId: 77,
+              status: 'acked',
+            },
+            {
+              sender_id: 3,
+              sender_name: 'Bob',
+              payload: 'reply text',
+              channel: 0,
+              timestamp: t1,
+              replyId: 77,
+              status: 'acked',
+            },
+          ]}
+        />
+      </ToastProvider>,
+    );
+    expect(
+      screen.getByRole('button', { name: /Jump to quoted message from Alice/i }),
+    ).toBeInTheDocument();
   });
 
   it('shows tooltip on hover and does not use a native title attribute', async () => {

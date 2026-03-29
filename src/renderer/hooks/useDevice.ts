@@ -3,7 +3,10 @@ import type { MeshDevice } from '@meshtastic/core';
 import { Admin, Channel as ProtobufChannel, Mesh, Portnums } from '@meshtastic/protobufs';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { meshtasticShortNameAfterClearingDefault } from '../../shared/nodeNameUtils';
+import {
+  meshtasticShortNameAfterClearingDefault,
+  preferNonEmptyTrimmedString,
+} from '../../shared/nodeNameUtils';
 import { getAppSettingsRaw } from '../lib/appSettingsStorage';
 import {
   createBleConnection,
@@ -298,6 +301,13 @@ export function useDevice() {
       }
       return s;
     });
+  }, []);
+
+  /** Meshtastic `DeviceMetrics.batteryLevel`: 0–100; values above 100 mean USB powered (protobuf). */
+  const applyOwnNodeBatteryFromDeviceMetrics = useCallback((batteryLevel: number) => {
+    const charging = batteryLevel > 100;
+    const pct = Math.min(100, batteryLevel);
+    setState((s) => ({ ...s, batteryPercent: pct, batteryCharging: charging }));
   }, []);
 
   // ─── Helper: start polling for node updates ─────────────────────
@@ -753,6 +763,8 @@ export function useDevice() {
                 status: 'disconnected',
                 myNodeNum: 0,
                 connectionType: null,
+                batteryPercent: undefined,
+                batteryCharging: undefined,
               });
               clearConfigureTimeout();
             }, 30000);
@@ -792,6 +804,8 @@ export function useDevice() {
             status: 'disconnected',
             connectionType: null,
             firmwareVersion: undefined,
+            batteryPercent: undefined,
+            batteryCharging: undefined,
           }));
         }
       });
@@ -811,7 +825,12 @@ export function useDevice() {
         if (getStoredMeshProtocol() === 'meshtastic') {
           useDiagnosticsStore.getState().migrateForeignLoraFromZero(info.myNodeNum);
         }
-        setState((s) => ({ ...s, myNodeNum: info.myNodeNum }));
+        setState((s) => ({
+          ...s,
+          myNodeNum: info.myNodeNum,
+          batteryPercent: undefined,
+          batteryCharging: undefined,
+        }));
         updateNodes((prev) => {
           const updated = new Map(prev);
           if (virtualNodeId !== info.myNodeNum) updated.delete(virtualNodeId);
@@ -970,10 +989,10 @@ export function useDevice() {
         updateNodes((prev) => {
           const updated = new Map(prev);
           const existing = updated.get(packet.from) ?? emptyNode(packet.from);
-          const long_name = user.longName ?? existing.long_name;
+          const long_name = preferNonEmptyTrimmedString(user.longName, existing.long_name);
           const short_name = meshtasticShortNameAfterClearingDefault(
             long_name,
-            user.shortName ?? existing.short_name,
+            preferNonEmptyTrimmedString(user.shortName, existing.short_name),
             packet.from,
           );
           const node: MeshNode = {
@@ -994,8 +1013,8 @@ export function useDevice() {
         });
         if (packet.from === myNodeNumRef.current) {
           setDeviceOwner({
-            longName: user.longName ?? '',
-            shortName: user.shortName ?? '',
+            longName: preferNonEmptyTrimmedString(user.longName, ''),
+            shortName: preferNonEmptyTrimmedString(user.shortName, ''),
             isLicensed: (user as { isLicensed?: boolean }).isLicensed ?? false,
           });
         }
@@ -1063,10 +1082,10 @@ export function useDevice() {
           const staleHopMs = 2 * 3_600_000; // align with nodeStatus STALE_MS
           const lastHeardStale = lastHeardMs > 0 && Date.now() - lastHeardMs > staleHopMs;
 
-          const long_name = info.user?.longName ?? existing.long_name;
+          const long_name = preferNonEmptyTrimmedString(info.user?.longName, existing.long_name);
           const short_name = meshtasticShortNameAfterClearingDefault(
             long_name,
-            info.user?.shortName ?? existing.short_name,
+            preferNonEmptyTrimmedString(info.user?.shortName, existing.short_name),
             nodeNum,
           );
           const node: MeshNode = {
@@ -1102,6 +1121,9 @@ export function useDevice() {
           void window.electronAPI.db.saveNode(node);
           return updated;
         });
+        if (nodeNum === myNodeNumRef.current && info.deviceMetrics?.batteryLevel !== undefined) {
+          applyOwnNodeBatteryFromDeviceMetrics(info.deviceMetrics.batteryLevel);
+        }
         if (
           nodeNum === myNodeNumRef.current &&
           nodesRef.current.get(nodeNum)?.role === ROLE_CLIENT_MUTE &&
@@ -1131,7 +1153,7 @@ export function useDevice() {
         }
         if (type === 'ble' && nodeNum === myNodeNumRef.current) {
           const btDevice = (device.transport as any)?.__bluetoothDevice;
-          const shortName = info.user?.shortName ?? null;
+          const shortName = preferNonEmptyTrimmedString(info.user?.shortName, '') || null;
           if (btDevice?.id && shortName) {
             try {
               const key = 'mesh-client:bleDeviceNames';
@@ -1149,7 +1171,11 @@ export function useDevice() {
         }
         if (type === 'serial' && nodeNum === myNodeNumRef.current) {
           const portId = localStorage.getItem(LAST_SERIAL_PORT_KEY);
-          const shortName = info.user?.shortName ?? info.user?.longName ?? null;
+          const shortName =
+            preferNonEmptyTrimmedString(
+              info.user?.shortName,
+              preferNonEmptyTrimmedString(info.user?.longName, ''),
+            ) || null;
           if (portId && shortName) {
             try {
               const key = 'mesh-client:serialPortNodeNames';
@@ -1171,6 +1197,9 @@ export function useDevice() {
       // ─── Position packets ──────────────────────────────────────
       const unsub6 = device.events.onPositionPacket.subscribe((packet) => {
         touchLastData();
+        if (packet.from !== 0) {
+          rfHeardNodeIds.current.add(packet.from);
+        }
         const pos = packet.data as {
           latitudeI?: number;
           longitudeI?: number;
@@ -1333,7 +1362,7 @@ export function useDevice() {
         setTelemetry((prev) => [...prev, point].slice(-MAX_TELEMETRY_POINTS));
 
         // Update node battery if from a known node
-        if (metrics.batteryLevel && packet.from) {
+        if (metrics.batteryLevel != null && packet.from) {
           updateNodes((prev) => {
             const updated = new Map(prev);
             const existing = updated.get(packet.from);
@@ -1346,6 +1375,9 @@ export function useDevice() {
             }
             return updated;
           });
+          if (packet.from === myNodeNumRef.current) {
+            applyOwnNodeBatteryFromDeviceMetrics(metrics.batteryLevel);
+          }
         }
       });
       unsubscribesRef.current.push(unsub7);
@@ -1653,6 +1685,7 @@ export function useDevice() {
     },
     [
       touchLastData,
+      applyOwnNodeBatteryFromDeviceMetrics,
       getNodeName,
       updateNodes,
       startPolling,
@@ -1699,14 +1732,26 @@ export function useDevice() {
     const params = connectionParamsRef.current;
     if (!params) {
       isReconnectingRef.current = false;
-      setState((s) => ({ ...s, status: 'disconnected', connectionType: null }));
+      setState((s) => ({
+        ...s,
+        status: 'disconnected',
+        connectionType: null,
+        batteryPercent: undefined,
+        batteryCharging: undefined,
+      }));
       return;
     }
 
     if (reconnectAttemptRef.current >= MAX_RECONNECT_ATTEMPTS) {
       isReconnectingRef.current = false;
       reconnectAttemptRef.current = 0;
-      setState((s) => ({ ...s, status: 'disconnected', connectionType: null }));
+      setState((s) => ({
+        ...s,
+        status: 'disconnected',
+        connectionType: null,
+        batteryPercent: undefined,
+        batteryCharging: undefined,
+      }));
       return;
     }
 
@@ -1777,7 +1822,13 @@ export function useDevice() {
       isReconnectingRef.current = false;
       reconnectGenerationRef.current++;
 
-      setState((s) => ({ ...s, status: 'connecting', connectionType: type }));
+      setState((s) => ({
+        ...s,
+        status: 'connecting',
+        connectionType: type,
+        batteryPercent: undefined,
+        batteryCharging: undefined,
+      }));
 
       try {
         console.debug('[useDevice] connect', type, httpAddress ?? blePeripheralId);
@@ -1806,6 +1857,8 @@ export function useDevice() {
           status: 'disconnected',
           myNodeNum: 0,
           connectionType: null,
+          batteryPercent: undefined,
+          batteryCharging: undefined,
         });
         throw err;
       }
@@ -1842,7 +1895,13 @@ export function useDevice() {
       isReconnectingRef.current = false;
       reconnectGenerationRef.current++;
 
-      setState((s) => ({ ...s, status: 'connecting', connectionType: type }));
+      setState((s) => ({
+        ...s,
+        status: 'connecting',
+        connectionType: type,
+        batteryPercent: undefined,
+        batteryCharging: undefined,
+      }));
 
       try {
         console.debug('[useDevice] connectAutomatic', type, httpAddress ?? blePeripheralId);
@@ -1865,7 +1924,13 @@ export function useDevice() {
         stopPolling();
         stopWatchdog();
         deviceRef.current = null;
-        setState({ status: 'disconnected', myNodeNum: 0, connectionType: null });
+        setState({
+          status: 'disconnected',
+          myNodeNum: 0,
+          connectionType: null,
+          batteryPercent: undefined,
+          batteryCharging: undefined,
+        });
         throw err;
       }
     },
@@ -1889,7 +1954,13 @@ export function useDevice() {
     if (device) {
       await safeDisconnect(device);
     }
-    setState({ status: 'disconnected', myNodeNum: 0, connectionType: null });
+    setState({
+      status: 'disconnected',
+      myNodeNum: 0,
+      connectionType: null,
+      batteryPercent: undefined,
+      batteryCharging: undefined,
+    });
   }, [cleanupSubscriptions, stopPolling, stopWatchdog, stopGpsInterval, clearConfigureTimeout]);
 
   // ─── TransportManager status handler ─────────────────────────────────────

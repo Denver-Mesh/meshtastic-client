@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
+import type { MeshCoreContactRaw, MeshCoreSelfInfo } from '../hooks/useMeshCore';
 import type { OurPosition } from '../lib/gpsSource';
+import type { MeshcoreAutoaddWireState } from '../lib/meshcoreContactAutoAdd';
 import {
   MESHCORE_CHANNEL_INDEX_MAX,
   meshcoreDeriveChannelKeyHexFromName,
@@ -9,6 +11,8 @@ import {
 } from '../lib/meshcoreUtils';
 import type { ProtocolCapabilities } from '../lib/radio/BaseRadioProvider';
 import { HelpTooltip } from './HelpTooltip';
+import MeshcoreContactSettingsSection from './MeshcoreContactSettingsSection';
+import MeshcoreTelemetryPrivacySection from './MeshcoreTelemetryPrivacySection';
 import { useToast } from './Toast';
 
 interface ChannelConfig {
@@ -66,6 +70,29 @@ interface Props {
     txPower: number;
   }) => Promise<void>;
   loraConfig?: { freq?: number; bw?: number; sf?: number; cr?: number; txPower?: number };
+  meshcoreSelfInfo?: MeshCoreSelfInfo | null;
+  meshcoreContactsForTelemetry?: MeshCoreContactRaw[];
+  onApplyMeshcoreTelemetryPrivacy?: (modes: {
+    telemetryModeBase: number;
+    telemetryModeLoc: number;
+    telemetryModeEnv: number;
+  }) => Promise<void>;
+  meshcoreAutoadd?: MeshcoreAutoaddWireState | null;
+  onApplyMeshcoreContactAutoAdd?: (params: {
+    autoAddAll: boolean;
+    overwriteOldest: boolean;
+    chat: boolean;
+    repeater: boolean;
+    roomServer: boolean;
+    sensor: boolean;
+    maxHopsWire: number;
+  }) => Promise<void>;
+  onRefreshMeshcoreAutoaddFromDevice?: () => Promise<void>;
+  meshcoreContactsShowPublicKeys?: boolean;
+  onMeshcoreContactsShowPublicKeysChange?: (value: boolean) => void;
+  meshcoreContactsShowRefreshControl?: boolean;
+  onMeshcoreContactsShowRefreshControlChange?: (value: boolean) => void;
+  onClearAllMeshcoreContacts?: () => Promise<void>;
 }
 
 const REGIONS = [
@@ -470,6 +497,17 @@ export default function RadioPanel({
   onMeshcoreDeleteChannel,
   onApplyLoraParams,
   loraConfig,
+  meshcoreSelfInfo,
+  meshcoreContactsForTelemetry,
+  onApplyMeshcoreTelemetryPrivacy,
+  meshcoreAutoadd,
+  onApplyMeshcoreContactAutoAdd,
+  onRefreshMeshcoreAutoaddFromDevice,
+  meshcoreContactsShowPublicKeys = false,
+  onMeshcoreContactsShowPublicKeysChange,
+  meshcoreContactsShowRefreshControl = false,
+  onMeshcoreContactsShowRefreshControlChange,
+  onClearAllMeshcoreContacts,
 }: Props) {
   // ─── User / Identity settings ─────────────────────────────────
   const [longName, setLongName] = useState('');
@@ -566,6 +604,8 @@ export default function RadioPanel({
   // ─── Device command confirmation ──────────────────────────────
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const { addToast } = useToast();
+  const [applyingMeshcoreTelemetryPrivacy, setApplyingMeshcoreTelemetryPrivacy] = useState(false);
+  const [applyingMeshcoreContactMgmt, setApplyingMeshcoreContactMgmt] = useState(false);
 
   const disabled = !isConnected;
 
@@ -839,6 +879,42 @@ export default function RadioPanel({
           disabled={disabled}
         />
       )}
+
+      {capabilities?.hasCompanionContactManagementConfig &&
+        meshcoreSelfInfo &&
+        onApplyMeshcoreContactAutoAdd &&
+        onMeshcoreContactsShowPublicKeysChange &&
+        onMeshcoreContactsShowRefreshControlChange && (
+          <MeshcoreContactSettingsSection
+            selfInfo={meshcoreSelfInfo}
+            autoadd={meshcoreAutoadd ?? null}
+            disabled={disabled}
+            applying={applyingMeshcoreContactMgmt}
+            meshcoreContactsShowPublicKeys={meshcoreContactsShowPublicKeys}
+            onMeshcoreContactsShowPublicKeysChange={onMeshcoreContactsShowPublicKeysChange}
+            meshcoreContactsShowRefreshControl={meshcoreContactsShowRefreshControl}
+            onMeshcoreContactsShowRefreshControlChange={onMeshcoreContactsShowRefreshControlChange}
+            onApply={async (params) => {
+              setApplyingMeshcoreContactMgmt(true);
+              try {
+                await onApplyMeshcoreContactAutoAdd(params);
+                if (onRefreshMeshcoreAutoaddFromDevice) {
+                  await onRefreshMeshcoreAutoaddFromDevice();
+                }
+                addToast('Contact management updated.', 'success');
+              } catch (e) {
+                console.warn('[RadioPanel] meshcore contact management apply failed', e);
+                addToast(
+                  e instanceof Error ? e.message : 'Failed to update contact management.',
+                  'error',
+                );
+              } finally {
+                setApplyingMeshcoreContactMgmt(false);
+              }
+            }}
+            onClearAllContacts={onClearAllMeshcoreContacts}
+          />
+        )}
 
       {/* ═══ Device Role ═══ */}
       {capabilities?.hasDeviceRoleConfig !== false && (
@@ -1506,6 +1582,33 @@ export default function RadioPanel({
         </ConfigSection>
       )}
 
+      {capabilities?.hasCompanionTelemetryPrivacyConfig &&
+        meshcoreSelfInfo &&
+        meshcoreContactsForTelemetry &&
+        onApplyMeshcoreTelemetryPrivacy && (
+          <MeshcoreTelemetryPrivacySection
+            selfInfo={meshcoreSelfInfo}
+            contacts={meshcoreContactsForTelemetry}
+            disabled={disabled}
+            applying={applyingMeshcoreTelemetryPrivacy}
+            onApply={async (modes) => {
+              setApplyingMeshcoreTelemetryPrivacy(true);
+              try {
+                await onApplyMeshcoreTelemetryPrivacy(modes);
+                addToast('Telemetry privacy updated.', 'success');
+              } catch (e) {
+                console.warn('[RadioPanel] meshcore telemetry privacy apply failed', e);
+                addToast(
+                  e instanceof Error ? e.message : 'Failed to update telemetry privacy.',
+                  'error',
+                );
+              } finally {
+                setApplyingMeshcoreTelemetryPrivacy(false);
+              }
+            }}
+          />
+        )}
+
       {/* ═══ WiFi / Network ═══ */}
       {capabilities?.hasWifiConfig !== false && (
         <ConfigSection
@@ -1599,104 +1702,113 @@ export default function RadioPanel({
         <p>The device may briefly restart after applying new LoRa or device settings.</p>
       </div>
 
-      {/* Device Commands */}
+      {/* Device Commands — keep at bottom of Radio panel, directly above Danger Zone; do not reorder */}
       <div className="space-y-3">
-        <h3 className="text-sm font-medium text-muted">
-          Device Commands (affects connected device)
-        </h3>
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={() => {
-              executeWithConfirmation({
-                name: 'Reboot',
-                title: 'Reboot Device',
-                message:
-                  'This will reboot the connected Meshtastic device. It will briefly go offline during restart.',
-                confirmLabel: 'Reboot',
-                action: () => onReboot(2),
-              });
-            }}
-            disabled={!isConnected}
-            className="px-4 py-3 bg-secondary-dark text-gray-300 hover:bg-gray-600 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
-          >
-            Reboot
-          </button>
-
-          {capabilities?.hasShutdown !== false && (
+        <h3 className="text-sm font-medium text-orange-400">Device Commands</h3>
+        <div className="border border-orange-900 rounded-lg p-4 space-y-2">
+          <p className="text-xs text-orange-400/80">
+            These actions affect the connected device immediately (reboot, shutdown, firmware modes,
+            etc.).
+          </p>
+          <div className="grid grid-cols-2 gap-2">
             <button
+              type="button"
               onClick={() => {
                 executeWithConfirmation({
-                  name: 'Shutdown',
-                  title: 'Shutdown Device',
+                  name: 'Enter DFU Mode',
+                  title: 'Enter DFU Mode',
                   message:
-                    'This will power off the connected device. You will need to physically power it back on.',
-                  confirmLabel: 'Shutdown',
-                  action: () => onShutdown(2),
+                    'This will reboot the device into Device Firmware Update (DFU) mode for firmware flashing.',
+                  confirmLabel: 'Enter DFU',
+                  action: () => onEnterDfu?.() ?? Promise.resolve(),
+                });
+              }}
+              disabled={!isConnected || !onEnterDfu}
+              className="px-4 py-3 bg-orange-900/30 text-orange-200 hover:bg-orange-900/50 border border-orange-800/60 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+            >
+              Enter DFU Mode
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                executeWithConfirmation({
+                  name: 'Reboot',
+                  title: 'Reboot Device',
+                  message:
+                    'This will reboot the connected Meshtastic device. It will briefly go offline during restart.',
+                  confirmLabel: 'Reboot',
+                  action: () => onReboot(2),
                 });
               }}
               disabled={!isConnected}
-              className="px-4 py-3 bg-secondary-dark text-gray-300 hover:bg-gray-600 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+              className="px-4 py-3 bg-orange-900/30 text-orange-200 hover:bg-orange-900/50 border border-orange-800/60 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
             >
-              Shutdown
+              Reboot
             </button>
-          )}
 
-          {capabilities?.hasNodeDbReset !== false && (
             <button
+              type="button"
               onClick={() => {
                 executeWithConfirmation({
-                  name: 'Reset NodeDB',
-                  title: 'Reset Node Database',
+                  name: 'Reboot to OTA',
+                  title: 'Reboot to OTA',
                   message:
-                    "This will clear the device's internal node database. The device will re-discover nodes over time.",
-                  confirmLabel: 'Reset NodeDB',
-                  action: () => onResetNodeDb(),
+                    'This will reboot the device into OTA (Over The Air) firmware update mode.',
+                  confirmLabel: 'Reboot to OTA',
+                  action: () => onRebootOta?.(10) ?? Promise.resolve(),
                 });
               }}
-              disabled={!isConnected}
-              className="px-4 py-3 bg-secondary-dark text-gray-300 hover:bg-gray-600 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+              disabled={!isConnected || !onRebootOta}
+              className="px-4 py-3 bg-orange-900/30 text-orange-200 hover:bg-orange-900/50 border border-orange-800/60 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
             >
-              Reset NodeDB
+              Reboot to OTA
             </button>
-          )}
 
-          <button
-            onClick={() => {
-              executeWithConfirmation({
-                name: 'Reboot to OTA',
-                title: 'Reboot to OTA',
-                message:
-                  'This will reboot the device into OTA (Over The Air) firmware update mode.',
-                confirmLabel: 'Reboot to OTA',
-                action: () => onRebootOta?.(10) ?? Promise.resolve(),
-              });
-            }}
-            disabled={!isConnected || !onRebootOta}
-            className="px-4 py-3 bg-secondary-dark text-gray-300 hover:bg-gray-600 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
-          >
-            Reboot to OTA
-          </button>
+            {capabilities?.hasNodeDbReset !== false && (
+              <button
+                type="button"
+                onClick={() => {
+                  executeWithConfirmation({
+                    name: 'Reset NodeDB',
+                    title: 'Reset Node Database',
+                    message:
+                      "This will clear the device's internal node database. The device will re-discover nodes over time.",
+                    confirmLabel: 'Reset NodeDB',
+                    action: () => onResetNodeDb(),
+                  });
+                }}
+                disabled={!isConnected}
+                className="px-4 py-3 bg-orange-900/30 text-orange-200 hover:bg-orange-900/50 border border-orange-800/60 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+              >
+                Reset NodeDB
+              </button>
+            )}
 
-          <button
-            onClick={() => {
-              executeWithConfirmation({
-                name: 'Enter DFU Mode',
-                title: 'Enter DFU Mode',
-                message:
-                  'This will reboot the device into Device Firmware Update (DFU) mode for firmware flashing.',
-                confirmLabel: 'Enter DFU',
-                action: () => onEnterDfu?.() ?? Promise.resolve(),
-              });
-            }}
-            disabled={!isConnected || !onEnterDfu}
-            className="px-4 py-3 bg-secondary-dark text-gray-300 hover:bg-gray-600 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
-          >
-            Enter DFU Mode
-          </button>
+            {capabilities?.hasShutdown !== false && (
+              <button
+                type="button"
+                onClick={() => {
+                  executeWithConfirmation({
+                    name: 'Shutdown',
+                    title: 'Shutdown Device',
+                    message:
+                      'This will power off the connected device. You will need to physically power it back on.',
+                    confirmLabel: 'Shutdown',
+                    action: () => onShutdown(2),
+                  });
+                }}
+                disabled={!isConnected}
+                className="px-4 py-3 bg-orange-900/30 text-orange-200 hover:bg-orange-900/50 border border-orange-800/60 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+              >
+                Shutdown
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Danger Zone */}
+      {/* Danger Zone — keep at bottom of Radio panel after Device Commands; do not reorder */}
       {capabilities?.hasFactoryReset !== false && (
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-red-400">Danger Zone</h3>
@@ -1705,23 +1817,7 @@ export default function RadioPanel({
               These actions are permanent and cannot be undone.
             </p>
             <button
-              onClick={() => {
-                executeWithConfirmation({
-                  name: 'Factory Reset',
-                  title: '⚠ Factory Reset',
-                  message:
-                    'This will erase ALL device settings and restore factory defaults. All channels, configuration, and stored data on the device will be permanently lost. This action CANNOT be undone.',
-                  confirmLabel: 'Factory Reset',
-                  danger: true,
-                  action: () => onFactoryReset(),
-                });
-              }}
-              disabled={!isConnected}
-              className="w-full px-4 py-3 bg-red-900/50 text-red-300 hover:bg-red-900/70 border border-red-800 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
-            >
-              Factory Reset Device
-            </button>
-            <button
+              type="button"
               onClick={() => {
                 executeWithConfirmation({
                   name: 'Factory Reset Config',
@@ -1737,6 +1833,24 @@ export default function RadioPanel({
               className="w-full px-4 py-3 bg-red-900/40 text-red-300 hover:bg-red-900/60 border border-red-800/60 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
             >
               Factory Reset Config Only
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                executeWithConfirmation({
+                  name: 'Factory Reset',
+                  title: '⚠ Factory Reset',
+                  message:
+                    'This will erase ALL device settings and restore factory defaults. All channels, configuration, and stored data on the device will be permanently lost. This action CANNOT be undone.',
+                  confirmLabel: 'Factory Reset',
+                  danger: true,
+                  action: () => onFactoryReset(),
+                });
+              }}
+              disabled={!isConnected}
+              className="w-full px-4 py-3 bg-red-900/50 text-red-300 hover:bg-red-900/70 border border-red-800 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors"
+            >
+              Factory Reset Device
             </button>
           </div>
         </div>
@@ -2314,12 +2428,9 @@ function MeshcoreChannelSection({
   const showForm = editingIdx !== null || addingNew;
 
   return (
-    <details
-      ref={detailsRef}
-      className="group rounded-lg border border-gray-700/60 bg-secondary-dark/40 overflow-hidden"
-    >
-      <summary className="flex items-center justify-between px-4 py-3 cursor-pointer select-none hover:bg-gray-800/40 transition-colors">
-        <span className="text-sm font-semibold text-gray-200">Channels (MeshCore)</span>
+    <details ref={detailsRef} className="group bg-deep-black/50 rounded-lg border border-gray-700">
+      <summary className="px-4 py-3 cursor-pointer text-gray-200 font-medium flex items-center justify-between hover:bg-gray-800 rounded-lg transition-colors">
+        <span>Channels (MeshCore)</span>
         <svg
           className="w-4 h-4 text-muted group-open:rotate-180 transition-transform"
           fill="none"
@@ -2329,7 +2440,7 @@ function MeshcoreChannelSection({
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </summary>
-      <div className="px-4 pb-4 space-y-3">
+      <div className="px-4 pb-4 space-y-4">
         {/* ── Channel List ── */}
         <div className="space-y-1">
           {channels.length === 0 && (

@@ -1,4 +1,4 @@
-import type { MeshNode } from './types';
+import type { ConnectionType, MeshNode } from './types';
 
 const MESHCORE_COORD_SCALE = 1e6;
 
@@ -114,7 +114,29 @@ export const CONTACT_TYPE_LABELS: Record<number, string> = {
   1: 'Chat',
   2: 'Repeater',
   3: 'Room',
+  4: 'Sensor',
 };
+
+/**
+ * Map measured cell voltage to an approximate 0–100% for UI (e.g. node list bar).
+ * Uses a simple 1S LiPo-style linear range (3.5 V empty → 4.2 V full); not accurate for all chemistries or loads.
+ */
+export function meshcoreMilliVoltsToApproximateBatteryPercent(milliVolts: number): number {
+  if (!Number.isFinite(milliVolts) || milliVolts <= 0) return 0;
+  const v = milliVolts / 1000;
+  const emptyV = 3.5;
+  const fullV = 4.2;
+  const pct = ((v - emptyV) / (fullV - emptyV)) * 100;
+  return Math.round(Math.min(100, Math.max(0, pct)));
+}
+
+/**
+ * MeshCore / meshcore.js expose only `batteryMilliVolts`—no charging or USB-powered flag (contrast: Meshtastic uses batteryLevel > 100).
+ * For UI we treat USB serial as likely VBUS/charging. BLE or TCP cannot indicate wall-charging without firmware support.
+ */
+export function meshcoreConnectionImpliesUsbPower(connectionType: ConnectionType | null): boolean {
+  return connectionType === 'serial';
+}
 
 /** MeshCore roles excluded from user contact-group membership (infrastructure / rooms). */
 export const MESHCORE_HW_MODELS_EXCLUDED_FROM_CONTACT_GROUPS: ReadonlySet<string> = new Set([
@@ -134,6 +156,7 @@ interface MeshCoreContact {
   lastAdvert: number;
   advLat: number;
   advLon: number;
+  flags?: number;
 }
 
 export function meshcoreContactToMeshNode(contact: MeshCoreContact): MeshNode {
@@ -150,6 +173,69 @@ export function meshcoreContactToMeshNode(contact: MeshCoreContact): MeshNode {
     last_heard: contact.lastAdvert,
     latitude: lat,
     longitude: lon,
+  };
+}
+
+/** Result of mapping a heard RF advert (push 0x80) into UI + DB when the node is not yet a contact. */
+export interface MeshcoreMinimalAdvertNodeResult {
+  node: MeshNode;
+  lastHeardSec: number;
+  persistAdvLatDeg: number | null;
+  persistAdvLonDeg: number | null;
+  contactType: number;
+}
+
+/**
+ * Build a minimal {@link MeshNode} from an advert public key and optional companion fields.
+ * Returns null if the key is not a valid 32-byte MeshCore pubkey or folds to node id 0.
+ */
+export function meshcoreMinimalNodeFromAdvertEvent(
+  publicKey: Uint8Array,
+  opts: {
+    nowSec: number;
+    advLat?: number;
+    advLon?: number;
+    lastAdvert?: number;
+    contactType?: number;
+    advName?: string;
+  },
+): MeshcoreMinimalAdvertNodeResult | null {
+  if (publicKey.length !== 32) return null;
+  const nodeId = pubkeyToNodeId(publicKey);
+  if (nodeId === 0) return null;
+  const contactType =
+    typeof opts.contactType === 'number' && Number.isFinite(opts.contactType)
+      ? Math.max(0, Math.floor(opts.contactType))
+      : 0;
+  const hasLat =
+    typeof opts.advLat === 'number' && Number.isFinite(opts.advLat) && opts.advLat !== 0;
+  const hasLon =
+    typeof opts.advLon === 'number' && Number.isFinite(opts.advLon) && opts.advLon !== 0;
+  const lastHeardSec =
+    typeof opts.lastAdvert === 'number' && Number.isFinite(opts.lastAdvert) && opts.lastAdvert > 0
+      ? opts.lastAdvert
+      : opts.nowSec;
+  const latDeg = hasLat ? opts.advLat! / MESHCORE_COORD_SCALE : null;
+  const lonDeg = hasLon ? opts.advLon! / MESHCORE_COORD_SCALE : null;
+  const advNameTrim =
+    typeof opts.advName === 'string' && opts.advName.trim() ? opts.advName.trim() : '';
+  const node: MeshNode = {
+    node_id: nodeId,
+    long_name: advNameTrim || `Node-${nodeId.toString(16).toUpperCase()}`,
+    short_name: '',
+    hw_model: CONTACT_TYPE_LABELS[contactType] ?? 'Unknown',
+    snr: 0,
+    battery: 0,
+    last_heard: lastHeardSec,
+    latitude: latDeg,
+    longitude: lonDeg,
+  };
+  return {
+    node,
+    lastHeardSec,
+    persistAdvLatDeg: latDeg,
+    persistAdvLonDeg: lonDeg,
+    contactType,
   };
 }
 

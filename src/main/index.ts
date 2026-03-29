@@ -22,6 +22,7 @@ import { pathToFileURL } from 'url';
 import zlib from 'zlib';
 
 import type { MQTTSettings } from '../renderer/lib/types';
+import type { TAKServerStatus, TAKSettings } from '../shared/tak-types';
 import {
   addContactToGroup,
   closeDatabase,
@@ -60,6 +61,7 @@ import { MeshcoreMqttAdapter } from './meshcore-mqtt-adapter';
 import { MQTTManager } from './mqtt-manager';
 import { handleNobleBleToRadioWrite } from './noble-ble-ipc';
 import { NobleBleManager, type NobleSessionId } from './noble-ble-manager';
+import type { TakServerManager } from './tak-server-manager';
 import { getCheckNow, initUpdater } from './updater';
 
 // Route main-process console through log file + Log panel (must run before other code logs)
@@ -82,6 +84,38 @@ if (!app.requestSingleInstanceLock()) {
 const mqttManager = new MQTTManager();
 const meshcoreMqttAdapter = new MeshcoreMqttAdapter();
 const nobleBleManager = new NobleBleManager();
+
+/** TAK status before the lazy-loaded `TakServerManager` module is imported. */
+const IDLE_TAK_STATUS: TAKServerStatus = { running: false, port: 8089, clientCount: 0 };
+
+let takServerManager: TakServerManager | null = null;
+let takServerManagerLoadPromise: Promise<TakServerManager> | null = null;
+
+function attachTakForwarders(manager: TakServerManager): void {
+  manager.on('status', (status) => {
+    if (mainWindow) mainWindow.webContents.send('tak:status', status);
+    else console.debug('[main] tak:status dropped (mainWindow not ready)');
+  });
+  manager.on('client-connected', (client) => {
+    if (mainWindow) mainWindow.webContents.send('tak:clientConnected', client);
+    else console.debug('[main] tak:clientConnected dropped (mainWindow not ready)');
+  });
+  manager.on('client-disconnected', (clientId) => {
+    if (mainWindow) mainWindow.webContents.send('tak:clientDisconnected', clientId);
+    else console.debug('[main] tak:clientDisconnected dropped (mainWindow not ready)');
+  });
+}
+
+async function ensureTakServerManager(): Promise<TakServerManager> {
+  if (takServerManager) return takServerManager;
+  takServerManagerLoadPromise ??= import('./tak-server-manager').then((mod) => {
+    const manager = new mod.TakServerManager();
+    attachTakForwarders(manager);
+    takServerManager = manager;
+    return manager;
+  });
+  return takServerManagerLoadPromise;
+}
 
 /** Max bytes per MeshCore TCP IPC write (DoS guard). */
 const MESHCORE_TCP_WRITE_MAX_BYTES = 256 * 1024;
@@ -375,6 +409,26 @@ function validateSaveMeshcoreContact(contact: unknown): asserts contact is Recor
     throw new Error('db:saveMeshcoreContact: adv_name too long');
   if (c.nickname != null && typeof c.nickname === 'string' && c.nickname.length > MAX_NODE_STRING)
     throw new Error('db:saveMeshcoreContact: nickname too long');
+  if (c.contact_flags != null) {
+    const f = Number(c.contact_flags);
+    if (!Number.isInteger(f) || f < 0 || f > 255)
+      throw new Error('db:saveMeshcoreContact: contact_flags must be 0–255');
+  }
+}
+
+function validateTakSettings(settings: unknown): asserts settings is TAKSettings {
+  if (!settings || typeof settings !== 'object')
+    throw new Error('tak:start: settings must be an object');
+  const s = settings as Record<string, unknown>;
+  if (typeof s.enabled !== 'boolean') throw new Error('tak:start: enabled must be boolean');
+  const port = Number(s.port);
+  if (!Number.isInteger(port) || port < 1024 || port > 65535)
+    throw new Error('tak:start: port must be an integer 1024–65535');
+  if (typeof s.serverName !== 'string' || s.serverName.length === 0 || s.serverName.length > 256)
+    throw new Error('tak:start: serverName must be a non-empty string ≤ 256 chars');
+  if (typeof s.requireClientCert !== 'boolean')
+    throw new Error('tak:start: requireClientCert must be boolean');
+  if (typeof s.autoStart !== 'boolean') throw new Error('tak:start: autoStart must be boolean');
 }
 
 function validateMqttSettings(settings: unknown): void {
@@ -1825,6 +1879,7 @@ mqttManager.on('clientId', (id) => {
 mqttManager.on('nodeUpdate', (n) => {
   if (mainWindow) mainWindow.webContents.send('mqtt:node-update', n);
   else console.debug('[main] mqtt:node-update dropped (mainWindow not ready)');
+  takServerManager?.onNodeUpdate(n);
 });
 mqttManager.on('message', (m) => {
   if (mainWindow) mainWindow.webContents.send('mqtt:message', m);
@@ -2877,11 +2932,21 @@ ipcMain.handle('db:saveMeshcoreContact', (_event, contact) => {
     const db = getDatabase();
     return db
       .prepareOnce(
-        'INSERT OR REPLACE INTO meshcore_contacts ' +
-          '(node_id, public_key, adv_name, contact_type, last_advert, adv_lat, adv_lon, last_snr, last_rssi, favorited, nickname) ' +
-          'VALUES (@node_id, @public_key, @adv_name, @contact_type, @last_advert, @adv_lat, @adv_lon, @last_snr, @last_rssi, ' +
-          'COALESCE((SELECT favorited FROM meshcore_contacts WHERE node_id = @node_id), 0), ' +
-          'COALESCE(@nickname, (SELECT nickname FROM meshcore_contacts WHERE node_id = @node_id)))',
+        'INSERT INTO meshcore_contacts ' +
+          '(node_id, public_key, adv_name, contact_type, last_advert, adv_lat, adv_lon, last_snr, last_rssi, favorited, nickname, contact_flags) ' +
+          'VALUES (@node_id, @public_key, @adv_name, @contact_type, @last_advert, @adv_lat, @adv_lon, @last_snr, @last_rssi, 0, @nickname, @contact_flags) ' +
+          'ON CONFLICT(node_id) DO UPDATE SET ' +
+          'public_key = excluded.public_key, ' +
+          'adv_name = excluded.adv_name, ' +
+          'contact_type = excluded.contact_type, ' +
+          'last_advert = excluded.last_advert, ' +
+          'adv_lat = excluded.adv_lat, ' +
+          'adv_lon = excluded.adv_lon, ' +
+          'last_snr = excluded.last_snr, ' +
+          'last_rssi = excluded.last_rssi, ' +
+          'favorited = meshcore_contacts.favorited, ' +
+          'nickname = COALESCE(excluded.nickname, meshcore_contacts.nickname), ' +
+          'contact_flags = excluded.contact_flags',
       )
       .run({
         node_id: Number(c.node_id),
@@ -2894,6 +2959,7 @@ ipcMain.handle('db:saveMeshcoreContact', (_event, contact) => {
         last_snr: c.last_snr != null ? Number(c.last_snr) : null,
         last_rssi: c.last_rssi != null ? Number(c.last_rssi) : null,
         nickname: typeof c.nickname === 'string' ? c.nickname : null,
+        contact_flags: c.contact_flags != null ? Number(c.contact_flags) : 0,
       });
   } catch (err) {
     console.error(
@@ -3185,14 +3251,29 @@ ipcMain.handle('db:getContactGroupMembers', (_event, groupId: number) => {
 
 ipcMain.handle(
   'db:updateMeshcoreContactAdvert',
-  (_e, nodeId: number, lastAdvert: number | null, advLat: number | null, advLon: number | null) => {
+  (
+    _e,
+    nodeId: number,
+    lastAdvert: number | null,
+    advLat: number | null,
+    advLon: number | null,
+    advName?: string | null,
+  ) => {
     try {
       const safeNodeId = safeNonNegativeInt(nodeId);
-      getDatabase()
-        .prepareOnce(
+      if (advName != null && (typeof advName !== 'string' || advName.length > MAX_NODE_STRING)) {
+        throw new Error('db:updateMeshcoreContactAdvert: invalid adv_name');
+      }
+      const db = getDatabase();
+      if (advName !== undefined) {
+        db.prepareOnce(
+          'UPDATE meshcore_contacts SET last_advert = ?, adv_lat = ?, adv_lon = ?, adv_name = ? WHERE node_id = ?',
+        ).run(lastAdvert, advLat, advLon, advName ?? null, safeNodeId);
+      } else {
+        db.prepareOnce(
           'UPDATE meshcore_contacts SET last_advert = ?, adv_lat = ?, adv_lon = ? WHERE node_id = ?',
-        )
-        .run(lastAdvert, advLat, advLon, safeNodeId);
+        ).run(lastAdvert, advLat, advLon, safeNodeId);
+      }
     } catch (err) {
       console.error(
         '[IPC] db:updateMeshcoreContactAdvert error:',
@@ -3372,6 +3453,73 @@ ipcMain.handle('meshcore:tcp-disconnect', () => {
   }
 });
 
+// ─── IPC: TAK server ───────────────────────────────────────────────
+ipcMain.handle('tak:start', async (_event, settings) => {
+  try {
+    console.debug('[IPC] tak:start');
+    validateTakSettings(settings);
+    const m = await ensureTakServerManager();
+    await m.start(settings);
+  } catch (err) {
+    console.error(
+      '[IPC] tak:start failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+ipcMain.handle('tak:stop', () => {
+  console.debug('[IPC] tak:stop');
+  takServerManager?.stop();
+});
+
+ipcMain.handle('tak:getStatus', () => {
+  return takServerManager?.getStatus() ?? IDLE_TAK_STATUS;
+});
+
+ipcMain.handle('tak:getConnectedClients', () => {
+  return takServerManager?.getConnectedClients() ?? [];
+});
+
+ipcMain.handle('tak:generateDataPackage', async () => {
+  try {
+    console.debug('[IPC] tak:generateDataPackage');
+    const m = await ensureTakServerManager();
+    await m.generateDataPackage();
+  } catch (err) {
+    console.error(
+      '[IPC] tak:generateDataPackage failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+ipcMain.handle('tak:regenerateCertificates', async () => {
+  try {
+    console.debug('[IPC] tak:regenerateCertificates');
+    const m = await ensureTakServerManager();
+    await m.regenerateCertificates();
+  } catch (err) {
+    console.error(
+      '[IPC] tak:regenerateCertificates failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+ipcMain.handle('tak:pushNodeUpdate', async (_event, node: unknown) => {
+  if (!node || typeof node !== 'object') throw new Error('tak:pushNodeUpdate: node must be object');
+  const n = node as Record<string, unknown>;
+  const nodeId = Number(n.node_id);
+  if (!Number.isFinite(nodeId) || nodeId <= 0)
+    throw new Error('tak:pushNodeUpdate: invalid node_id');
+  const m = await ensureTakServerManager();
+  m.onNodeUpdate(n as Parameters<TakServerManager['onNodeUpdate']>[0]);
+});
+
 // ─── App lifecycle ─────────────────────────────────────────────────
 // ─── Second-instance handler ────────────────────────────────────────
 // Registered here (before whenReady) so it's ready before any second
@@ -3390,6 +3538,31 @@ void app.whenReady().then(() => {
     console.debug(`[Startup] runtime ${formatRuntimeLogTag()}`);
 
     initDatabase();
+
+    // Auto-restore TAK server if auto-start is enabled
+    const takSettingsPath = path.join(app.getPath('userData'), 'tak-settings.json');
+    try {
+      if (fs.existsSync(takSettingsPath)) {
+        const saved = JSON.parse(fs.readFileSync(takSettingsPath, 'utf-8')) as unknown;
+        validateTakSettings(saved);
+        if (saved.autoStart) {
+          void ensureTakServerManager()
+            .then((m) => m.start(saved))
+            .catch((e: unknown) => {
+              console.error(
+                '[TAK] Auto-start failed:',
+                sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+              );
+            });
+        }
+      }
+    } catch (e: unknown) {
+      console.warn(
+        '[TAK] Settings restore failed:',
+        sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+      );
+    }
+
     // Force the dock icon in development on macOS
     if (!app.isPackaged && process.platform === 'darwin') {
       const iconPath = path.join(
@@ -3481,6 +3654,14 @@ app.on('before-quit', (event) => {
 });
 
 app.on('will-quit', () => {
+  try {
+    takServerManager?.stop();
+  } catch (err) {
+    console.debug(
+      '[main] TAK server stop during will-quit (ignored):',
+      err instanceof Error ? err.message : err,
+    ); // log-injection-ok internal cleanup
+  }
   try {
     mqttManager.disconnect();
     meshcoreMqttAdapter.disconnect();

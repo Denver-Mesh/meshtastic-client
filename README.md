@@ -118,6 +118,7 @@ From real-time diagnostics to permanent message archives, Mesh-Client delivers t
 - Send/receive messages across channels with per-transport delivery badges and delivery ACK / failure states
 - **Spellcheck** — the message composer uses a textarea with inline misspelling marks; right‑click for replacements (Electron main process configures the spellchecker for **Meshtastic** and **MeshCore**)
 - Emoji reactions (11 emojis with compose picker) and reply-to-message (quoted preview in bubble)
+- **`@[Display Name]` tokens** (Meshtastic / MeshCore reply, tapback, path, and inline-reference syntax) render as compact inline labels in the bubble instead of raw brackets — see [docs/meshcore-meshtastic-parity.md](docs/meshcore-meshtastic-parity.md#chat-mention-tokens)
 - Unread message divider that persists across restarts; auto-scrolls on tab switch
 - Direct messages (DMs) to individual nodes
 

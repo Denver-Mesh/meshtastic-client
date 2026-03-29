@@ -7,12 +7,66 @@ import {
   meshcoreApplyRepeaterSessionAuth,
   meshcoreApplyRepeaterSessionAuthSkip,
   meshcoreClearRepeaterRemoteSessionAuth,
+  meshcoreConnectionImpliesUsbPower,
   meshcoreDeriveChannelKeyHexFromName,
   meshcoreGetRepeaterSessionPassword,
   meshcoreIsRepeaterRemoteAuthTouched,
+  meshcoreMilliVoltsToApproximateBatteryPercent,
+  meshcoreMinimalNodeFromAdvertEvent,
   meshcoreSelfInfoBwToDisplayKhz,
   meshcoreSelfInfoFreqToDisplayHz,
+  pubkeyToNodeId,
 } from './meshcoreUtils';
+
+describe('meshcoreMinimalNodeFromAdvertEvent', () => {
+  const key32 = new Uint8Array(32);
+  for (let i = 0; i < 32; i++) key32[i] = (i * 7 + 1) & 0xff;
+
+  it('returns null for wrong-length pubkey', () => {
+    expect(meshcoreMinimalNodeFromAdvertEvent(new Uint8Array(31), { nowSec: 1_700_000_000 })).toBe(
+      null,
+    );
+  });
+
+  it('returns null when node id folds to 0', () => {
+    const k = new Uint8Array(32);
+    expect(pubkeyToNodeId(k)).toBe(0);
+    expect(meshcoreMinimalNodeFromAdvertEvent(k, { nowSec: 1_700_000_000 })).toBe(null);
+  });
+
+  it('builds node with last_heard from lastAdvert when positive', () => {
+    const r = meshcoreMinimalNodeFromAdvertEvent(key32, {
+      nowSec: 1_700_000_100,
+      lastAdvert: 1_700_000_050,
+    });
+    expect(r).not.toBeNull();
+    expect(r!.lastHeardSec).toBe(1_700_000_050);
+    expect(r!.node.last_heard).toBe(1_700_000_050);
+    expect(r!.node.hw_model).toBe('None');
+    expect(r!.contactType).toBe(0);
+  });
+
+  it('uses nowSec when lastAdvert is missing or zero', () => {
+    const r = meshcoreMinimalNodeFromAdvertEvent(key32, { nowSec: 1_700_000_200, lastAdvert: 0 });
+    expect(r!.lastHeardSec).toBe(1_700_000_200);
+  });
+
+  it('maps scaled lat/lon to degrees and contact type', () => {
+    const r = meshcoreMinimalNodeFromAdvertEvent(key32, {
+      nowSec: 1,
+      advLat: 45_123456 * 1,
+      advLon: -93_654321 * 1,
+      contactType: 2,
+      advName: '  RP1 ',
+    });
+    expect(r!.node.latitude).toBeCloseTo(45.123456, 5);
+    expect(r!.node.longitude).toBeCloseTo(-93.654321, 5);
+    expect(r!.node.long_name).toBe('RP1');
+    expect(r!.node.hw_model).toBe('Repeater');
+    expect(r!.contactType).toBe(2);
+    expect(r!.persistAdvLatDeg).toBeCloseTo(45.123456, 5);
+  });
+});
 
 describe('isMeshcoreTransportStatusChatLine', () => {
   it('detects MeshCore hop ACK lines', () => {
@@ -53,6 +107,37 @@ describe('meshcoreSelfInfoBwToDisplayKhz', () => {
 
   it('passes through kHz when firmware already uses kHz', () => {
     expect(meshcoreSelfInfoBwToDisplayKhz(250)).toBe(250);
+  });
+});
+
+describe('meshcoreMilliVoltsToApproximateBatteryPercent', () => {
+  it('maps 3.5V and 4.2V to 0 and 100', () => {
+    expect(meshcoreMilliVoltsToApproximateBatteryPercent(3500)).toBe(0);
+    expect(meshcoreMilliVoltsToApproximateBatteryPercent(4200)).toBe(100);
+  });
+
+  it('maps midpoint to ~50%', () => {
+    expect(meshcoreMilliVoltsToApproximateBatteryPercent(3850)).toBe(50);
+  });
+
+  it('clamps below empty and above full', () => {
+    expect(meshcoreMilliVoltsToApproximateBatteryPercent(3000)).toBe(0);
+    expect(meshcoreMilliVoltsToApproximateBatteryPercent(4300)).toBe(100);
+  });
+
+  it('returns 0 for non-finite or non-positive input', () => {
+    expect(meshcoreMilliVoltsToApproximateBatteryPercent(NaN)).toBe(0);
+    expect(meshcoreMilliVoltsToApproximateBatteryPercent(0)).toBe(0);
+    expect(meshcoreMilliVoltsToApproximateBatteryPercent(-100)).toBe(0);
+  });
+});
+
+describe('meshcoreConnectionImpliesUsbPower', () => {
+  it('is true only for serial (USB data link / typical VBUS)', () => {
+    expect(meshcoreConnectionImpliesUsbPower('serial')).toBe(true);
+    expect(meshcoreConnectionImpliesUsbPower('ble')).toBe(false);
+    expect(meshcoreConnectionImpliesUsbPower('http')).toBe(false);
+    expect(meshcoreConnectionImpliesUsbPower(null)).toBe(false);
   });
 });
 
