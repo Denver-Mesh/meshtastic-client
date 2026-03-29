@@ -4,7 +4,11 @@
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)
-![Build Status](https://img.shields.io/github/actions/workflow/status/Colorado-Mesh/mesh-client/ci.yaml?branch=main)
+[![CI Build](https://github.com/Colorado-Mesh/mesh-client/actions/workflows/ci.yaml/badge.svg)](https://github.com/Colorado-Mesh/mesh-client/actions/workflows/ci.yaml)
+[![Build/Release Electron App](https://github.com/Colorado-Mesh/mesh-client/actions/workflows/release.yaml/badge.svg)](https://github.com/Colorado-Mesh/mesh-client/actions/workflows/release.yaml)
+![GitHub release (latest by date)](https://img.shields.io/github/v/release/Colorado-Mesh/mesh-client)
+[![Publish Docs](https://github.com/Colorado-Mesh/mesh-client/actions/workflows/docs.yml/badge.svg)](https://github.com/Colorado-Mesh/mesh-client/actions/workflows/docs.yml)
+![Discord](https://img.shields.io/discord/1436156966648152271?label=chat&logo=discord)
 
 ---
 
