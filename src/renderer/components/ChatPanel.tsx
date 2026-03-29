@@ -19,6 +19,7 @@ function nodeDisplayName(node: MeshNode | undefined, protocol: MeshProtocol): st
   }
   return node.short_name || node.long_name || '';
 }
+import { ChatPayloadText } from './ChatPayloadText';
 import { HelpTooltip } from './HelpTooltip';
 
 function StatusBadge({
@@ -156,28 +157,6 @@ function formatDayLabel(ts: number): string {
 function getDayKey(ts: number): string {
   const d = new Date(ts);
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-}
-
-/** Highlight search matches in text */
-function HighlightText({ text, query }: { text: string; query: string }) {
-  if (!query.trim()) return <>{text}</>;
-  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const splitRegex = new RegExp(`(${escaped})`, 'gi');
-  const parts = text.split(splitRegex);
-  const lowerQuery = query.toLowerCase();
-  return (
-    <>
-      {parts.map((part, i) =>
-        part.toLowerCase() === lowerQuery ? (
-          <mark key={i} className="bg-yellow-500/40 text-yellow-200 rounded px-0.5">
-            {part}
-          </mark>
-        ) : (
-          <span key={i}>{part}</span>
-        ),
-      )}
-    </>
-  );
 }
 
 function UnreadDivider() {
@@ -1100,7 +1079,7 @@ function ChatPanel({
 
                       {/* Message text with optional search highlight */}
                       <p className="text-sm text-gray-200 break-words whitespace-pre-wrap leading-relaxed">
-                        <HighlightText text={msg.payload} query={searchQuery} />
+                        <ChatPayloadText text={msg.payload} query={searchQuery} />
                       </p>
 
                       {/* Transport indicator for incoming messages (MeshCore is RF-first; hide redundant RF-only badge) */}
