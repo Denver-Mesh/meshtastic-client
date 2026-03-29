@@ -1332,7 +1332,10 @@ export function useMeshCore() {
           type?: number;
           advName?: string;
         };
-        if (d.publicKey?.length !== 32) return;
+        if (d.publicKey?.length !== 32) {
+          console.debug('[useMeshCore] event 128: bad publicKey length', d.publicKey?.length);
+          return;
+        }
         const nodeId = pubkeyToNodeId(d.publicKey);
         if (nodeId === 0) return;
         const nowSec = Math.floor(Date.now() / 1000);
@@ -1465,7 +1468,10 @@ export function useMeshCore() {
       // Push: path updated — event 0x81 = 129; update last_heard for that contact
       conn.on(129, (data: unknown) => {
         const d = data as { publicKey: Uint8Array };
-        if (d.publicKey?.length !== 32) return;
+        if (d.publicKey?.length !== 32) {
+          console.debug('[useMeshCore] event 129: bad publicKey length', d.publicKey?.length);
+          return;
+        }
         const nodeId = pubkeyToNodeId(d.publicKey);
         if (nodeId === 0) return;
         const nowSec = Math.floor(Date.now() / 1000);
@@ -1494,6 +1500,7 @@ export function useMeshCore() {
             next.set(nodeId, nodeWithNick);
             return next;
           }
+          // update path: only refresh last_heard in memory; DB last_advert is written next time event 128 fires
           persist129.kind = 'update';
           const next = new Map(prev);
           next.set(nodeId, { ...existing, last_heard: nowSec });
@@ -1522,6 +1529,10 @@ export function useMeshCore() {
       // Push: send confirmed — event 0x82 = 130; resolve pending DM delivery
       conn.on(130, (data: unknown) => {
         const d = data as { ackCode: number; roundTrip?: number };
+        if (typeof d.ackCode !== 'number' || !Number.isFinite(d.ackCode)) {
+          console.warn('[useMeshCore] event 130: non-numeric ackCode', d.ackCode);
+          return;
+        }
         let pending: PendingDmAckEntry | undefined;
         for (const lk of meshcoreDeviceAckLookupKeys(d.ackCode)) {
           pending = pendingAcksRef.current.get(lk);
@@ -1539,6 +1550,10 @@ export function useMeshCore() {
               (m.status === 'sending' || m.status === 'failed'),
           );
           if (hadLateOutbound) {
+            console.debug(
+              '[useMeshCore] event 130: late ACK matched, ackCode',
+              d.ackCode.toString(16),
+            );
             setMessages((prev) =>
               prev.map((m) =>
                 m.packetId != null &&
@@ -1557,6 +1572,10 @@ export function useMeshCore() {
               });
             return;
           }
+          console.debug(
+            '[useMeshCore] event 130: orphaned ACK (no pending, no late match), ackCode',
+            d.ackCode.toString(16),
+          );
           return;
         }
         clearTimeout(pending.timeoutId);
@@ -1602,94 +1621,105 @@ export function useMeshCore() {
       });
 
       // Push: message waiting — event 0x83 = 131; fetch all queued messages
+      const processWaitingMessages = async () => {
+        const msgs = await conn.getWaitingMessages();
+        if (!meshcoreHookMountedRef.current) return;
+        const arr = msgs as {
+          contactMessage?: { pubKeyPrefix: Uint8Array; senderTimestamp: number; text: string };
+          channelMessage?: { channelIdx: number; senderTimestamp: number; text: string };
+        }[];
+        for (const m of arr) {
+          if (m.contactMessage) {
+            const d = m.contactMessage;
+            const prefix = Array.from(d.pubKeyPrefix)
+              .map((b) => b.toString(16).padStart(2, '0'))
+              .join('');
+            const senderId = pubKeyPrefixMapRef.current.get(prefix) ?? 0;
+            if (senderId === 0) {
+              console.warn(
+                '[useMeshCore] event 131: unknown pubKeyPrefix in queued DM, sender will be 0',
+                prefix,
+              );
+            }
+            const sender = nodesRef.current.get(senderId);
+            if (senderId !== 0) {
+              setNodes((prev) => {
+                const node = prev.get(senderId);
+                if (!node) return prev;
+                const next = new Map(prev);
+                next.set(senderId, { ...node, last_heard: d.senderTimestamp });
+                return next;
+              });
+            }
+            if (isMeshcoreTransportStatusChatLine(d.text)) {
+              logTransportLineAsDevice(d.text);
+            } else {
+              addMessage({
+                ...buildMeshcoreDmIncomingMessage(messagesRef.current, {
+                  rawText: d.text,
+                  senderId,
+                  displayName: sender?.long_name ?? `Node-${senderId.toString(16).toUpperCase()}`,
+                  timestamp: d.senderTimestamp * 1000,
+                  receivedVia: 'rf',
+                  peerNodeId: senderId,
+                  myNodeId: myNodeNumRef.current || 0,
+                  to: myNodeNumRef.current || undefined,
+                }),
+                isHistory: true,
+              });
+            }
+          }
+          if (m.channelMessage) {
+            const d = m.channelMessage;
+            if (isMeshcoreTransportStatusChatLine(d.text)) {
+              logTransportLineAsDevice(d.text);
+              continue;
+            }
+            const normalized = normalizeMeshcoreIncomingText(d.text);
+            const displayName = normalized.senderName ?? 'Unknown';
+            const stubId = meshcoreChatStubNodeIdFromDisplayName(displayName);
+            setNodes((prev) => {
+              const next = new Map(prev);
+              const existing = next.get(stubId);
+              next.set(
+                stubId,
+                existing
+                  ? {
+                      ...existing,
+                      last_heard: Math.max(existing.last_heard ?? 0, d.senderTimestamp),
+                    }
+                  : minimalMeshcoreChatNode(stubId, displayName, d.senderTimestamp, 'rf'),
+              );
+              return next;
+            });
+            addMessage({
+              ...buildMeshcoreChannelIncomingMessage(messagesRef.current, {
+                rawText: d.text,
+                senderId: stubId,
+                displayName,
+                channel: d.channelIdx,
+                timestamp: d.senderTimestamp * 1000,
+                receivedVia: 'rf',
+              }),
+              isHistory: true,
+            });
+          }
+        }
+        console.debug('[useMeshCore] event 131: message waiting, fetched', arr.length, 'messages');
+      };
       conn.on(131, () => {
         void (async () => {
           try {
-            const msgs = await conn.getWaitingMessages();
-            if (!meshcoreHookMountedRef.current) return;
-            const arr = msgs as {
-              contactMessage?: { pubKeyPrefix: Uint8Array; senderTimestamp: number; text: string };
-              channelMessage?: { channelIdx: number; senderTimestamp: number; text: string };
-            }[];
-            for (const m of arr) {
-              if (m.contactMessage) {
-                const d = m.contactMessage;
-                const prefix = Array.from(d.pubKeyPrefix)
-                  .map((b) => b.toString(16).padStart(2, '0'))
-                  .join('');
-                const senderId = pubKeyPrefixMapRef.current.get(prefix) ?? 0;
-                const sender = nodesRef.current.get(senderId);
-                if (senderId !== 0) {
-                  setNodes((prev) => {
-                    const node = prev.get(senderId);
-                    if (!node) return prev;
-                    const next = new Map(prev);
-                    next.set(senderId, { ...node, last_heard: d.senderTimestamp });
-                    return next;
-                  });
-                }
-                if (isMeshcoreTransportStatusChatLine(d.text)) {
-                  logTransportLineAsDevice(d.text);
-                } else {
-                  addMessage({
-                    ...buildMeshcoreDmIncomingMessage(messagesRef.current, {
-                      rawText: d.text,
-                      senderId,
-                      displayName:
-                        sender?.long_name ?? `Node-${senderId.toString(16).toUpperCase()}`,
-                      timestamp: d.senderTimestamp * 1000,
-                      receivedVia: 'rf',
-                      peerNodeId: senderId,
-                      myNodeId: myNodeNumRef.current || 0,
-                      to: myNodeNumRef.current || undefined,
-                    }),
-                    isHistory: true,
-                  });
-                }
-              }
-              if (m.channelMessage) {
-                const d = m.channelMessage;
-                if (isMeshcoreTransportStatusChatLine(d.text)) {
-                  logTransportLineAsDevice(d.text);
-                  continue;
-                }
-                const normalized = normalizeMeshcoreIncomingText(d.text);
-                const displayName = normalized.senderName ?? 'Unknown';
-                const stubId = meshcoreChatStubNodeIdFromDisplayName(displayName);
-                setNodes((prev) => {
-                  const next = new Map(prev);
-                  const existing = next.get(stubId);
-                  next.set(
-                    stubId,
-                    existing
-                      ? {
-                          ...existing,
-                          last_heard: Math.max(existing.last_heard ?? 0, d.senderTimestamp),
-                        }
-                      : minimalMeshcoreChatNode(stubId, displayName, d.senderTimestamp, 'rf'),
-                  );
-                  return next;
-                });
-                addMessage({
-                  ...buildMeshcoreChannelIncomingMessage(messagesRef.current, {
-                    rawText: d.text,
-                    senderId: stubId,
-                    displayName,
-                    channel: d.channelIdx,
-                    timestamp: d.senderTimestamp * 1000,
-                    receivedVia: 'rf',
-                  }),
-                  isHistory: true,
-                });
-              }
-            }
-            console.debug(
-              '[useMeshCore] event 131: message waiting, fetched',
-              arr.length,
-              'messages',
-            );
+            await processWaitingMessages();
           } catch (e) {
-            console.warn('[useMeshCore] getWaitingMessages error', e);
+            console.warn('[useMeshCore] getWaitingMessages error, retrying in 2 s', e);
+            // Single retry — device may be busy during BLE reconnect
+            setTimeout(() => {
+              if (!meshcoreHookMountedRef.current) return;
+              void processWaitingMessages().catch((e2: unknown) => {
+                console.warn('[useMeshCore] getWaitingMessages retry failed', e2);
+              });
+            }, 2_000);
           }
         })();
       });
@@ -1706,6 +1736,9 @@ export function useMeshCore() {
           .map((b) => b.toString(16).padStart(2, '0'))
           .join('');
         const senderId = pubKeyPrefixMapRef.current.get(prefix) ?? 0;
+        if (senderId === 0) {
+          console.warn('[useMeshCore] event 7: unknown pubKeyPrefix, sender will be 0', prefix);
+        }
         const sender = nodesRef.current.get(senderId);
 
         // CLI data response (txtType === 1)
@@ -2563,7 +2596,10 @@ export function useMeshCore() {
 
   const sendMessage = useCallback(
     async (text: string, channelIdx: number, destNodeId?: number, replyId?: number) => {
-      if (!connRef.current) return;
+      if (!connRef.current) {
+        console.warn('[useMeshCore] sendMessage: no active connection, dropping send');
+        return;
+      }
       if (destNodeId !== undefined) {
         const pubKey = pubKeyMapRef.current.get(destNodeId);
         if (!pubKey) {
@@ -3775,6 +3811,11 @@ export function useMeshCore() {
             'Cannot send reaction: no encryption key for this contact. Wait for a full contact exchange, refresh contacts, or remove name-only stubs.',
           );
         }
+        console.debug(
+          '[useMeshCore] sendReaction: DM tapback to',
+          peerNodeId.toString(16).toUpperCase(),
+        );
+        // Tapbacks are fire-and-forget; no ACK tracking or status UI for reactions
         await conn.sendTextMessage(pubKey, tapbackText);
         addMessage({
           sender_id: me,
@@ -3794,6 +3835,8 @@ export function useMeshCore() {
             : channel === -1
               ? 0
               : channel;
+        console.debug('[useMeshCore] sendReaction: channel tapback ch=', outboundChannel);
+        // Tapbacks are fire-and-forget; no ACK tracking or status UI for reactions
         await conn.sendChannelTextMessage(outboundChannel, tapbackText);
         addMessage({
           sender_id: me,

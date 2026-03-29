@@ -260,7 +260,10 @@ export class MeshcoreMqttAdapter extends EventEmitter {
         return;
       }
       const env = tryParseMeshcoreMqttChatEnvelope(text.trim());
-      if (!env) return;
+      if (!env) {
+        console.debug('[MeshcoreMqttAdapter] MQTT message not a chat envelope, skipping');
+        return;
+      }
       this.emit('chatMessage', { topic, ...env });
     });
     this.client.on('error', (err) => {
