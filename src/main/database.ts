@@ -64,7 +64,7 @@ export function initDatabase(): void {
            WHERE packet_id IS NOT NULL`,
           )
           .run();
-        db!.pragma('user_version = 18');
+        db!.pragma('user_version = 19');
       } else {
         runMigrations();
       }
@@ -169,7 +169,8 @@ function createBaseTables(): void {
         last_snr     REAL,
         last_rssi    REAL,
         favorited    INTEGER DEFAULT 0,
-        nickname     TEXT
+        nickname     TEXT,
+        contact_flags INTEGER DEFAULT 0
       );
 
       CREATE TABLE IF NOT EXISTS meshcore_messages (
@@ -586,6 +587,26 @@ function runMigrations(): void {
         sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
       );
       throw new Error(`Migration v18 failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  if (userVersion < 19) {
+    try {
+      const columns = db!.prepare('PRAGMA table_info(meshcore_contacts)').all() as {
+        name: string;
+      }[];
+      if (!columns.some((c) => c.name === 'contact_flags')) {
+        db!
+          .prepare('ALTER TABLE meshcore_contacts ADD COLUMN contact_flags INTEGER DEFAULT 0')
+          .run();
+      }
+      db!.pragma('user_version = 19');
+    } catch (e) {
+      console.error(
+        '[db] migration v19 failed',
+        sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+      );
+      throw new Error(`Migration v19 failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 }

@@ -43,6 +43,8 @@ export interface ProtocolCapabilities {
   hasWifiConfig: boolean;
   /** Whether telemetry device metrics update interval config is available */
   hasTelemetryIntervalConfig: boolean;
+  /** MeshCore companion: telemetry request / location / environment privacy (NodePrefs telemetry modes) */
+  hasCompanionTelemetryPrivacyConfig: boolean;
   /** Whether shutdown button is available */
   hasShutdown: boolean;
   /** Whether Reset NodeDB button is available */
@@ -76,6 +78,7 @@ export const MESHTASTIC_CAPABILITIES: ProtocolCapabilities = {
   hasPowerConfig: true,
   hasWifiConfig: true,
   hasTelemetryIntervalConfig: true,
+  hasCompanionTelemetryPrivacyConfig: false,
   hasShutdown: true,
   hasNodeDbReset: true,
   hasFactoryReset: true,
@@ -105,6 +108,7 @@ export const MESHCORE_CAPABILITIES: ProtocolCapabilities = {
   hasPowerConfig: false,
   hasWifiConfig: false,
   hasTelemetryIntervalConfig: false,
+  hasCompanionTelemetryPrivacyConfig: true,
   hasShutdown: false,
   hasNodeDbReset: false,
   hasFactoryReset: false,

@@ -156,6 +156,7 @@ interface MeshCoreContact {
   lastAdvert: number;
   advLat: number;
   advLon: number;
+  flags?: number;
 }
 
 export function meshcoreContactToMeshNode(contact: MeshCoreContact): MeshNode {

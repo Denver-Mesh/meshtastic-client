@@ -26,6 +26,13 @@ import {
 import { readMeshcoreMqttSettingsFromStorage } from '../lib/meshcoreMqttSettingsStorage';
 import { meshcoreRepeaterTryLogin } from '../lib/meshcoreRepeaterSession';
 import {
+  buildMeshcoreSetOtherParamsFrame,
+  enrichMeshCoreSelfInfo,
+  type MeshCoreSelfInfoEnriched,
+  type MeshCoreSelfInfoWire,
+  packMeshcoreTelemetryModesByte,
+} from '../lib/meshcoreTelemetryPrivacy';
+import {
   CONTACT_TYPE_LABELS,
   isMeshcoreTransportStatusChatLine,
   mergeMeshcoreChatStubNodes,
@@ -71,6 +78,12 @@ import { useDiagnosticsStore } from '../stores/diagnosticsStore';
 import { usePositionHistoryStore } from '../stores/positionHistoryStore';
 import { useRepeaterSignalStore } from '../stores/repeaterSignalStore';
 
+function meshcoreContactRawFromDevice(c: MeshCoreContactRaw): MeshCoreContactRaw {
+  const f = (c as { flags?: number }).flags;
+  const flags = typeof f === 'number' && Number.isFinite(f) ? f & 0xff : 0;
+  return { ...c, flags };
+}
+
 function contactToDbRow(
   contact: MeshCoreContactRaw,
   nickname?: string | null,
@@ -86,6 +99,7 @@ function contactToDbRow(
     adv_lat: contact.advLat !== 0 ? contact.advLat / MESHCORE_COORD_SCALE : null,
     adv_lon: contact.advLon !== 0 ? contact.advLon / MESHCORE_COORD_SCALE : null,
     nickname: nickname ?? null,
+    contact_flags: contact.flags & 0xff,
   };
 }
 
@@ -419,18 +433,8 @@ class IpcNobleConnection {
   }
 }
 
-/** Self info from the radio; optional mV from `getBatteryVoltage()` — no charging flag in the MeshCore API. */
-export interface MeshCoreSelfInfo {
-  name: string;
-  publicKey: Uint8Array;
-  type: number;
-  txPower: number;
-  radioFreq: number;
-  radioBw?: number;
-  radioSf?: number;
-  radioCr?: number;
-  batteryMilliVolts?: number;
-}
+/** Self info from the radio (normalized after `enrichMeshCoreSelfInfo`). */
+export type MeshCoreSelfInfo = MeshCoreSelfInfoEnriched;
 
 export interface MeshCoreRepeaterStatus {
   battMilliVolts: number;
@@ -490,7 +494,7 @@ interface MeshCoreConnection {
   once(event: string | number, cb: (...args: unknown[]) => void): void;
   emit(event: string | number, ...args: unknown[]): void;
   close(): Promise<void>;
-  getSelfInfo(timeout?: number): Promise<MeshCoreSelfInfo>;
+  getSelfInfo(timeout?: number): Promise<MeshCoreSelfInfoWire>;
   getContacts(): Promise<MeshCoreContactRaw[]>;
   getChannels(): Promise<MeshCoreChannelRaw[]>;
   getChannel(channelIdx: number): Promise<MeshCoreChannelRaw>;
@@ -565,6 +569,7 @@ interface MeshCoreConnection {
   setOtherParams(manualAddContacts: boolean): Promise<void>;
   setAutoAddContacts(): Promise<void>;
   setManualAddContacts(): Promise<void>;
+  sendToRadioFrame(data: Uint8Array): Promise<void>;
   deviceQuery(appTargetVer: number): Promise<{
     firmwareVer: number;
     firmware_build_date: string;
@@ -572,13 +577,14 @@ interface MeshCoreConnection {
   }>;
 }
 
-interface MeshCoreContactRaw {
+export interface MeshCoreContactRaw {
   publicKey: Uint8Array;
   type: number;
   advName: string;
   lastAdvert: number;
   advLat: number;
   advLon: number;
+  flags: number;
 }
 
 interface MeshCoreChannelRaw {
@@ -599,6 +605,7 @@ interface MeshcoreContactDbRow {
   last_rssi: number | null;
   favorited: number;
   nickname: string | null;
+  contact_flags: number | null;
 }
 
 interface DeviceLogEntry {
@@ -791,6 +798,9 @@ export function useMeshCore() {
     [],
   );
   const [selfInfo, setSelfInfo] = useState<MeshCoreSelfInfo | null>(null);
+  const [meshcoreContactsForTelemetry, setMeshcoreContactsForTelemetry] = useState<
+    MeshCoreContactRaw[]
+  >([]);
   const [ourPosition, setOurPosition] = useState<OurPosition | null>(null);
   const [deviceLogs, setDeviceLogs] = useState<DeviceLogEntry[]>([]);
   const [telemetry, setTelemetry] = useState<TelemetryPoint[]>([]);
@@ -1498,7 +1508,7 @@ export function useMeshCore() {
 
       // Push: new contact discovered — event 0x8A = 138
       conn.on(138, (data: unknown) => {
-        const d = data as MeshCoreContactRaw;
+        const d = meshcoreContactRawFromDevice(data as MeshCoreContactRaw);
         const node = meshcoreContactToMeshNode(d);
         pubKeyMapRef.current.set(node.node_id, d.publicKey);
         const prefix = Array.from(d.publicKey.slice(0, 6))
@@ -1879,7 +1889,8 @@ export function useMeshCore() {
       }
 
       // Fetch self info, contacts, channels (sequential — device handles one request at a time)
-      const info = await awaitUnlessMeshcoreSetupCancelled(setupGen, conn.getSelfInfo(5000));
+      const rawInfo = await awaitUnlessMeshcoreSetupCancelled(setupGen, conn.getSelfInfo(5000));
+      const info = enrichMeshCoreSelfInfo(rawInfo);
       console.debug(
         `[useMeshCore] selfInfo: radioFreq=${info.radioFreq} radioBw=${info.radioBw} radioSf=${info.radioSf} radioCr=${info.radioCr} txPower=${info.txPower}`,
       );
@@ -1901,10 +1912,12 @@ export function useMeshCore() {
         console.debug('[useMeshCore] deviceQuery failed (firmware version unavailable):', e);
       }
 
-      const contacts = await awaitUnlessMeshcoreSetupCancelled(
+      const contactsRaw = await awaitUnlessMeshcoreSetupCancelled(
         setupGen,
         withTimeout(conn.getContacts(), MESHCORE_INIT_TIMEOUT_MS, 'getContacts'),
       );
+      const contacts = contactsRaw.map(meshcoreContactRawFromDevice);
+      setMeshcoreContactsForTelemetry(contacts);
       const newNodes = await awaitUnlessMeshcoreSetupCancelled(
         setupGen,
         buildNodesFromContacts(contacts, {
@@ -2456,6 +2469,7 @@ export function useMeshCore() {
     setMessages([]);
     setChannels([]);
     setSelfInfo(null);
+    setMeshcoreContactsForTelemetry([]);
     setDeviceLogs([]);
     setTelemetry([]);
     setSignalTelemetry([]);
@@ -2640,7 +2654,9 @@ export function useMeshCore() {
   const refreshContacts = useCallback(async () => {
     if (!connRef.current) return;
     try {
-      const contacts = await connRef.current.getContacts();
+      const contactsRaw = await connRef.current.getContacts();
+      const contacts = contactsRaw.map(meshcoreContactRawFromDevice);
+      setMeshcoreContactsForTelemetry(contacts);
       const newNodes = await buildNodesFromContacts(contacts, {
         self: selfInfo,
         myNodeId: myNodeNumRef.current,
@@ -3301,6 +3317,59 @@ export function useMeshCore() {
     [addCliHistoryEntry, bumpMeshcoreNodeLastHeardFromRpc, meshcoreTraceResults],
   );
 
+  const applyMeshcoreTelemetryPrivacyPolicy = useCallback(
+    async (modes: {
+      telemetryModeBase: number;
+      telemetryModeLoc: number;
+      telemetryModeEnv: number;
+    }) => {
+      const conn = connRef.current;
+      const s = selfInfoRef.current;
+      if (!conn || !s) return;
+      const manualByte = s.manualAddContacts ? 1 : 0;
+      const frame = buildMeshcoreSetOtherParamsFrame(
+        manualByte,
+        packMeshcoreTelemetryModesByte(
+          modes.telemetryModeBase,
+          modes.telemetryModeLoc,
+          modes.telemetryModeEnv,
+        ),
+        s.advertLocPolicy ?? 0,
+        s.multiAcks ?? 0,
+      );
+      await new Promise<void>((resolve, reject) => {
+        const onOk = () => {
+          conn.off(0, onOk);
+          conn.off(1, onErr);
+          resolve();
+        };
+        const onErr = () => {
+          conn.off(0, onOk);
+          conn.off(1, onErr);
+          reject(new Error('MeshCore rejected telemetry privacy settings'));
+        };
+        conn.once(0, onOk);
+        conn.once(1, onErr);
+        void conn.sendToRadioFrame(frame).catch((e: unknown) => {
+          conn.off(0, onOk);
+          conn.off(1, onErr);
+          reject(e instanceof Error ? e : new Error(String(e)));
+        });
+      });
+      setSelfInfo((prev) =>
+        prev
+          ? {
+              ...prev,
+              telemetryModeBase: modes.telemetryModeBase,
+              telemetryModeLoc: modes.telemetryModeLoc,
+              telemetryModeEnv: modes.telemetryModeEnv,
+            }
+          : prev,
+      );
+    },
+    [],
+  );
+
   const toggleManualAddContacts = useCallback(async (manual: boolean) => {
     if (!connRef.current) return;
     try {
@@ -3310,6 +3379,7 @@ export function useMeshCore() {
         await connRef.current.setAutoAddContacts();
       }
       setManualAddContacts(manual);
+      setSelfInfo((prev) => (prev ? { ...prev, manualAddContacts: manual } : prev));
       try {
         localStorage.setItem(MANUAL_CONTACTS_KEY, String(manual));
       } catch {
@@ -3782,5 +3852,7 @@ export function useMeshCore() {
     connectAutomatic,
     telemetryDeviceUpdateInterval: undefined as number | undefined,
     setRadioParams,
+    meshcoreContactsForTelemetry,
+    applyMeshcoreTelemetryPrivacyPolicy,
   };
 }

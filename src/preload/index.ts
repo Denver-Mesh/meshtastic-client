@@ -92,6 +92,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       last_snr?: number | null;
       last_rssi?: number | null;
       nickname?: string | null;
+      contact_flags?: number | null;
     }) => ipcRenderer.invoke('db:saveMeshcoreContact', contact),
     updateMeshcoreContactAdvert: (
       nodeId: number,

@@ -1140,6 +1140,19 @@ export default function App() {
                                 }
                               : undefined
                           }
+                          meshcoreSelfInfo={
+                            protocol === 'meshcore' ? meshcoreDevice.selfInfo : undefined
+                          }
+                          meshcoreContactsForTelemetry={
+                            protocol === 'meshcore'
+                              ? meshcoreDevice.meshcoreContactsForTelemetry
+                              : undefined
+                          }
+                          onApplyMeshcoreTelemetryPrivacy={
+                            protocol === 'meshcore'
+                              ? meshcoreDevice.applyMeshcoreTelemetryPrivacyPolicy
+                              : undefined
+                          }
                         />
                       </Suspense>
                     </ErrorBoundary>

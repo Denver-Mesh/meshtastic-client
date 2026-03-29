@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
+import type { MeshCoreContactRaw, MeshCoreSelfInfo } from '../hooks/useMeshCore';
 import type { OurPosition } from '../lib/gpsSource';
 import {
   MESHCORE_CHANNEL_INDEX_MAX,
@@ -9,6 +10,7 @@ import {
 } from '../lib/meshcoreUtils';
 import type { ProtocolCapabilities } from '../lib/radio/BaseRadioProvider';
 import { HelpTooltip } from './HelpTooltip';
+import MeshcoreTelemetryPrivacySection from './MeshcoreTelemetryPrivacySection';
 import { useToast } from './Toast';
 
 interface ChannelConfig {
@@ -66,6 +68,13 @@ interface Props {
     txPower: number;
   }) => Promise<void>;
   loraConfig?: { freq?: number; bw?: number; sf?: number; cr?: number; txPower?: number };
+  meshcoreSelfInfo?: MeshCoreSelfInfo | null;
+  meshcoreContactsForTelemetry?: MeshCoreContactRaw[];
+  onApplyMeshcoreTelemetryPrivacy?: (modes: {
+    telemetryModeBase: number;
+    telemetryModeLoc: number;
+    telemetryModeEnv: number;
+  }) => Promise<void>;
 }
 
 const REGIONS = [
@@ -470,6 +479,9 @@ export default function RadioPanel({
   onMeshcoreDeleteChannel,
   onApplyLoraParams,
   loraConfig,
+  meshcoreSelfInfo,
+  meshcoreContactsForTelemetry,
+  onApplyMeshcoreTelemetryPrivacy,
 }: Props) {
   // ─── User / Identity settings ─────────────────────────────────
   const [longName, setLongName] = useState('');
@@ -566,6 +578,7 @@ export default function RadioPanel({
   // ─── Device command confirmation ──────────────────────────────
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const { addToast } = useToast();
+  const [applyingMeshcoreTelemetryPrivacy, setApplyingMeshcoreTelemetryPrivacy] = useState(false);
 
   const disabled = !isConnected;
 
@@ -839,6 +852,33 @@ export default function RadioPanel({
           disabled={disabled}
         />
       )}
+
+      {capabilities?.hasCompanionTelemetryPrivacyConfig &&
+        meshcoreSelfInfo &&
+        meshcoreContactsForTelemetry &&
+        onApplyMeshcoreTelemetryPrivacy && (
+          <MeshcoreTelemetryPrivacySection
+            selfInfo={meshcoreSelfInfo}
+            contacts={meshcoreContactsForTelemetry}
+            disabled={disabled}
+            applying={applyingMeshcoreTelemetryPrivacy}
+            onApply={async (modes) => {
+              setApplyingMeshcoreTelemetryPrivacy(true);
+              try {
+                await onApplyMeshcoreTelemetryPrivacy(modes);
+                addToast('Telemetry privacy updated.', 'success');
+              } catch (e) {
+                console.warn('[RadioPanel] meshcore telemetry privacy apply failed', e);
+                addToast(
+                  e instanceof Error ? e.message : 'Failed to update telemetry privacy.',
+                  'error',
+                );
+              } finally {
+                setApplyingMeshcoreTelemetryPrivacy(false);
+              }
+            }}
+          />
+        )}
 
       {/* ═══ Device Role ═══ */}
       {capabilities?.hasDeviceRoleConfig !== false && (

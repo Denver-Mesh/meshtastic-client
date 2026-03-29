@@ -352,6 +352,7 @@ declare global {
           last_snr?: number | null;
           last_rssi?: number | null;
           nickname?: string | null;
+          contact_flags?: number | null;
         }) => Promise<unknown>;
         updateMeshcoreMessageStatus: (packetId: number, status: string) => Promise<unknown>;
         updateMeshcoreContactAdvert: (
