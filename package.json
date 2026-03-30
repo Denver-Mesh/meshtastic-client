@@ -2,6 +2,28 @@
   "name": "mesh-client",
   "version": "5.0.1",
   "description": "Cross-platform Electron desktop client for Meshtastic and MeshCore on macOS, Linux, and Windows — BLE, USB serial, Wi-Fi/TCP, MQTT, local SQLite history, routing diagnostics, and keyboard-first workflows.",
+  "keywords": [
+    "meshtastic",
+    "mesh-network",
+    "bluetooth",
+    "mqtt",
+    "electron",
+    "desktop"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Colorado-Mesh/mesh-client"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Colorado Mesh",
+    "email": "nv0n@coloradomesh.org"
+  },
+  "contributors": [
+    "Joey Stanford https://github.com/rinchen",
+    "dude.eth https://github.com/defidude",
+    "megabear - KD5IHC"
+  ],
   "main": "dist-electron/main/index.js",
   "scripts": {
     "build": "pnpm run build:main:prod && pnpm run build:preload && pnpm run build:renderer",
@@ -17,6 +39,7 @@
     "check:log-injection": "node scripts/check-log-injection.mjs",
     "clean": "rm -rf dist-electron dist node_modules",
     "dev": "concurrently \"pnpm run build:main --watch\" \"pnpm run build:preload --watch\" \"vite\" \"node scripts/wait-for-dev.mjs && VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
+    "predist": "pnpm dedupe",
     "dist": "pnpm run build && electron-builder --publish never",
     "dist:linux": "pnpm dedupe && pnpm run build && electron-builder --linux --x64 --arm64 --publish never",
     "dist:linux:publish": "pnpm dedupe && pnpm run build && electron-builder --linux --x64 --arm64 --publish always",
@@ -28,14 +51,13 @@
     "docs:install": "node scripts/install-mkdocs-deps.mjs",
     "docs:serve": "node scripts/run-mkdocs.mjs serve",
     "electron:open": "node scripts/start-electron.mjs",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\" && sort-package-json",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,md}\" && sort-package-json --check",
+    "preinstall": "pnpm dlx only-allow pnpm",
+    "postinstall": "node scripts/rebuild-native.mjs && patch-package",
     "lint": "eslint . --ext .ts,.tsx,.js,.cjs,.mjs",
     "lint:fix": "eslint . --ext .ts,.tsx,.js,.cjs,.mjs --fix",
     "lint:md": "markdownlint-cli2 \"**/*.md\"",
-    "postinstall": "node scripts/rebuild-native.mjs && patch-package",
-    "predist": "pnpm dedupe",
-    "preinstall": "pnpm dlx only-allow pnpm",
     "prepare": "git config core.hooksPath .githooks",
     "rebuild": "node scripts/rebuild-native.mjs",
     "setup:actionlint": "node scripts/install-actionlint.mjs",
@@ -48,32 +70,16 @@
     "trace-deprecation": "pnpm run build && NODE_OPTIONS='--trace-deprecation' node scripts/start-electron.mjs",
     "typecheck": "pnpm exec tsc --noEmit && pnpm exec tsc --noEmit -p tsconfig.main.json"
   },
-  "author": {
-    "name": "Colorado Mesh",
-    "email": "nv0n@coloradomesh.org"
-  },
-  "contributors": [
-    "Joey Stanford https://github.com/rinchen",
-    "dude.eth https://github.com/defidude",
-    "megabear - KD5IHC"
-  ],
-  "license": "MIT",
-  "packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319",
-  "engines": {
-    "node": ">=22.0.0",
-    "pnpm": ">=10.0.0"
-  },
-  "keywords": [
-    "meshtastic",
-    "mesh-network",
-    "bluetooth",
-    "mqtt",
-    "electron",
-    "desktop"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/Colorado-Mesh/mesh-client"
+  "dependencies": {
+    "@bufbuild/protobuf": "^2.11.0",
+    "@meshtastic/protobufs": "npm:@jsr/meshtastic__protobufs@^2.7.20",
+    "@stoprocent/noble": "^2.3.17",
+    "electron-updater": "^6.8.3",
+    "jszip": "^3.10.1",
+    "mgrs": "^2.1.0",
+    "mqtt": "^5.15.1",
+    "node-forge": "^1.4.0",
+    "systeminformation": "^5.31.5"
   },
   "devDependencies": {
     "@axe-core/react": "^4.11.1",
@@ -117,6 +123,7 @@
     "react-dom": "^19.2.4",
     "react-leaflet": "^5.0.0",
     "recharts": "^3.8.1",
+    "sort-package-json": "^3.6.1",
     "tailwindcss": "^4.2.2",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.57.2",
@@ -125,13 +132,12 @@
     "vitest-axe": "^0.1.0",
     "zustand": "^5.0.12"
   },
+  "packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.0.0"
+  },
   "pnpm": {
-    "overrides": {
-      "cacheable-request": "^10.0.0",
-      "tar": "^7.5.11",
-      "yauzl": "^3.2.1",
-      "safe-buffer": "^5.2.1"
-    },
     "onlyBuiltDependencies": [
       "@serialport/bindings-cpp",
       "@stoprocent/bluetooth-hci-socket",
@@ -140,17 +146,12 @@
       "electron-winstaller",
       "esbuild",
       "usb"
-    ]
-  },
-  "dependencies": {
-    "@bufbuild/protobuf": "^2.11.0",
-    "@meshtastic/protobufs": "npm:@jsr/meshtastic__protobufs@^2.7.20",
-    "@stoprocent/noble": "^2.3.17",
-    "electron-updater": "^6.8.3",
-    "jszip": "^3.10.1",
-    "mgrs": "^2.1.0",
-    "mqtt": "^5.15.1",
-    "node-forge": "^1.4.0",
-    "systeminformation": "^5.31.5"
+    ],
+    "overrides": {
+      "cacheable-request": "^10.0.0",
+      "safe-buffer": "^5.2.1",
+      "tar": "^7.5.11",
+      "yauzl": "^3.2.1"
+    }
   }
 }
