@@ -264,11 +264,10 @@ function normalizePairingPin(raw: string): string | null {
 }
 
 function loadLastConnection(p: MeshProtocol): LastConnection | null {
-  const loaded = parseStoredJson<LastConnection>(
+  return parseStoredJson<LastConnection>(
     localStorage.getItem(lastConnectionKey(p)),
     'ConnectionPanel loadLastConnection',
   );
-  return loaded;
 }
 
 function saveLastConnection(p: MeshProtocol, c: LastConnection) {
@@ -809,7 +808,7 @@ export default function ConnectionPanel({
 
   // Listen for BLE devices discovered by noble in main process
   useEffect(() => {
-    const cleanup = window.electronAPI.onNobleBleDeviceDiscovered((device) => {
+    return window.electronAPI.onNobleBleDeviceDiscovered((device) => {
       setBleDevices((prev) => {
         if (prev.find((d) => d.deviceId === device.deviceId)) return prev;
         return [...prev, device];
@@ -841,12 +840,11 @@ export default function ConnectionPanel({
         setConnectionStage('Scanning — select your device when it appears below');
       }
     });
-    return cleanup;
   }, [lastConnection, onConnect, protocol]); // isAutoConnecting intentionally omitted — ref handles it
 
   // Listen for Bluetooth devices discovered by main process (Linux Web Bluetooth)
   useEffect(() => {
-    const cleanup = window.electronAPI.onBluetoothDevicesDiscovered((devices) => {
+    return window.electronAPI.onBluetoothDevicesDiscovered((devices) => {
       setBleDevices(devices);
       const lastId = lastConnectionRef.current?.bleDeviceId ?? loadLastBleDevice(protocol);
       if (
@@ -899,13 +897,12 @@ export default function ConnectionPanel({
         setConnectionStage('Select your Bluetooth device below');
       }
     });
-    return cleanup;
   }, [protocol, isLinux]);
 
   // Listen for Bluetooth PIN required event (Linux Web Bluetooth pairing)
   useEffect(() => {
     if (!isLinux) return;
-    const cleanup = window.electronAPI.onBluetoothPinRequired((data) => {
+    return window.electronAPI.onBluetoothPinRequired((data) => {
       console.debug('[ConnectionPanel] Bluetooth PIN required for', data.deviceId);
       pinPromptSeenSinceRePairRef.current = true;
       setShowPinPrompt(true);
@@ -929,7 +926,6 @@ export default function ConnectionPanel({
         });
       }, 1000);
     });
-    return cleanup;
   }, [isLinux, stopPinCountdown]);
 
   // Handle re-pair button click: always capture PIN before re-pair actions.
@@ -1094,7 +1090,7 @@ export default function ConnectionPanel({
 
   // Listen for serial ports discovered by main process
   useEffect(() => {
-    const cleanup = window.electronAPI.onSerialPortsDiscovered((ports) => {
+    return window.electronAPI.onSerialPortsDiscovered((ports) => {
       setSerialPorts(ports);
       if (isAutoConnecting) {
         const lastId = lastConnection?.serialPortId ?? loadLastSerialPort();
@@ -1114,7 +1110,6 @@ export default function ConnectionPanel({
       setShowSerialPicker(true);
       setConnectionStage('Select a serial port below');
     });
-    return cleanup;
   }, [isAutoConnecting, lastConnection]);
 
   const handleConnect = useCallback(async () => {

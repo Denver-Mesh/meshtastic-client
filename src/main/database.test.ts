@@ -125,7 +125,7 @@ describe('meshcore_messages dedup index and fresh DB version', () => {
   });
 
   it('createBaseTables defines meshcore_contacts.contact_flags', () => {
-    expect(DB_SOURCE).toMatch(/meshcore_contacts[\s\S]*contact_flags INTEGER DEFAULT 0/s);
+    expect(DB_SOURCE).toMatch(/meshcore_contacts.*contact_flags INTEGER DEFAULT 0/s);
   });
 
   it('fresh DB init stamps user_version 20 inside isFreshDb', () => {

@@ -1052,7 +1052,7 @@ export default function NodeListPanel({
                       )}
                     </td>
                     <td
-                      className={`px-3 py-2 text-right text-xs ${(isSelf && (node.hops_away === undefined || node.hops_away === null) ? 0 : node.hops_away) === 0 ? 'text-bright-green' : 'text-gray-300'}`}
+                      className={`px-3 py-2 text-right text-xs ${(isSelf && (node.hops_away ?? 0)) === 0 ? 'text-bright-green' : 'text-gray-300'}`}
                     >
                       {node.heard_via_mqtt_only ? (
                         <span className="text-muted">—</span>

@@ -6,6 +6,7 @@ import {
   ipcMain,
   Menu,
   MenuItem,
+  type NativeImage,
   nativeImage,
   Notification,
   powerMonitor,
@@ -87,6 +88,9 @@ const nobleBleManager = new NobleBleManager();
 
 /** TAK status before the lazy-loaded `TakServerManager` module is imported. */
 const IDLE_TAK_STATUS: TAKServerStatus = { running: false, port: 8089, clientCount: 0 };
+
+/** MAC address format: XX:XX:XX:XX:XX:XX */
+const MAC_ADDRESS_REGEX = /^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/;
 
 let takServerManager: TakServerManager | null = null;
 let takServerManagerLoadPromise: Promise<TakServerManager> | null = null;
@@ -861,6 +865,7 @@ function createWindow() {
     icon: getAppIconPath(),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
+      webviewTag: false,
       contextIsolation: true,
       nodeIntegration: false,
       // Inline misspelling marks and context-menu suggestions (all platforms). macOS app menu
@@ -1125,10 +1130,7 @@ function createWindow() {
   // Bluetooth uses select-bluetooth-device above. Without a handler, Chromium can
   // show a blank overlay for device permission prompts.
   mainWindow.webContents.session.setDevicePermissionHandler((details) => {
-    if (details.deviceType === 'serial') {
-      return true;
-    }
-    return false;
+    return details.deviceType === 'serial';
   });
 
   if (!hasInstalledOsmReferrerHook) {
@@ -1247,9 +1249,14 @@ ipcMain.on('set-tray-unread', (_event, count: unknown) => {
   const hasUnread = n > 0;
   if (_lastTrayUnreadVariant !== hasUnread) {
     _lastTrayUnreadVariant = hasUnread;
-    const img = hasUnread
-      ? (_cachedTrayIconUnread ??= buildTrayIcon(true))
-      : (_cachedTrayIconRead ??= buildTrayIcon(false));
+    let img: NativeImage;
+    if (hasUnread) {
+      _cachedTrayIconUnread ??= buildTrayIcon(true);
+      img = _cachedTrayIconUnread;
+    } else {
+      _cachedTrayIconRead ??= buildTrayIcon(false);
+      img = _cachedTrayIconRead;
+    }
     tray?.setImage(img);
   }
   tray?.setToolTip(hasUnread ? `Mesh-Client (${n} unread)` : 'Mesh-Client');
@@ -1325,7 +1332,7 @@ ipcMain.handle('bluetooth-unpair', async (_event, macAddress: unknown) => {
     throw new Error('bluetooth-unpair: macAddress must be a string');
   }
   // Validate MAC format (XX:XX:XX:XX:XX:XX)
-  if (!/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(macAddress)) {
+  if (!MAC_ADDRESS_REGEX.test(macAddress)) {
     throw new Error('bluetooth-unpair: invalid MAC address format');
   }
 
@@ -1409,7 +1416,7 @@ ipcMain.handle('bluetooth-pair', async (_event, macAddress: unknown, pin: unknow
   if (typeof macAddress !== 'string') {
     throw new Error('bluetooth-pair: macAddress must be a string');
   }
-  if (!/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(macAddress)) {
+  if (!MAC_ADDRESS_REGEX.test(macAddress)) {
     throw new Error('bluetooth-pair: invalid MAC address format');
   }
   let normalizedPin: string | undefined;
@@ -1592,7 +1599,7 @@ ipcMain.handle('bluetooth-connect', async (_event, macAddress: unknown) => {
   if (typeof macAddress !== 'string') {
     throw new Error('bluetooth-connect: macAddress must be a string');
   }
-  if (!/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(macAddress)) {
+  if (!MAC_ADDRESS_REGEX.test(macAddress)) {
     throw new Error('bluetooth-connect: invalid MAC address format');
   }
   console.debug('[IPC] bluetooth-connect:', macAddress);
@@ -1630,7 +1637,7 @@ ipcMain.handle('bluetooth-untrust', async (_event, macAddress: unknown) => {
   if (typeof macAddress !== 'string') {
     throw new Error('bluetooth-untrust: macAddress must be a string');
   }
-  if (!/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(macAddress)) {
+  if (!MAC_ADDRESS_REGEX.test(macAddress)) {
     throw new Error('bluetooth-untrust: invalid MAC address format');
   }
   console.debug('[IPC] bluetooth-untrust:', macAddress);
@@ -1669,7 +1676,7 @@ ipcMain.handle('bluetooth-get-info', async (_event, macAddress: unknown) => {
   if (typeof macAddress !== 'string') {
     throw new Error('bluetooth-get-info: macAddress must be a string');
   }
-  if (!/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(macAddress)) {
+  if (!MAC_ADDRESS_REGEX.test(macAddress)) {
     throw new Error('bluetooth-get-info: invalid MAC address format');
   }
   return new Promise<string>((resolve) => {
@@ -2296,7 +2303,7 @@ ipcMain.handle('db:getMessages', (_event, channel?: number, limit = 200) => {
          packet_id AS packetId, status, error, emoji, reply_id AS replyId, to_node,
          mqtt_status AS mqttStatus, received_via AS receivedVia`;
     let rows: any[];
-    if (channel !== undefined && channel !== null) {
+    if (channel != null) {
       const ch = safeNonNegativeInt(channel);
       rows = db
         .prepareOnce(
@@ -2728,8 +2735,7 @@ ipcMain.handle('db:import', async () => {
       properties: ['openFile'],
     });
     if (!result.canceled && result.filePaths.length > 0) {
-      const summary = mergeDatabase(result.filePaths[0]);
-      return summary;
+      return mergeDatabase(result.filePaths[0]);
     }
     return null;
   } catch (err) {
@@ -2837,7 +2843,7 @@ ipcMain.handle('db:getMeshcoreMessages', (_event, channelIdx?: number, limit = 2
     // outgoing messages use Date.now() while RF inbound uses the radio's clock; if the device
     // time lags, ORDER BY timestamp DESC kept "recent" sends but dropped inbound rows from the
     // LIMIT window. Reversed DESC→ASC yields oldest-first within the N most recently stored rows.
-    if (channelIdx !== undefined && channelIdx !== null) {
+    if (channelIdx != null) {
       const ch = typeof channelIdx === 'number' ? Math.trunc(channelIdx) : 0;
       const rows = db
         .prepareOnce(

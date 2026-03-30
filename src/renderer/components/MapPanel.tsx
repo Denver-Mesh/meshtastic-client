@@ -120,13 +120,15 @@ function getCUColor(cu: number): string {
  * attribute values. Always pass internal computed values or wrap user-supplied
  * strings with `escapeSvgAttr` / `escapeSvgText` before interpolating.
  */
+type NodeBadgeType = 'repeater' | 'room' | 'sensor' | 'home' | 'clock' | null;
+
 function createMarkerIcon(
   color: string,
   isSelf: boolean,
   cu = 0,
   markerOpacity = 1,
   isMqttOnly = false,
-  nodeBadge: 'repeater' | 'room' | 'sensor' | 'home' | 'clock' | null = null,
+  nodeBadge: NodeBadgeType = null,
 ): L.Icon {
   const haloPx = cu <= 0 ? 0 : Math.round((cu / 100) * 14);
   const haloColor = getCUColor(cu);
@@ -600,10 +602,7 @@ export default function MapPanel({
         );
         if (d > maxKm) rejectReason = 'distance_filtered';
       }
-      if (rejectReason) {
-        return false;
-      }
-      return true;
+      return rejectReason === null;
     });
   }, [nodes, myNodeNum, locationFilter]);
 
