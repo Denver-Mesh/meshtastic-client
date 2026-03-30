@@ -1,5 +1,14 @@
 # AGENTS.md — Coding Guidelines for AI Assistants
 
+## Architecture
+
+Electron desktop app with three process boundaries:
+
+- `src/main/` — Node.js main process: BLE (noble), serial, SQLite (`database.ts`), MQTT (`mqtt-manager.ts`), IPC handlers, auto-updater
+- `src/preload/` — Context bridge exposing minimal typed IPC surface to renderer via `contextBridge`
+- `src/renderer/` — React 19 UI (Vite, jsdom); hooks, components, stores (Zustand), lib utilities
+- `src/shared/` — Types and constants shared across all processes
+
 ## Build / Lint / Test Commands
 
 ```bash
@@ -108,6 +117,7 @@ pnpm run format && pnpm run lint && pnpm run typecheck && pnpm run test:run
 - **Invoke handlers**: Use `domain:action` naming (e.g., `db:query`, `mqtt:publish`)
 - **Main→renderer events**: Prefer consistent prefixes (e.g., `ble:devices-discovered`)
 - Add handler in main, preload namespace, AND `Window.electronAPI` type declaration
+- **Contract tests**: Update `src/main/index.contract.test.ts` when adding or renaming channels
 
 ### Log Injection (CodeQL)
 
@@ -141,7 +151,7 @@ For `feat:` and `fix:`, include issue reference in footer if applicable.
 3. `pnpm run lint` — passes with no errors
 4. `pnpm run typecheck` — TypeScript compiles
 5. `pnpm run check:log-injection` — no unsanitized error logging
-6. `pnpm run check:db-migrations` — SQLite migrations valid
+6. `pnpm run check:db-migrations` — SQLite migrations valid; run when touching `database.ts`
 7. `pnpm run check:ipc-contract` — preload/main API alignment
 8. `pnpm audit --audit-level=high` — no high/critical vulnerabilities
 9. `actionlint` — GitHub workflow linting
@@ -156,6 +166,8 @@ For `feat:` and `fix:`, include issue reference in footer if applicable.
 - **Prettier config**: `.prettierrc`
 - **ESLint config**: `eslint.config.mjs`
 - **Vitest config**: `vitest.config.ts`
+- **Native rebuild**: Run `pnpm run rebuild` after changing Node or Electron versions
+- **Actionlint**: Install with `pnpm run setup:actionlint` — commits fail without it
 
 ---
 
