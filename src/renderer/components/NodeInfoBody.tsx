@@ -289,6 +289,13 @@ export default function NodeInfoBody({
       {/* Timing */}
       <InfoRow label="Last Heard" value={formatTime(node.last_heard)} />
 
+      {/* Hop count */}
+      <InfoRow
+        label="Hops"
+        value={isOurNode ? 0 : (node.hops_away ?? '—')}
+        className={(isOurNode ? 0 : node.hops_away) === 0 ? 'text-bright-green' : 'text-gray-300'}
+      />
+
       {/* Location */}
       {node.latitude != null &&
         node.longitude != null &&

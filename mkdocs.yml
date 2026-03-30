@@ -30,6 +30,8 @@ nav:
       - Development Guide: development-environment.md
       - Contributing: contributing.md
       - Accessibility: accessibility-checklist.md
+      - CI/CD: ci-cd.md
+      - Release Process: release-process.md
   - MeshCore Roadmap:
       - Deferred Epics: meshcore-deferred-epics.md
       - Feature Parity: meshcore-meshtastic-parity.md

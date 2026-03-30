@@ -23,6 +23,40 @@ pnpm run rebuild   # Rebuild native modules (@stoprocent/noble) for current Elec
 
 **Running CI locally:** With [act](https://github.com/nektos/act) installed, run `act --container-architecture linux/amd64` so Linux jobs use the correct architecture. The test-results artifact upload step is skipped when running under act (actor `nektos/act`); all other steps run as on GitHub.
 
+## CI/CD Workflows
+
+GitHub Actions workflows run on every push and pull request to `main`. See [docs/ci-cd.md](docs/ci-cd.md) for a complete reference.
+
+- **ci.yaml**: Lint, typecheck, build — must pass before merge
+- **tests.yaml**: Run unit tests, upload results artifact
+- **release.yaml**: Build & publish releases on version tags (`v*`)
+- **docs.yml**: Deploy MkDocs to GitHub Pages on merge to main
+- **dependency-submission.yml**: Submit Python deps to GitHub dependency graph
+
+For release process details, see [docs/release-process.md](docs/release-process.md).
+
+## Dependabot
+
+Automated dependency updates are configured in `.github/dependabot.yml`:
+
+- **Schedule:** Weekly on Saturdays
+- **npm dependencies:** Grouped PRs — `electron` separate, all other npm deps together
+- **GitHub Actions:** Grouped into one PR
+- **Limit:** 10 open PRs maximum
+
+**Testing Dependabot PRs locally:**
+
+Use **pnpm** (never npm) to test dependabot PRs:
+
+```bash
+git checkout <dependabot-branch>
+pnpm install --frozen-lockfile
+pnpm run build
+pnpm run test:run
+```
+
+Do not use `npm install` — it creates a `package-lock.json` and may not respect pnpm's lockfile format.
+
 **actionlint:** Install [actionlint](https://github.com/rhysd/actionlint) so the pre-commit hook can lint GitHub Actions workflows.
 
 Recommended (auto-install): `pnpm run setup:actionlint` (installs into `.githooks/bin` so the hook can find it).
@@ -32,16 +66,28 @@ Manual fallback:
 - macOS: `brew install actionlint`
 - Windows/Linux: see [releases](https://github.com/rhysd/actionlint/releases) for prebuilt binaries.
 
-After `pnpm install`, the repo’s git hooks are enabled (`core.hooksPath` → `.githooks`). On every commit, the **pre-commit** hook runs in order:
+**yamllint:** Install [yamllint](https://github.com/adrienverge/yamllint) so the pre-commit hook can lint YAML files.
+
+All platforms (requires Python): `pip install yamllint`
+
+Manual fallback:
+
+- macOS: `brew install yamllint`
+- Debian/Ubuntu: `sudo apt install yamllint`
+- Fedora: `sudo dnf install yamllint`
+
+After `pnpm install`, the repo's git hooks are enabled (`core.hooksPath` → `.githooks`). On every commit, the **pre-commit** hook runs in order:
 
 1. **`pnpm run format`** — Prettier **writes** to matching files (not `format:check`).
-2. **Re-stage** — Only files that were already staged are re-added, so unstaged WIP is not swept in.
-3. **`pnpm run lint`**
-4. **`pnpm run typecheck`** — TypeScript check for renderer and main/preload.
-5. **`pnpm run check:log-injection`** — Ensures main-process `console.*` calls do not pass raw error variables (`err`, `e`, `error`, `reason`) without `sanitizeLogMessage()` at the call site. See [Log injection (CodeQL js/log-injection)](#log-injection-codeql-jslog-injection) below.
-6. **`pnpm audit`** — Fails the commit if pnpm reports vulnerabilities.
-7. **`actionlint`** — Lints `.github/workflows/*.yml`; must be installed (see above).
-8. **`pnpm run test:run`** — Fails the commit if tests fail.
+2. **`pnpm run lint:md`** — markdownlint-cli2 fixes all `.md` files (installed via devDependencies).
+3. **Re-stage** — Only files that were already staged are re-added, so unstaged WIP is not swept in.
+4. **`pnpm run lint`**
+5. **`pnpm run typecheck`** — TypeScript check for renderer and main/preload.
+6. **`pnpm run check:log-injection`** — Ensures main-process `console.*` calls do not pass raw error variables (`err`, `e`, `error`, `reason`) without `sanitizeLogMessage()` at the call site. See [Log injection (CodeQL js/log-injection)](#log-injection-codeql-jslog-injection) below.
+7. **`pnpm audit`** — Fails the commit if pnpm reports vulnerabilities.
+8. **`actionlint`** — Lints `.github/workflows/*.yml`; must be installed (see above).
+9. **`yamllint`** — Lints all YAML files (`-f github -s`); must be installed (see above).
+10. **`pnpm run test:run`** — Fails the commit if tests fail.
 
 To skip the hook in an emergency: `git commit --no-verify`.
 

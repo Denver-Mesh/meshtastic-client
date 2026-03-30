@@ -15,6 +15,7 @@ trap 'rm -f "$STAGED_LIST"' EXIT
 git diff --cached --name-only --diff-filter=ACM > "$STAGED_LIST" || exit 1
 
 pnpm run format || exit 1
+pnpm run lint:md || exit 1
 
 if [ -s "$STAGED_LIST" ]; then
   while IFS= read -r f || [ -n "$f" ]; do
@@ -31,4 +32,5 @@ pnpm run check:db-migrations || exit 1
 pnpm run check:ipc-contract || exit 1
 pnpm audit --audit-level=high || exit 1
 actionlint || exit 1
+yamllint -f github -s . || exit 1
 pnpm run test:run || exit 1
