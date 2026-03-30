@@ -10,7 +10,7 @@ These requirements apply to all platforms.
 
 - Git
 - Node.js **22.12.0+** (match [CI](https://github.com/Colorado-Mesh/mesh-client/blob/main/.github/workflows/ci.yaml); `CONTRIBUTING.md` recommends the same)
-- pnpm **9+**
+- pnpm **10+**
 - Python 3 + `pip` (needed for MkDocs documentation build)
 
 Verify:
@@ -184,6 +184,27 @@ Complete reference of all npm scripts in `package.json`, organized by category.
 | `prepare`     | Enable git hooks                       |
 | `predist`     | Dedupe packages before packaging       |
 
+### Dependabot dependency updates
+
+Automated dependency updates are configured in `.github/dependabot.yml`:
+
+- **Schedule:** Weekly on Saturdays
+- **npm dependencies:** Grouped PRs — `electron` separate, all other npm deps together
+- **GitHub Actions:** Grouped into one PR
+
+**Testing Dependabot PRs locally:**
+
+Always use **pnpm** to test dependabot PRs:
+
+```bash
+git checkout <dependabot-branch>
+pnpm install --frozen-lockfile
+pnpm run build
+pnpm run test:run
+```
+
+Do **not** use `npm install` — it creates a `package-lock.json` and may not respect pnpm's lockfile format.
+
 ### 4) Test harness setup and local quality checks
 
 This section is the project test harness setup.
@@ -212,7 +233,7 @@ pnpm run format:check
 
 Other useful test commands:
 
-- `npm test` (watch mode)
+- `pnpm test` (watch mode)
 - `pnpm run test:verbose` (verbose failures)
 
 ### 5) Building a distributable
@@ -293,13 +314,13 @@ These scripts try to install optional tooling automatically. If they fail (for e
    ```bash
    xcode-select --install
    ```
-2. Install Node 25 (recommended via nvm) and npm:
+2. Install Node 22 (22.12.0+ recommended via nvm) and npm:
    ```bash
    curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash
    export NVM_DIR="$HOME/.nvm"
    [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-   nvm install 25
-   nvm use 25
+   nvm install 22
+   nvm use 22
    ```
 
 ### Build/run flow
@@ -406,7 +427,7 @@ Fix:
 
 ### Install prerequisites
 
-Install Node 25, `make`, and C++ build tools (`g++`/`gcc-c++`) with native build dependencies.
+Install Node 22 (22.12.0+ recommended), `make`, and C++ build tools (`g++`/`gcc-c++`) with native build dependencies.
 
 Debian/Ubuntu:
 
@@ -414,8 +435,8 @@ Debian/Ubuntu:
 curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-nvm install 25
-nvm use 25
+nvm install 22
+nvm use 22
 sudo apt install build-essential
 sudo apt install python3 libnspr4 libnss3
 ```
@@ -426,8 +447,8 @@ Fedora/RedHat:
 curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh | bash
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-nvm install 25
-nvm use 25
+nvm install 22
+nvm use 22
 sudo dnf install @development-tools
 sudo dnf install python3 nspr nss
 ```

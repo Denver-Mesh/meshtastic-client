@@ -23,6 +23,40 @@ pnpm run rebuild   # Rebuild native modules (@stoprocent/noble) for current Elec
 
 **Running CI locally:** With [act](https://github.com/nektos/act) installed, run `act --container-architecture linux/amd64` so Linux jobs use the correct architecture. The test-results artifact upload step is skipped when running under act (actor `nektos/act`); all other steps run as on GitHub.
 
+## CI/CD Workflows
+
+GitHub Actions workflows run on every push and pull request to `main`. See [docs/ci-cd.md](docs/ci-cd.md) for a complete reference.
+
+- **ci.yaml**: Lint, typecheck, build — must pass before merge
+- **tests.yaml**: Run unit tests, upload results artifact
+- **release.yaml**: Build & publish releases on version tags (`v*`)
+- **docs.yml**: Deploy MkDocs to GitHub Pages on merge to main
+- **dependency-submission.yml**: Submit Python deps to GitHub dependency graph
+
+For release process details, see [docs/release-process.md](docs/release-process.md).
+
+## Dependabot
+
+Automated dependency updates are configured in `.github/dependabot.yml`:
+
+- **Schedule:** Weekly on Saturdays
+- **npm dependencies:** Grouped PRs — `electron` separate, all other npm deps together
+- **GitHub Actions:** Grouped into one PR
+- **Limit:** 10 open PRs maximum
+
+**Testing Dependabot PRs locally:**
+
+Use **pnpm** (never npm) to test dependabot PRs:
+
+```bash
+git checkout <dependabot-branch>
+pnpm install --frozen-lockfile
+pnpm run build
+pnpm run test:run
+```
+
+Do not use `npm install` — it creates a `package-lock.json` and may not respect pnpm's lockfile format.
+
 **actionlint:** Install [actionlint](https://github.com/rhysd/actionlint) so the pre-commit hook can lint GitHub Actions workflows.
 
 Recommended (auto-install): `pnpm run setup:actionlint` (installs into `.githooks/bin` so the hook can find it).
