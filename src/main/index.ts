@@ -267,13 +267,9 @@ process.on('unhandledRejection', (reason) => {
   }
 });
 
-app.on('browser-window-created', () => {});
-
 // ─── Bluetooth pairing handler (Linux only) ──────────────────────────
 // Note: Bluetooth pairing for Web Bluetooth is handled via session.setBluetoothPairingHandler()
 // which is set up after mainWindow creation. See the setup below near select-bluetooth-device.
-
-process.on('exit', () => {});
 
 // ─── IPC validation helpers (main process boundary) ───────────────────
 const MAX_PAYLOAD_LENGTH = 1024 * 1024; // 1MB cap for message payload
@@ -1218,15 +1214,10 @@ function createWindow() {
     });
   }
 
-  mainWindow.webContents.on('did-finish-load', () => {});
-  mainWindow.webContents.on('did-fail-load', () => {});
-
   mainWindow.on('closed', () => {
     setMainWindow(null);
     mainWindow = null;
   });
-  mainWindow.webContents.on('destroyed', () => {});
-
   // Handle window close event
   win.on('close', (event) => {
     if (!isQuitting && (isConnected || isAnyMqttConnected())) {
@@ -2489,7 +2480,11 @@ ipcMain.handle('db:deleteNodesByAge', (_event, days: number) => {
   try {
     if (typeof days !== 'number' || days < 1 || !isFinite(days)) return { changes: 0 };
     const cutoff = Math.floor(Date.now() / 1000) - days * 86400;
-    const result = getDatabase().prepareOnce('DELETE FROM nodes WHERE last_heard < ?').run(cutoff);
+    const result = getDatabase()
+      .prepareOnce(
+        'DELETE FROM nodes WHERE (last_heard < ? OR last_heard = 0) AND (favorited IS NULL OR favorited = 0)',
+      )
+      .run(cutoff);
     console.debug(`[IPC] db:deleteNodesByAge: pruned ${result.changes} nodes older than ${days}d`);
     return result;
   } catch (err) {
@@ -3709,8 +3704,6 @@ app.on('will-quit', () => {
   // BLEManager and its CBqueue GCD dispatch queue — without that, the process cannot exit on macOS.
   app.exit(0);
 });
-
-app.on('quit', () => {});
 
 app.on('window-all-closed', () => {
   // Clean up any pending Bluetooth device selection to prevent callback leak

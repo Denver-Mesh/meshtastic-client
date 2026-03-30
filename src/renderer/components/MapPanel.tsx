@@ -562,7 +562,9 @@ export default function MapPanel({
 
   useEffect(() => {
     ensureMapStyles();
-    void loadHistoryFromDb();
+    void loadHistoryFromDb().catch((e: unknown) => {
+      console.warn('[MapPanel] loadHistoryFromDb failed:', String(e));
+    });
   }, [loadHistoryFromDb]);
 
   const nodesWithPosition = useMemo(() => {
