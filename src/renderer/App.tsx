@@ -520,6 +520,10 @@ export default function App() {
       window.electronAPI.db.migrateRfStubNodes().catch((e: unknown) => {
         console.warn('[App] startup migrateRfStubNodes failed', e);
       }),
+      // Delete nodes with last_heard = never (placeholder stubs with no data)
+      window.electronAPI.db.deleteNodesNeverHeard().catch((e: unknown) => {
+        console.warn('[App] startup deleteNodesNeverHeard failed', e);
+      }),
     ];
     if (s.autoPruneEnabled) {
       const days =

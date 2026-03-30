@@ -127,6 +127,7 @@ export interface ElectronAPI {
     exportDb: () => Promise<unknown>;
     importDb: () => Promise<unknown>;
     deleteNodesByAge: (days: number) => Promise<unknown>;
+    deleteNodesNeverHeard: () => Promise<unknown>;
     pruneNodesByCount: (maxCount: number) => Promise<unknown>;
     deleteNodesBatch: (nodeIds: number[]) => Promise<unknown>;
     clearMessagesByChannel: (channel: number) => Promise<unknown>;

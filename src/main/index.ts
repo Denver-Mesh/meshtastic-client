@@ -2476,13 +2476,31 @@ ipcMain.handle('db:deleteNode', (_event, nodeId: number) => {
   }
 });
 
+ipcMain.handle('db:deleteNodesNeverHeard', () => {
+  try {
+    const result = getDatabase()
+      .prepareOnce(
+        "DELETE FROM nodes WHERE (last_heard IS NULL OR last_heard = 0) AND (favorited IS NULL OR favorited = 0) AND source != 'meshcore'",
+      )
+      .run();
+    console.debug(`[IPC] db:deleteNodesNeverHeard: pruned ${result.changes} never-heard nodes`);
+    return result;
+  } catch (err) {
+    console.error(
+      '[IPC] db:deleteNodesNeverHeard failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
 ipcMain.handle('db:deleteNodesByAge', (_event, days: number) => {
   try {
     if (typeof days !== 'number' || days < 1 || !isFinite(days)) return { changes: 0 };
     const cutoff = Math.floor(Date.now() / 1000) - days * 86400;
     const result = getDatabase()
       .prepareOnce(
-        'DELETE FROM nodes WHERE (last_heard < ? OR last_heard = 0) AND (favorited IS NULL OR favorited = 0)',
+        "DELETE FROM nodes WHERE (last_heard < ? OR last_heard IS NULL OR last_heard = 0) AND (favorited IS NULL OR favorited = 0) AND source != 'meshcore'",
       )
       .run(cutoff);
     console.debug(`[IPC] db:deleteNodesByAge: pruned ${result.changes} nodes older than ${days}d`);
