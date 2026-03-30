@@ -120,6 +120,8 @@ pnpm run format && pnpm run lint && pnpm run typecheck && pnpm run test:run
 - **Main tests**: `src/main/**/*.test.ts` (node environment)
 - **Accessibility**: Include axe tests for new panels (`expect(results).toHaveNoViolations()`)
 - **Contract tests**: Update when changing CSP, build config, IPC limits, or log filters
+- **Console spies**: Use `beforeEach`/`afterEach` hooks for shared spy setup rather than duplicating in each test; declare spy at describe scope, clear mocks in beforeEach
+- **Coverage**: Test both success and failure paths for async operations
 
 ## Project-Specific Rules
 
