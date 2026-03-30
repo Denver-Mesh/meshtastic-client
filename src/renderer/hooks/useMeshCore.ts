@@ -916,6 +916,19 @@ export function useMeshCore() {
   const lastPacketLogPublishFailureLogAtRef = useRef(0);
   const meshcoreHookMountedRef = useRef(true);
   const repeaterCommandServiceRef = useRef<RepeaterCommandService | null>(null);
+  /** Debounced contacts refresh after path updates (event 129). */
+  const meshcoreContactsRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const buildNodesFromContactsRef = useRef<
+    | ((
+        contacts: MeshCoreContactRaw[],
+        opts?: {
+          self?: MeshCoreSelfInfo | null;
+          myNodeId?: number;
+          previousNodes?: Map<number, MeshNode>;
+        },
+      ) => Promise<Map<number, MeshNode>>)
+    | null
+  >(null);
 
   const addCliHistoryEntry = useCallback((nodeId: number, entry: CliHistoryEntry) => {
     setMeshcoreCliHistories((prev) => {
@@ -1321,6 +1334,10 @@ export function useMeshCore() {
     [],
   );
 
+  useEffect(() => {
+    buildNodesFromContactsRef.current = buildNodesFromContacts;
+  }, [buildNodesFromContacts]);
+
   const setupEventListeners = useCallback(
     (conn: MeshCoreConnection) => {
       const logTransportLineAsDevice = (line: string) => {
@@ -1539,6 +1556,30 @@ export function useMeshCore() {
               console.warn('[useMeshCore] saveMeshcoreContact (event 129 new) error', e);
             });
         }
+        // Path updates may change hop counts; debounced contacts refresh to fetch updated outPathLen
+        if (meshcoreContactsRefreshTimerRef.current) {
+          clearTimeout(meshcoreContactsRefreshTimerRef.current);
+        }
+        meshcoreContactsRefreshTimerRef.current = setTimeout(() => {
+          void (async () => {
+            if (!connRef.current) return;
+            const buildFn = buildNodesFromContactsRef.current;
+            if (!buildFn) return;
+            try {
+              const contactsRaw = await connRef.current.getContacts();
+              const contacts = contactsRaw.map(meshcoreContactRawFromDevice);
+              setMeshcoreContactsForTelemetry(contacts);
+              const newNodes = await buildFn(contacts, {
+                self: selfInfoRef.current,
+                myNodeId: myNodeNumRef.current,
+                previousNodes: nodesRef.current,
+              });
+              setNodes((prev) => mergeMeshcoreChatStubNodes(prev, newNodes));
+            } catch (e) {
+              console.warn('[useMeshCore] debounced contacts refresh error', e);
+            }
+          })();
+        }, 3000);
       });
 
       // Push: send confirmed — event 0x82 = 130; resolve pending DM delivery
@@ -1969,6 +2010,11 @@ export function useMeshCore() {
 
       conn.on('disconnected', () => {
         setState((prev) => ({ ...prev, status: 'disconnected' }));
+        // Clear pending contacts refresh timer
+        if (meshcoreContactsRefreshTimerRef.current) {
+          clearTimeout(meshcoreContactsRefreshTimerRef.current);
+          meshcoreContactsRefreshTimerRef.current = null;
+        }
         // Release the underlying transport (serial port lock, BLE IPC session) so the
         // next connect attempt can open it cleanly. Without this, an unexpected
         // device-side disconnect leaves the raw SerialPort open at the browser level

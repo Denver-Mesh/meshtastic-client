@@ -1446,8 +1446,17 @@ export function useDevice() {
           rxSnr?: number;
           rxRssi?: number;
           from?: number;
+          hopLimit?: number;
+          hopStart?: number;
+          viaMqtt?: boolean;
         };
         if (!mp.from) return;
+
+        const hopStart = mp.hopStart ?? 0;
+        const hopLimit = mp.hopLimit ?? 0;
+        const packetViaMqtt = mp.viaMqtt === true;
+        const computedHopsAway =
+          !packetViaMqtt && hopStart > 0 && hopLimit <= hopStart ? hopStart - hopLimit : undefined;
 
         // Record RF path for packet redundancy tracking (skip id 0 — protobuf: no unique id for no-ack/non-broadcast)
         const rawId = Number(mp.id);
@@ -1461,7 +1470,10 @@ export function useDevice() {
           });
         }
 
-        if (mp.rxSnr || mp.rxRssi) {
+        const hasSignal = Boolean(mp.rxSnr || mp.rxRssi);
+        const hasHopUpdate = computedHopsAway !== undefined && mp.from !== myNodeNumRef.current;
+
+        if (hasSignal || hasHopUpdate) {
           updateNodes((prev) => {
             const updated = new Map(prev);
             const existing = updated.get(mp.from!);
@@ -1470,8 +1482,13 @@ export function useDevice() {
                 ...existing,
                 ...(mp.rxSnr ? { snr: mp.rxSnr } : {}),
                 ...(mp.rxRssi ? { rssi: mp.rxRssi } : {}),
-                // Do not bump last_heard here — mesh packets at connect can be
-                // replayed/history; SNR/RSSI alone is not proof of a fresh hear.
+                ...(hasHopUpdate &&
+                !(
+                  existing.last_heard > 0 &&
+                  Date.now() - existing.last_heard > MESHTASTIC_CAPABILITIES.nodeStaleThresholdMs
+                )
+                  ? { hops_away: computedHopsAway }
+                  : {}),
               };
               updated.set(mp.from!, node);
               void window.electronAPI.db.saveNode(node);
