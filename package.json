@@ -109,7 +109,7 @@
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "jsdom": "^28.1.0",
     "leaflet": "^1.9.4",
-    "markdownlint-cli2": "^0.17.2",
+    "markdownlint-cli2": "^0.22.0",
     "patch-package": "^8.0.1",
     "postcss": "^8.5.8",
     "prettier": "^3.8.1",
