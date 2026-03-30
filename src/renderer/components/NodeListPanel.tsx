@@ -1010,18 +1010,8 @@ export default function NodeListPanel({
                       {mode === 'meshcore' ? (
                         node.hw_model === 'Repeater' || node.hw_model === 'Room' ? (
                           <span className="inline-flex items-center gap-1 text-gray-300">
-                            <svg
-                              className="w-3.5 h-3.5"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                              strokeWidth={2}
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d={getNodeTypeIcon(node.hw_model) ?? ''}
-                              />
+                            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                              <path d={getNodeTypeIcon(node.hw_model) ?? ''} />
                             </svg>
                             {node.hw_model}
                           </span>

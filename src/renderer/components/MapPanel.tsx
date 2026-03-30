@@ -126,7 +126,7 @@ function createMarkerIcon(
   cu = 0,
   markerOpacity = 1,
   isMqttOnly = false,
-  nodeBadge: 'repeater' | 'room' | 'sensor' | null = null,
+  nodeBadge: 'repeater' | 'room' | 'sensor' | 'home' | 'clock' | null = null,
 ): L.Icon {
   const haloPx = cu <= 0 ? 0 : Math.round((cu / 100) * 14);
   const haloColor = getCUColor(cu);
@@ -172,7 +172,7 @@ function getMarkerIcon(
   isSelf: boolean,
   cu: number,
   isMqttOnly = false,
-  nodeBadge: 'repeater' | 'room' | 'sensor' | null = null,
+  nodeBadge: 'repeater' | 'room' | 'sensor' | 'home' | 'clock' | null = null,
 ): L.Icon {
   const color = status === 'online' ? '#9ae6b4' : status === 'stale' ? '#c4a864' : '#6b7280';
   const opacity = status === 'online' ? 1 : status === 'stale' ? 0.65 : 0.45;
@@ -237,14 +237,15 @@ const MapMarker = memo(
     const { nodeStaleThresholdMs, nodeOfflineThresholdMs } = useRadioProvider(protocol);
     const status = getNodeStatus(node.last_heard, nodeStaleThresholdMs, nodeOfflineThresholdMs);
     const cuForIcon = congestionHalosEnabled ? (node.channel_utilization ?? 0) : 0;
-    const nodeBadge =
-      node.hw_model === 'Repeater'
-        ? ('repeater' as const)
-        : node.hw_model === 'Room'
-          ? ('room' as const)
-          : node.hw_model === 'Sensor'
-            ? ('sensor' as const)
-            : null;
+    const nodeBadge: 'repeater' | 'room' | 'sensor' | 'home' | 'clock' | null = (() => {
+      if (node.hw_model === 'Repeater') return 'repeater';
+      if (node.hw_model === 'Room') return 'room';
+      if (node.hw_model === 'Sensor') return 'sensor';
+      if (protocol === 'meshtastic' && node.role === 2) return 'repeater';
+      if (protocol === 'meshtastic' && node.role === 11) return 'clock';
+      if (protocol === 'meshtastic' && node.role === 12) return 'home';
+      return null;
+    })();
 
     const icon = useMemo(
       () => getMarkerIcon(status, isSelf, cuForIcon, node.heard_via_mqtt_only, nodeBadge),
