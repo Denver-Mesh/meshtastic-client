@@ -144,6 +144,10 @@ Use Conventional Commits:
 
 For `feat:` and `fix:`, include issue reference in footer if applicable.
 
+### Pull Requests
+
+When creating a PR, the description **must** include details for **all commits** in the branch, not just the most recent one. Use `git log origin/main..HEAD --oneline` to see all commits that will be included in the PR.
+
 ## Pre-Commit Checklist
 
 1. `pnpm run format` — auto-formats staged files
