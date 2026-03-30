@@ -13,21 +13,21 @@ Electron desktop app with three process boundaries:
 
 ```bash
 # Development
-pnpm run dev              # Start dev mode (vite + electron)
-pnpm run build           # Production build (all targets)
-pnpm start               # Build and start electron
+pnpm run dev   # Start dev mode (vite + electron)
+pnpm run build # Production build (all targets)
+pnpm start     # Build and start electron
 
 # Code quality
-pnpm run lint            # ESLint (type-aware)
-pnpm run lint:fix        # ESLint with auto-fix
-pnpm run format          # Prettier write
-pnpm run format:check    # Prettier check only
-pnpm run typecheck       # TypeScript (renderer + main)
+pnpm run lint         # ESLint (type-aware)
+pnpm run lint:fix     # ESLint with auto-fix
+pnpm run format       # Prettier write
+pnpm run format:check # Prettier check only
+pnpm run typecheck    # TypeScript (renderer + main)
 
 # Testing
-pnpm test                # Vitest watch mode
-pnpm run test:run        # Run all tests once (CI mode)
-pnpm run test:verbose    # Verbose output
+pnpm test             # Vitest watch mode
+pnpm run test:run     # Run all tests once (CI mode)
+pnpm run test:verbose # Verbose output
 
 # Run single test file
 npx vitest run src/renderer/components/Button.test.tsx
@@ -150,7 +150,7 @@ When creating a PR, the description **must** include details for **all commits**
 
 ## Pre-Commit Checklist
 
-1. `pnpm run format` — auto-formats staged files
+1. `pnpm run format` — auto-formats staged files (including `.sh` files)
 2. `pnpm run lint:md` — markdownlint fixes all .md files
 3. `pnpm run lint` — passes with no errors
 4. `pnpm run typecheck` — TypeScript compiles
@@ -167,7 +167,7 @@ When creating a PR, the description **must** include details for **all commits**
 - **Node version**: 22.x (CI uses 22.12.0+)
 - **Test environments**: renderer (jsdom), main (node)
 - **Path alias**: `@/` → `src/`
-- **Prettier config**: `.prettierrc`
+- **Prettier config**: `.prettierrc` (includes `prettier-plugin-sh` for shell scripts)
 - **ESLint config**: `eslint.config.mjs`
 - **Vitest config**: `vitest.config.ts`
 - **Native rebuild**: Run `pnpm run rebuild` after changing Node or Electron versions
