@@ -70,20 +70,26 @@ describe('RepeatersPanel', () => {
   it('shows error toast when requestRepeaterStatus fails', async () => {
     const props = makeBaseProps();
     props.onRequestRepeaterStatus = vi.fn().mockRejectedValue(new Error('radio timeout'));
-    render(<RepeatersPanel {...props} />);
 
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    render(<RepeatersPanel {...props} />);
     await userEvent.click(screen.getByRole('button', { name: 'Request status' }));
 
+    expect(warnSpy).toHaveBeenCalled();
     expect(mockAddToast).toHaveBeenCalledWith(expect.stringContaining('radio timeout'), 'error');
   });
 
   it('shows error toast when ping fails', async () => {
     const props = makeBaseProps();
     props.onPing = vi.fn().mockRejectedValue(new Error('ping timeout'));
-    render(<RepeatersPanel {...props} />);
 
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    render(<RepeatersPanel {...props} />);
     await userEvent.click(screen.getByRole('button', { name: 'Ping trace' }));
 
+    expect(warnSpy).toHaveBeenCalled();
     expect(mockAddToast).toHaveBeenCalledWith(expect.stringContaining('ping timeout'), 'error');
   });
 
@@ -105,11 +111,13 @@ describe('RepeatersPanel', () => {
   it('does not expand telemetry section when request fails', async () => {
     const props = makeBaseProps();
     const onRequestTelemetry = vi.fn().mockRejectedValue(new Error('telemetry fail'));
-    render(<RepeatersPanel {...props} onRequestTelemetry={onRequestTelemetry} />);
 
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    render(<RepeatersPanel {...props} onRequestTelemetry={onRequestTelemetry} />);
     await userEvent.click(screen.getByRole('button', { name: 'Sensor telemetry LPP' }));
 
-    // Panel should not be expanded after a failed request
+    expect(warnSpy).toHaveBeenCalled();
     expect(screen.queryByText(/Sensor telemetry/i)).not.toBeInTheDocument();
     expect(mockAddToast).toHaveBeenCalledWith(expect.stringContaining('telemetry fail'), 'error');
   });
