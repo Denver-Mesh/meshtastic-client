@@ -57,7 +57,6 @@ const BUILTIN_TYPE_FILTERS = [
 const MESHCORE_INAPPLICABLE_SORT_FIELDS: readonly SortField[] = [
   'short_name',
   'role',
-  'hops_away',
   'via_mqtt',
   'rssi',
   'snr',
@@ -679,20 +678,18 @@ export default function NodeListPanel({
                   Role <SortIcon field="role" sortField={sortField} sortAsc={sortAsc} />
                 </th>
               )}
-              {mode !== 'meshcore' && (
-                <th
-                  scope="col"
-                  aria-sort={
-                    sortField === 'hops_away' ? (sortAsc ? 'ascending' : 'descending') : 'none'
-                  }
-                  className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
-                  onClick={() => {
-                    handleSort('hops_away');
-                  }}
-                >
-                  Hops <SortIcon field="hops_away" sortField={sortField} sortAsc={sortAsc} />
-                </th>
-              )}
+              <th
+                scope="col"
+                aria-sort={
+                  sortField === 'hops_away' ? (sortAsc ? 'ascending' : 'descending') : 'none'
+                }
+                className="px-3 py-2 text-right cursor-pointer hover:text-gray-200 transition-colors select-none"
+                onClick={() => {
+                  handleSort('hops_away');
+                }}
+              >
+                Hops <SortIcon field="hops_away" sortField={sortField} sortAsc={sortAsc} />
+              </th>
               {mode !== 'meshcore' && (
                 <th
                   scope="col"
@@ -1011,17 +1008,15 @@ export default function NodeListPanel({
                         <RoleDisplay role={node.role} />
                       )}
                     </td>
-                    {mode !== 'meshcore' && (
-                      <td
-                        className={`px-3 py-2 text-right text-xs ${(isSelf && (node.hops_away === undefined || node.hops_away === null) ? 0 : node.hops_away) === 0 ? 'text-bright-green' : 'text-gray-300'}`}
-                      >
-                        {node.heard_via_mqtt_only ? (
-                          <span className="text-muted">—</span>
-                        ) : (
-                          (node.hops_away ?? (isSelf ? 0 : '-'))
-                        )}
-                      </td>
-                    )}
+                    <td
+                      className={`px-3 py-2 text-right text-xs ${(isSelf && (node.hops_away === undefined || node.hops_away === null) ? 0 : node.hops_away) === 0 ? 'text-bright-green' : 'text-gray-300'}`}
+                    >
+                      {node.heard_via_mqtt_only ? (
+                        <span className="text-muted">—</span>
+                      ) : (
+                        (node.hops_away ?? (isSelf ? 0 : '-'))
+                      )}
+                    </td>
                     {mode !== 'meshcore' && (
                       <td className="px-3 py-2 text-center text-gray-300 text-xs">
                         {node.heard_via_mqtt_only ? (

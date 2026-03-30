@@ -414,6 +414,11 @@ function validateSaveMeshcoreContact(contact: unknown): asserts contact is Recor
     if (!Number.isInteger(f) || f < 0 || f > 255)
       throw new Error('db:saveMeshcoreContact: contact_flags must be 0–255');
   }
+  if (c.hops_away != null) {
+    const h = Number(c.hops_away);
+    if (!Number.isInteger(h) || h < 0)
+      throw new Error('db:saveMeshcoreContact: hops_away must be a non-negative integer');
+  }
 }
 
 function validateTakSettings(settings: unknown): asserts settings is TAKSettings {
@@ -2933,8 +2938,8 @@ ipcMain.handle('db:saveMeshcoreContact', (_event, contact) => {
     return db
       .prepareOnce(
         'INSERT INTO meshcore_contacts ' +
-          '(node_id, public_key, adv_name, contact_type, last_advert, adv_lat, adv_lon, last_snr, last_rssi, favorited, nickname, contact_flags) ' +
-          'VALUES (@node_id, @public_key, @adv_name, @contact_type, @last_advert, @adv_lat, @adv_lon, @last_snr, @last_rssi, 0, @nickname, @contact_flags) ' +
+          '(node_id, public_key, adv_name, contact_type, last_advert, adv_lat, adv_lon, last_snr, last_rssi, favorited, nickname, contact_flags, hops_away) ' +
+          'VALUES (@node_id, @public_key, @adv_name, @contact_type, @last_advert, @adv_lat, @adv_lon, @last_snr, @last_rssi, 0, @nickname, @contact_flags, @hops_away) ' +
           'ON CONFLICT(node_id) DO UPDATE SET ' +
           'public_key = excluded.public_key, ' +
           'adv_name = excluded.adv_name, ' +
@@ -2946,7 +2951,8 @@ ipcMain.handle('db:saveMeshcoreContact', (_event, contact) => {
           'last_rssi = excluded.last_rssi, ' +
           'favorited = meshcore_contacts.favorited, ' +
           'nickname = COALESCE(excluded.nickname, meshcore_contacts.nickname), ' +
-          'contact_flags = excluded.contact_flags',
+          'contact_flags = excluded.contact_flags, ' +
+          'hops_away = excluded.hops_away',
       )
       .run({
         node_id: Number(c.node_id),
@@ -2960,6 +2966,7 @@ ipcMain.handle('db:saveMeshcoreContact', (_event, contact) => {
         last_rssi: c.last_rssi != null ? Number(c.last_rssi) : null,
         nickname: typeof c.nickname === 'string' ? c.nickname : null,
         contact_flags: c.contact_flags != null ? Number(c.contact_flags) : 0,
+        hops_away: c.hops_away != null ? Number(c.hops_away) : null,
       });
   } catch (err) {
     console.error(

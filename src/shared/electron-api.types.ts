@@ -121,6 +121,8 @@ export interface ElectronAPI {
       last_snr?: number | null;
       last_rssi?: number | null;
       nickname?: string | null;
+      contact_flags?: number | null;
+      hops_away?: number | null;
     }) => Promise<unknown>;
     updateMeshcoreContactAdvert: (
       nodeId: number,
