@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
 
 import type { MeshNode } from '../lib/types';
@@ -8,6 +8,16 @@ import ChatPanel from './ChatPanel';
 import { ToastProvider } from './Toast';
 
 describe('ChatPanel accessibility', () => {
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    consoleErrorSpy.mockRestore();
+  });
+
   const defaultProps = {
     messages: [],
     channels: [{ index: 0, name: 'General' }],

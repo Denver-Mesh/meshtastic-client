@@ -97,6 +97,7 @@ describe('TakServerManager', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockServer.removeAllListeners();
     manager = new TakServerManager();
   });
 

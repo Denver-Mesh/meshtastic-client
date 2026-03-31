@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
 
 import type { FirmwareCheckResult } from '../lib/firmwareCheck';
@@ -101,6 +101,16 @@ describe('ConnectionPanel accessibility', () => {
 });
 
 describe('ConnectionPanel MQTT connect error', () => {
+  let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    consoleWarnSpy.mockRestore();
+  });
+
   it('surfaces error when mqtt.connect rejects', async () => {
     const user = userEvent.setup();
     vi.mocked(window.electronAPI.mqtt.connect).mockRejectedValueOnce(new Error('broker refused'));
@@ -161,8 +171,15 @@ describe('ConnectionPanel MQTT connect error', () => {
 });
 
 describe('ConnectionPanel BLE error humanization', () => {
+  let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    consoleWarnSpy.mockRestore();
   });
 
   it('shows Windows handshake guidance for MeshCore BLE handshake timeout/disconnect', async () => {
