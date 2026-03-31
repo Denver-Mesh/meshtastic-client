@@ -1785,6 +1785,10 @@ export default function App() {
                   ? meshcoreDevice.meshcoreNeighborErrors.get(selectedNode.node_id)
                   : undefined
               }
+              paxCounterData={protocol === 'meshtastic' ? device.paxCounterData : undefined}
+              detectionSensorEvents={
+                protocol === 'meshtastic' ? device.detectionSensorEvents : undefined
+              }
             />
           </Suspense>
         )}

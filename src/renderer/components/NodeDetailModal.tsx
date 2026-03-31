@@ -37,6 +37,10 @@ interface NodeDetailModalProps {
   meshcoreNeighbors?: MeshCoreNeighborResult;
   onRequestNeighbors?: (nodeId: number) => Promise<void>;
   meshcoreNeighborError?: string;
+  /** PaxCounter data from Meshtastic (seen count per node) */
+  paxCounterData?: Map<number, { from: number; count: number; timestamp: number }>;
+  /** DetectionSensor events from Meshtastic (raw bytes per node) */
+  detectionSensorEvents?: Map<number, { from: number; data: Uint8Array; timestamp: number }[]>;
 }
 
 export default function NodeDetailModal({
@@ -62,6 +66,8 @@ export default function NodeDetailModal({
   meshcoreNeighbors,
   onRequestNeighbors,
   meshcoreNeighborError,
+  paxCounterData,
+  detectionSensorEvents,
 }: NodeDetailModalProps) {
   const { ensureConfigured, RemoteAuthModal } = useMeshcoreRepeaterRemoteAuth();
   const coordinateFormat = useCoordFormatStore((s) => s.coordinateFormat);
@@ -638,6 +644,63 @@ export default function NodeDetailModal({
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              );
+            })()}
+
+          {/* PaxCounter section (Meshtastic only) */}
+          {protocol === 'meshtastic' &&
+            paxCounterData &&
+            (() => {
+              const paxData = paxCounterData.get(node.node_id);
+              if (!paxData) return null;
+              return (
+                <div className="space-y-2 px-5 pb-2">
+                  <h4 className="text-muted text-xs font-medium tracking-wide uppercase">
+                    Pax Counter
+                  </h4>
+                  <div className="bg-secondary-dark grid grid-cols-2 gap-x-4 gap-y-1 rounded p-2 text-xs">
+                    <div className="text-muted">Detected Count</div>
+                    <div className="font-mono text-gray-200">{paxData.count}</div>
+                    <div className="text-muted">Last Seen</div>
+                    <div className="font-mono text-gray-200">
+                      {formatSecondsAgo(
+                        Math.max(0, Math.floor((Date.now() - paxData.timestamp) / 1000)),
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+          {/* Detection Sensor section (Meshtastic only) */}
+          {protocol === 'meshtastic' &&
+            detectionSensorEvents &&
+            (() => {
+              const sensorEvents = detectionSensorEvents.get(node.node_id);
+              if (!sensorEvents || sensorEvents.length === 0) return null;
+              const latestEvent = sensorEvents[sensorEvents.length - 1];
+              return (
+                <div className="space-y-2 px-5 pb-2">
+                  <h4 className="text-muted text-xs font-medium tracking-wide uppercase">
+                    Detection Sensor ({sensorEvents.length})
+                  </h4>
+                  <div className="bg-secondary-dark grid grid-cols-2 gap-x-4 gap-y-1 rounded p-2 text-xs">
+                    <div className="text-muted">Last Detection</div>
+                    <div className="font-mono text-gray-200">
+                      {formatSecondsAgo(
+                        Math.max(0, Math.floor((Date.now() - latestEvent.timestamp) / 1000)),
+                      )}
+                    </div>
+                    <div className="text-muted">Data Size</div>
+                    <div className="font-mono text-gray-200">{latestEvent.data.length} bytes</div>
+                    <div className="text-muted col-span-2">Raw Data (hex)</div>
+                    <div className="col-span-2 font-mono text-[10px] break-all text-gray-200">
+                      {Array.from(latestEvent.data)
+                        .map((b) => b.toString(16).padStart(2, '0'))
+                        .join(' ')}
+                    </div>
                   </div>
                 </div>
               );
