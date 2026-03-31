@@ -41,6 +41,10 @@ interface NodeDetailModalProps {
   paxCounterData?: Map<number, { from: number; count: number; timestamp: number }>;
   /** DetectionSensor events from Meshtastic (raw bytes per node) */
   detectionSensorEvents?: Map<number, { from: number; data: Uint8Array; timestamp: number }[]>;
+  /** Export contact advert bytes (MeshCore only) */
+  onExportContact?: (nodeId: number) => Promise<Uint8Array | null>;
+  /** Share contact via mesh (MeshCore only) */
+  onShareContact?: (nodeId: number) => Promise<boolean>;
 }
 
 export default function NodeDetailModal({
@@ -68,6 +72,8 @@ export default function NodeDetailModal({
   meshcoreNeighborError,
   paxCounterData,
   detectionSensorEvents,
+  onExportContact,
+  onShareContact,
 }: NodeDetailModalProps) {
   const { ensureConfigured, RemoteAuthModal } = useMeshcoreRepeaterRemoteAuth();
   const coordinateFormat = useCoordFormatStore((s) => s.coordinateFormat);
@@ -81,6 +87,8 @@ export default function NodeDetailModal({
   const [showTelemetry, setShowTelemetry] = useState(false);
   const [neighborsPending, setNeighborsPending] = useState(false);
   const [showMeshcoreNeighbors, setShowMeshcoreNeighbors] = useState(false);
+  const [exportContactPending, setExportContactPending] = useState(false);
+  const [shareContactPending, setShareContactPending] = useState(false);
   const mqttIgnoredNodes = useDiagnosticsStore((s) => s.mqttIgnoredNodes);
   const setNodeMqttIgnored = useDiagnosticsStore((s) => s.setNodeMqttIgnored);
   const getForeignLoraDetectionsList = useDiagnosticsStore((s) => s.getForeignLoraDetectionsList);
@@ -124,6 +132,8 @@ export default function NodeDetailModal({
     setShowTelemetry(false);
     setNeighborsPending(false);
     setShowMeshcoreNeighbors(false);
+    setExportContactPending(false);
+    setShareContactPending(false);
   }, [node?.node_id]);
 
   // Detect position update after a request was sent
@@ -808,6 +818,63 @@ export default function NodeDetailModal({
                   className="min-w-[8rem] flex-1 rounded-lg bg-purple-700/50 px-3 py-2 text-sm font-medium text-purple-300 transition-colors hover:bg-purple-600/50 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   💬 Message
+                </button>
+              )}
+              {protocol === 'meshcore' && onExportContact && (
+                <button
+                  onClick={async () => {
+                    if (!(await ensureConfigured())) return;
+                    setExportContactPending(true);
+                    setActionStatus('Exporting contact...');
+                    try {
+                      const advert = await onExportContact(node.node_id);
+                      if (advert) {
+                        const blob = new Blob([advert.buffer as ArrayBuffer], {
+                          type: 'application/octet-stream',
+                        });
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `contact-${node.node_id.toString(16)}.bin`;
+                        link.click();
+                        URL.revokeObjectURL(url);
+                        setActionStatus(null);
+                      } else {
+                        setActionStatus('No public key available');
+                      }
+                    } catch (e) {
+                      console.warn('[NodeDetailModal] exportContact failed', e);
+                      setActionStatus(e instanceof Error ? e.message : 'Export failed');
+                    } finally {
+                      setExportContactPending(false);
+                    }
+                  }}
+                  disabled={!isConnected || exportContactPending}
+                  className="bg-secondary-dark min-w-[8rem] flex-1 rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  📤 {exportContactPending ? 'Exporting...' : 'Export Contact'}
+                </button>
+              )}
+              {protocol === 'meshcore' && onShareContact && (
+                <button
+                  onClick={async () => {
+                    if (!(await ensureConfigured())) return;
+                    setShareContactPending(true);
+                    setActionStatus('Sharing contact...');
+                    try {
+                      const success = await onShareContact(node.node_id);
+                      setActionStatus(success ? null : 'Share failed');
+                    } catch (e) {
+                      console.warn('[NodeDetailModal] shareContact failed', e);
+                      setActionStatus(e instanceof Error ? e.message : 'Share failed');
+                    } finally {
+                      setShareContactPending(false);
+                    }
+                  }}
+                  disabled={!isConnected || shareContactPending}
+                  className="bg-secondary-dark min-w-[8rem] flex-1 rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  📨 {shareContactPending ? 'Sharing...' : 'Share Contact'}
                 </button>
               )}
             </div>

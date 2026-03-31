@@ -1789,6 +1789,8 @@ export default function App() {
               detectionSensorEvents={
                 protocol === 'meshtastic' ? device.detectionSensorEvents : undefined
               }
+              onExportContact={protocol === 'meshcore' ? meshcoreDevice.exportContact : undefined}
+              onShareContact={protocol === 'meshcore' ? meshcoreDevice.shareContact : undefined}
             />
           </Suspense>
         )}

@@ -1,5 +1,35 @@
 # AGENTS.md — Coding Guidelines for AI Assistants
 
+## Before Writing Code
+
+- Read all relevant files first. Never edit blind.
+- Understand the full requirement before writing anything.
+- Check for CONTRIBUTING.md: Before starting any development, read CONTRIBUTING.md if it exists. Adhere strictly to the project-specific guidelines found there.
+
+## While Writing Code
+
+- Test after writing. Never leave code untested.
+- Fix errors before moving on. Never skip failures.
+- Use the project's existing tooling - don't introduce new formatters or linters.
+
+## Before Declaring Done
+
+- Never declare done without a passing test.
+
+## Output
+
+- No sycophantic openers or closing fluff.
+- No em dashes, smart quotes, or Unicode. ASCII only.
+- Be concise. If unsure, say so. Never guess.
+
+## Scope Control
+
+- Only make changes directly requested or clearly necessary to complete the task.
+- Do not refactor, add features, or "improve" code outside the scope of what was asked.
+- Do not add comments, docstrings, or type annotations to code you didn't change.
+- Do not add error handling for scenarios that can't happen -- trust internal code and framework guarantees.
+- Don't reformat code outside the scope of changes.
+
 ## Architecture
 
 Electron desktop app with three process boundaries:
@@ -132,6 +162,9 @@ Run `pnpm run lint` to see all violations. Pre-commit enforces these rules.
 - **Preload**: Expose minimal API surface via `contextBridge`
 - **XSS**: No `dangerouslySetInnerHTML`, no `innerHTML` assignment, no `eval()`
 - **Child process**: Banned `exec`/`execSync`; use spawn-style APIs
+- **OWASP awareness**: Avoid SQL injection, XSS, command injection, insecure deserialization
+- **Validate input**: At system boundaries (user input, external APIs). Don't over-validate internal code.
+- **Never commit secrets**: Don't commit credentials, API keys, or tokens -- even to non-production branches.
 
 ### Testing
 
@@ -185,6 +218,56 @@ For `feat:` and `fix:`, include issue reference in footer if applicable.
 ### Pull Requests
 
 When creating a PR, the description **must** include details for **all commits** in the branch, not just the most recent one. Use `git log origin/main..HEAD --oneline` to see all commits that will be included in the PR.
+
+## Git Safety
+
+- Never push to remote unless the user explicitly asks.
+- Never force-push unless the user explicitly requests it and confirms.
+- Never use `--no-verify` to skip hooks -- fix the underlying issue instead.
+- Always confirm before destructive git operations (reset --hard, branch -D, etc.).
+
+## PR Workflow
+
+### Pre-PR Metadata Sweep
+
+Before creating a PR, verify the project's footprint is accurate:
+
+- **Docs**: Update README.md and relevant `/docs` files for any logic or API changes.
+- **Versioning**: If the scope warrants a bump, update version strings in `package.json`, `pyproject.toml`, `setup.py`, `requirements.txt`, or `electron-builder.yml` as applicable.
+- **Credits** _(if the project maintains them)_: Add new contributors to `CREDITS.md` or the `contributors` field in `package.json`.
+- **Commit**: Group metadata changes into a single commit, e.g., `docs: update metadata for PR`.
+- **Push**: Ensure the remote branch is up to date before opening the PR.
+
+### PR Creation (gh pr create)
+
+- Link the PR to any relevant issues.
+- Confirm the diff looks correct with `gh pr diff` if uncertain.
+
+## Engineering Principles
+
+When executing `/plan` or proposing code changes, adhere to the "Resilient Architect" framework. Code must be optimized for both success and failure.
+
+### Failure-Aware Planning
+
+Before implementation, evaluate the plan for:
+
+- **Blast Radius:** If this specific function/service fails, what else breaks? Decouple where possible.
+- **Defensive Guardrails:** Use circuit breakers, timeouts, and fallbacks for all I/O, network requests, and heavy computations.
+- **State Integrity:** Ensure that a failure mid-execution does not leave the system in an inconsistent or "zombie" state.
+
+### The "Gracious Exit" Requirement
+
+For non-trivial, stateful, or I/O-bound logic blocks, document in comments or the plan:
+
+- **Failure Point:** Identification of what could go wrong (e.g., "Third-party API timeout").
+- **Fallback:** The immediate alternative (e.g., "Return stale cache" or "Show simplified UI").
+- **Logging:** Ensure errors are caught with enough context to debug without crashing the process.
+
+### Coding Standards for Failure
+
+- **Prefer Result Types:** Favor explicit error handling over deep try/catch nesting.
+- **No Silent Failures:** Never "swallow" an error. If a failure occurs, it must be handled, logged, or reported to the user gracefully.
+- **Graceful Degradation:** The UI/UX should remain interactive even if a secondary feature fails to load.
 
 ## Pre-Commit Checklist
 
