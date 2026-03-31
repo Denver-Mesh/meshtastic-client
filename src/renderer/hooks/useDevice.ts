@@ -1220,7 +1220,7 @@ export function useDevice() {
             // Don't flag our own node if we have valid fallback coords
             if (
               packet.from === myNodeNumRef.current &&
-              (existing.latitude !== 0 || existing.longitude !== 0)
+              (existing.latitude != null || existing.longitude != null)
             ) {
               return prev; // no change
             }
@@ -2608,8 +2608,8 @@ export function emptyNode(nodeId: number): MeshNode {
     snr: 0,
     battery: 0,
     last_heard: 0,
-    latitude: 0,
-    longitude: 0,
+    latitude: null,
+    longitude: null,
   };
 }
 

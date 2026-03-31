@@ -2340,22 +2340,22 @@ ipcMain.handle('db:saveNode', (_event, node) => {
         COALESCE((SELECT favorited FROM nodes WHERE node_id = @node_id), 0),
         @source, @num_packets_rx_bad, @num_rx_dupe, @num_packets_rx, @num_packets_tx)
       ON CONFLICT(node_id) DO UPDATE SET
-        long_name = excluded.long_name,
-        short_name = excluded.short_name,
-        hw_model = excluded.hw_model,
-        snr = excluded.snr,
-        rssi = excluded.rssi,
-        battery = excluded.battery,
-        last_heard = excluded.last_heard,
-        latitude = excluded.latitude,
-        longitude = excluded.longitude,
-        role = excluded.role,
-        hops_away = excluded.hops_away,
-        via_mqtt = excluded.via_mqtt,
-        voltage = excluded.voltage,
-        channel_utilization = excluded.channel_utilization,
-        air_util_tx = excluded.air_util_tx,
-        altitude = excluded.altitude,
+        long_name = COALESCE(NULLIF(excluded.long_name, ''), nodes.long_name),
+        short_name = COALESCE(NULLIF(excluded.short_name, ''), nodes.short_name),
+        hw_model = COALESCE(NULLIF(excluded.hw_model, ''), nodes.hw_model),
+        snr = COALESCE(excluded.snr, nodes.snr),
+        rssi = COALESCE(excluded.rssi, nodes.rssi),
+        battery = COALESCE(excluded.battery, nodes.battery),
+        last_heard = CASE WHEN excluded.last_heard IS NOT NULL AND excluded.last_heard > 0 THEN excluded.last_heard ELSE nodes.last_heard END,
+        latitude = CASE WHEN excluded.latitude IS NOT NULL AND excluded.latitude != 0 THEN excluded.latitude ELSE nodes.latitude END,
+        longitude = CASE WHEN excluded.longitude IS NOT NULL AND excluded.longitude != 0 THEN excluded.longitude ELSE nodes.longitude END,
+        role = COALESCE(excluded.role, nodes.role),
+        hops_away = COALESCE(excluded.hops_away, nodes.hops_away),
+        via_mqtt = COALESCE(excluded.via_mqtt, nodes.via_mqtt),
+        voltage = COALESCE(excluded.voltage, nodes.voltage),
+        channel_utilization = COALESCE(excluded.channel_utilization, nodes.channel_utilization),
+        air_util_tx = COALESCE(excluded.air_util_tx, nodes.air_util_tx),
+        altitude = COALESCE(excluded.altitude, nodes.altitude),
         source = CASE WHEN excluded.source = 'rf' THEN 'rf' ELSE COALESCE((SELECT source FROM nodes WHERE node_id = excluded.node_id), 'mqtt') END,
         num_packets_rx_bad = COALESCE(excluded.num_packets_rx_bad, num_packets_rx_bad),
         num_rx_dupe = COALESCE(excluded.num_rx_dupe, num_rx_dupe),
@@ -2961,17 +2961,17 @@ ipcMain.handle('db:saveMeshcoreContact', (_event, contact) => {
           'VALUES (@node_id, @public_key, @adv_name, @contact_type, @last_advert, @adv_lat, @adv_lon, @last_snr, @last_rssi, 0, @nickname, @contact_flags, @hops_away) ' +
           'ON CONFLICT(node_id) DO UPDATE SET ' +
           'public_key = excluded.public_key, ' +
-          'adv_name = excluded.adv_name, ' +
-          'contact_type = excluded.contact_type, ' +
-          'last_advert = excluded.last_advert, ' +
-          'adv_lat = excluded.adv_lat, ' +
-          'adv_lon = excluded.adv_lon, ' +
-          'last_snr = excluded.last_snr, ' +
-          'last_rssi = excluded.last_rssi, ' +
+          "adv_name = COALESCE(NULLIF(excluded.adv_name, ''), meshcore_contacts.adv_name), " +
+          'contact_type = COALESCE(excluded.contact_type, meshcore_contacts.contact_type), ' +
+          'last_advert = CASE WHEN excluded.last_advert IS NOT NULL AND excluded.last_advert > 0 THEN excluded.last_advert ELSE meshcore_contacts.last_advert END, ' +
+          'adv_lat = CASE WHEN excluded.adv_lat IS NOT NULL AND excluded.adv_lat != 0 THEN excluded.adv_lat ELSE meshcore_contacts.adv_lat END, ' +
+          'adv_lon = CASE WHEN excluded.adv_lon IS NOT NULL AND excluded.adv_lon != 0 THEN excluded.adv_lon ELSE meshcore_contacts.adv_lon END, ' +
+          'last_snr = COALESCE(excluded.last_snr, meshcore_contacts.last_snr), ' +
+          'last_rssi = COALESCE(excluded.last_rssi, meshcore_contacts.last_rssi), ' +
           'favorited = meshcore_contacts.favorited, ' +
           'nickname = COALESCE(excluded.nickname, meshcore_contacts.nickname), ' +
-          'contact_flags = excluded.contact_flags, ' +
-          'hops_away = excluded.hops_away',
+          'contact_flags = COALESCE(excluded.contact_flags, meshcore_contacts.contact_flags), ' +
+          'hops_away = COALESCE(excluded.hops_away, meshcore_contacts.hops_away)',
       )
       .run({
         node_id: Number(c.node_id),
