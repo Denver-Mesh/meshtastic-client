@@ -228,7 +228,6 @@ function ChatPanel({
     }
   }, [channels, channel]);
   const [sending, setSending] = useState(false);
-  /** Scoped to `viewKey` so a send error in one DM does not show on other tabs. */
   const [chatActionError, setChatActionError] = useState<{
     message: string;
     viewKey: string;

@@ -670,6 +670,11 @@ export class MQTTManager extends EventEmitter {
       return;
     }
 
+    if (type === 'position' || type === 'POSITION') {
+      this.handleJsonPosition(json, topic);
+      return;
+    }
+
     const portnumRaw = json.portnum as number | undefined;
     if (portnumRaw === PortNum.NODEINFO_APP) {
       this.handleJsonNodeInfo(json, topic);
@@ -764,6 +769,88 @@ export class MQTTManager extends EventEmitter {
     });
 
     this.emit('nodeUpdate', nodeUpdate);
+  }
+
+  private handleJsonPosition(json: Record<string, unknown>, topic: string): void {
+    const from = json.from as string | undefined;
+    if (!from) {
+      console.debug(`[MQTT] JSON position missing "from" field, topic=${topic}`); // log-filter-ok Meshtastic MQTT logs → App log panel
+      return;
+    }
+
+    let nodeId: number;
+    if (from.startsWith('!')) {
+      const hex = from.slice(1);
+      nodeId = parseInt(hex, 16);
+      if (isNaN(nodeId)) {
+        console.debug(`[MQTT] JSON position invalid from hex: ${from}`); // log-filter-ok Meshtastic MQTT logs → App log panel
+        return;
+      }
+    } else {
+      const parsed = parseInt(from, 10);
+      if (isNaN(parsed)) {
+        console.debug(`[MQTT] JSON position invalid from: ${from}`); // log-filter-ok Meshtastic MQTT logs → App log panel
+        return;
+      }
+      nodeId = parsed;
+    }
+
+    const jsonPayload = json.payload as Record<string, unknown> | undefined;
+    const data = jsonPayload ?? json;
+
+    const latitudeI = (data.latitudeI ?? data.latitude_i) as number | undefined;
+    const longitudeI = (data.longitudeI ?? data.longitude_i) as number | undefined;
+    const altitude = data.altitude as number | undefined;
+
+    const latRaw = (data.latitude ?? data.lat) as number | undefined;
+    const lonRaw = (data.longitude ?? data.lon) as number | undefined;
+
+    let lat: number | undefined;
+    let lon: number | undefined;
+
+    if (latitudeI !== undefined && longitudeI !== undefined) {
+      lat = latitudeI / 1e7;
+      lon = longitudeI / 1e7;
+    } else if (latRaw !== undefined && lonRaw !== undefined) {
+      lat = latRaw;
+      lon = lonRaw;
+    }
+
+    if (lat === undefined || lon === undefined) {
+      this.upsertNodeCache({ node_id: nodeId, last_heard: Date.now() });
+      this.emitMinimalNodeUpdate(nodeId);
+      return;
+    }
+
+    const warning = coordWarning(lat, lon);
+    const now = Date.now();
+
+    if (warning) {
+      this.upsertNodeCache({ node_id: nodeId, last_heard: now });
+      this.emit('nodeUpdate', {
+        node_id: nodeId,
+        positionWarning: warning,
+        last_heard: now,
+        from_mqtt: true,
+      });
+    } else {
+      this.upsertNodeCache({
+        node_id: nodeId,
+        last_heard: now,
+        latitude: lat,
+        longitude: lon,
+        altitude,
+      });
+      this.emit('nodeUpdate', {
+        node_id: nodeId,
+        latitude: lat,
+        longitude: lon,
+        altitude,
+        last_heard: now,
+        from_mqtt: true,
+        positionWarning: null,
+      });
+    }
   }
 
   private handleDecoded(

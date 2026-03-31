@@ -166,6 +166,8 @@ export interface MQTTSettings {
   mqttTransportProtocol?: 'meshtastic' | 'meshcore';
   /** Use ws:// or wss:// transport instead of mqtt:// / mqtts:// (required for port 443 on LetsMesh). */
   useWebSocket?: boolean;
+  /** MQTT keepalive interval in seconds. Defaults to 60 for TCP/TLS, 30 for WebSocket. */
+  keepalive?: number;
   /**
    * When true (MeshCore MQTT + LetsMesh public broker), forward RX packet summaries to
    * `{topicPrefix}/meshcore/packets` for the Analyzer (meshcoretomqtt-shaped JSON). Default false.
@@ -367,6 +369,7 @@ declare global {
           advLon: number | null,
           advName?: string | null,
         ) => Promise<unknown>;
+        updateMeshcoreContactType: (nodeId: number, contactType: number) => Promise<unknown>;
         updateMeshcoreContactLastRf: (
           nodeId: number,
           lastSnr: number,

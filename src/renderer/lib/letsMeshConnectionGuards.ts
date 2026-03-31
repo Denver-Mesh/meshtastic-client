@@ -31,5 +31,6 @@ export function letsMeshPresetConfigurationDeviation(settings: MQTTSettings): bo
   if (!(settings.useWebSocket ?? false)) return true;
   if (settings.port !== 443) return true;
   if (!isLetsMeshSettings(settings.server)) return true;
+  if ((settings.keepalive ?? 30) !== 30) return true;
   return false;
 }

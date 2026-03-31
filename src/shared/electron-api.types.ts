@@ -191,6 +191,7 @@ export interface ElectronAPI {
       advLon: number | null,
       advName?: string | null,
     ) => Promise<unknown>;
+    updateMeshcoreContactType: (nodeId: number, contactType: number) => Promise<unknown>;
     updateMeshcoreContactLastRf: (
       nodeId: number,
       lastSnr: number,

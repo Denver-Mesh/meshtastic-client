@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 
 import type {
   CliHistoryEntry,
@@ -15,7 +15,8 @@ import {
   meshcoreClearRepeaterRemoteSessionAuth,
   meshcoreIsRepeaterRemoteAuthTouched,
 } from '../lib/meshcoreUtils';
-import { normalizeLastHeardMs } from '../lib/nodeStatus';
+import { getNodeStatus, normalizeLastHeardMs } from '../lib/nodeStatus';
+import { useRadioProvider } from '../lib/radio/providerFactory';
 import type { MeshNode } from '../lib/types';
 import { useCoordFormatStore } from '../stores/coordFormatStore';
 import { useRepeaterSignalStore } from '../stores/repeaterSignalStore';
@@ -46,28 +47,18 @@ interface Props {
   onClearCliHistory?: (nodeId: number) => void;
 }
 
-const STALE_THRESHOLD_MS = 15 * 60 * 1000;
-/** Delay between auto Status RPCs per repeater to avoid flooding the radio. */
-const AUTO_REPEATER_STATUS_STAGGER_MS = 1_200;
-
-function getRepeaterStatus(lastHeard: number | null | undefined): 'active' | 'stale' | 'unknown' {
-  if (!lastHeard) return 'unknown';
-  const lastMs = normalizeLastHeardMs(lastHeard);
-  if (!lastMs) return 'unknown';
-  const ageMs = Date.now() - lastMs;
-  if (ageMs < 0) return 'unknown';
-  return ageMs < STALE_THRESHOLD_MS ? 'active' : 'stale';
-}
-
 function formatRelativeTime(lastHeard: number | null | undefined): string {
   if (!lastHeard) return 'Never';
   const lastMs = normalizeLastHeardMs(lastHeard);
   if (!lastMs) return 'Never';
   const ageMs = Date.now() - lastMs;
   const ageSec = Math.floor(ageMs / 1000);
-  if (ageSec < 0) return 'Unknown';
-  if (ageSec < 60) return `${ageSec}s ago`;
-  const ageMin = Math.floor(ageSec / 60);
+  if (ageSec < 0) {
+    console.warn('[formatRelativeTime] future timestamp detected:', { lastHeard, lastMs, ageSec });
+  }
+  const clampedSec = Math.max(0, ageSec);
+  if (clampedSec < 60) return 'Just now';
+  const ageMin = Math.floor(clampedSec / 60);
   if (ageMin < 60) return `${ageMin}m ago`;
   const ageHr = Math.floor(ageMin / 60);
   if (ageHr < 24) return `${ageHr}h ago`;
@@ -172,11 +163,18 @@ export default function RepeatersPanel({
   const [cliUseSavedPath, setCliUseSavedPath] = useState<Map<number, boolean>>(new Map());
   const [searchQuery, setSearchQuery] = useState('');
 
+  const { nodeStaleThresholdMs, nodeOfflineThresholdMs } = useRadioProvider('meshcore');
+
   const repeaters = Array.from(nodes.values())
     .filter((n) => n.hw_model === 'Repeater')
     .sort(
       (a, b) => normalizeLastHeardMs(b.last_heard ?? 0) - normalizeLastHeardMs(a.last_heard ?? 0),
     );
+
+  useEffect(() => {
+    if (nodes.size === 0) return;
+    console.debug('[RepeatersPanel] nodes=', nodes.size, 'repeatersCount=', repeaters.length);
+  }, [nodes.size, repeaters.length]);
 
   const repeatersFiltered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -187,49 +185,7 @@ export default function RepeatersPanel({
     );
   }, [repeaters, searchQuery]);
 
-  const repeaterIdsKey = useMemo(
-    () =>
-      repeaters
-        .map((r) => r.node_id)
-        .sort((a, b) => a - b)
-        .join(','),
-    [repeaters],
-  );
-
-  const meshcoreStatusRef = useRef(meshcoreNodeStatus);
-  meshcoreStatusRef.current = meshcoreNodeStatus;
-
   const remoteAuthReady = meshcoreIsRepeaterRemoteAuthTouched();
-
-  useEffect(() => {
-    if (!isConnected || repeaterIdsKey.length === 0 || !remoteAuthReady) return;
-    let cancelled = false;
-    const nodeIds = repeaterIdsKey
-      .split(',')
-      .map((s) => Number(s))
-      .filter((n) => n > 0);
-    void (async () => {
-      for (const nodeId of nodeIds) {
-        if (cancelled) return;
-        const st = meshcoreStatusRef.current.get(nodeId);
-        if (st !== undefined && Number.isFinite(st.lastSnr)) continue;
-        await new Promise((r) => {
-          setTimeout(r, AUTO_REPEATER_STATUS_STAGGER_MS);
-        });
-        if (cancelled) return;
-        const again = meshcoreStatusRef.current.get(nodeId);
-        if (again !== undefined && Number.isFinite(again.lastSnr)) continue;
-        try {
-          await onRequestRepeaterStatus(nodeId);
-        } catch {
-          // catch-no-log-ok auto-fetch is best-effort; per-row Status shows errors
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isConnected, repeaterIdsKey, onRequestRepeaterStatus, remoteAuthReady]);
 
   const handleStatus = async (nodeId: number) => {
     if (!(await ensureConfigured())) return;
@@ -495,7 +451,11 @@ export default function RepeatersPanel({
                 {repeatersFiltered.map((node) => {
                   const status = meshcoreNodeStatus.get(node.node_id);
                   const traceResult = meshcoreTraceResults.get(node.node_id);
-                  const repeaterStatus = getRepeaterStatus(node.last_heard);
+                  const repeaterStatus = getNodeStatus(
+                    node.last_heard,
+                    nodeStaleThresholdMs,
+                    nodeOfflineThresholdMs,
+                  );
                   const history = signalHistory.get(node.node_id) ?? [];
                   const airPct =
                     status?.totalAirTimeSecs && status?.totalUpTimeSecs
@@ -538,7 +498,7 @@ export default function RepeatersPanel({
                           <span className="flex items-center gap-1.5">
                             <span
                               className={`h-2 w-2 rounded-full ${
-                                repeaterStatus === 'active'
+                                repeaterStatus === 'online'
                                   ? 'bg-green-500'
                                   : repeaterStatus === 'stale'
                                     ? 'bg-amber-500'
@@ -547,18 +507,18 @@ export default function RepeatersPanel({
                             />
                             <span
                               className={
-                                repeaterStatus === 'active'
+                                repeaterStatus === 'online'
                                   ? 'text-xs text-green-400'
                                   : repeaterStatus === 'stale'
                                     ? 'text-xs text-amber-400'
                                     : 'text-xs text-gray-500'
                               }
                             >
-                              {repeaterStatus === 'active'
-                                ? 'Active'
+                              {repeaterStatus === 'online'
+                                ? 'Online'
                                 : repeaterStatus === 'stale'
                                   ? 'Stale'
-                                  : '—'}
+                                  : 'Offline'}
                             </span>
                           </span>
                         </td>

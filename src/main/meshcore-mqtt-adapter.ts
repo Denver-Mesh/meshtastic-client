@@ -31,23 +31,8 @@ function buildMeshcoreUrlForLog(settings: MQTTSettings): string {
 
 /** Time allowed for TCP/TLS/WebSocket + MQTT CONNACK (slow networks, captive portals). */
 const MESHCORE_MQTT_CONNECT_ACK_MS = 30_000;
-/**
- * MQTT keepalive (seconds) for direct TCP/TLS — standard interval.
- */
-const MESHCORE_MQTT_KEEPALIVE_TCP_SEC = 60;
-/**
- * MQTT keepalive (seconds) for WSS. mqtt.js fires Keepalive timeout at ~1.5× this value from the
- * last reschedule; shorter values narrow the PINGRESP window (~1.5× keepalive). Idle proxies are
- * kept hot via native WebSocket ping (`MESHCORE_MQTT_WSS_PING_MS`) and `reschedulePing` below.
- */
-const MESHCORE_MQTT_KEEPALIVE_WS_SEC = 60;
-/** Send WebSocket-level ping frames so LB/proxy idle timers see traffic before the first MQTT PINGREQ. */
-const MESHCORE_MQTT_WSS_PING_MS = 25_000;
-/**
- * On some WSS paths, wire-level PINGRESP/SUBACK are not observed in time; periodic
- * `reschedulePing(true)` resets mqtt.js KeepaliveManager without relying on inbound ACK callbacks.
- */
-const MESHCORE_MQTT_RESCHEDULE_MS = 30_000;
+/** Send WebSocket-level ping frames so LB/proxy idle timers see traffic at ~15s intervals. */
+const MESHCORE_MQTT_WSS_PING_MS = 15_000;
 /** Reconnect delay base/cap — mirrors MQTTManager. */
 const MESHCORE_MQTT_RECONNECT_BACKOFF_BASE_MS = 500;
 const MESHCORE_MQTT_RECONNECT_BACKOFF_CAP_MS = 8_000;
@@ -63,7 +48,8 @@ export class MeshcoreMqttAdapter extends EventEmitter {
   /** One-shot: log first inbound MQTT message for broker delivery diagnostics. */
   private firstMessageLogged = false;
   private wssPingTimer: ReturnType<typeof setInterval> | null = null;
-  private keepaliveRescheduleTimer: ReturnType<typeof setInterval> | null = null;
+  private pingReqLogged = false;
+  private pingRespLogged = false;
   private retryCount = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -89,34 +75,11 @@ export class MeshcoreMqttAdapter extends EventEmitter {
     }
   }
 
-  private clearKeepaliveReschedule(): void {
-    if (this.keepaliveRescheduleTimer) {
-      clearInterval(this.keepaliveRescheduleTimer);
-      this.keepaliveRescheduleTimer = null;
-    }
-  }
-
   private clearReconnectTimer(): void {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-  }
-
-  /** Reset mqtt.js KeepaliveManager (WSS paths where wire PINGRESP/SUBACK are not observed in time). */
-  private startKeepaliveReschedule(): void {
-    this.clearKeepaliveReschedule();
-    this.keepaliveRescheduleTimer = setInterval(() => {
-      if (!this.client?.connected) return;
-      try {
-        this.client.reschedulePing(true);
-      } catch (e) {
-        console.debug(
-          '[MeshcoreMqttAdapter] reschedulePing failed',
-          sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
-        );
-      }
-    }, MESHCORE_MQTT_RESCHEDULE_MS);
   }
 
   private setError(message: string): void {
@@ -128,7 +91,6 @@ export class MeshcoreMqttAdapter extends EventEmitter {
   disconnect(): void {
     this.clearConnectTimers();
     this.clearWssPing();
-    this.clearKeepaliveReschedule();
     this.clearReconnectTimer();
     this.retryCount = 0;
     if (this.client) {
@@ -171,9 +133,9 @@ export class MeshcoreMqttAdapter extends EventEmitter {
 
     // Match MQTTManager: WebSocket uses mqtt.connect({ protocol, host, port, path, … }) — not
     // mqtt.connect(urlString, opts), which can hang or mis-handle TLS in Node mqtt.js.
-    const keepaliveSec = settings.useWebSocket
-      ? MESHCORE_MQTT_KEEPALIVE_WS_SEC
-      : MESHCORE_MQTT_KEEPALIVE_TCP_SEC;
+    // For WebSocket, set keepalive=0 to disable MQTT PINGREQ (broker doesn't respond to PINGRESP);
+    // rely on WebSocket-level ping frames (MESHCORE_MQTT_WSS_PING_MS) to keep connection alive.
+    const keepaliveSec = settings.useWebSocket ? 0 : (settings.keepalive ?? 60);
     let connectOpts: mqtt.IClientOptions = {
       clientId,
       username: settings.username || undefined,
@@ -279,7 +241,18 @@ export class MeshcoreMqttAdapter extends EventEmitter {
             // catch-no-log-ok ws ping after teardown
           }
         }, MESHCORE_MQTT_WSS_PING_MS);
-        this.startKeepaliveReschedule();
+      }
+    });
+    this.client.on('packetsend', (packet) => {
+      if (packet.cmd === 'pingreq') {
+        this.pingReqLogged = false;
+        console.debug('[MeshcoreMqttAdapter] PINGREQ sent', new Date().toISOString());
+      }
+    });
+    this.client.on('packetreceive', (packet) => {
+      if (packet.cmd === 'pingresp') {
+        this.pingRespLogged = false;
+        console.debug('[MeshcoreMqttAdapter] PINGRESP received', new Date().toISOString());
       }
     });
     this.client.on('message', (topic, payload) => {
@@ -319,8 +292,8 @@ export class MeshcoreMqttAdapter extends EventEmitter {
     });
     this.client.on('close', () => {
       this.clearWssPing();
-      this.clearKeepaliveReschedule();
       this.clearConnectTimers();
+      console.debug('[MeshcoreMqttAdapter] connection closed', new Date().toISOString());
       const skipReconnect =
         this.status === 'disconnected' || this.status === 'error' || !this.lastSettings;
       if (this.status === 'connected' || this.status === 'connecting') {

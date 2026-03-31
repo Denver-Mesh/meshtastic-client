@@ -37,6 +37,16 @@ interface NodeDetailModalProps {
   meshcoreNeighbors?: MeshCoreNeighborResult;
   onRequestNeighbors?: (nodeId: number) => Promise<void>;
   meshcoreNeighborError?: string;
+  /** PaxCounter data from Meshtastic (seen count per node) */
+  paxCounterData?: Map<number, { from: number; count: number; timestamp: number }>;
+  /** DetectionSensor events from Meshtastic (raw bytes per node) */
+  detectionSensorEvents?: Map<number, { from: number; data: Uint8Array; timestamp: number }[]>;
+  /** MapReport data from Meshtastic (location/position reports per node) */
+  mapReports?: Map<number, { from: number; data: unknown; timestamp: number }>;
+  /** Export contact advert bytes (MeshCore only) */
+  onExportContact?: (nodeId: number) => Promise<Uint8Array | null>;
+  /** Share contact via mesh (MeshCore only) */
+  onShareContact?: (nodeId: number) => Promise<boolean>;
 }
 
 export default function NodeDetailModal({
@@ -62,6 +72,11 @@ export default function NodeDetailModal({
   meshcoreNeighbors,
   onRequestNeighbors,
   meshcoreNeighborError,
+  paxCounterData,
+  detectionSensorEvents,
+  mapReports,
+  onExportContact,
+  onShareContact,
 }: NodeDetailModalProps) {
   const { ensureConfigured, RemoteAuthModal } = useMeshcoreRepeaterRemoteAuth();
   const coordinateFormat = useCoordFormatStore((s) => s.coordinateFormat);
@@ -75,6 +90,8 @@ export default function NodeDetailModal({
   const [showTelemetry, setShowTelemetry] = useState(false);
   const [neighborsPending, setNeighborsPending] = useState(false);
   const [showMeshcoreNeighbors, setShowMeshcoreNeighbors] = useState(false);
+  const [exportContactPending, setExportContactPending] = useState(false);
+  const [shareContactPending, setShareContactPending] = useState(false);
   const mqttIgnoredNodes = useDiagnosticsStore((s) => s.mqttIgnoredNodes);
   const setNodeMqttIgnored = useDiagnosticsStore((s) => s.setNodeMqttIgnored);
   const getForeignLoraDetectionsList = useDiagnosticsStore((s) => s.getForeignLoraDetectionsList);
@@ -118,6 +135,8 @@ export default function NodeDetailModal({
     setShowTelemetry(false);
     setNeighborsPending(false);
     setShowMeshcoreNeighbors(false);
+    setExportContactPending(false);
+    setShareContactPending(false);
   }, [node?.node_id]);
 
   // Detect position update after a request was sent
@@ -643,6 +662,90 @@ export default function NodeDetailModal({
               );
             })()}
 
+          {/* PaxCounter section (Meshtastic only) */}
+          {protocol === 'meshtastic' &&
+            paxCounterData &&
+            (() => {
+              const paxData = paxCounterData.get(node.node_id);
+              if (!paxData) return null;
+              return (
+                <div className="space-y-2 px-5 pb-2">
+                  <h4 className="text-muted text-xs font-medium tracking-wide uppercase">
+                    Pax Counter
+                  </h4>
+                  <div className="bg-secondary-dark grid grid-cols-2 gap-x-4 gap-y-1 rounded p-2 text-xs">
+                    <div className="text-muted">Detected Count</div>
+                    <div className="font-mono text-gray-200">{paxData.count}</div>
+                    <div className="text-muted">Last Seen</div>
+                    <div className="font-mono text-gray-200">
+                      {formatSecondsAgo(
+                        Math.max(0, Math.floor((Date.now() - paxData.timestamp) / 1000)),
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+          {/* Detection Sensor section (Meshtastic only) */}
+          {protocol === 'meshtastic' &&
+            detectionSensorEvents &&
+            (() => {
+              const sensorEvents = detectionSensorEvents.get(node.node_id);
+              if (!sensorEvents || sensorEvents.length === 0) return null;
+              const latestEvent = sensorEvents[sensorEvents.length - 1];
+              return (
+                <div className="space-y-2 px-5 pb-2">
+                  <h4 className="text-muted text-xs font-medium tracking-wide uppercase">
+                    Detection Sensor ({sensorEvents.length})
+                  </h4>
+                  <div className="bg-secondary-dark grid grid-cols-2 gap-x-4 gap-y-1 rounded p-2 text-xs">
+                    <div className="text-muted">Last Detection</div>
+                    <div className="font-mono text-gray-200">
+                      {formatSecondsAgo(
+                        Math.max(0, Math.floor((Date.now() - latestEvent.timestamp) / 1000)),
+                      )}
+                    </div>
+                    <div className="text-muted">Data Size</div>
+                    <div className="font-mono text-gray-200">{latestEvent.data.length} bytes</div>
+                    <div className="text-muted col-span-2">Raw Data (hex)</div>
+                    <div className="col-span-2 font-mono text-[10px] break-all text-gray-200">
+                      {Array.from(latestEvent.data)
+                        .map((b) => b.toString(16).padStart(2, '0'))
+                        .join(' ')}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+          {/* Map Report section (Meshtastic only) */}
+          {protocol === 'meshtastic' && mapReports && (
+            <div className="space-y-2 px-5 pb-2">
+              <h4 className="text-muted text-xs font-medium tracking-wide uppercase">Map Report</h4>
+              {(() => {
+                const mapReport = mapReports.get(node.node_id);
+                if (!mapReport) {
+                  return <p className="text-xs text-gray-500">No map report received</p>;
+                }
+                return (
+                  <div className="bg-secondary-dark grid grid-cols-2 gap-x-4 gap-y-1 rounded p-2 text-xs">
+                    <div className="text-muted">Last Report</div>
+                    <div className="font-mono text-gray-200">
+                      {formatSecondsAgo(
+                        Math.max(0, Math.floor((Date.now() - mapReport.timestamp) / 1000)),
+                      )}
+                    </div>
+                    <div className="text-muted">Data</div>
+                    <div className="font-mono text-gray-200">
+                      {mapReport.data ? JSON.stringify(mapReport.data).slice(0, 50) : 'N/A'}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
           {/* Footer actions — omitted for directly connected node (no position/trace/message to self) */}
           {!isOurNode && (
             <div className="flex shrink-0 flex-wrap items-center gap-2 border-t border-gray-700 px-5 py-3">
@@ -745,6 +848,63 @@ export default function NodeDetailModal({
                   className="min-w-[8rem] flex-1 rounded-lg bg-purple-700/50 px-3 py-2 text-sm font-medium text-purple-300 transition-colors hover:bg-purple-600/50 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   💬 Message
+                </button>
+              )}
+              {protocol === 'meshcore' && onExportContact && (
+                <button
+                  onClick={async () => {
+                    if (!(await ensureConfigured())) return;
+                    setExportContactPending(true);
+                    setActionStatus('Exporting contact...');
+                    try {
+                      const advert = await onExportContact(node.node_id);
+                      if (advert) {
+                        const blob = new Blob([advert.buffer as ArrayBuffer], {
+                          type: 'application/octet-stream',
+                        });
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `contact-${node.node_id.toString(16)}.bin`;
+                        link.click();
+                        URL.revokeObjectURL(url);
+                        setActionStatus(null);
+                      } else {
+                        setActionStatus('No public key available');
+                      }
+                    } catch (e) {
+                      console.warn('[NodeDetailModal] exportContact failed', e);
+                      setActionStatus(e instanceof Error ? e.message : 'Export failed');
+                    } finally {
+                      setExportContactPending(false);
+                    }
+                  }}
+                  disabled={!isConnected || exportContactPending}
+                  className="bg-secondary-dark min-w-[8rem] flex-1 rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  📤 {exportContactPending ? 'Exporting...' : 'Export Contact'}
+                </button>
+              )}
+              {protocol === 'meshcore' && onShareContact && (
+                <button
+                  onClick={async () => {
+                    if (!(await ensureConfigured())) return;
+                    setShareContactPending(true);
+                    setActionStatus('Sharing contact...');
+                    try {
+                      const success = await onShareContact(node.node_id);
+                      setActionStatus(success ? null : 'Share failed');
+                    } catch (e) {
+                      console.warn('[NodeDetailModal] shareContact failed', e);
+                      setActionStatus(e instanceof Error ? e.message : 'Share failed');
+                    } finally {
+                      setShareContactPending(false);
+                    }
+                  }}
+                  disabled={!isConnected || shareContactPending}
+                  className="bg-secondary-dark min-w-[8rem] flex-1 rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  📨 {shareContactPending ? 'Sharing...' : 'Share Contact'}
                 </button>
               )}
             </div>
