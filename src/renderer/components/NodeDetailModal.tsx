@@ -720,16 +720,15 @@ export default function NodeDetailModal({
             })()}
 
           {/* Map Report section (Meshtastic only) */}
-          {protocol === 'meshtastic' &&
-            mapReports &&
-            (() => {
-              const mapReport = mapReports.get(node.node_id);
-              if (!mapReport) return null;
-              return (
-                <div className="space-y-2 px-5 pb-2">
-                  <h4 className="text-muted text-xs font-medium tracking-wide uppercase">
-                    Map Report
-                  </h4>
+          {protocol === 'meshtastic' && mapReports && (
+            <div className="space-y-2 px-5 pb-2">
+              <h4 className="text-muted text-xs font-medium tracking-wide uppercase">Map Report</h4>
+              {(() => {
+                const mapReport = mapReports.get(node.node_id);
+                if (!mapReport) {
+                  return <p className="text-xs text-gray-500">No map report received</p>;
+                }
+                return (
                   <div className="bg-secondary-dark grid grid-cols-2 gap-x-4 gap-y-1 rounded p-2 text-xs">
                     <div className="text-muted">Last Report</div>
                     <div className="font-mono text-gray-200">
@@ -742,9 +741,10 @@ export default function NodeDetailModal({
                       {mapReport.data ? JSON.stringify(mapReport.data).slice(0, 50) : 'N/A'}
                     </div>
                   </div>
-                </div>
-              );
-            })()}
+                );
+              })()}
+            </div>
+          )}
 
           {/* Footer actions — omitted for directly connected node (no position/trace/message to self) */}
           {!isOurNode && (
