@@ -17,6 +17,67 @@ print_success() { echo -e "${GREEN}$1${NC}"; }
 print_warning() { echo -e "${YELLOW}$1${NC}"; }
 print_error() { echo -e "${RED}$1${NC}"; }
 
+# ====================== NEW: Generate nice copy-paste release notes ======================
+generate_release_notes() {
+  local last_tag="$1"
+  local new_version="$2"
+  local today=$(date +"%Y-%m-%d")
+
+  print_header "=== COPY-PASTE READY RELEASE NOTES ==="
+
+  cat << EOF
+## [$new_version] - $today
+
+### Highlights
+- TODO: Write a short 1-2 sentence summary of the most important changes
+
+### What's Changed
+
+EOF
+
+  # Features
+  echo "### Features"
+  if git log "$last_tag"..HEAD --pretty=format:"* %s" | grep -qE "^\* feat"; then
+    git log "$last_tag"..HEAD --pretty=format:"* %s" | grep -E "^\* feat" | sed 's/^\* feat[^:]*: /* /'
+  else
+    echo "*(No new features)*"
+  fi
+
+  echo ""
+  echo "### Bug Fixes"
+  if git log "$last_tag"..HEAD --pretty=format:"* %s" | grep -qE "^\* fix"; then
+    git log "$last_tag"..HEAD --pretty=format:"* %s" | grep -E "^\* fix" | sed 's/^\* fix[^:]*: /* /'
+  else
+    echo "*(No bug fixes)*"
+  fi
+
+  echo ""
+  echo "### Other Changes"
+  if git log "$last_tag"..HEAD --pretty=format:"* %s" | grep -qE "^\* (chore|docs|refactor|test|style|perf|build|ci)"; then
+    git log "$last_tag"..HEAD --pretty=format:"* %s" \
+      | grep -E "^\* (chore|docs|refactor|test|style|perf|build|ci)" \
+      | sed 's/^\* [^:]*: /* /'
+  else
+    echo "*(No other changes)*"
+  fi
+
+  echo ""
+  echo "### Breaking Changes"
+  if git log "$last_tag"..HEAD --pretty=format:"* %s" | grep -qE "(BREAKING CHANGE|!)"; then
+    git log "$last_tag"..HEAD --pretty=format:"* %s" | grep -E "(BREAKING CHANGE|!)" | sed 's/^/* /'
+  else
+    echo "*(None)*"
+  fi
+
+  echo ""
+  echo "### Full Changelog"
+  echo "[\`$last_tag...$new_version\`](https://github.com/Colorado-Mesh/mesh-client/compare/$last_tag...$new_version)"
+
+  echo ""
+  print_header "========================================"
+  echo "-> Copy the text above and paste it into your GitHub Release"
+}
+
 # Function to detect version bump from conventional commits
 detect_version_bump() {
   local last_tag="$1"
@@ -32,22 +93,18 @@ detect_version_bump() {
   local has_feat=false
   local has_other=false
 
-  # Check for BREAKING CHANGE in commit bodies
   if echo "$commits" | grep -q "BREAKING CHANGE:"; then
     has_breaking=true
   fi
 
-  # Check for conventional commit types with ! suffix (breaking)
   if echo "$commits" | grep -qE "^(feat|fix|chore|docs|refactor|test|style|perf|build|ci)!\s*:"; then
     has_breaking=true
   fi
 
-  # Check for feat commits
   if echo "$commits" | grep -qE "^feat\s*:"; then
     has_feat=true
   fi
 
-  # Check for any conventional commit (including fix, chore, docs, etc.)
   if echo "$commits" | grep -qE "^(feat|fix|chore|docs|refactor|test|style|perf|build|ci)\s*:"; then
     has_other=true
   fi
@@ -63,12 +120,6 @@ detect_version_bump() {
   fi
 }
 
-# Function to get commit details for summary
-get_commit_summary() {
-  local last_tag="$1"
-  git log "$last_tag"..HEAD --pretty=format:"%s" 2> /dev/null | head -20
-}
-
 # 1. Check if a version argument was provided or auto-detect
 VERSION_TYPE=""
 AUTO_DETECT=false
@@ -77,18 +128,15 @@ if [ -z "$1" ] || [ "$1" = "--auto" ]; then
   AUTO_DETECT=true
 elif [ "$1" = "patch" ] || [ "$1" = "minor" ] || [ "$1" = "major" ]; then
   VERSION_TYPE="$1"
+elif [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  VERSION_TYPE="$1"
 else
-  # Check if it's a valid version number (x.x.x format)
-  if [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    VERSION_TYPE="$1"
-  else
-    echo "Usage: ./release.sh [patch|minor|major|x.x.x|--auto]"
-    echo "       ./release.sh                    # Auto-detect from commits"
-    echo "       ./release.sh --auto             # Explicit auto-detect"
-    echo "       ./release.sh minor               # Force minor release"
-    echo "       ./release.sh 2.0.0               # Force specific version"
-    exit 1
-  fi
+  echo "Usage: ./release.sh [patch|minor|major|x.x.x|--auto]"
+  echo "       ./release.sh                    # Auto-detect from commits"
+  echo "       ./release.sh --auto             # Explicit auto-detect"
+  echo "       ./release.sh minor              # Force minor release"
+  echo "       ./release.sh 2.0.0              # Force specific version"
+  exit 1
 fi
 
 # 2. Ensure we are on the main branch and up to date
@@ -128,9 +176,27 @@ fi
 # 6. Get current version from package.json
 CURRENT_VERSION=$(node -p "require('./package.json').version")
 
-# 7. Calculate new version
+# 7. Calculate new version preview
 if [ -z "$VERSION_TYPE" ]; then
   VERSION_TYPE="$DETECTED_BUMP"
+fi
+
+# Preview the new version
+if [ "$VERSION_TYPE" = "major" ]; then
+  MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+  NEW_VERSION_PREVIEW="$((MAJOR + 1)).0.0"
+elif [ "$VERSION_TYPE" = "minor" ]; then
+  MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+  MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+  NEW_VERSION_PREVIEW="$MAJOR.$((MINOR + 1)).0"
+elif [[ "$VERSION_TYPE" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  NEW_VERSION_PREVIEW="$VERSION_TYPE"
+else
+  # patch
+  MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
+  MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
+  PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
+  NEW_VERSION_PREVIEW="$MAJOR.$MINOR.$((PATCH + 1))"
 fi
 
 # 8. Show summary and prompt for confirmation
@@ -146,64 +212,26 @@ fi
 
 echo ""
 echo -e "${BOLD}Version bump analysis:${NC}"
-
 if [ "$AUTO_DETECT" = true ]; then
-  # Show per-commit analysis for auto-detect
-  while IFS= read -r commit; do
-    commit_type=""
-    if echo "$commit" | grep -qE "^(feat|fix|chore|docs|refactor|test|style|perf|build|ci)!\s*:"; then
-      commit_type="MAJOR (!)"
-    elif echo "$commit" | grep -qE "^feat\s*:"; then
-      commit_type="minor"
-    elif echo "$commit" | grep -qE "^(fix|chore|docs|refactor|test|style|perf|build|ci)\s*:"; then
-      commit_type="patch"
-    else
-      commit_type="patch"
-    fi
-    printf "  %-45s → %s\n" "${commit:0:45}" "$commit_type"
-  done < <(echo "$COMMITS_SINCE_TAG" | head -10)
+  echo "  Auto-detected: $VERSION_TYPE"
 else
   echo "  User specified: $VERSION_TYPE"
 fi
 
 echo ""
-echo -e "${BOLD}Detected version bump:${NC} $VERSION_TYPE"
-
-if [ "$VERSION_TYPE" = "major" ]; then
-  echo -e "${RED}  This is a BREAKING CHANGE release${NC}"
-elif [ "$VERSION_TYPE" = "minor" ]; then
-  echo -e "${YELLOW}  This includes new features${NC}"
-else
-  echo -e "${GREEN}  This is a patch release${NC}"
-fi
-
-echo ""
 echo -e "${BOLD}Release summary:${NC}"
 echo "  Current version: $CURRENT_VERSION"
-echo "  Bump type:       $VERSION_TYPE"
+echo "  New version:     v$NEW_VERSION_PREVIEW"
+echo ""
 
-# Preview the version bump
 if [ "$VERSION_TYPE" = "major" ]; then
-  MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
-  MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
-  PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
-  NEW_VERSION_PREVIEW="$((MAJOR + 1)).0.0"
+  echo -e "${RED}  -> This is a BREAKING CHANGE release${NC}"
 elif [ "$VERSION_TYPE" = "minor" ]; then
-  MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
-  MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
-  PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
-  NEW_VERSION_PREVIEW="$MAJOR.$((MINOR + 1)).0"
-elif [[ "$VERSION_TYPE" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  NEW_VERSION_PREVIEW="$VERSION_TYPE"
+  echo -e "${YELLOW}  -> This includes new features${NC}"
 else
-  # patch
-  MAJOR=$(echo "$CURRENT_VERSION" | cut -d. -f1)
-  MINOR=$(echo "$CURRENT_VERSION" | cut -d. -f2)
-  PATCH=$(echo "$CURRENT_VERSION" | cut -d. -f3)
-  NEW_VERSION_PREVIEW="$MAJOR.$MINOR.$((PATCH + 1))"
+  echo -e "${GREEN}  -> This is a patch release${NC}"
 fi
 
-echo "  New version:     v$NEW_VERSION_PREVIEW (preview)"
 echo ""
 echo -e "${BOLD}Continue with release?${NC} [y/N]"
 read -r CONFIRM
@@ -212,6 +240,9 @@ if [ "$CONFIRM" != "y" ] && [ "$CONFIRM" != "Y" ]; then
   print_warning "Release cancelled."
   exit 0
 fi
+
+# ====================== Generate release notes ======================
+generate_release_notes "$LAST_TAG" "v$NEW_VERSION_PREVIEW"
 
 # 9. Bump version
 print_header "Bumping version..."
