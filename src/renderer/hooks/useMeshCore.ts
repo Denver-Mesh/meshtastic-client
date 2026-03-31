@@ -1248,6 +1248,15 @@ export function useMeshCore() {
           prevSnap.get(base.node_id)?.last_heard,
         );
         const node: MeshNode = { ...base, last_heard };
+        const prevNode = prevSnap.get(node.node_id);
+        const prevHwModel = prevNode?.hw_model;
+        const mergedHwModel =
+          prevHwModel && prevHwModel !== 'None' && prevHwModel !== 'Unknown'
+            ? prevHwModel
+            : node.hw_model;
+        if (mergedHwModel !== node.hw_model) {
+          node.hw_model = mergedHwModel;
+        }
         nextNodes.set(node.node_id, node);
         pubKeyMapRef.current.set(node.node_id, contact.publicKey);
         const prefix = Array.from(contact.publicKey.slice(0, 6))
@@ -1280,12 +1289,19 @@ export function useMeshCore() {
               row.last_advert,
               prevSnap.get(row.node_id)?.last_heard,
             );
+            const newHwModel = CONTACT_TYPE_LABELS[row.contact_type] ?? 'Unknown';
+            const prevNode = prevSnap.get(row.node_id);
+            const prevHwModel = prevNode?.hw_model;
+            const mergedHwModel =
+              prevHwModel && prevHwModel !== 'None' && prevHwModel !== 'Unknown'
+                ? prevHwModel
+                : newHwModel;
             nextNodes.set(row.node_id, {
               node_id: row.node_id,
               long_name:
                 row.nickname ?? row.adv_name ?? `Node-${row.node_id.toString(16).toUpperCase()}`,
               short_name: '',
-              hw_model: CONTACT_TYPE_LABELS[row.contact_type] ?? 'Unknown',
+              hw_model: mergedHwModel,
               battery: 0,
               snr: row.last_snr ?? 0,
               rssi: row.last_rssi ?? 0,
@@ -1464,9 +1480,14 @@ export function useMeshCore() {
           if (applyAdvertName) {
             persistOut.persistAdvName = advNameTrim;
           }
+          const advertType = typeof d.type === 'number' && Number.isFinite(d.type) ? d.type : -1;
+          const newHwModel =
+            advertType >= 0 ? (CONTACT_TYPE_LABELS[advertType] ?? 'Unknown') : existing.hw_model;
+          const typeChanged = advertType >= 0 && newHwModel !== existing.hw_model;
           next.set(nodeId, {
             ...existing,
             last_heard: lastHeard,
+            hw_model: typeChanged ? newHwModel : existing.hw_model,
             latitude: hasLat ? d.advLat! / MESHCORE_COORD_SCALE : existing.latitude,
             longitude: hasLon ? d.advLon! / MESHCORE_COORD_SCALE : existing.longitude,
             ...(nick
@@ -1475,6 +1496,13 @@ export function useMeshCore() {
                 ? { long_name: advNameTrim, short_name: '' }
                 : {}),
           });
+          if (typeChanged) {
+            void window.electronAPI.db
+              .updateMeshcoreContactType(nodeId, advertType)
+              .catch((e: unknown) => {
+                console.warn('[useMeshCore] updateMeshcoreContactType error', e);
+              });
+          }
           return next;
         });
         if (
@@ -1563,7 +1591,10 @@ export function useMeshCore() {
           // update path: only refresh last_heard in memory; DB last_advert is written next time event 128 fires
           persist129.kind = 'update';
           const next = new Map(prev);
-          next.set(nodeId, { ...existing, last_heard: nowSec });
+          next.set(nodeId, {
+            ...existing,
+            last_heard: Math.max(existing.last_heard ?? 0, nowSec),
+          });
           return next;
         });
         if (persist129.kind === 'insert') {
@@ -1731,7 +1762,10 @@ export function useMeshCore() {
                 const node = prev.get(senderId);
                 if (!node) return prev;
                 const next = new Map(prev);
-                next.set(senderId, { ...node, last_heard: d.senderTimestamp });
+                next.set(senderId, {
+                  ...node,
+                  last_heard: Math.max(node.last_heard ?? 0, d.senderTimestamp),
+                });
                 return next;
               });
             }
@@ -1867,7 +1901,10 @@ export function useMeshCore() {
             const node = prev.get(senderId);
             if (!node) return prev;
             const next = new Map(prev);
-            next.set(senderId, { ...node, last_heard: d.senderTimestamp });
+            next.set(senderId, {
+              ...node,
+              last_heard: Math.max(node.last_heard ?? 0, d.senderTimestamp),
+            });
             return next;
           });
         }
@@ -1952,7 +1989,7 @@ export function useMeshCore() {
                   const next = new Map(prev);
                   next.set(senderId, {
                     ...existing,
-                    last_heard: nowSec,
+                    last_heard: Math.max(existing.last_heard ?? 0, nowSec),
                     snr: snr,
                     rssi: rssi,
                   });

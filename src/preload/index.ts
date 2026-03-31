@@ -126,6 +126,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
         advLon,
         advName,
       ),
+    updateMeshcoreContactType: (nodeId: number, contactType: number) =>
+      ipcRenderer.invoke('db:updateMeshcoreContactType', nodeId, contactType),
     updateMeshcoreContactLastRf: (nodeId: number, lastSnr: number, lastRssi: number) =>
       ipcRenderer.invoke('db:updateMeshcoreContactLastRf', nodeId, lastSnr, lastRssi),
     updateMeshcoreMessageStatus: (packetId: number, status: string) =>

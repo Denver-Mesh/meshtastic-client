@@ -3310,6 +3310,22 @@ ipcMain.handle(
   },
 );
 
+ipcMain.handle('db:updateMeshcoreContactType', (_e, nodeId: number, contactType: number) => {
+  try {
+    const safeNodeId = safeNonNegativeInt(nodeId);
+    const safeType = safeNonNegativeInt(contactType);
+    getDatabase()
+      .prepareOnce('UPDATE meshcore_contacts SET contact_type = ? WHERE node_id = ?')
+      .run(safeType, safeNodeId);
+  } catch (err) {
+    console.error(
+      '[IPC] db:updateMeshcoreContactType error:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
 ipcMain.handle(
   'db:updateMeshcoreContactLastRf',
   (_e, nodeId: number, lastSnr: number, lastRssi: number) => {

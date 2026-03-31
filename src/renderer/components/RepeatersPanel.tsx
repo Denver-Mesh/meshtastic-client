@@ -178,6 +178,11 @@ export default function RepeatersPanel({
       (a, b) => normalizeLastHeardMs(b.last_heard ?? 0) - normalizeLastHeardMs(a.last_heard ?? 0),
     );
 
+  useEffect(() => {
+    if (nodes.size === 0) return;
+    console.debug('[RepeatersPanel] nodes=', nodes.size, 'repeatersCount=', repeaters.length);
+  }, [nodes.size, repeaters.length]);
+
   const repeatersFiltered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return repeaters;
@@ -202,7 +207,7 @@ export default function RepeatersPanel({
   const remoteAuthReady = meshcoreIsRepeaterRemoteAuthTouched();
 
   useEffect(() => {
-    if (!isConnected || repeaterIdsKey.length === 0 || !remoteAuthReady) return;
+    if (!isConnected || repeaterIdsKey.length === 0) return;
     let cancelled = false;
     const nodeIds = repeaterIdsKey
       .split(',')
@@ -229,7 +234,7 @@ export default function RepeatersPanel({
     return () => {
       cancelled = true;
     };
-  }, [isConnected, repeaterIdsKey, onRequestRepeaterStatus, remoteAuthReady]);
+  }, [isConnected, repeaterIdsKey, onRequestRepeaterStatus]);
 
   const handleStatus = async (nodeId: number) => {
     if (!(await ensureConfigured())) return;
