@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 
 import type {
   CliHistoryEntry,
@@ -46,9 +46,6 @@ interface Props {
   meshcoreCliErrors?: Map<number, string>;
   onClearCliHistory?: (nodeId: number) => void;
 }
-
-/** Delay between auto Status RPCs per repeater to avoid flooding the radio. */
-const AUTO_REPEATER_STATUS_STAGGER_MS = 1_200;
 
 function formatRelativeTime(lastHeard: number | null | undefined): string {
   if (!lastHeard) return 'Never';
@@ -185,49 +182,7 @@ export default function RepeatersPanel({
     );
   }, [repeaters, searchQuery]);
 
-  const repeaterIdsKey = useMemo(
-    () =>
-      repeaters
-        .map((r) => r.node_id)
-        .sort((a, b) => a - b)
-        .join(','),
-    [repeaters],
-  );
-
-  const meshcoreStatusRef = useRef(meshcoreNodeStatus);
-  meshcoreStatusRef.current = meshcoreNodeStatus;
-
   const remoteAuthReady = meshcoreIsRepeaterRemoteAuthTouched();
-
-  useEffect(() => {
-    if (!isConnected || repeaterIdsKey.length === 0) return;
-    let cancelled = false;
-    const nodeIds = repeaterIdsKey
-      .split(',')
-      .map((s) => Number(s))
-      .filter((n) => n > 0);
-    void (async () => {
-      for (const nodeId of nodeIds) {
-        if (cancelled) return;
-        const st = meshcoreStatusRef.current.get(nodeId);
-        if (st !== undefined && Number.isFinite(st.lastSnr)) continue;
-        await new Promise((r) => {
-          setTimeout(r, AUTO_REPEATER_STATUS_STAGGER_MS);
-        });
-        if (cancelled) return;
-        const again = meshcoreStatusRef.current.get(nodeId);
-        if (again !== undefined && Number.isFinite(again.lastSnr)) continue;
-        try {
-          await onRequestRepeaterStatus(nodeId);
-        } catch {
-          // catch-no-log-ok auto-fetch is best-effort; per-row Status shows errors
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isConnected, repeaterIdsKey, onRequestRepeaterStatus]);
 
   const handleStatus = async (nodeId: number) => {
     if (!(await ensureConfigured())) return;
