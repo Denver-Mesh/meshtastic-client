@@ -15,7 +15,8 @@ import {
   meshcoreClearRepeaterRemoteSessionAuth,
   meshcoreIsRepeaterRemoteAuthTouched,
 } from '../lib/meshcoreUtils';
-import { normalizeLastHeardMs } from '../lib/nodeStatus';
+import { getNodeStatus, normalizeLastHeardMs } from '../lib/nodeStatus';
+import { useRadioProvider } from '../lib/radio/providerFactory';
 import type { MeshNode } from '../lib/types';
 import { useCoordFormatStore } from '../stores/coordFormatStore';
 import { useRepeaterSignalStore } from '../stores/repeaterSignalStore';
@@ -46,18 +47,8 @@ interface Props {
   onClearCliHistory?: (nodeId: number) => void;
 }
 
-const STALE_THRESHOLD_MS = 15 * 60 * 1000;
 /** Delay between auto Status RPCs per repeater to avoid flooding the radio. */
 const AUTO_REPEATER_STATUS_STAGGER_MS = 1_200;
-
-function getRepeaterStatus(lastHeard: number | null | undefined): 'active' | 'stale' | 'unknown' {
-  if (!lastHeard) return 'unknown';
-  const lastMs = normalizeLastHeardMs(lastHeard);
-  if (!lastMs) return 'unknown';
-  const ageMs = Date.now() - lastMs;
-  if (ageMs < 0) return 'unknown';
-  return ageMs < STALE_THRESHOLD_MS ? 'active' : 'stale';
-}
 
 function formatRelativeTime(lastHeard: number | null | undefined): string {
   if (!lastHeard) return 'Never';
@@ -171,6 +162,8 @@ export default function RepeatersPanel({
   const [cliLoadingSet, setCliLoadingSet] = useState<Set<number>>(new Set());
   const [cliUseSavedPath, setCliUseSavedPath] = useState<Map<number, boolean>>(new Map());
   const [searchQuery, setSearchQuery] = useState('');
+
+  const { nodeStaleThresholdMs, nodeOfflineThresholdMs } = useRadioProvider('meshcore');
 
   const repeaters = Array.from(nodes.values())
     .filter((n) => n.hw_model === 'Repeater')
@@ -500,7 +493,11 @@ export default function RepeatersPanel({
                 {repeatersFiltered.map((node) => {
                   const status = meshcoreNodeStatus.get(node.node_id);
                   const traceResult = meshcoreTraceResults.get(node.node_id);
-                  const repeaterStatus = getRepeaterStatus(node.last_heard);
+                  const repeaterStatus = getNodeStatus(
+                    node.last_heard,
+                    nodeStaleThresholdMs,
+                    nodeOfflineThresholdMs,
+                  );
                   const history = signalHistory.get(node.node_id) ?? [];
                   const airPct =
                     status?.totalAirTimeSecs && status?.totalUpTimeSecs
@@ -543,7 +540,7 @@ export default function RepeatersPanel({
                           <span className="flex items-center gap-1.5">
                             <span
                               className={`h-2 w-2 rounded-full ${
-                                repeaterStatus === 'active'
+                                repeaterStatus === 'online'
                                   ? 'bg-green-500'
                                   : repeaterStatus === 'stale'
                                     ? 'bg-amber-500'
@@ -552,18 +549,18 @@ export default function RepeatersPanel({
                             />
                             <span
                               className={
-                                repeaterStatus === 'active'
+                                repeaterStatus === 'online'
                                   ? 'text-xs text-green-400'
                                   : repeaterStatus === 'stale'
                                     ? 'text-xs text-amber-400'
                                     : 'text-xs text-gray-500'
                               }
                             >
-                              {repeaterStatus === 'active'
-                                ? 'Active'
+                              {repeaterStatus === 'online'
+                                ? 'Online'
                                 : repeaterStatus === 'stale'
                                   ? 'Stale'
-                                  : '—'}
+                                  : 'Offline'}
                             </span>
                           </span>
                         </td>
