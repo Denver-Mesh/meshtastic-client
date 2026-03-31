@@ -483,6 +483,7 @@ describe('ChatPanel accessibility', () => {
 
   it('shows role="alert" when onSend rejects', async () => {
     const user = userEvent.setup();
+    const consoleErrorSpy = vi.spyOn(console, 'error');
     const onSend = vi.fn().mockRejectedValue(new Error('send failed'));
     render(
       <ToastProvider>
@@ -496,6 +497,11 @@ describe('ChatPanel accessibility', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('send failed');
     });
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[ChatPanel]'),
+      expect.any(Error),
+    );
+    consoleErrorSpy.mockRestore();
   });
 });
 
