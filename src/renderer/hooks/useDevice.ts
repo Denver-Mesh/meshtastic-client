@@ -985,6 +985,7 @@ export function useDevice() {
           longName?: string;
           shortName?: string;
           hwModel?: number;
+          role?: number;
         };
         updateNodes((prev) => {
           const updated = new Map(prev);
@@ -1001,6 +1002,7 @@ export function useDevice() {
             long_name,
             short_name,
             hw_model: String(user.hwModel ?? existing.hw_model),
+            role: user.role ?? existing.role,
             // User packets are often replayed from the device DB at connect; do not
             // bump last_hear to now or offline nodes appear freshly heard.
             last_heard: existing.last_heard,
