@@ -1174,9 +1174,6 @@ export default function App() {
                         isActive={activePanelIndex === 1}
                         onGlobalSearch={handleOpenGlobalSearch}
                         protocol={protocol}
-                        onImportContact={
-                          protocol === 'meshcore' ? meshcoreDevice.importContact : undefined
-                        }
                       />
                     </Suspense>
                   </div>

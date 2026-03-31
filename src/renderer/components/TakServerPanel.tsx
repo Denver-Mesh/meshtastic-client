@@ -242,26 +242,34 @@ export default function TakServerPanel({ atakMessages, capabilities }: Props) {
       )}
 
       {/* ATAK Plugin Messages from Mesh */}
-      {capabilities?.hasAtakPlugin && atakMessages && atakMessages.size > 0 && (
+      {capabilities?.hasAtakPlugin && (
         <div className="bg-secondary-dark space-y-3 rounded-lg p-4">
           <h3 className="text-sm font-medium text-gray-300">
-            ATAK Plugin Messages (
-            {Array.from(atakMessages.values()).reduce((sum, arr) => sum + arr.length, 0)})
+            ATAK Plugin Messages
+            {atakMessages && atakMessages.size > 0 && (
+              <span className="ml-2 text-gray-500">
+                ({Array.from(atakMessages.values()).reduce((sum, arr) => sum + arr.length, 0)})
+              </span>
+            )}
           </h3>
           <p className="text-xs text-gray-400">
             ATAK plugin packets received from mesh nodes with ATAK plugin enabled.
           </p>
-          <ul className="space-y-1.5">
-            {Array.from(atakMessages.entries()).map(([nodeId, messages]) => (
-              <li key={nodeId} className="flex items-center gap-2 text-xs text-gray-300">
-                <span className="font-mono">!{nodeId.toString(16).padStart(8, '0')}</span>
-                <span className="text-gray-500">
-                  {messages.length} packet{messages.length !== 1 ? 's' : ''} · last{' '}
-                  {formatTimeAgo(messages[messages.length - 1]?.timestamp ?? 0)}
-                </span>
-              </li>
-            ))}
-          </ul>
+          {atakMessages && atakMessages.size > 0 ? (
+            <ul className="space-y-1.5">
+              {Array.from(atakMessages.entries()).map(([nodeId, messages]) => (
+                <li key={nodeId} className="flex items-center gap-2 text-xs text-gray-300">
+                  <span className="font-mono">!{nodeId.toString(16).padStart(8, '0')}</span>
+                  <span className="text-gray-500">
+                    {messages.length} packet{messages.length !== 1 ? 's' : ''} · last{' '}
+                    {formatTimeAgo(messages[messages.length - 1]?.timestamp ?? 0)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-gray-500">No ATAK plugin messages received from mesh.</p>
+          )}
         </div>
       )}
 

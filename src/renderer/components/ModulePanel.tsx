@@ -238,7 +238,13 @@ function ModuleStatus({
   packets?: Map<number, { from: number; data: Uint8Array; timestamp: number }[]>;
   label: string;
 }) {
-  if (!packets || packets.size === 0) return null;
+  if (!packets || packets.size === 0) {
+    return (
+      <div className="rounded bg-gray-800/50 px-3 py-2 text-xs">
+        <span className="text-gray-500">{label}: No packets received</span>
+      </div>
+    );
+  }
   const total = Array.from(packets.values()).reduce((sum, arr) => sum + arr.length, 0);
   const latest = Math.max(
     ...Array.from(packets.values()).flatMap((arr) => arr.map((p) => p.timestamp)),
@@ -250,6 +256,18 @@ function ModuleStatus({
         {formatTimeAgo(latest)})
       </span>
     </div>
+  );
+}
+
+function StatusOnlySection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <details className="group bg-deep-black/50 rounded-lg border border-gray-700">
+      <summary className="flex cursor-pointer items-center justify-between rounded-lg px-4 py-3 font-medium text-gray-200 transition-colors hover:bg-gray-800">
+        <span>{title}</span>
+        <span className="text-xs text-gray-500">Read-only</span>
+      </summary>
+      <div className="space-y-3 px-4 pb-4">{children}</div>
+    </details>
   );
 }
 
@@ -734,6 +752,15 @@ export default function ModulePanel({
         />
       </ModuleSection>
 
+      {/* ═══ IP Tunnel ═══ */}
+      <StatusOnlySection title="IP Tunnel">
+        <ModuleStatus packets={ipTunnelMessages} label="IP Tunnel" />
+        <p className="text-muted text-xs">
+          IP Tunnel packets forward network traffic through the mesh. Configure tunnel settings in
+          the device network configuration.
+        </p>
+      </StatusOnlySection>
+
       {/* ═══ MQTT Relay Module ═══ */}
       <ModuleSection
         title="MQTT Relay (Device-Side)"
@@ -845,6 +872,15 @@ export default function ModulePanel({
           description="How often to broadcast pax counter readings. 0 = use default."
         />
       </ModuleSection>
+
+      {/* ═══ Remote Hardware ═══ */}
+      <StatusOnlySection title="Remote Hardware">
+        <ModuleStatus packets={remoteHardwareMessages} label="GPIO" />
+        <p className="text-muted text-xs">
+          GPIO messages are received automatically when enabled on the device. Configure GPIO pins
+          in the device hardware settings.
+        </p>
+      </StatusOnlySection>
 
       {/* ═══ Range Test Module ═══ */}
       <ModuleSection
@@ -1117,38 +1153,6 @@ export default function ModulePanel({
           onChange={setTelAirQualityEnabled}
           disabled={disabled}
         />
-      </ModuleSection>
-
-      {/* ═══ Remote Hardware (GPIO) ═══ */}
-      <ModuleSection
-        title="Remote Hardware"
-        onApply={() => {
-          addToast('Remote Hardware requires device-side GPIO configuration.', 'info');
-        }}
-        applying={false}
-        disabled={disabled}
-      >
-        <ModuleStatus packets={remoteHardwareMessages} label="GPIO" />
-        <p className="text-muted text-xs">
-          GPIO messages are received automatically when enabled on the device. Configure GPIO pins
-          in the device hardware settings.
-        </p>
-      </ModuleSection>
-
-      {/* ═══ IP Tunnel ═══ */}
-      <ModuleSection
-        title="IP Tunnel"
-        onApply={() => {
-          addToast('IP Tunnel requires device-side network configuration.', 'info');
-        }}
-        applying={false}
-        disabled={disabled}
-      >
-        <ModuleStatus packets={ipTunnelMessages} label="IP Tunnel" />
-        <p className="text-muted text-xs">
-          IP Tunnel packets forward network traffic through the mesh. Configure tunnel settings in
-          the device network configuration.
-        </p>
       </ModuleSection>
     </div>
   );
