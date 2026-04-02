@@ -157,13 +157,20 @@
       "usb"
     ],
     "overrides": {
+      "brace-expansion": "^1.1.12",
       "cacheable-request": "^10.0.0",
-      "lodash": "^4.18.0",
-      "lodash-es": "^4.18.0",
+      "js-yaml": "^4.1.1",
+      "lodash": "^4.18.1",
+      "lodash-es": "^4.18.1",
+      "markdown-it": "^14.1.1",
       "safe-buffer": "^5.2.1",
       "smol-toml": "^1.6.1",
       "tar": "^7.5.11",
       "yauzl": "^3.2.1"
-    }
+    },
+    "minimumReleaseAgeExclude": [
+      "lodash",
+      "lodash-es"
+    ]
   }
 }
