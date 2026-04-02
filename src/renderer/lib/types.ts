@@ -136,6 +136,8 @@ export interface MeshNode {
   env_lux?: number;
   env_wind_speed?: number;
   env_wind_direction?: number;
+  // Neighbor info from MQTT (session-only)
+  neighbors?: MeshNeighbor[];
 }
 
 export type RemediationCategory = 'Configuration' | 'Physical' | 'Hardware' | 'Software';

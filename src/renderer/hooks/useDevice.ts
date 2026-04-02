@@ -30,6 +30,7 @@ import type {
   ConnectionType,
   DeviceState,
   EnvironmentTelemetryPoint,
+  MeshNeighbor,
   MeshNode,
   MeshWaypoint,
   MQTTStatus,
@@ -581,9 +582,28 @@ export function useDevice() {
         node_id: number;
         from_mqtt?: boolean;
         positionWarning?: string | null;
+        neighbors?: MeshNeighbor[];
       };
       if (!nodeUpdate.node_id) return;
       console.debug(`[useDevice] MQTT node update: nodeId=${nodeUpdate.node_id}`);
+
+      // Handle neighbor info from MQTT
+      if (nodeUpdate.neighbors && nodeUpdate.neighbors.length > 0) {
+        setNeighborInfo((prev) => {
+          const existing = prev.get(nodeUpdate.node_id);
+          // Only merge if no RF neighbor info exists
+          if (existing && existing.neighbors.length > 0) {
+            return prev;
+          }
+          const updated = new Map(prev);
+          updated.set(nodeUpdate.node_id, {
+            nodeId: nodeUpdate.node_id,
+            neighbors: nodeUpdate.neighbors ?? [],
+            timestamp: Date.now(),
+          });
+          return updated;
+        });
+      }
 
       updateNodes((prev) => {
         const existing = prev.get(nodeUpdate.node_id) ?? emptyNode(nodeUpdate.node_id);

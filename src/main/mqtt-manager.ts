@@ -662,6 +662,16 @@ export class MQTTManager extends EventEmitter {
       return;
     }
 
+    if (type === 'telemetry' || type === 'TELEMETRY') {
+      this.handleJsonTelemetry(json, topic);
+      return;
+    }
+
+    if (type === 'neighborinfo' || type === 'NEIGHBORINFO') {
+      this.handleJsonNeighborInfo(json, topic);
+      return;
+    }
+
     const portnumRaw = json.portnum as number | undefined;
     if (portnumRaw === PortNum.NODEINFO_APP) {
       this.handleJsonNodeInfo(json, topic);
@@ -838,6 +848,118 @@ export class MQTTManager extends EventEmitter {
         positionWarning: null,
       });
     }
+  }
+
+  private handleJsonTelemetry(json: Record<string, unknown>, topic: string): void {
+    const from = json.from as string | undefined;
+    if (!from) {
+      console.debug(`[MQTT] JSON telemetry missing "from" field, topic=${topic}`); // log-filter-ok
+      return;
+    }
+
+    let nodeId: number;
+    if (from.startsWith('!')) {
+      const hex = from.slice(1);
+      nodeId = parseInt(hex, 16);
+      if (isNaN(nodeId)) {
+        console.debug(`[MQTT] JSON telemetry invalid from hex: ${from}`); // log-filter-ok
+        return;
+      }
+    } else {
+      const parsed = parseInt(from, 10);
+      if (isNaN(parsed)) {
+        console.debug(`[MQTT] JSON telemetry invalid from: ${from}`); // log-filter-ok
+        return;
+      }
+      nodeId = parsed;
+    }
+
+    const payload = json.payload as Record<string, unknown> | undefined;
+    if (!payload) {
+      console.debug(`[MQTT] JSON telemetry missing payload, nodeId=0x${nodeId.toString(16)}`); // log-filter-ok
+      return;
+    }
+
+    const battery_level = payload.battery_level as number | undefined;
+    const voltage = payload.voltage as number | undefined;
+    const air_util_tx = payload.air_util_tx as number | undefined;
+    const channel_utilization = payload.channel_utilization as number | undefined;
+    const uptime_seconds = payload.uptime_seconds as number | undefined;
+
+    console.debug(
+      `[MQTT] JSON telemetry: nodeId=0x${nodeId.toString(16)} battery=${battery_level} voltage=${voltage} air_util_tx=${air_util_tx} channel_util=${channel_utilization} uptime=${uptime_seconds}`,
+    ); // log-filter-ok Meshtastic MQTT logs -> App log panel
+
+    const now = Date.now();
+
+    this.emit('nodeUpdate', {
+      node_id: nodeId,
+      battery: battery_level,
+      voltage,
+      air_util_tx,
+      channel_utilization,
+      last_heard: now,
+      from_mqtt: true,
+    });
+  }
+
+  private handleJsonNeighborInfo(json: Record<string, unknown>, topic: string): void {
+    const from = json.from as string | undefined;
+    if (!from) {
+      console.debug(`[MQTT] JSON neighborinfo missing "from" field, topic=${topic}`); // log-filter-ok
+      return;
+    }
+
+    let nodeId: number;
+    if (from.startsWith('!')) {
+      const hex = from.slice(1);
+      nodeId = parseInt(hex, 16);
+      if (isNaN(nodeId)) {
+        console.debug(`[MQTT] JSON neighborinfo invalid from hex: ${from}`); // log-filter-ok
+        return;
+      }
+    } else {
+      const parsed = parseInt(from, 10);
+      if (isNaN(parsed)) {
+        console.debug(`[MQTT] JSON neighborinfo invalid from: ${from}`); // log-filter-ok
+        return;
+      }
+      nodeId = parsed;
+    }
+
+    const payload = json.payload as Record<string, unknown> | undefined;
+    if (!payload) {
+      console.debug(`[MQTT] JSON neighborinfo missing payload, nodeId=0x${nodeId.toString(16)}`); // log-filter-ok
+      return;
+    }
+
+    const neighbors = payload.neighbors as { node_id: number; snr: number }[] | undefined;
+    if (!neighbors) {
+      console.debug(
+        `[MQTT] JSON neighborinfo missing neighbors array, nodeId=0x${nodeId.toString(16)}`,
+      ); // log-filter-ok
+      return;
+    }
+
+    console.debug(
+      `[MQTT] JSON neighborinfo: nodeId=0x${nodeId.toString(16)} neighbors=${neighbors.length}`,
+    ); // log-filter-ok Meshtastic MQTT logs -> App log panel
+
+    const now = Date.now();
+
+    // Convert to MeshNeighbor format (camelCase)
+    const meshNeighbors = neighbors.map((n) => ({
+      nodeId: n.node_id,
+      snr: n.snr,
+      lastRxTime: now,
+    }));
+
+    this.emit('nodeUpdate', {
+      node_id: nodeId,
+      neighbors: meshNeighbors,
+      last_heard: now,
+      from_mqtt: true,
+    });
   }
 
   private handleDecoded(

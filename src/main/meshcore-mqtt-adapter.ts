@@ -31,8 +31,9 @@ function buildMeshcoreUrlForLog(settings: MQTTSettings): string {
 
 /** Time allowed for TCP/TLS/WebSocket + MQTT CONNACK (slow networks, captive portals). */
 const MESHCORE_MQTT_CONNECT_ACK_MS = 30_000;
-/** Send WebSocket-level ping frames so LB/proxy idle timers see traffic at ~15s intervals. */
-const MESHCORE_MQTT_WSS_PING_MS = 15_000;
+/** Send WebSocket-level ping frames so LB/proxy idle timers see traffic at ~10s intervals. */
+const MESHCORE_MQTT_WSS_PING_MS = 10_000;
+const MESHCORE_MQTT_RESCHEDULE_MS = 60_000;
 /** Reconnect delay base/cap — mirrors MQTTManager. */
 const MESHCORE_MQTT_RECONNECT_IMMEDIATE_MS = 500;
 const MESHCORE_MQTT_RECONNECT_10_MINUTE_DELAY_MS = 600_000;
@@ -52,6 +53,9 @@ export class MeshcoreMqttAdapter extends EventEmitter {
   private pingRespLogged = false;
   private retryCount = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private wssRescheduleTimer: ReturnType<typeof setInterval> | null = null;
+  private lastConnected: number | null = null;
+  private disconnectCount = 0;
 
   getStatus(): MQTTStatus {
     return this.status;
@@ -82,6 +86,27 @@ export class MeshcoreMqttAdapter extends EventEmitter {
     }
   }
 
+  private clearWssReschedule(): void {
+    if (this.wssRescheduleTimer) {
+      clearInterval(this.wssRescheduleTimer);
+      this.wssRescheduleTimer = null;
+    }
+  }
+
+  private startWssReschedule(): void {
+    this.clearWssReschedule();
+    this.wssRescheduleTimer = setInterval(() => {
+      if (!this.client?.connected) return;
+      const s = this.client?.stream as { ping?: () => void; _reschedule?: () => void } | undefined;
+      try {
+        s?.ping?.();
+        s?._reschedule?.();
+      } catch {
+        // catch-no-log-ok ws ping after teardown
+      }
+    }, MESHCORE_MQTT_RESCHEDULE_MS);
+  }
+
   private setError(message: string): void {
     this.status = 'error';
     this.emit('status', 'error');
@@ -91,6 +116,7 @@ export class MeshcoreMqttAdapter extends EventEmitter {
   disconnect(): void {
     this.clearConnectTimers();
     this.clearWssPing();
+    this.clearWssReschedule();
     this.clearReconnectTimer();
     this.retryCount = 0;
     if (this.client) {
@@ -206,32 +232,42 @@ export class MeshcoreMqttAdapter extends EventEmitter {
       console.debug('[MeshcoreMqttAdapter] CONNACK received', new Date().toISOString());
       this.clientIdStr = this.client?.options?.clientId ?? '';
       this.retryCount = 0;
+      this.lastConnected = Date.now();
       this.setStatus('connected');
       this.emit('clientId', this.clientIdStr);
-      const base = normalizePrefix(settings.topicPrefix || 'msh');
-      const subTopic = `${base}/#`;
-      this.client!.subscribe(subTopic, (err) => {
-        if (err) {
-          if (this.connectAbortByWatchdog) {
-            this.connectAbortByWatchdog = false;
+      // Add small delay before resubscribing to allow broker to stabilize
+      setTimeout(() => {
+        if (this.status !== 'connected' || !this.client) return;
+        const base = normalizePrefix(settings.topicPrefix || 'msh');
+        const subTopic = `${base}/#`;
+        this.client.subscribe(subTopic, (err: Error | null) => {
+          if (err) {
+            if (this.connectAbortByWatchdog) {
+              this.connectAbortByWatchdog = false;
+              return;
+            }
+            // Cascade after transport teardown (e.g. keepalive) — user already got `error`.
+            if (/^connection closed$/i.test(err.message.trim())) {
+              console.debug(
+                '[MeshcoreMqttAdapter] subscribe skipped (connection closed)',
+                sanitizeLogMessage(subTopic),
+              );
+              return;
+            }
+            const detail = `Subscribe to ${subTopic} failed: ${err.message}`;
+            console.warn('[MeshcoreMqttAdapter] subscribe warning', sanitizeLogMessage(detail));
+            this.emit('subscribeWarning', detail);
             return;
           }
-          // Cascade after transport teardown (e.g. keepalive) — user already got `error`.
-          if (/^connection closed$/i.test(err.message.trim())) {
-            console.debug(
-              '[MeshcoreMqttAdapter] subscribe skipped (connection closed)',
-              sanitizeLogMessage(subTopic),
-            );
-            return;
-          }
-          const detail = `Subscribe to ${subTopic} failed: ${err.message}`;
-          console.warn('[MeshcoreMqttAdapter] subscribe warning', sanitizeLogMessage(detail));
-          this.emit('subscribeWarning', detail);
-          return;
-        }
-        console.debug('[MeshcoreMqttAdapter] subscribe callback OK', sanitizeLogMessage(subTopic));
-      });
+          console.debug(
+            '[MeshcoreMqttAdapter] subscribe callback OK',
+            sanitizeLogMessage(subTopic),
+          );
+        });
+      }, 500);
+      // Start periodic rescheduling for keepalive
       if (settings.useWebSocket) {
+        // Fast ping every 10s to keep LB/proxy connections alive
         this.clearWssPing();
         this.wssPingTimer = setInterval(() => {
           const s = this.client?.stream as { ping?: () => void } | undefined;
@@ -241,6 +277,8 @@ export class MeshcoreMqttAdapter extends EventEmitter {
             // catch-no-log-ok ws ping after teardown
           }
         }, MESHCORE_MQTT_WSS_PING_MS);
+        // Also start the 60s reschedule timer
+        this.startWssReschedule();
       }
     });
     this.client.on('packetsend', (packet) => {
@@ -292,8 +330,15 @@ export class MeshcoreMqttAdapter extends EventEmitter {
     });
     this.client.on('close', () => {
       this.clearWssPing();
+      this.clearWssReschedule();
       this.clearConnectTimers();
-      console.debug('[MeshcoreMqttAdapter] connection closed', new Date().toISOString());
+      const now = Date.now();
+      this.disconnectCount++;
+      const sessionDuration = this.lastConnected ? now - this.lastConnected : 0;
+      console.debug(
+        `[MeshcoreMqttAdapter] connection closed after ${Math.round(sessionDuration / 1000)}s (disconnect #${this.lastConnected ? this.disconnectCount : 'first'})`,
+        new Date().toISOString(),
+      );
       const skipReconnect =
         this.status === 'disconnected' || this.status === 'error' || !this.lastSettings;
       if (this.status === 'connected' || this.status === 'connecting') {
