@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 import type {
   ElectronAPI,
+  MeshNode,
   NobleBleConnectResult,
   NobleBleDevice,
   NobleBleSessionId,
@@ -207,9 +208,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.on('mqtt:warning', handler);
       return () => ipcRenderer.off('mqtt:warning', handler);
     },
-    onNodeUpdate: (cb: (node: unknown) => void) => {
+    onNodeUpdate: (
+      cb: (
+        node: Partial<MeshNode> & { node_id: number; protocol?: 'meshtastic' | 'meshcore' },
+      ) => void,
+    ) => {
       const handler = (_: unknown, n: unknown) => {
-        cb(n);
+        cb(n as Partial<MeshNode> & { node_id: number; protocol?: 'meshtastic' | 'meshcore' });
       };
       ipcRenderer.on('mqtt:node-update', handler);
       return () => ipcRenderer.off('mqtt:node-update', handler);

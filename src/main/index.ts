@@ -1880,7 +1880,8 @@ mqttManager.on('clientId', (id) => {
     );
 });
 mqttManager.on('nodeUpdate', (n) => {
-  if (mainWindow) mainWindow.webContents.send('mqtt:node-update', n);
+  if (mainWindow)
+    mainWindow.webContents.send('mqtt:node-update', { ...n, protocol: 'meshtastic' as const });
   else console.debug('[main] mqtt:node-update dropped (mainWindow not ready)');
   takServerManager?.onNodeUpdate(n);
 });

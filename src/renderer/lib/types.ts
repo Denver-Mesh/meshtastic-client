@@ -435,7 +435,11 @@ declare global {
         onWarning: (
           cb: (payload: { warning: string; protocol: 'meshtastic' | 'meshcore' }) => void,
         ) => () => void;
-        onNodeUpdate: (cb: (node: Partial<MeshNode> & { node_id: number }) => void) => () => void;
+        onNodeUpdate: (
+          cb: (
+            node: Partial<MeshNode> & { node_id: number; protocol?: 'meshtastic' | 'meshcore' },
+          ) => void,
+        ) => () => void;
         onMessage: (cb: (msg: Omit<ChatMessage, 'id'>) => void) => () => void;
         onClientId: (
           cb: (payload: { clientId: string; protocol: 'meshtastic' | 'meshcore' }) => void,

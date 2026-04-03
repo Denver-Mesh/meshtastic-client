@@ -1,5 +1,8 @@
 // Single source of truth for the Electron context bridge API surface.
+import type { MeshNode } from '../renderer/lib/types';
 import type { TAKClientInfo, TAKServerStatus, TAKSettings } from './tak-types';
+
+export type { MeshNode };
 //
 // Rules for maintaining this file:
 // - Every method here must have a matching ipcMain.handle/on in src/main/index.ts
@@ -241,7 +244,11 @@ export interface ElectronAPI {
     onWarning: (
       cb: (payload: { warning: string; protocol: 'meshtastic' | 'meshcore' }) => void,
     ) => () => void;
-    onNodeUpdate: (cb: (node: unknown) => void) => () => void;
+    onNodeUpdate: (
+      cb: (
+        node: Partial<MeshNode> & { node_id: number; protocol?: 'meshtastic' | 'meshcore' },
+      ) => void,
+    ) => () => void;
     onMessage: (cb: (msg: unknown) => void) => () => void;
     onClientId: (
       cb: (payload: { clientId: string; protocol: 'meshtastic' | 'meshcore' }) => void,

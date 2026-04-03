@@ -581,10 +581,17 @@ export function useDevice() {
       const nodeUpdate = rawNode as Partial<MeshNode> & {
         node_id: number;
         from_mqtt?: boolean;
+        protocol?: 'meshtastic' | 'meshcore';
         positionWarning?: string | null;
         neighbors?: MeshNeighbor[];
       };
       if (!nodeUpdate.node_id) return;
+
+      // Skip if protocol doesn't match current mode (backward compat: no protocol = process)
+      if (nodeUpdate.protocol && nodeUpdate.protocol !== getStoredMeshProtocol()) {
+        return;
+      }
+
       console.debug(`[useDevice] MQTT node update: nodeId=${nodeUpdate.node_id}`);
 
       // Handle neighbor info from MQTT
