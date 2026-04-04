@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { createChatStubNode, emptyNode } from './useDevice';
 
 describe('emptyNode', () => {
-  it('generates a long_name as the hex node ID with ! prefix', () => {
+  it('generates an empty long_name until identity is received from the mesh', () => {
     const node = emptyNode(0xabcd1234);
-    expect(node.long_name).toBe('!abcd1234');
+    expect(node.long_name).toBe('');
   });
 
   it('uses an empty short_name until identity is received from the mesh', () => {
@@ -13,15 +13,15 @@ describe('emptyNode', () => {
     expect(node.short_name).toBe('');
   });
 
-  it('zero-pads node IDs shorter than 8 hex digits', () => {
+  it('handles the minimum node ID', () => {
     const node = emptyNode(0x0000007f);
-    expect(node.long_name).toBe('!0000007f');
+    expect(node.long_name).toBe('');
     expect(node.short_name).toBe('');
   });
 
   it('handles the maximum 32-bit node ID', () => {
     const node = emptyNode(0xffffffff);
-    expect(node.long_name).toBe('!ffffffff');
+    expect(node.long_name).toBe('');
     expect(node.short_name).toBe('');
   });
 
@@ -39,20 +39,18 @@ describe('emptyNode', () => {
     expect(node.longitude).toBe(null);
   });
 
-  it('produces different long names for different node IDs', () => {
+  it('produces identical empty long names for different node IDs', () => {
     const a = emptyNode(0xaaaaaaaa);
     const b = emptyNode(0xbbbbbbbb);
-    expect(a.long_name).not.toBe(b.long_name);
+    expect(a.long_name).toBe('');
     expect(a.short_name).toBe('');
     expect(b.short_name).toBe('');
   });
 
-  it('chat stub nodes use the standard !hex long_name and an empty short_name', () => {
+  it('chat stub nodes use empty long_name and short_name', () => {
     const nodeId = 0x6985e7fc;
     const stub = createChatStubNode(nodeId, 'rf');
-    // deleteNodesWithoutLongname keeps RF placeholder stubs (source=rf); MQTT
-    // placeholder stubs (source=mqtt) are pruned. Stubs no longer need "RF !".
-    expect(stub.long_name).toBe('!6985e7fc');
+    expect(stub.long_name).toBe('');
     expect(stub.short_name).toBe('');
   });
 
