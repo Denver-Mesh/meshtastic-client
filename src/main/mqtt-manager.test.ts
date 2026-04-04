@@ -856,4 +856,110 @@ describe('onMessage — JSON position', () => {
     expect(update.latitude).toBe(35.0);
     expect(update.longitude).toBe(-90.0);
   });
+
+  it('handles JSON position with numeric from field (Meshtastic firmware JSON format)', () => {
+    const nodeId = 0x12ab34cd;
+    const json = {
+      type: 'position',
+      from: nodeId, // number, not string
+      latitude: 39.7392,
+      longitude: -104.9903,
+    };
+    const payload = Buffer.from(JSON.stringify(json));
+
+    const updates: unknown[] = [];
+    manager.on('nodeUpdate', (u) => updates.push(u));
+
+    (manager as any).onMessage('msh/US/CO/2/json/LongFast/!12ab34cd', payload);
+
+    expect(updates).toHaveLength(1);
+    const update = updates[0] as Record<string, unknown>;
+    expect(update.node_id).toBe(nodeId);
+    expect(update.latitude).toBe(39.7392);
+    expect(update.longitude).toBe(-104.9903);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// onMessage — JSON nodeinfo
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('onMessage — JSON nodeinfo', () => {
+  let manager: MQTTManager;
+
+  beforeEach(() => {
+    manager = new MQTTManager();
+  });
+
+  it('emits nodeUpdate from JSON USER message with user wrapper', () => {
+    const nodeId = 0xdeadbeef;
+    const json = {
+      type: 'USER',
+      from: `!${nodeId.toString(16)}`,
+      user: {
+        longName: 'Test Node',
+        shortName: 'TST',
+        hwModel: 'TBEAM',
+        role: 0,
+      },
+    };
+    const payload = Buffer.from(JSON.stringify(json));
+
+    const updates: unknown[] = [];
+    manager.on('nodeUpdate', (u) => updates.push(u));
+
+    (manager as any).onMessage('msh/US/2/json/LongFast/!deadbeef', payload);
+
+    expect(updates).toHaveLength(1);
+    const update = updates[0] as Record<string, unknown>;
+    expect(update.node_id).toBe(nodeId);
+    expect(update.long_name).toBe('Test Node');
+    expect(update.short_name).toBe('TST');
+  });
+
+  it('handles JSON nodeinfo with numeric from field (Meshtastic firmware JSON format)', () => {
+    const nodeId = 0x11223344;
+    const json = {
+      type: 'USER',
+      from: nodeId, // number, not string
+      user: {
+        longName: 'Numeric From Node',
+        shortName: 'NFN',
+      },
+    };
+    const payload = Buffer.from(JSON.stringify(json));
+
+    const updates: unknown[] = [];
+    manager.on('nodeUpdate', (u) => updates.push(u));
+
+    (manager as any).onMessage('msh/US/2/json/LongFast/!11223344', payload);
+
+    expect(updates).toHaveLength(1);
+    const update = updates[0] as Record<string, unknown>;
+    expect(update.node_id).toBe(nodeId);
+    expect(update.long_name).toBe('Numeric From Node');
+    expect(update.short_name).toBe('NFN');
+  });
+
+  it('handles JSON nodeinfo with root-level name fields (no user/payload wrapper)', () => {
+    const nodeId = 0xaabbccdd;
+    // Some firmware versions emit longName/shortName at the root without a "user" wrapper
+    const json = {
+      from: nodeId,
+      longName: 'Root Level Node',
+      shortName: 'RLN',
+    };
+    const payload = Buffer.from(JSON.stringify(json));
+
+    const updates: unknown[] = [];
+    manager.on('nodeUpdate', (u) => updates.push(u));
+
+    (manager as any).onMessage('msh/US/2/json/LongFast/!aabbccdd', payload);
+
+    expect(updates).toHaveLength(1);
+    const update = updates[0] as Record<string, unknown>;
+    expect(update.node_id).toBe(nodeId);
+    expect(update.long_name).toBe('Root Level Node');
+    expect(update.short_name).toBe('RLN');
+  });
 });

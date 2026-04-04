@@ -695,38 +695,50 @@ export class MQTTManager extends EventEmitter {
     ); // log-filter-ok Meshtastic MQTT logs → App log panel
   }
 
-  private handleJsonNodeInfo(json: Record<string, unknown>, topic: string): void {
-    const from = json.from as string | undefined;
-    if (!from) {
-      console.debug(`[MQTT] JSON nodeinfo missing "from" field, topic=${topic}`); // log-filter-ok Meshtastic MQTT logs → App log panel
-      return;
+  /**
+   * Parse a node ID from the "from" field of a JSON MQTT message.
+   * Meshtastic firmware may send `from` as a decimal integer, a hex string
+   * prefixed with "!" (e.g. "!abcd1234"), or a decimal string.
+   * Returns null when the field is missing or unparseable.
+   */
+  private parseFromNodeId(fromRaw: unknown, handler: string): number | null {
+    if (fromRaw == null) {
+      console.debug(`[MQTT] JSON ${handler} missing "from" field`); // log-filter-ok Meshtastic MQTT logs → App log panel
+      return null;
     }
-
-    let nodeId: number;
-    if (from.startsWith('!')) {
-      const hex = from.slice(1);
-      nodeId = parseInt(hex, 16);
+    if (typeof fromRaw === 'number') {
+      return fromRaw;
+    }
+    if (typeof fromRaw !== 'string') {
+      console.debug(`[MQTT] JSON ${handler} unexpected from type: ${typeof fromRaw}`); // log-filter-ok Meshtastic MQTT logs → App log panel
+      return null;
+    }
+    const fromStr = fromRaw;
+    if (fromStr.startsWith('!')) {
+      const nodeId = parseInt(fromStr.slice(1), 16);
       if (isNaN(nodeId)) {
-        console.debug(`[MQTT] JSON nodeinfo invalid from hex: ${from}`); // log-filter-ok Meshtastic MQTT logs → App log panel
-        return;
+        console.debug(`[MQTT] JSON ${handler} invalid from hex: ${fromStr}`); // log-filter-ok Meshtastic MQTT logs → App log panel
+        return null;
       }
-    } else {
-      const parsed = parseInt(from, 10);
-      if (isNaN(parsed)) {
-        console.debug(`[MQTT] JSON nodeinfo invalid from: ${from}`); // log-filter-ok Meshtastic MQTT logs → App log panel
-        return;
-      }
-      nodeId = parsed;
+      return nodeId;
     }
+    const nodeId = parseInt(fromStr, 10);
+    if (isNaN(nodeId)) {
+      console.debug(`[MQTT] JSON ${handler} invalid from: ${fromStr}`); // log-filter-ok Meshtastic MQTT logs → App log panel
+      return null;
+    }
+    return nodeId;
+  }
+
+  private handleJsonNodeInfo(json: Record<string, unknown>, topic: string): void {
+    const nodeId = this.parseFromNodeId(json.from, `nodeinfo topic=${topic}`);
+    if (nodeId === null) return;
 
     const user = json.user as Record<string, unknown> | undefined;
     const payload = json.payload as Record<string, unknown> | undefined;
-    const userData = user ?? payload;
-
-    if (!userData || typeof userData !== 'object') {
-      console.debug(`[MQTT] JSON nodeinfo missing user/payload, nodeId=0x${nodeId.toString(16)}`); // log-filter-ok Meshtastic MQTT logs → App log panel
-      return;
-    }
+    // Fall back to the root JSON object when node info fields are at the top level
+    // (no "user" or "payload" wrapper) — some firmware versions omit the wrapper.
+    const userData = user ?? payload ?? json;
 
     const longName = (userData.longName ??
       userData.long_name ??
@@ -769,28 +781,8 @@ export class MQTTManager extends EventEmitter {
   }
 
   private handleJsonPosition(json: Record<string, unknown>, topic: string): void {
-    const from = json.from as string | undefined;
-    if (!from) {
-      console.debug(`[MQTT] JSON position missing "from" field, topic=${topic}`); // log-filter-ok Meshtastic MQTT logs → App log panel
-      return;
-    }
-
-    let nodeId: number;
-    if (from.startsWith('!')) {
-      const hex = from.slice(1);
-      nodeId = parseInt(hex, 16);
-      if (isNaN(nodeId)) {
-        console.debug(`[MQTT] JSON position invalid from hex: ${from}`); // log-filter-ok Meshtastic MQTT logs → App log panel
-        return;
-      }
-    } else {
-      const parsed = parseInt(from, 10);
-      if (isNaN(parsed)) {
-        console.debug(`[MQTT] JSON position invalid from: ${from}`); // log-filter-ok Meshtastic MQTT logs → App log panel
-        return;
-      }
-      nodeId = parsed;
-    }
+    const nodeId = this.parseFromNodeId(json.from, `position topic=${topic}`);
+    if (nodeId === null) return;
 
     const jsonPayload = json.payload as Record<string, unknown> | undefined;
     const data = jsonPayload ?? json;
@@ -851,28 +843,8 @@ export class MQTTManager extends EventEmitter {
   }
 
   private handleJsonTelemetry(json: Record<string, unknown>, topic: string): void {
-    const from = json.from as string | undefined;
-    if (!from) {
-      console.debug(`[MQTT] JSON telemetry missing "from" field, topic=${topic}`); // log-filter-ok
-      return;
-    }
-
-    let nodeId: number;
-    if (from.startsWith('!')) {
-      const hex = from.slice(1);
-      nodeId = parseInt(hex, 16);
-      if (isNaN(nodeId)) {
-        console.debug(`[MQTT] JSON telemetry invalid from hex: ${from}`); // log-filter-ok
-        return;
-      }
-    } else {
-      const parsed = parseInt(from, 10);
-      if (isNaN(parsed)) {
-        console.debug(`[MQTT] JSON telemetry invalid from: ${from}`); // log-filter-ok
-        return;
-      }
-      nodeId = parsed;
-    }
+    const nodeId = this.parseFromNodeId(json.from, `telemetry topic=${topic}`);
+    if (nodeId === null) return;
 
     const payload = json.payload as Record<string, unknown> | undefined;
     if (!payload) {
@@ -904,28 +876,8 @@ export class MQTTManager extends EventEmitter {
   }
 
   private handleJsonNeighborInfo(json: Record<string, unknown>, topic: string): void {
-    const from = json.from as string | undefined;
-    if (!from) {
-      console.debug(`[MQTT] JSON neighborinfo missing "from" field, topic=${topic}`); // log-filter-ok
-      return;
-    }
-
-    let nodeId: number;
-    if (from.startsWith('!')) {
-      const hex = from.slice(1);
-      nodeId = parseInt(hex, 16);
-      if (isNaN(nodeId)) {
-        console.debug(`[MQTT] JSON neighborinfo invalid from hex: ${from}`); // log-filter-ok
-        return;
-      }
-    } else {
-      const parsed = parseInt(from, 10);
-      if (isNaN(parsed)) {
-        console.debug(`[MQTT] JSON neighborinfo invalid from: ${from}`); // log-filter-ok
-        return;
-      }
-      nodeId = parsed;
-    }
+    const nodeId = this.parseFromNodeId(json.from, `neighborinfo topic=${topic}`);
+    if (nodeId === null) return;
 
     const payload = json.payload as Record<string, unknown> | undefined;
     if (!payload) {
