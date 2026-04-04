@@ -906,7 +906,7 @@ export function useDevice() {
           if (virtualNodeId !== info.myNodeNum) updated.delete(virtualNodeId);
           const existing = updated.get(info.myNodeNum);
           if (!existing) {
-            const selfNode = { ...emptyNode(info.myNodeNum), hops_away: 0 };
+            const selfNode = { ...emptyNode(info.myNodeNum), hops_away: 0, last_heard: Date.now() };
             updated.set(info.myNodeNum, selfNode);
           } else {
             const selfNode = { ...existing, hops_away: 0 };
@@ -1150,7 +1150,9 @@ export function useDevice() {
           }
 
           const lastHeardMs =
-            (info.lastHeard ?? 0) > 0 ? info.lastHeard! * 1000 : existing.last_heard;
+            (info.lastHeard ?? 0) > 0
+              ? info.lastHeard! * 1000
+              : existing.last_heard || (nodeNum === myNodeNumRef.current ? Date.now() : 0);
           const lastHeardStale =
             lastHeardMs > 0 &&
             Date.now() - lastHeardMs > MESHTASTIC_CAPABILITIES.nodeStaleThresholdMs;
