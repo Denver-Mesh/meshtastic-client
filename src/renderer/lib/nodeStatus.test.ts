@@ -23,8 +23,11 @@ describe('lastHeardToUnixSeconds', () => {
 });
 
 describe('mergeMeshcoreLastHeardFromAdvert', () => {
-  it('prefers positive device lastAdvert', () => {
-    expect(mergeMeshcoreLastHeardFromAdvert(1_700_000_100, 1_700_000_500)).toBe(1_700_000_100);
+  it('returns the more recent of device lastAdvert and previous last_heard', () => {
+    // previous is newer than device advert — live event must win
+    expect(mergeMeshcoreLastHeardFromAdvert(1_700_000_100, 1_700_000_500)).toBe(1_700_000_500);
+    // device advert is newer
+    expect(mergeMeshcoreLastHeardFromAdvert(1_700_000_500, 1_700_000_100)).toBe(1_700_000_500);
   });
 
   it('preserves previous last_heard when device advert is 0', () => {

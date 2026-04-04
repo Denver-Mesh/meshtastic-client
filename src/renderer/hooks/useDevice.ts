@@ -936,6 +936,21 @@ export function useDevice() {
 
         ensureNodeExists(meshPacket.from, 'rf');
 
+        // Bump last_heard for the sender on live (non-replay) packets.
+        if (!isConfiguringRef.current && meshPacket.from) {
+          updateNodes((prev) => {
+            const existing = prev.get(meshPacket.from);
+            if (!existing) return prev;
+            const now = meshPacket.rxTime ? meshPacket.rxTime * 1000 : Date.now();
+            if (now <= (existing.last_heard || 0)) return prev;
+            const next = new Map(prev);
+            const updated = { ...existing, last_heard: now };
+            next.set(meshPacket.from, updated);
+            void window.electronAPI.db.saveNode(updated);
+            return next;
+          });
+        }
+
         touchLastData();
         const isEcho = meshPacket.from === myNodeNumRef.current;
         let payloadText = new TextDecoder().decode(dataPacket.payload);
