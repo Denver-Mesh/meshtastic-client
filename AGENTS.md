@@ -53,7 +53,7 @@ Before writing code, read [ARCHITECTURE.md](ARCHITECTURE.md) to understand the c
 - **Development:** `pnpm run dev` (dev mode), `pnpm run build` (production build), `pnpm start` (build & start).
 - **Quality:** `pnpm run lint` (ESLint), `pnpm run format` (Prettier), `pnpm run typecheck`, `pnpm run lint:md`.
 - **Validation:** `pnpm run check:log-injection`, `pnpm run check:db-migrations`, `pnpm run check:ipc-contract`, `pnpm run check:licenses`.
-- **Testing:** `pnpm test` (watch), `pnpm run test:run` (CI mode). Example single file: `npx vitest run src/main/database.test.ts`.
+- **Testing:** `pnpm test` (watch), `pnpm run test:run` (CI mode). Example single file: `pnpm dlx vitest run src/main/database.test.ts`.
 
 ## 8. Git & PR Workflow
 
@@ -77,7 +77,7 @@ Before writing code, read [ARCHITECTURE.md](ARCHITECTURE.md) to understand the c
 3. **Log:** Add `console.debug` only if needed to trace execution flow.
 4. **Fix:** Apply minimum change needed.
 5. **Test:** Add test in same directory (`*.test.ts` or `*.test.tsx`).
-6. **Verify:** Run `npx vitest run <test-file>` and `pnpm run lint`.
+6. **Verify:** Run `pnpm dlx vitest run <test-file>` and `pnpm run lint`.
 
 - Connection bugs: `useDevice.ts` / `useMeshCore.ts`.
 - UI state bugs: matching store in `stores/`.
