@@ -7,13 +7,17 @@
 /**
  * When merging protobuf User / NodeInfo fields, `""` is not nullish and would
  * otherwise overwrite stored names. Prefer trimmed non-empty input; else fallback.
+ * Optionally checks for legacy placeholder names (!xxxxxxxx) and treats them as empty.
  */
 export function preferNonEmptyTrimmedString(
   preferred: string | undefined | null,
   fallback: string,
+  options?: { nodeId?: number },
 ): string {
-  const t = preferred?.trim();
-  return t ? t : fallback;
+  const t = (preferred === '' ? undefined : preferred)?.trim();
+  if (!t) return fallback;
+  if (options?.nodeId && isPlaceholderLongName(t, options.nodeId)) return fallback;
+  return t;
 }
 
 export function isPlaceholderLongName(longName: string, nodeId: number): boolean {

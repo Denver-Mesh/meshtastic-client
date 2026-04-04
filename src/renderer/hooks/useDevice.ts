@@ -626,6 +626,9 @@ export function useDevice() {
           heard_via_mqtt: true,
           source: heardViaRF ? 'rf' : 'mqtt',
           last_heard: nodeUpdate.last_heard ?? Date.now(),
+          long_name: preferNonEmptyTrimmedString(nodeUpdate.long_name, existing.long_name, {
+            nodeId: nodeUpdate.node_id,
+          }),
         };
         // Don't overwrite RF signal data with MQTT-sourced node data
         if (!heardViaRF) {
@@ -1078,7 +1081,9 @@ export function useDevice() {
         updateNodes((prev) => {
           const updated = new Map(prev);
           const existing = updated.get(packet.from) ?? emptyNode(packet.from);
-          const long_name = preferNonEmptyTrimmedString(user.longName, existing.long_name);
+          const long_name = preferNonEmptyTrimmedString(user.longName, existing.long_name, {
+            nodeId: packet.from,
+          });
           const short_name = meshtasticShortNameAfterClearingDefault(
             long_name,
             preferNonEmptyTrimmedString(user.shortName, existing.short_name),
@@ -1176,7 +1181,9 @@ export function useDevice() {
             lastHeardMs > 0 &&
             Date.now() - lastHeardMs > MESHTASTIC_CAPABILITIES.nodeStaleThresholdMs;
 
-          const long_name = preferNonEmptyTrimmedString(info.user?.longName, existing.long_name);
+          const long_name = preferNonEmptyTrimmedString(info.user?.longName, existing.long_name, {
+            nodeId: nodeNum,
+          });
           const short_name = meshtasticShortNameAfterClearingDefault(
             long_name,
             preferNonEmptyTrimmedString(info.user?.shortName, existing.short_name),
@@ -2947,11 +2954,10 @@ function parseNodeRole(val: unknown): number | undefined {
 }
 
 export function emptyNode(nodeId: number): MeshNode {
-  const hex = nodeId.toString(16).padStart(8, '0');
   return {
     node_id: nodeId,
     short_name: '',
-    long_name: `!${hex}`,
+    long_name: '',
     hw_model: '',
     snr: 0,
     battery: 0,
@@ -2973,10 +2979,9 @@ export function computeNodeInfoLastHeardMs(
 
 export function createChatStubNode(nodeId: number, source: 'rf' | 'mqtt'): MeshNode {
   const base = emptyNode(nodeId);
-  const hex = nodeId.toString(16).padStart(8, '0');
   return {
     ...base,
-    long_name: `!${hex}`,
+    long_name: '',
     short_name: '',
     source,
     heard_via_mqtt_only: source === 'mqtt',

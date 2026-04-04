@@ -20,6 +20,32 @@ describe('preferNonEmptyTrimmedString', () => {
   it('uses trimmed preferred when non-empty', () => {
     expect(preferNonEmptyTrimmedString('  Alice  ', 'keep')).toBe('Alice');
   });
+
+  it('treats empty string as undefined', () => {
+    expect(preferNonEmptyTrimmedString('', 'fallback')).toBe('fallback');
+  });
+
+  it('treats placeholder as empty when nodeId provided', () => {
+    expect(preferNonEmptyTrimmedString('!abcd1234', 'fallback', { nodeId: 0xabcd1234 })).toBe(
+      'fallback',
+    );
+  });
+
+  it('treats placeholder case-insensitively', () => {
+    expect(preferNonEmptyTrimmedString('!ABCD1234', 'fallback', { nodeId: 0xabcd1234 })).toBe(
+      'fallback',
+    );
+  });
+
+  it('keeps real name even with nodeId option', () => {
+    expect(preferNonEmptyTrimmedString("Bob's Radio", 'fallback', { nodeId: 0xabcd1234 })).toBe(
+      "Bob's Radio",
+    );
+  });
+
+  it('ignores nodeId option when preferred is empty', () => {
+    expect(preferNonEmptyTrimmedString('', 'fallback', { nodeId: 0xabcd1234 })).toBe('fallback');
+  });
 });
 
 describe('isPlaceholderLongName', () => {
