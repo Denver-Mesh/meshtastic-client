@@ -1369,19 +1369,19 @@ export default function AppPanel({
             </button>
             <button
               type="button"
-              aria-label="Prune Zero/Null Island Nodes Removes nodes at or near 0°N, 0°E (invalid GPS)."
+              aria-label="Prune No-Fix / Zero Island Nodes Removes nodes with null or near-zero coordinates (no GPS fix or at 0 deg N, 0 deg E)."
               onClick={() => {
                 const zeroIslandNodes = Array.from(nodes.values()).filter(
                   (n) => Math.abs(n.latitude ?? 0) < 0.5 && Math.abs(n.longitude ?? 0) < 0.5,
                 );
                 if (zeroIslandNodes.length === 0) {
-                  addToast('No zero/null island nodes found.', 'success');
+                  addToast('No no-fix or zero-island nodes found.', 'success');
                   return;
                 }
                 executeWithConfirmation({
-                  name: 'Prune Zero Island Nodes',
-                  title: 'Prune Zero/Null Island Nodes',
-                  message: `This will permanently delete ${zeroIslandNodes.length} node${zeroIslandNodes.length !== 1 ? 's' : ''} with coordinates at or near 0°N, 0°E (invalid GPS). This cannot be undone.`,
+                  name: 'Prune No-Fix / Zero Island Nodes',
+                  title: 'Prune No-Fix / Zero Island Nodes',
+                  message: `This will permanently delete ${zeroIslandNodes.length} node${zeroIslandNodes.length !== 1 ? 's' : ''} with null or near-zero coordinates (no GPS fix or Zero Island). This cannot be undone.`,
                   confirmLabel: `Delete ${zeroIslandNodes.length} Node${zeroIslandNodes.length !== 1 ? 's' : ''}`,
                   danger: true,
                   action: async () => {
@@ -1393,9 +1393,9 @@ export default function AppPanel({
               }}
               className="w-full rounded-lg border border-red-800 bg-red-900/50 px-4 py-2.5 text-left text-sm font-medium text-red-300 transition-colors hover:bg-red-900/70"
             >
-              <div className="font-medium">Prune Zero/Null Island Nodes</div>
+              <div className="font-medium">Prune No-Fix / Zero Island Nodes</div>
               <div className="mt-0.5 text-xs text-red-400/70">
-                Removes nodes at or near 0°N, 0°E (invalid GPS).
+                Removes nodes with no GPS fix (null coords) or near 0°N, 0°E.
               </div>
             </button>
             <button
