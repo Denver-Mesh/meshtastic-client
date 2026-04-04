@@ -768,7 +768,7 @@ export class MQTTManager extends EventEmitter {
       long_name: longName,
       short_name: processedShortName,
       hw_model: String(hwModel),
-      role: role ?? 0,
+      ...(role !== undefined && { role }),
       last_heard: now,
       from_mqtt: true,
     };

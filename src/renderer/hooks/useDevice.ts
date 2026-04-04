@@ -507,6 +507,9 @@ export function useDevice() {
             ),
             role: parseNodeRole(n.role),
             favorited: Boolean(n.favorited),
+            // Restore MQTT-only status from persisted source so these nodes show
+            // the globe indicator and suppressed hop count until heard via RF.
+            heard_via_mqtt_only: n.source === 'mqtt',
           });
         }
         nodesRef.current = nodeMap;
@@ -2577,6 +2580,9 @@ export function useDevice() {
             ),
             role: parseNodeRole(n.role),
             favorited: Boolean(n.favorited),
+            // Restore MQTT-only status from persisted source so these nodes show
+            // the globe indicator and suppressed hop count until heard via RF.
+            heard_via_mqtt_only: n.source === 'mqtt',
           });
         }
         console.debug(`[useDevice] refreshNodesFromDb: loaded ${nodeMap.size} nodes`);
