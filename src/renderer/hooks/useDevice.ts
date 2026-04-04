@@ -626,8 +626,7 @@ export function useDevice() {
         };
         // Don't overwrite RF signal data with MQTT-sourced node data
         if (!heardViaRF) {
-          // MQTT-only: suppress RF metrics
-          node.hops_away = existing.hops_away;
+          // MQTT-only: suppress device-local RF metrics; hops_away from binary MQTT is valid
           node.snr = existing.snr;
           node.rssi = existing.rssi;
         }

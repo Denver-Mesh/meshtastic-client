@@ -609,6 +609,10 @@ export class MQTTManager extends EventEmitter {
 
       if (packetId && this.isDuplicate(packetId)) return;
 
+      const hopStart = packet.hopStart ?? 0;
+      const hopLimit = packet.hopLimit ?? 0;
+      const hopsAway = hopStart > 0 && hopLimit <= hopStart ? hopStart - hopLimit : undefined;
+
       const payloadCase = packet.payloadVariant?.case;
 
       if (payloadCase === 'decoded') {
@@ -619,7 +623,7 @@ export class MQTTManager extends EventEmitter {
         console.debug(
           `[MQTT] Decoded payload: portnum=${decoded.portnum} nodeId=0x${nodeId.toString(16)}`,
         ); // log-filter-ok Meshtastic MQTT logs → App log panel
-        this.handleDecoded(nodeId, packetId, decoded);
+        this.handleDecoded(nodeId, packetId, decoded, hopsAway);
       } else if (payloadCase === 'encrypted') {
         const encrypted = packet.payloadVariant.value;
         const decodedData = this.tryDecryptAllKeys(encrypted, packetId, nodeId);
@@ -627,7 +631,7 @@ export class MQTTManager extends EventEmitter {
           console.debug(
             `[MQTT] Decryption succeeded: portnum=${decodedData.portnum} nodeId=0x${nodeId.toString(16)}`,
           ); // log-filter-ok Meshtastic MQTT logs → App log panel
-          this.handleDecoded(nodeId, packetId, decodedData);
+          this.handleDecoded(nodeId, packetId, decodedData, hopsAway);
         }
       }
     } catch (err) {
@@ -918,6 +922,7 @@ export class MQTTManager extends EventEmitter {
     nodeId: number,
     packetId: number,
     data: { portnum?: number; payload?: Uint8Array; emoji?: number; replyId?: number },
+    hopsAway?: number,
   ): void {
     const portnum = data.portnum ?? 0;
     const payload = data.payload;
@@ -940,6 +945,7 @@ export class MQTTManager extends EventEmitter {
           role: user.role,
           last_heard: now,
           from_mqtt: true,
+          ...(hopsAway !== undefined && { hops_away: hopsAway }),
         };
         console.debug(
           `[MQTT] NODEINFO_APP: nodeId=0x${nodeId.toString(16)} longName="${long_name}" shortName="${short_name}" role=${user.role} hwModel=${user.hwModel}`,
@@ -959,7 +965,7 @@ export class MQTTManager extends EventEmitter {
           sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
         );
         this.upsertNodeCache({ node_id: nodeId, last_heard: Date.now() });
-        this.emitMinimalNodeUpdate(nodeId);
+        this.emitMinimalNodeUpdate(nodeId, hopsAway);
       }
     } else if (portnum === PortNum.POSITION_APP && payload) {
       try {
@@ -975,6 +981,7 @@ export class MQTTManager extends EventEmitter {
             positionWarning: warning,
             last_heard: Date.now(),
             from_mqtt: true,
+            ...(hopsAway !== undefined && { hops_away: hopsAway }),
           });
         } else if (pos.latitudeI || pos.longitudeI) {
           const now = Date.now();
@@ -997,11 +1004,12 @@ export class MQTTManager extends EventEmitter {
             last_heard: now,
             from_mqtt: true,
             positionWarning: null,
+            ...(hopsAway !== undefined && { hops_away: hopsAway }),
           };
           this.emit('nodeUpdate', nodeUpdate);
         } else {
           this.upsertNodeCache({ node_id: nodeId, last_heard: Date.now() });
-          this.emitMinimalNodeUpdate(nodeId);
+          this.emitMinimalNodeUpdate(nodeId, hopsAway);
         }
       } catch (e) {
         console.warn(
@@ -1010,7 +1018,7 @@ export class MQTTManager extends EventEmitter {
           sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
         );
         this.upsertNodeCache({ node_id: nodeId, last_heard: Date.now() });
-        this.emitMinimalNodeUpdate(nodeId);
+        this.emitMinimalNodeUpdate(nodeId, hopsAway);
       }
     } else if (portnum === PortNum.TEXT_MESSAGE_APP && (payload?.length || data.emoji)) {
       try {
@@ -1030,7 +1038,7 @@ export class MQTTManager extends EventEmitter {
         };
         this.emit('message', msg);
         this.upsertNodeCache({ node_id: nodeId, last_heard: Date.now() });
-        this.emitMinimalNodeUpdate(nodeId);
+        this.emitMinimalNodeUpdate(nodeId, hopsAway);
       } catch (e) {
         console.warn(
           '[MQTT] TextMessage parse failed for node',
@@ -1038,16 +1046,16 @@ export class MQTTManager extends EventEmitter {
           sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
         );
         this.upsertNodeCache({ node_id: nodeId, last_heard: Date.now() });
-        this.emitMinimalNodeUpdate(nodeId);
+        this.emitMinimalNodeUpdate(nodeId, hopsAway);
       }
     } else {
       // Unknown portnum — at least track the node as seen
       this.upsertNodeCache({ node_id: nodeId, last_heard: Date.now() });
-      this.emitMinimalNodeUpdate(nodeId);
+      this.emitMinimalNodeUpdate(nodeId, hopsAway);
     }
   }
 
-  private emitMinimalNodeUpdate(nodeId: number): void {
+  private emitMinimalNodeUpdate(nodeId: number, hopsAway?: number): void {
     const cached = this.nodeCache.get(nodeId);
     this.emit('nodeUpdate', {
       node_id: nodeId,
@@ -1056,6 +1064,7 @@ export class MQTTManager extends EventEmitter {
       ...(cached?.long_name && { long_name: cached.long_name }),
       ...(cached?.short_name && { short_name: cached.short_name }),
       ...(cached?.hw_model && { hw_model: cached.hw_model }),
+      ...(hopsAway !== undefined && { hops_away: hopsAway }),
     });
   }
 
