@@ -508,47 +508,95 @@ export default function App() {
     setSearchModalOpen(true);
   }, []);
 
-  // ─── Startup node pruning based on persisted app settings ─────
+  // ─── Startup pruning based on persisted app settings (protocol-aware) ─────
   const { refreshNodesFromDb } = device;
   useEffect(() => {
+    const startupProtocol = getStoredMeshProtocol();
     const raw =
       parseStoredJson<Record<string, unknown>>(getAppSettingsRaw(), 'App startup node pruning') ??
       {};
     const s = { ...DEFAULT_APP_SETTINGS_SHARED, ...raw };
-    const ops: Promise<unknown>[] = [
-      // One-time migration: rename legacy "RF !xxxxxxxx" stub nodes to "!xxxxxxxx"
-      window.electronAPI.db.migrateRfStubNodes().catch((e: unknown) => {
-        console.warn('[App] startup migrateRfStubNodes failed', e);
-      }),
-      // Delete nodes with last_heard = never (placeholder stubs with no data)
-      window.electronAPI.db.deleteNodesNeverHeard().catch((e: unknown) => {
-        console.warn('[App] startup deleteNodesNeverHeard failed', e);
-      }),
-    ];
-    if (s.autoPruneEnabled) {
-      const days =
-        typeof s.autoPruneDays === 'number' && s.autoPruneDays > 0 ? s.autoPruneDays : 30;
+    const ops: Promise<unknown>[] = [];
+
+    if (startupProtocol === 'meshtastic') {
       ops.push(
-        window.electronAPI.db.deleteNodesByAge(days).catch((e: unknown) => {
-          console.warn('[App] startup deleteNodesByAge failed', e);
+        // One-time migration: rename legacy "RF !xxxxxxxx" stub nodes to "!xxxxxxxx"
+        window.electronAPI.db.migrateRfStubNodes().catch((e: unknown) => {
+          console.warn('[App] startup migrateRfStubNodes failed', e);
+        }),
+        // Delete nodes with last_heard = never (placeholder stubs with no data)
+        window.electronAPI.db.deleteNodesNeverHeard().catch((e: unknown) => {
+          console.warn('[App] startup deleteNodesNeverHeard failed', e);
         }),
       );
+      if (s.autoPruneEnabled) {
+        const days =
+          typeof s.autoPruneDays === 'number' && s.autoPruneDays > 0 ? s.autoPruneDays : 30;
+        ops.push(
+          window.electronAPI.db.deleteNodesByAge(days).catch((e: unknown) => {
+            console.warn('[App] startup deleteNodesByAge failed', e);
+          }),
+        );
+      }
+      if (s.nodeCapEnabled) {
+        const cap =
+          typeof s.nodeCapCount === 'number' && s.nodeCapCount > 0 ? s.nodeCapCount : 10000;
+        ops.push(
+          window.electronAPI.db.pruneNodesByCount(cap).catch((e: unknown) => {
+            console.warn('[App] startup pruneNodesByCount failed', e);
+          }),
+        );
+      }
+      if (s.pruneEmptyNamesEnabled) {
+        ops.push(
+          window.electronAPI.db.deleteNodesWithoutLongname().catch((e: unknown) => {
+            console.warn('[App] startup deleteNodesWithoutLongname failed', e);
+          }),
+        );
+      }
+      if (s.positionHistoryPruneEnabled) {
+        const days =
+          typeof s.positionHistoryPruneDays === 'number' && s.positionHistoryPruneDays > 0
+            ? s.positionHistoryPruneDays
+            : 30;
+        ops.push(
+          window.electronAPI.db.prunePositionHistory(days).catch((e: unknown) => {
+            console.warn('[App] startup prunePositionHistory failed', e);
+          }),
+        );
+      }
+    } else if (startupProtocol === 'meshcore') {
+      if (s.meshcoreDeleteNeverAdvertised) {
+        ops.push(
+          window.electronAPI.db.deleteMeshcoreContactsNeverAdvertised().catch((e: unknown) => {
+            console.warn('[App] startup deleteMeshcoreContactsNeverAdvertised failed', e);
+          }),
+        );
+      }
+      if (s.meshcoreAutoPruneEnabled) {
+        const days =
+          typeof s.meshcoreAutoPruneDays === 'number' && s.meshcoreAutoPruneDays > 0
+            ? s.meshcoreAutoPruneDays
+            : 30;
+        ops.push(
+          window.electronAPI.db.deleteMeshcoreContactsByAge(days).catch((e: unknown) => {
+            console.warn('[App] startup deleteMeshcoreContactsByAge failed', e);
+          }),
+        );
+      }
+      if (s.meshcoreContactCapEnabled) {
+        const cap =
+          typeof s.meshcoreContactCapCount === 'number' && s.meshcoreContactCapCount > 0
+            ? s.meshcoreContactCapCount
+            : 5000;
+        ops.push(
+          window.electronAPI.db.pruneMeshcoreContactsByCount(cap).catch((e: unknown) => {
+            console.warn('[App] startup pruneMeshcoreContactsByCount failed', e);
+          }),
+        );
+      }
     }
-    if (s.nodeCapEnabled) {
-      const cap = typeof s.nodeCapCount === 'number' && s.nodeCapCount > 0 ? s.nodeCapCount : 10000;
-      ops.push(
-        window.electronAPI.db.pruneNodesByCount(cap).catch((e: unknown) => {
-          console.warn('[App] startup pruneNodesByCount failed', e);
-        }),
-      );
-    }
-    if (s.pruneEmptyNamesEnabled) {
-      ops.push(
-        window.electronAPI.db.deleteNodesWithoutLongname().catch((e: unknown) => {
-          console.warn('[App] startup deleteNodesWithoutLongname failed', e);
-        }),
-      );
-    }
+
     if (ops.length > 0) {
       void Promise.all(ops).then(() => {
         refreshNodesFromDb();

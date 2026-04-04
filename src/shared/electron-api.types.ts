@@ -153,6 +153,7 @@ export interface ElectronAPI {
     deleteNodesBySource: (source: string) => Promise<unknown>;
     migrateRfStubNodes: () => Promise<unknown>;
     deleteNodesWithoutLongname: () => Promise<unknown>;
+    prunePositionHistory: (days: number) => Promise<unknown>;
     clearNodePositions: () => Promise<unknown>;
     updateMessageReceivedVia: (packetId: number) => Promise<unknown>;
 
@@ -206,6 +207,9 @@ export interface ElectronAPI {
     getMeshcoreMessageChannels: () => Promise<{ channel: number }[]>;
     clearMeshcoreMessagesByChannel: (channelIdx: number) => Promise<unknown>;
     clearMeshcoreContacts: () => Promise<unknown>;
+    deleteMeshcoreContactsNeverAdvertised: () => Promise<unknown>;
+    deleteMeshcoreContactsByAge: (days: number) => Promise<unknown>;
+    pruneMeshcoreContactsByCount: (maxCount: number) => Promise<unknown>;
     clearMeshcoreRepeaters: () => Promise<unknown>;
     updateMeshcoreContactNickname: (nodeId: number, nickname: string | null) => Promise<unknown>;
     updateMeshcoreContactFavorited: (

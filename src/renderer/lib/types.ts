@@ -337,6 +337,7 @@ declare global {
         deleteNodesBySource: (source: string) => Promise<number>;
         migrateRfStubNodes: () => Promise<number>;
         deleteNodesWithoutLongname: () => Promise<number>;
+        prunePositionHistory: (days: number) => Promise<number>;
         clearNodePositions: () => Promise<unknown>;
         updateMessageReceivedVia: (packetId: number) => Promise<unknown>;
         saveMeshcoreMessage: (message: {
@@ -388,6 +389,9 @@ declare global {
         getMeshcoreMessageChannels: () => Promise<{ channel: number }[]>;
         clearMeshcoreMessagesByChannel: (channelIdx: number) => Promise<unknown>;
         clearMeshcoreContacts: () => Promise<unknown>;
+        deleteMeshcoreContactsNeverAdvertised: () => Promise<number>;
+        deleteMeshcoreContactsByAge: (days: number) => Promise<number>;
+        pruneMeshcoreContactsByCount: (maxCount: number) => Promise<number>;
         clearMeshcoreRepeaters: () => Promise<unknown>;
         updateMeshcoreContactNickname: (
           nodeId: number,

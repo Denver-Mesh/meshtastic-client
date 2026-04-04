@@ -74,6 +74,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     deleteNodesBySource: (source: string) => ipcRenderer.invoke('db:deleteNodesBySource', source),
     migrateRfStubNodes: () => ipcRenderer.invoke('db:migrateRfStubNodes'),
     deleteNodesWithoutLongname: () => ipcRenderer.invoke('db:deleteNodesWithoutLongname'),
+    prunePositionHistory: (days: number) => ipcRenderer.invoke('db:prunePositionHistory', days),
     clearNodePositions: () => ipcRenderer.invoke('db:clearNodePositions'),
     updateMessageReceivedVia: (packetId: number) =>
       ipcRenderer.invoke('db:updateMessageReceivedVia', packetId),
@@ -140,6 +141,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     clearMeshcoreMessagesByChannel: (channelIdx: number) =>
       ipcRenderer.invoke('db:clearMeshcoreMessagesByChannel', channelIdx),
     clearMeshcoreContacts: () => ipcRenderer.invoke('db:clearMeshcoreContacts'),
+    deleteMeshcoreContactsNeverAdvertised: () =>
+      ipcRenderer.invoke('db:deleteMeshcoreContactsNeverAdvertised'),
+    deleteMeshcoreContactsByAge: (days: number) =>
+      ipcRenderer.invoke('db:deleteMeshcoreContactsByAge', days),
+    pruneMeshcoreContactsByCount: (maxCount: number) =>
+      ipcRenderer.invoke('db:pruneMeshcoreContactsByCount', maxCount),
     clearMeshcoreRepeaters: () => ipcRenderer.invoke('db:clearMeshcoreRepeaters'),
     updateMeshcoreContactNickname: (nodeId: number, nickname: string | null) =>
       ipcRenderer.invoke('db:updateMeshcoreContactNickname', nodeId, nickname),
