@@ -2383,9 +2383,19 @@ function ChannelSection({
 
 // ─── MeshCore Channel Management Section ─────────────────────────────────
 function hexToBytes(hex: string): Uint8Array {
+  // Validate hex string
+  if (!/^[0-9a-fA-F]{32}$/.test(hex)) {
+    throw new Error('Invalid hex string. Must be exactly 32 hexadecimal characters.');
+  }
+
   const bytes = new Uint8Array(16);
   for (let i = 0; i < 16; i++) {
-    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    const byteStr = hex.slice(i * 2, i * 2 + 2);
+    const byte = parseInt(byteStr, 16);
+    if (isNaN(byte) || byte < 0 || byte > 255) {
+      throw new Error(`Invalid hex byte: ${byteStr} at position ${i}`);
+    }
+    bytes[i] = byte;
   }
   return bytes;
 }
@@ -2458,7 +2468,10 @@ function MeshcoreChannelSection({
       setEditingIdx(null);
       setAddingNew(false);
     } catch (e) {
-      console.warn('[MeshcoreChannelSection] save failed', e);
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      console.warn('[MeshcoreChannelSection] save failed', { error: e, errorMessage: errorMsg });
+      // Show error to user - could add toast notification here
+      alert(`Failed to save channel: ${errorMsg}`);
     } finally {
       setSaving(false);
     }

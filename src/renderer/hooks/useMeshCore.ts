@@ -3878,15 +3878,53 @@ export function useMeshCore() {
   }, []);
 
   const setMeshcoreChannel = useCallback(async (idx: number, name: string, secret: Uint8Array) => {
-    if (!connRef.current) return;
+    if (!connRef.current) {
+      console.warn('[useMeshCore] setMeshcoreChannel: no connection');
+      return;
+    }
+
+    // Validate parameters
+    if (!Number.isInteger(idx) || idx < 0 || idx > 39) {
+      console.warn('[useMeshCore] setMeshcoreChannel: invalid channel index', idx);
+      throw new Error(`Invalid channel index: ${idx}. Must be 0-39.`);
+    }
+
+    if (typeof name !== 'string' || name.length === 0) {
+      console.warn('[useMeshCore] setMeshcoreChannel: invalid name', name);
+      throw new Error('Channel name must be a non-empty string');
+    }
+
+    if (!(secret instanceof Uint8Array) || secret.length === 0) {
+      console.warn('[useMeshCore] setMeshcoreChannel: invalid secret', secret);
+      throw new Error('Channel secret must be a non-empty Uint8Array');
+    }
+
     try {
+      console.debug('[useMeshCore] setMeshcoreChannel calling device API', {
+        idx,
+        name,
+        secretLength: secret.length,
+        secretHex: Array.from(secret)
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join(''),
+      });
       await connRef.current.setChannel(idx, name, secret);
+      console.debug('[useMeshCore] setMeshcoreChannel device API success, updating local state');
       setChannels((prev) => {
         const next = prev.filter((c) => c.index !== idx);
         return [...next, { index: idx, name, secret }].sort((a, b) => a.index - b.index);
       });
     } catch (e) {
-      console.warn('[useMeshCore] setMeshcoreChannel error', e);
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      console.warn('[useMeshCore] setMeshcoreChannel error', {
+        error: e,
+        errorMessage: errorMsg,
+        errorType: typeof e,
+        idx,
+        name,
+        secretLength: secret?.length,
+      });
+      throw e; // Re-throw so the UI can handle it properly
     }
   }, []);
 
