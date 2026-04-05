@@ -6,15 +6,14 @@ settings:
 
 overrides:
   cacheable-request: ^10.0.0
+  js-yaml: ^4.1.1
   lodash: ^4.18.1
   lodash-es: ^4.18.1
+  markdown-it: ^14.1.1
   safe-buffer: ^5.2.1
   smol-toml: ^1.6.1
   tar: ^7.5.11
   yauzl: ^3.2.1
-  brace-expansion: ^1.1.12
-  markdown-it: ^14.1.1
-  js-yaml: ^4.1.1
 
 importers:
 
@@ -1746,6 +1745,10 @@ packages:
   balanced-match@1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
 
+  balanced-match@4.0.4:
+    resolution: {integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==}
+    engines: {node: 18 || 20 || >=22}
+
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
 
@@ -1769,6 +1772,13 @@ packages:
 
   brace-expansion@1.1.13:
     resolution: {integrity: sha512-9ZLprWS6EENmhEOpjCYW2c8VkmOvckIJZfkr7rBW6dObmfgJ/L1GpSYW5Hpo9lDz4D1+n0Ckz8rU7FwHDQiG/w==}
+
+  brace-expansion@2.0.3:
+    resolution: {integrity: sha512-MCV/fYJEbqx68aE58kv2cA/kiky1G8vux3OR6/jbS+jIMe/6fJWa0DTzJU7dqijOWYwHi1t29FlfYI9uytqlpA==}
+
+  brace-expansion@5.0.5:
+    resolution: {integrity: sha512-VZznLgtwhn+Mact9tfiwx64fA9erHH/MCXEUfB/0bX/6Fz6ny5EGTXYltMocqg4xFAQZtnO3DHWWXi8RiuN7cQ==}
+    engines: {node: 18 || 20 || >=22}
 
   braces@3.0.3:
     resolution: {integrity: sha512-yQbXgO/OSZVD2IsiLlro+7Hf6Q18EJrKSEsdoMzKePKXct3gvD8oLcOQdIzGupr5Fj+EDe8gO/lxc1BzfMpxvA==}
@@ -6269,6 +6279,8 @@ snapshots:
 
   balanced-match@1.0.2: {}
 
+  balanced-match@4.0.4: {}
+
   base64-js@1.5.1: {}
 
   baseline-browser-mapping@2.10.14: {}
@@ -6297,6 +6309,14 @@ snapshots:
     dependencies:
       balanced-match: 1.0.2
       concat-map: 0.0.1
+
+  brace-expansion@2.0.3:
+    dependencies:
+      balanced-match: 1.0.2
+
+  brace-expansion@5.0.5:
+    dependencies:
+      balanced-match: 4.0.4
 
   braces@3.0.3:
     dependencies:
@@ -8262,7 +8282,7 @@ snapshots:
 
   minimatch@10.2.5:
     dependencies:
-      brace-expansion: 1.1.13
+      brace-expansion: 5.0.5
 
   minimatch@3.1.5:
     dependencies:
@@ -8270,11 +8290,11 @@ snapshots:
 
   minimatch@5.1.9:
     dependencies:
-      brace-expansion: 1.1.13
+      brace-expansion: 2.0.3
 
   minimatch@9.0.9:
     dependencies:
-      brace-expansion: 1.1.13
+      brace-expansion: 2.0.3
 
   minimist@1.2.8: {}
 
