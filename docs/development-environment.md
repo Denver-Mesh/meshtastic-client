@@ -285,7 +285,7 @@ Use this only as a temporary escape hatch, then run the skipped checks manually 
 - **act**: run GitHub Actions locally with Linux amd64 parity:
 
 ```bash
-act --container-architecture linux/amd64
+act --container-architecture linux/amd64 -P ubuntu-latest=ghcr.io/catthehacker/ubuntu:full-latest
 ```
 
 - **actionlint**: required for local pre-commit if workflow files are touched.
