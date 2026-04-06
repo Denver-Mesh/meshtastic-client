@@ -260,6 +260,14 @@ export default function NodeDetailModal({
               </div>
               <div className="mt-0.5 flex items-center gap-2">
                 <span className="text-muted font-mono text-xs">{hexId}</span>
+                {node.hops_away != null && (
+                  <span
+                    className={`text-xs ${node.hops_away === 0 ? 'text-bright-green' : 'text-gray-400'}`}
+                    title="Hops away (path length)"
+                  >
+                    {node.hops_away} hop{node.hops_away !== 1 ? 's' : ''}
+                  </span>
+                )}
                 {node.hw_model && node.hw_model !== '0' && (
                   <span className="text-muted text-xs">{node.hw_model}</span>
                 )}
