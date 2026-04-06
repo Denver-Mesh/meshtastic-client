@@ -880,7 +880,10 @@ export function useMeshCore() {
   const [telemetry, setTelemetry] = useState<TelemetryPoint[]>([]);
   const [signalTelemetry, setSignalTelemetry] = useState<TelemetryPoint[]>([]);
   const [meshcoreTraceResults, setMeshcoreTraceResults] = useState<
-    Map<number, { hops: { snr: number }[]; lastSnr: number }>
+    Map<
+      number,
+      { pathLen: number; pathHashes: number[]; pathSnrs: number[]; lastSnr: number; tag: number }
+    >
   >(new Map());
   const [meshcoreNodeStatus, setMeshcoreNodeStatus] = useState<Map<number, MeshCoreRepeaterStatus>>(
     new Map(),
@@ -3343,23 +3346,33 @@ export function useMeshCore() {
       });
       try {
         const result = await connRef.current.tracePath([pubKey], MESHCORE_TRACE_TIMEOUT_MS);
-        const hops = (result.pathSnrs ?? []).map((raw) => {
-          const signed = raw > 127 ? raw - 256 : raw;
-          return { snr: signed * 0.25 };
-        });
         setMeshcoreTraceResults((prev) => {
           const next = new Map(prev);
-          next.set(nodeId, { hops, lastSnr: result.lastSnr * 0.25 });
+          next.set(nodeId, {
+            pathLen: result.pathLen,
+            pathHashes: result.pathHashes ?? [],
+            pathSnrs: result.pathSnrs ?? [],
+            lastSnr: result.lastSnr * 0.25,
+            tag: result.tag,
+          });
           return next;
         });
         useRepeaterSignalStore.getState().recordSignal(nodeId, result.lastSnr * 0.25);
         bumpMeshcoreNodeLastHeardFromRpc(nodeId);
         console.debug(
-          '[useMeshCore] traceRoute result: hops=',
-          hops.length,
+          '[useMeshCore] traceRoute result: pathLen=',
+          result.pathLen,
+          'pathSnrs.length=',
+          (result.pathSnrs ?? []).length,
           'lastSnr=',
           result.lastSnr * 0.25,
         );
+        // Debug: Check for unusually high hop counts that might indicate data issues
+        if (result.pathLen > 32) {
+          console.warn(
+            `[useMeshCore] Unusually high hop count detected: ${result.pathLen} hops for node ${nodeId.toString(16)}. This may indicate corrupted trace data or a very long path.`,
+          );
+        }
       } catch (e: unknown) {
         const rawErr = e instanceof Error ? e.message : String(e);
         const errMsg = rawErr && rawErr !== 'undefined' ? rawErr : 'request failed';
@@ -3683,8 +3696,8 @@ export function useMeshCore() {
       const path: Uint8Array[] = useSavedPath
         ? (() => {
             const trace = meshcoreTraceResults.get(nodeId);
-            if (!trace || trace.hops.length === 0) return [];
-            return trace.hops.map(() => pubKey);
+            if (!trace || trace.pathSnrs.length === 0) return [];
+            return trace.pathSnrs.map(() => pubKey);
           })()
         : [];
 

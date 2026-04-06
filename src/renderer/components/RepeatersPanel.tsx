@@ -28,7 +28,10 @@ interface Props {
   nodes: Map<number, MeshNode>;
   meshcoreNodeStatus: Map<number, MeshCoreRepeaterStatus>;
   meshcoreStatusErrors?: Map<number, string>;
-  meshcoreTraceResults: Map<number, { hops: { snr: number }[]; lastSnr: number }>;
+  meshcoreTraceResults: Map<
+    number,
+    { pathLen: number; pathHashes: number[]; pathSnrs: number[]; lastSnr: number; tag: number }
+  >;
   meshcorePingErrors?: Map<number, string>;
   onRequestRepeaterStatus: (nodeId: number) => Promise<void>;
   onPing: (nodeId: number) => Promise<void>;
@@ -489,7 +492,7 @@ export default function RepeatersPanel({
                   const neighborData = meshcoreNeighbors?.get(node.node_id);
                   const telemetryData = meshcoreTelemetry?.get(node.node_id);
                   const telemetryError = meshcoreTelemetryErrors?.get(node.node_id);
-                  const hasTraceResult = traceResult && traceResult.hops.length > 0;
+                  const hasTraceResult = traceResult && traceResult.pathLen > 0;
 
                   return (
                     <Fragment key={node.node_id}>
@@ -563,15 +566,14 @@ export default function RepeatersPanel({
                                   togglePath(node.node_id);
                                 }}
                                 className="text-blue-400 underline decoration-dotted hover:text-blue-300"
-                                title="Click to view path SNR detail"
                               >
-                                {traceResult.hops.length}
+                                {traceResult.pathLen} hops
                               </button>
                             ) : (
-                              traceResult.hops.length
+                              <span className="text-gray-500">—</span>
                             )
                           ) : (
-                            '—'
+                            <span className="text-gray-500">—</span>
                           )}
                         </td>
                         <td className="py-2 pr-4">{formatUptime(status?.totalUpTimeSecs)}</td>
@@ -721,12 +723,12 @@ export default function RepeatersPanel({
                             <div className="flex flex-wrap items-center gap-1 text-xs">
                               <span className="mr-1 text-gray-400">Path:</span>
                               <span className="text-brand-green">● Me</span>
-                              {traceResult.hops.map((hop, i) => (
+                              {traceResult.pathSnrs?.map((hop, i) => (
                                 <span key={i} className="flex items-center gap-1">
                                   <span className="text-gray-600">→</span>
                                   <span className="rounded bg-blue-900/40 px-1.5 py-0.5 font-mono text-blue-300">
-                                    {hop.snr > 0 ? '+' : ''}
-                                    {hop.snr.toFixed(2)} dB
+                                    {hop > 0 ? '+' : ''}
+                                    {hop.toFixed(2)} dB
                                   </span>
                                   <span className="text-gray-500">● Hop {i + 1}</span>
                                 </span>
