@@ -3357,6 +3357,14 @@ export function useMeshCore() {
           });
           return next;
         });
+        // Sync pathLen to node's hops_away so it appears in NodeListPanel
+        setNodes((prev) => {
+          const existing = prev.get(nodeId);
+          if (!existing) return prev;
+          const next = new Map(prev);
+          next.set(nodeId, { ...existing, hops_away: result.pathLen });
+          return next;
+        });
         useRepeaterSignalStore.getState().recordSignal(nodeId, result.lastSnr * 0.25);
         bumpMeshcoreNodeLastHeardFromRpc(nodeId);
       } catch (e: unknown) {
