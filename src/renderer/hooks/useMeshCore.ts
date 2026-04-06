@@ -3359,20 +3359,6 @@ export function useMeshCore() {
         });
         useRepeaterSignalStore.getState().recordSignal(nodeId, result.lastSnr * 0.25);
         bumpMeshcoreNodeLastHeardFromRpc(nodeId);
-        console.debug(
-          '[useMeshCore] traceRoute result: pathLen=',
-          result.pathLen,
-          'pathSnrs.length=',
-          (result.pathSnrs ?? []).length,
-          'lastSnr=',
-          result.lastSnr * 0.25,
-        );
-        // Debug: Check for unusually high hop counts that might indicate data issues
-        if (result.pathLen > 32) {
-          console.warn(
-            `[useMeshCore] Unusually high hop count detected: ${result.pathLen} hops for node ${nodeId.toString(16)}. This may indicate corrupted trace data or a very long path.`,
-          );
-        }
       } catch (e: unknown) {
         const rawErr = e instanceof Error ? e.message : String(e);
         const errMsg = rawErr && rawErr !== 'undefined' ? rawErr : 'request failed';
