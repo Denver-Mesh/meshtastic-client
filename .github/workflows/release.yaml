@@ -6,7 +6,7 @@ env:
 on:
   push:
     tags:
-      - 'v*'  # Trigger only on version tags like v1.0.0
+      - 'v*'
   workflow_dispatch:
 
 jobs:
@@ -56,3 +56,31 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # dist:*:publish scripts run electron-builder with --publish always
         run: ${{ matrix.build_script }}
+
+      - name: Upload macOS Artifact
+        if: matrix.os == 'macos-latest' && github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mesh-client-macos
+          path: |
+            dist/mac/*.dmg
+            dist/mac/arm64/*.dmg
+          retention-days: 30
+
+      - name: Upload Linux Artifact
+        if: matrix.os == 'ubuntu-latest' && github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mesh-client-linux
+          path: |
+            dist/linux/*.AppImage
+            dist/linux/*.rpm
+          retention-days: 30
+
+      - name: Upload Windows Artifact
+        if: matrix.os == 'windows-latest' && github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mesh-client-windows
+          path: dist/*.exe
+          retention-days: 30
