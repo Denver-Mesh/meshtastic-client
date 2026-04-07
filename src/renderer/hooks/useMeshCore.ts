@@ -3088,12 +3088,13 @@ export function useMeshCore() {
 
   const deleteNode = useCallback(async (nodeId: number) => {
     const pubKey = pubKeyMapRef.current.get(nodeId);
-    if (!pubKey || !connRef.current) return;
     console.debug('[useMeshCore] deleteNode:', nodeId.toString(16).toUpperCase());
-    try {
-      await connRef.current.removeContact(pubKey);
-    } catch (e) {
-      console.warn('[useMeshCore] removeContact error', e);
+    if (pubKey && connRef.current) {
+      try {
+        await connRef.current.removeContact(pubKey);
+      } catch (e) {
+        console.warn('[useMeshCore] removeContact error', e);
+      }
     }
     pubKeyMapRef.current.delete(nodeId);
     // Remove the 6-byte prefix mapping too
