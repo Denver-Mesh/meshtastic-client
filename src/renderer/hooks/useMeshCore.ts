@@ -3087,14 +3087,40 @@ export function useMeshCore() {
   }, [disconnect]);
 
   const deleteNode = useCallback(async (nodeId: number) => {
-    const pubKey = pubKeyMapRef.current.get(nodeId);
     console.debug('[useMeshCore] deleteNode:', nodeId.toString(16).toUpperCase());
+    let pubKey = pubKeyMapRef.current.get(nodeId);
+    if (!pubKey) {
+      console.debug('[useMeshCore] deleteNode: pubKey not in map, checking DB');
+      const dbContacts =
+        (await window.electronAPI.db.getMeshcoreContacts()) as MeshcoreContactDbRow[];
+      console.debug('[useMeshCore] deleteNode: DB has', dbContacts.length, 'contacts');
+      const dbRow = dbContacts.find((c) => c.node_id === nodeId);
+      console.debug(
+        '[useMeshCore] deleteNode: dbRow for',
+        nodeId.toString(16).toUpperCase(),
+        '=',
+        !!dbRow,
+      );
+      if (dbRow) {
+        const hex = dbRow.public_key.replace(/\s/g, '');
+        const pairs = hex.match(/.{2}/g);
+        if (pairs) {
+          pubKey = new Uint8Array(pairs.map((b) => parseInt(b, 16)));
+          console.debug('[useMeshCore] deleteNode: found pubKey in DB');
+        }
+      }
+    }
     if (pubKey && connRef.current) {
       try {
         await connRef.current.removeContact(pubKey);
+        console.debug('[useMeshCore] deleteNode: removed from radio');
       } catch (e) {
         console.warn('[useMeshCore] removeContact error', e);
       }
+    } else if (meshcoreIsChatStubNodeId(nodeId)) {
+      console.debug('[useMeshCore] deleteNode: stub node, skipping radio removal');
+    } else {
+      console.debug('[useMeshCore] deleteNode: no pubKey, skipping radio removal');
     }
     pubKeyMapRef.current.delete(nodeId);
     // Remove the 6-byte prefix mapping too
@@ -3109,7 +3135,7 @@ export function useMeshCore() {
       next.delete(nodeId);
       return next;
     });
-    void window.electronAPI.db.deleteMeshcoreContact(nodeId).catch((e: unknown) => {
+    await window.electronAPI.db.deleteMeshcoreContact(nodeId).catch((e: unknown) => {
       console.warn('[useMeshCore] deleteMeshcoreContact error', e);
     });
   }, []);
