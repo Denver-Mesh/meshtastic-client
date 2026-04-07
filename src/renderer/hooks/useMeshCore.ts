@@ -177,7 +177,7 @@ function messageToDbRow(
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-interface SerialConnectionInstance extends InstanceType<typeof SerialConnection> {}
+interface SerialConnectionInstance extends InstanceType<typeof SerialConnection> { }
 
 /** meshcore.js BLE (NUS) uses raw companion frames like Web Bluetooth — not USB serial framing. */
 interface NobleIpcMeshcoreConnectionInstance {
@@ -380,7 +380,7 @@ class IpcNobleConnection {
         rejectHandshakeOnDisconnect = reject;
       });
       // Guard against unhandled rejection if the outer withTimeout rejects before disconnect fires.
-      disconnectAbortsHandshake.catch(() => {});
+      disconnectAbortsHandshake.catch(() => { });
       const offData = window.electronAPI.onNobleBleFromRadio(({ sessionId: sid, bytes }) => {
         if (sid !== sessionId) return;
         const frame = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes as ArrayBuffer);
@@ -724,6 +724,20 @@ const MAX_TELEMETRY_POINTS = 50;
 
 const MAX_ENV_TELEMETRY_POINTS = 50;
 
+/**
+ * Normalizes an error from a MeshCore RPC call into a proper Error object.
+ * Handles edge cases like undefined errors, errors without messages, and non-Error objects.
+ */
+function normalizeMeshCoreError(e: unknown, fallbackMessage: string): Error {
+  if (e === undefined || (e instanceof Error && !e.message)) {
+    return new Error(fallbackMessage);
+  }
+  if (e instanceof Error) {
+    return e;
+  }
+  return new Error(typeof e === 'string' ? e : 'Unknown error');
+}
+
 function meshcoreMessageDedupeKey(msg: ChatMessage): string {
   const body = msg.meshcoreDedupeKey ?? msg.payload;
   return [
@@ -970,13 +984,13 @@ export function useMeshCore() {
   const processWaitingMessagesRef = useRef<(() => Promise<void>) | null>(null);
   const buildNodesFromContactsRef = useRef<
     | ((
-        contacts: MeshCoreContactRaw[],
-        opts?: {
-          self?: MeshCoreSelfInfo | null;
-          myNodeId?: number;
-          previousNodes?: Map<number, MeshNode>;
-        },
-      ) => Promise<Map<number, MeshNode>>)
+      contacts: MeshCoreContactRaw[],
+      opts?: {
+        self?: MeshCoreSelfInfo | null;
+        myNodeId?: number;
+        previousNodes?: Map<number, MeshNode>;
+      },
+    ) => Promise<Map<number, MeshNode>>)
     | null
   >(null);
 
@@ -1200,12 +1214,12 @@ export function useMeshCore() {
         const existing = next.get(resolvedId);
         const merged: MeshNode = existing
           ? {
-              ...existing,
-              long_name: m.senderName ?? existing.long_name,
-              short_name: '',
-              last_heard: Math.max(existing.last_heard ?? 0, tsSec),
-              heard_via_mqtt: true,
-            }
+            ...existing,
+            long_name: m.senderName ?? existing.long_name,
+            short_name: '',
+            last_heard: Math.max(existing.last_heard ?? 0, tsSec),
+            heard_via_mqtt: true,
+          }
           : minimalMeshcoreChatNode(resolvedId, displayName, tsSec, 'mqtt');
         next.set(resolvedId, merged);
         return next;
@@ -1374,9 +1388,9 @@ export function useMeshCore() {
         const fromSelfBattery =
           selfMv != null && Number.isFinite(selfMv)
             ? {
-                voltage: selfMv / 1000,
-                battery: meshcoreMilliVoltsToApproximateBatteryPercent(selfMv),
-              }
+              voltage: selfMv / 1000,
+              battery: meshcoreMilliVoltsToApproximateBatteryPercent(selfMv),
+            }
             : null;
         if (selfNode) {
           nextNodes.set(myNodeId, {
@@ -1703,10 +1717,10 @@ export function useMeshCore() {
             setMessages((prev) =>
               prev.map((m) =>
                 m.packetId != null &&
-                meshcoreDmAckKeyU32(m.packetId) === lateKey &&
-                m.sender_id === selfId &&
-                m.to != null &&
-                (m.status === 'sending' || m.status === 'failed')
+                  meshcoreDmAckKeyU32(m.packetId) === lateKey &&
+                  m.sender_id === selfId &&
+                  m.to != null &&
+                  (m.status === 'sending' || m.status === 'failed')
                   ? { ...m, status: 'acked' as const }
                   : m,
               ),
@@ -1834,9 +1848,9 @@ export function useMeshCore() {
                 stubId,
                 existing
                   ? {
-                      ...existing,
-                      last_heard: Math.max(existing.last_heard ?? 0, d.senderTimestamp),
-                    }
+                    ...existing,
+                    last_heard: Math.max(existing.last_heard ?? 0, d.senderTimestamp),
+                  }
                   : minimalMeshcoreChatNode(stubId, displayName, d.senderTimestamp, 'rf'),
               );
               return next;
@@ -1977,9 +1991,9 @@ export function useMeshCore() {
             stubId,
             existing
               ? {
-                  ...existing,
-                  last_heard: Math.max(existing.last_heard ?? 0, d.senderTimestamp),
-                }
+                ...existing,
+                last_heard: Math.max(existing.last_heard ?? 0, d.senderTimestamp),
+              }
               : minimalMeshcoreChatNode(stubId, displayName, d.senderTimestamp, 'rf'),
           );
           return next;
@@ -2126,7 +2140,7 @@ export function useMeshCore() {
         connRef.current = null;
         if (staleConn)
           setTimeout(() => {
-            void staleConn.close().catch(() => {});
+            void staleConn.close().catch(() => { });
           }, 0);
       });
 
@@ -2352,7 +2366,7 @@ export function useMeshCore() {
       const staleConn = connRef.current;
       connRef.current = null;
       if (staleConn) {
-        void staleConn.close().catch(() => {});
+        void staleConn.close().catch(() => { });
       }
 
       setState({
@@ -2565,7 +2579,7 @@ export function useMeshCore() {
 
         if (!conn) throw new Error('Connection initialization failed');
         if (meshcoreSetupGenerationRef.current !== setupGen) {
-          void conn.close().catch(() => {});
+          void conn.close().catch(() => { });
           throw new DOMException(MESHCORE_SETUP_ABORT_MESSAGE, 'AbortError');
         }
         await initConn(conn, setupGen);
@@ -2657,11 +2671,11 @@ export function useMeshCore() {
           console.warn(
             meshcoreBleLinuxWebBluetooth
               ? `[useMeshCore] connect: BLE Web Bluetooth timed out ${formatStructuredLogDetail({
-                  stage: bleTimeoutStage,
-                })}`
+                stage: bleTimeoutStage,
+              })}`
               : `[useMeshCore] connect: BLE Noble IPC timed out; advise retry, BLE power-cycle, or Serial/TCP fallback ${formatStructuredLogDetail(
-                  { stage: bleTimeoutStage },
-                )}`,
+                { stage: bleTimeoutStage },
+              )}`,
           );
         }
         const errForLog = serializeErrorLike(err) || '(no error object)';
@@ -2933,8 +2947,8 @@ export function useMeshCore() {
               setMessages((prev) =>
                 prev.map((m) =>
                   m.packetId != null &&
-                  meshcoreDmAckKeyU32(m.packetId) === ackKey &&
-                  m.status === 'sending'
+                    meshcoreDmAckKeyU32(m.packetId) === ackKey &&
+                    m.status === 'sending'
                     ? { ...m, status: 'failed' as const }
                     : m,
                 ),
@@ -3331,37 +3345,31 @@ export function useMeshCore() {
         console.debug('[useMeshCore] setRadioParams succeeded');
       } catch (e) {
         console.error('[useMeshCore] setRadioParams threw:', e);
-        throw e === undefined || (e instanceof Error && !e.message)
-          ? new Error(
-              'Failed to apply radio settings. The device may not support changing radio parameters over this connection.',
-            )
-          : e instanceof Error
-            ? e
-            : new Error(typeof e === 'string' ? e : 'Unknown error');
+        throw normalizeMeshCoreError(
+          e,
+          'Failed to apply radio settings. The device may not support changing radio parameters over this connection.',
+        );
       }
       try {
         await connRef.current.setTxPower(p.txPower);
         console.debug('[useMeshCore] setTxPower succeeded');
       } catch (e) {
         console.error('[useMeshCore] setTxPower threw:', e);
-        throw e === undefined || (e instanceof Error && !e.message)
-          ? new Error(
-              'Failed to set TX power. The device may not support changing it over this connection.',
-            )
-          : e instanceof Error
-            ? e
-            : new Error(typeof e === 'string' ? e : 'Unknown error');
+        throw normalizeMeshCoreError(
+          e,
+          'Failed to set TX power. The device may not support changing it over this connection.',
+        );
       }
       setSelfInfo((prev) =>
         prev
           ? {
-              ...prev,
-              radioFreq: p.freq,
-              radioBw: p.bw,
-              radioSf: p.sf,
-              radioCr: p.cr,
-              txPower: p.txPower,
-            }
+            ...prev,
+            radioFreq: p.freq,
+            radioBw: p.bw,
+            radioSf: p.sf,
+            radioCr: p.cr,
+            txPower: p.txPower,
+          }
           : prev,
       );
     },
@@ -3409,13 +3417,10 @@ export function useMeshCore() {
         }
       } catch (e) {
         console.error('[useMeshCore] setAdvertLatLong failed', { lat, lon, latInt, lonInt }, e);
-        throw e === undefined || (e instanceof Error && !e.message)
-          ? new Error(
-              'Device rejected position update — check that the device supports setting coordinates',
-            )
-          : e instanceof Error
-            ? e
-            : new Error(typeof e === 'string' ? e : 'Unknown error');
+        throw normalizeMeshCoreError(
+          e,
+          'Device rejected position update — check that the device supports setting coordinates',
+        );
       }
     },
     [selfInfo?.name, selfInfo?.type],
@@ -3821,10 +3826,10 @@ export function useMeshCore() {
 
       const path: Uint8Array[] = useSavedPath
         ? (() => {
-            const trace = meshcoreTraceResults.get(nodeId);
-            if (!trace || trace.pathSnrs.length === 0) return [];
-            return trace.pathSnrs.map(() => pubKey);
-          })()
+          const trace = meshcoreTraceResults.get(nodeId);
+          if (!trace || trace.pathSnrs.length === 0) return [];
+          return trace.pathSnrs.map(() => pubKey);
+        })()
         : [];
 
       const { token, promise } = service.registerPendingCommand(command, path);
@@ -3926,11 +3931,11 @@ export function useMeshCore() {
       setSelfInfo((prev) =>
         prev
           ? {
-              ...prev,
-              telemetryModeBase: modes.telemetryModeBase,
-              telemetryModeLoc: modes.telemetryModeLoc,
-              telemetryModeEnv: modes.telemetryModeEnv,
-            }
+            ...prev,
+            telemetryModeBase: modes.telemetryModeBase,
+            telemetryModeLoc: modes.telemetryModeLoc,
+            telemetryModeEnv: modes.telemetryModeEnv,
+          }
           : prev,
       );
     },
@@ -4291,8 +4296,8 @@ export function useMeshCore() {
     const hex =
       pk != null
         ? Array.from(pk)
-            .map((b) => b.toString(16).padStart(2, '0'))
-            .join('')
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join('')
         : null;
     setNodes((prev) => {
       const n = prev.get(nodeId);
@@ -4627,8 +4632,8 @@ export function useMeshCore() {
   }, []);
 
   // No-op stubs to satisfy the same interface shape used in App.tsx
-  const noopAsync = useCallback(async () => {}, []);
-  const noopVoid = useCallback(() => {}, []);
+  const noopAsync = useCallback(async () => { }, []);
+  const noopVoid = useCallback(() => { }, []);
 
   const requestRefresh = useCallback(async () => {
     const conn = connRef.current;
