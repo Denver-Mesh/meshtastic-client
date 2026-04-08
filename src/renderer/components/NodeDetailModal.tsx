@@ -949,7 +949,12 @@ export default function NodeDetailModal({
                     onMessageNode(node.node_id);
                     onClose();
                   }}
-                  disabled={!isConnected}
+                  disabled={!isConnected || (protocol === 'meshcore' && !contactPubkey)}
+                  title={
+                    protocol === 'meshcore' && !contactPubkey
+                      ? 'Cannot message: no encryption key. Wait for a full contact exchange or refresh contacts.'
+                      : undefined
+                  }
                   className="min-w-[8rem] flex-1 rounded-lg bg-purple-700/50 px-3 py-2 text-sm font-medium text-purple-300 transition-colors hover:bg-purple-600/50 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   💬 Message
