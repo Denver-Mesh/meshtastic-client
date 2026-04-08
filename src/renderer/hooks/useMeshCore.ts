@@ -2275,6 +2275,7 @@ export function useMeshCore() {
           self: info,
           myNodeId,
           previousNodes: nodesRef.current,
+          contactsFromRadio: true,
         }),
       );
       setNodes((prev) => mergeMeshcoreChatStubNodes(prev, newNodes));
