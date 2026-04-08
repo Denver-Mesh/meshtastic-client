@@ -118,6 +118,7 @@ export interface MeshNode {
   air_util_tx?: number;
   altitude?: number;
   favorited?: boolean;
+  on_radio?: boolean;
   // MQTT source tracking
   heard_via_mqtt_only?: boolean; // session-only: true if never heard via RF this session
   heard_via_mqtt?: boolean; // session-only: true if any MQTT update was received this session

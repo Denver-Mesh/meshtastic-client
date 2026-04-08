@@ -357,6 +357,22 @@ export default function NodeDetailModal({
                     Only in DB
                   </span>
                 )}
+                {protocol === 'meshcore' && contactOnRadio === true && contactPubkey && (
+                  <span
+                    className="shrink-0 rounded border border-green-500/30 bg-green-500/20 px-1.5 py-0.5 text-[10px] font-medium text-green-300"
+                    title="Contact synced: stored in database and on radio"
+                  >
+                    Synced
+                  </span>
+                )}
+                {protocol === 'meshcore' && contactOnRadio === true && !contactPubkey && (
+                  <span
+                    className="shrink-0 rounded border border-blue-500/30 bg-blue-500/20 px-1.5 py-0.5 text-[10px] font-medium text-blue-300"
+                    title="Contact on radio but not yet fully stored in database"
+                  >
+                    On Radio
+                  </span>
+                )}
                 {protocol === 'meshcore' &&
                   radioContactCount !== null &&
                   typeof MESHCORE_CONTACTS_CRITICAL_THRESHOLD === 'number' &&

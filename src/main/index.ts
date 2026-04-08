@@ -426,6 +426,16 @@ function validateSaveMeshcoreContact(contact: unknown): asserts contact is Recor
     if (!Number.isInteger(h) || h < 0)
       throw new Error('db:saveMeshcoreContact: hops_away must be a non-negative integer');
   }
+  if (c.on_radio != null) {
+    const o = Number(c.on_radio);
+    if (o !== 0 && o !== 1) throw new Error('db:saveMeshcoreContact: on_radio must be 0 or 1');
+  }
+  if (
+    c.last_synced_from_radio != null &&
+    (typeof c.last_synced_from_radio !== 'string' || c.last_synced_from_radio.length > 128)
+  ) {
+    throw new Error('db:saveMeshcoreContact: last_synced_from_radio must be a string <= 128');
+  }
 }
 
 function validateTakSettings(settings: unknown): asserts settings is TAKSettings {
@@ -3073,8 +3083,8 @@ ipcMain.handle('db:saveMeshcoreContact', (_event, contact) => {
     return db
       .prepareOnce(
         'INSERT INTO meshcore_contacts ' +
-          '(node_id, public_key, adv_name, contact_type, last_advert, adv_lat, adv_lon, last_snr, last_rssi, favorited, nickname, contact_flags, hops_away) ' +
-          'VALUES (@node_id, @public_key, @adv_name, @contact_type, @last_advert, @adv_lat, @adv_lon, @last_snr, @last_rssi, 0, @nickname, @contact_flags, @hops_away) ' +
+          '(node_id, public_key, adv_name, contact_type, last_advert, adv_lat, adv_lon, last_snr, last_rssi, favorited, nickname, contact_flags, hops_away, on_radio, last_synced_from_radio) ' +
+          'VALUES (@node_id, @public_key, @adv_name, @contact_type, @last_advert, @adv_lat, @adv_lon, @last_snr, @last_rssi, 0, @nickname, @contact_flags, @hops_away, @on_radio, @last_synced_from_radio) ' +
           'ON CONFLICT(node_id) DO UPDATE SET ' +
           'public_key = excluded.public_key, ' +
           "adv_name = COALESCE(NULLIF(excluded.adv_name, ''), meshcore_contacts.adv_name), " +
@@ -3087,7 +3097,9 @@ ipcMain.handle('db:saveMeshcoreContact', (_event, contact) => {
           'favorited = meshcore_contacts.favorited, ' +
           'nickname = COALESCE(excluded.nickname, meshcore_contacts.nickname), ' +
           'contact_flags = COALESCE(excluded.contact_flags, meshcore_contacts.contact_flags), ' +
-          'hops_away = COALESCE(excluded.hops_away, meshcore_contacts.hops_away)',
+          'hops_away = COALESCE(excluded.hops_away, meshcore_contacts.hops_away), ' +
+          'on_radio = COALESCE(excluded.on_radio, meshcore_contacts.on_radio), ' +
+          'last_synced_from_radio = COALESCE(excluded.last_synced_from_radio, meshcore_contacts.last_synced_from_radio)',
       )
       .run({
         node_id: Number(c.node_id),
@@ -3102,6 +3114,9 @@ ipcMain.handle('db:saveMeshcoreContact', (_event, contact) => {
         nickname: typeof c.nickname === 'string' ? c.nickname : null,
         contact_flags: c.contact_flags != null ? Number(c.contact_flags) : 0,
         hops_away: c.hops_away != null ? Number(c.hops_away) : null,
+        on_radio: c.on_radio != null ? Number(c.on_radio) : null,
+        last_synced_from_radio:
+          typeof c.last_synced_from_radio === 'string' ? c.last_synced_from_radio : null,
       });
   } catch (err) {
     console.error(

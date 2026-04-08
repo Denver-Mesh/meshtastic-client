@@ -187,6 +187,8 @@ export interface ElectronAPI {
       nickname?: string | null;
       contact_flags?: number | null;
       hops_away?: number | null;
+      on_radio?: number | null;
+      last_synced_from_radio?: string | null;
     }) => Promise<unknown>;
     updateMeshcoreContactAdvert: (
       nodeId: number,
