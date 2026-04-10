@@ -144,7 +144,10 @@ function contactToDbRow(
     adv_lon: contact.advLon !== 0 ? contact.advLon / MESHCORE_COORD_SCALE : null,
     nickname: nickname ?? null,
     contact_flags: contact.flags & 0xff,
-    hops_away: contact.outPathLen != null && contact.outPathLen >= 0 ? contact.outPathLen : null,
+    hops_away:
+      contact.outPathLen != null && contact.outPathLen >= 0 && contact.outPathLen <= 61
+        ? contact.outPathLen
+        : null,
     on_radio: onRadio ?? 0,
     last_synced_from_radio: lastSyncedFromRadio ?? null,
   };

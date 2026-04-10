@@ -186,7 +186,9 @@ export function meshcoreContactToMeshNode(contact: MeshCoreContact): MeshNode {
     latitude: lat,
     longitude: lon,
     hops_away:
-      contact.outPathLen != null && contact.outPathLen >= 0 ? contact.outPathLen : undefined,
+      contact.outPathLen != null && contact.outPathLen >= 0 && contact.outPathLen <= 61
+        ? contact.outPathLen
+        : undefined,
   };
 }
 
