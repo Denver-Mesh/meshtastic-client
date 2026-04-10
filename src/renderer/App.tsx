@@ -451,6 +451,7 @@ export default function App() {
 
   const traceRouteHops = useMemo(() => {
     if (!selectedNode) return undefined;
+    if (protocol === 'meshcore') return undefined;
     const result = device.traceRouteResults.get(selectedNode.node_id);
     if (!result) return undefined;
     return [
@@ -458,7 +459,7 @@ export default function App() {
       ...result.route.map((id) => device.getFullNodeLabel(id)),
       device.getFullNodeLabel(result.from),
     ];
-  }, [selectedNode, device]);
+  }, [selectedNode, device, protocol]);
 
   /** In meshcore mode, only show configured channels (key !== all zeros) in chat. */
   const chatChannels = useMemo(() => {

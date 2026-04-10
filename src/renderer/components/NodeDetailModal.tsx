@@ -176,6 +176,11 @@ export default function NodeDetailModal({
     if (traceRouteHops) setTraceRoutePending(false);
   }, [traceRouteHops]);
 
+  // Clear trace route pending when MeshCore result arrives
+  useEffect(() => {
+    if (meshcoreTraceResult) setTraceRoutePending(false);
+  }, [meshcoreTraceResult]);
+
   // Auto-show repeater stats when they arrive
   useEffect(() => {
     if (meshcoreRepeaterStatus) {
