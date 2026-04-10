@@ -278,6 +278,22 @@ interface DiagnosticsState {
   envMode: EnvMode;
   /** Session-only: cross-protocol foreign LoRa detections. nodeId -> senderKey -> detection (90-min window). */
   foreignLoraDetections: Map<number, Map<string, ForeignLoraDetection>>;
+  /** MeshCore hop history from database (single record per node, upsert on newer timestamp). */
+  meshcoreHopHistory: Map<
+    number,
+    { timestamp: number; hops: number | null; snr: number | null; rssi: number | null }
+  >;
+  /** MeshCore trace history from database (single record per node, upsert on newer timestamp). */
+  meshcoreTraceHistory: Map<
+    number,
+    {
+      timestamp: number;
+      pathLen: number | null;
+      pathSnrs: number[];
+      lastSnr: number | null;
+      tag: number | null;
+    }
+  >;
   /** Detections for a node in the last 90 minutes, sorted by detectedAt desc. */
   getForeignLoraDetectionsList(nodeId: number): ForeignLoraDetection[];
   processNodeUpdate(
@@ -314,6 +330,25 @@ interface DiagnosticsState {
   clearDiagnostics(): void;
   /** Clear persisted snapshot only (rows unchanged until next analysis). */
   clearDiagnosticRowsSnapshot(): void;
+  /** Load MeshCore hop/trace history from database for a node */
+  loadMeshcorePathHistory(nodeId: number): void;
+  /** Save MeshCore hop count to database (MeshCore only) */
+  saveMeshcoreHopHistory(
+    nodeId: number,
+    hops: number | null,
+    snr: number | null,
+    rssi: number | null,
+  ): Promise<void>;
+  /** Save MeshCore trace result to database (MeshCore only) */
+  saveMeshcoreTraceHistory(
+    nodeId: number,
+    pathLen: number | null,
+    pathSnrs: number[],
+    lastSnr: number | null,
+    tag: number,
+  ): Promise<void>;
+  /** Prune MeshCore path history when node goes offline */
+  pruneMeshcorePathHistory(nodeId: number): Promise<void>;
   getCuStats24h(nodeId: number): ReturnType<typeof computeCuStats24h>;
   /** Move foreign LoRa detection and RF rows from nodeId 0 to real self node (call when self ID first known). */
   migrateForeignLoraFromZero(toNodeId: number): void;
@@ -374,6 +409,8 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
   envMode: loadEnvMode(),
   diagnosticRowsMaxAgeHours: loadDiagnosticRowsMaxAgeHours(),
   foreignLoraDetections: new Map(),
+  meshcoreHopHistory: new Map(),
+  meshcoreTraceHistory: new Map(),
 
   getForeignLoraDetectionsList(nodeId: number) {
     const bySender = get().foreignLoraDetections.get(nodeId);
@@ -382,6 +419,154 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
     const list = [...bySender.values()].filter((d) => d.detectedAt >= cutoff);
     list.sort((a, b) => b.detectedAt - a.detectedAt);
     return list;
+  },
+
+  loadMeshcorePathHistory(nodeId: number) {
+    const dbApi = window.electronAPI?.db as {
+      getMeshcoreHopHistory?: (nodeId: number) => Promise<{
+        node_id: number;
+        timestamp: number;
+        hops: number | null;
+        snr: number | null;
+        rssi: number | null;
+      } | null>;
+      getMeshcoreTraceHistory?: (nodeId: number) => Promise<{
+        node_id: number;
+        timestamp: number;
+        path_len: number | null;
+        path_snrs: string | null;
+        last_snr: number | null;
+        tag: number | null;
+      } | null>;
+    } | null;
+    if (!dbApi) return;
+    try {
+      dbApi
+        .getMeshcoreHopHistory?.(nodeId)
+        .then((hopRow) => {
+          if (hopRow) {
+            set((state) => {
+              const newMap = new Map(state.meshcoreHopHistory);
+              newMap.set(nodeId, {
+                timestamp: hopRow.timestamp,
+                hops: hopRow.hops,
+                snr: hopRow.snr,
+                rssi: hopRow.rssi,
+              });
+              return { meshcoreHopHistory: newMap };
+            });
+          }
+        })
+        .catch((e: unknown) => {
+          console.warn('[diagnosticsStore] loadMeshcoreHopHistory failed', e);
+        });
+    } catch (e) {
+      console.warn('[diagnosticsStore] loadMeshcoreHopHistory failed', e);
+    }
+    try {
+      dbApi
+        .getMeshcoreTraceHistory?.(nodeId)
+        .then((traceRow) => {
+          if (traceRow) {
+            const pathSnrs = traceRow.path_snrs ? JSON.parse(traceRow.path_snrs) : [];
+            set((state) => {
+              const newMap = new Map(state.meshcoreTraceHistory);
+              newMap.set(nodeId, {
+                timestamp: traceRow.timestamp,
+                pathLen: traceRow.path_len,
+                pathSnrs,
+                lastSnr: traceRow.last_snr,
+                tag: traceRow.tag,
+              });
+              return { meshcoreTraceHistory: newMap };
+            });
+          }
+        })
+        .catch((e: unknown) => {
+          console.warn('[diagnosticsStore] loadMeshcoreTraceHistory failed', e);
+        });
+    } catch (e) {
+      console.warn('[diagnosticsStore] loadMeshcoreTraceHistory failed', e);
+    }
+  },
+
+  async saveMeshcoreHopHistory(
+    nodeId: number,
+    hops: number | null,
+    snr: number | null,
+    rssi: number | null,
+  ) {
+    const dbApi = window.electronAPI?.db as {
+      saveMeshcoreHopHistory?: (
+        nodeId: number,
+        timestamp: number,
+        hops: number | null,
+        snr: number | null,
+        rssi: number | null,
+      ) => Promise<boolean>;
+    } | null;
+    if (!dbApi) return;
+    const timestamp = Date.now();
+    try {
+      await dbApi.saveMeshcoreHopHistory?.(nodeId, timestamp, hops, snr, rssi);
+      set((state) => {
+        const newMap = new Map(state.meshcoreHopHistory);
+        newMap.set(nodeId, { timestamp, hops, snr, rssi });
+        return { meshcoreHopHistory: newMap };
+      });
+    } catch (e) {
+      console.warn('[diagnosticsStore] saveMeshcoreHopHistory failed', e);
+    }
+  },
+
+  async saveMeshcoreTraceHistory(
+    nodeId: number,
+    pathLen: number | null,
+    pathSnrs: number[],
+    lastSnr: number | null,
+    tag: number,
+  ) {
+    const dbApi = window.electronAPI?.db as {
+      saveMeshcoreTraceHistory?: (
+        nodeId: number,
+        timestamp: number,
+        pathLen: number | null,
+        pathSnrs: number[],
+        lastSnr: number | null,
+        tag: number,
+      ) => Promise<boolean>;
+    } | null;
+    if (!dbApi) return;
+    const timestamp = Date.now();
+    try {
+      await dbApi.saveMeshcoreTraceHistory?.(nodeId, timestamp, pathLen, pathSnrs, lastSnr, tag);
+      set((state) => {
+        const newMap = new Map(state.meshcoreTraceHistory);
+        newMap.set(nodeId, { timestamp, pathLen, pathSnrs, lastSnr, tag });
+        return { meshcoreTraceHistory: newMap };
+      });
+    } catch (e) {
+      console.warn('[diagnosticsStore] saveMeshcoreTraceHistory failed', e);
+    }
+  },
+
+  async pruneMeshcorePathHistory(nodeId: number) {
+    const dbApi = window.electronAPI?.db as {
+      pruneMeshcorePathHistory?: (nodeId: number) => Promise<boolean>;
+    } | null;
+    if (!dbApi) return;
+    try {
+      await dbApi.pruneMeshcorePathHistory?.(nodeId);
+      set((state) => {
+        const newHopMap = new Map(state.meshcoreHopHistory);
+        newHopMap.delete(nodeId);
+        const newTraceMap = new Map(state.meshcoreTraceHistory);
+        newTraceMap.delete(nodeId);
+        return { meshcoreHopHistory: newHopMap, meshcoreTraceHistory: newTraceMap };
+      });
+    } catch (e) {
+      console.warn('[diagnosticsStore] pruneMeshcorePathHistory failed', e);
+    }
   },
 
   processNodeUpdate(
@@ -815,6 +1000,8 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
       packetCache: new Map(),
       nodeRedundancy: new Map(),
       foreignLoraDetections: new Map(),
+      meshcoreHopHistory: new Map(),
+      meshcoreTraceHistory: new Map(),
     });
   },
 

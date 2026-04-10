@@ -3565,17 +3565,29 @@ export function useMeshCore() {
       });
       try {
         const result = await connRef.current.tracePath([pubKey], MESHCORE_TRACE_TIMEOUT_MS);
+        const convertedSnrs = (result.pathSnrs ?? []).map((s) => s * MESHCORE_RPC_SNR_RAW_TO_DB);
+        const convertedLastSnr = result.lastSnr * MESHCORE_RPC_SNR_RAW_TO_DB;
         setMeshcoreTraceResults((prev) => {
           const next = new Map(prev);
           next.set(nodeId, {
             pathLen: result.pathLen,
             pathHashes: result.pathHashes ?? [],
-            pathSnrs: (result.pathSnrs ?? []).map((s) => s * MESHCORE_RPC_SNR_RAW_TO_DB),
-            lastSnr: result.lastSnr * MESHCORE_RPC_SNR_RAW_TO_DB,
+            pathSnrs: convertedSnrs,
+            lastSnr: convertedLastSnr,
             tag: result.tag,
           });
           return next;
         });
+        // Persist trace result to database
+        void useDiagnosticsStore
+          .getState()
+          .saveMeshcoreTraceHistory(
+            nodeId,
+            result.pathLen,
+            convertedSnrs,
+            convertedLastSnr,
+            result.tag,
+          );
         // Sync pathLen to node's hops_away so it appears in NodeListPanel
         setNodes((prev) => {
           const existing = prev.get(nodeId);

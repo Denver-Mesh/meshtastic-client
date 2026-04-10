@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { formatCoordPair } from '../lib/coordUtils';
 import {
@@ -177,7 +177,16 @@ export default function NodeInfoBody({
     (s) => s.hopHistory.get(node.node_id) ?? EMPTY_HOP_HISTORY,
   );
   const nodeRedundancy = useDiagnosticsStore((s) => s.nodeRedundancy.get(node.node_id));
+  const meshcoreHopHistory = useDiagnosticsStore((s) => s.meshcoreHopHistory.get(node.node_id));
+  const meshcoreTraceHistory = useDiagnosticsStore((s) => s.meshcoreTraceHistory.get(node.node_id));
+  const loadMeshcorePathHistory = useDiagnosticsStore((s) => s.loadMeshcorePathHistory);
   const [pathHistoryOpen, setPathHistoryOpen] = useState(false);
+
+  useEffect(() => {
+    if (protocol === 'meshcore' && node.node_id) {
+      loadMeshcorePathHistory(node.node_id);
+    }
+  }, [protocol, node.node_id, loadMeshcorePathHistory]);
 
   const batteryColor =
     node.battery > 50
@@ -621,6 +630,73 @@ export default function NodeInfoBody({
                 </div>
               );
             })()}
+          </div>
+        )}
+
+        {/* MeshCore trace history from database */}
+        {protocol === 'meshcore' && (meshcoreHopHistory || meshcoreTraceHistory) && (
+          <div className="mt-2 border-t border-gray-700/50 pt-2">
+            <div className="mb-1 text-[10px] tracking-wide text-gray-500 uppercase">
+              MeshCore Path History
+            </div>
+            {meshcoreHopHistory && (
+              <div className="mb-1 text-xs">
+                <span className="text-gray-400">Hops: </span>
+                <span className="font-mono text-gray-200">{meshcoreHopHistory.hops ?? '?'}</span>
+                {meshcoreHopHistory.snr != null && (
+                  <span className="ml-2 text-gray-500">
+                    SNR {meshcoreHopHistory.snr > 0 ? '+' : ''}
+                    {meshcoreHopHistory.snr.toFixed(1)} dB
+                  </span>
+                )}
+                {meshcoreHopHistory.rssi != null && (
+                  <span className="ml-2 text-gray-500">{meshcoreHopHistory.rssi} dBm</span>
+                )}
+                <span className="ml-2 text-[10px] text-gray-600">
+                  {new Date(meshcoreHopHistory.timestamp).toLocaleTimeString()}
+                </span>
+              </div>
+            )}
+            {meshcoreTraceHistory && meshcoreTraceHistory.pathSnrs.length > 0 && (
+              <div className="bg-deep-black/50 rounded p-1.5 text-[10px]">
+                <div className="mb-0.5 text-gray-400">
+                  Trace: {meshcoreTraceHistory.pathLen} hops{' '}
+                  <span className="text-gray-600">
+                    {new Date(meshcoreTraceHistory.timestamp).toLocaleTimeString()}
+                  </span>
+                </div>
+                {meshcoreTraceHistory.pathSnrs.map((snr, i) => (
+                  <div key={i} className="flex items-center gap-2 pl-1.5">
+                    <span className="text-gray-500">Hop {i + 1}</span>
+                    <span
+                      className={`font-mono ${
+                        snr >= 5 ? 'text-green-400' : snr >= 0 ? 'text-yellow-400' : 'text-red-400'
+                      }`}
+                    >
+                      {snr > 0 ? '+' : ''}
+                      {snr.toFixed(1)} dB
+                    </span>
+                  </div>
+                ))}
+                {meshcoreTraceHistory.lastSnr != null && (
+                  <div className="mt-0.5 flex items-center gap-2 border-t border-gray-700/30 pt-0.5 pl-1.5">
+                    <span className="text-gray-500">Dest</span>
+                    <span
+                      className={`font-mono ${
+                        meshcoreTraceHistory.lastSnr >= 5
+                          ? 'text-green-400'
+                          : meshcoreTraceHistory.lastSnr >= 0
+                            ? 'text-yellow-400'
+                            : 'text-red-400'
+                      }`}
+                    >
+                      {meshcoreTraceHistory.lastSnr > 0 ? '+' : ''}
+                      {meshcoreTraceHistory.lastSnr.toFixed(1)} dB
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

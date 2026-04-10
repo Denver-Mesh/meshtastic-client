@@ -177,6 +177,36 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ) => ipcRenderer.invoke('db:savePositionHistory', nodeId, lat, lon, recordedAt, source),
     getPositionHistory: (sinceMs: number) => ipcRenderer.invoke('db:getPositionHistory', sinceMs),
     clearPositionHistory: () => ipcRenderer.invoke('db:clearPositionHistory'),
+    saveMeshcoreHopHistory: (
+      nodeId: number,
+      timestamp: number,
+      hops: number | null,
+      snr: number | null,
+      rssi: number | null,
+    ) => ipcRenderer.invoke('db:saveMeshcoreHopHistory', nodeId, timestamp, hops, snr, rssi),
+    getMeshcoreHopHistory: (nodeId: number) =>
+      ipcRenderer.invoke('db:getMeshcoreHopHistory', nodeId),
+    saveMeshcoreTraceHistory: (
+      nodeId: number,
+      timestamp: number,
+      pathLen: number | null,
+      pathSnrs: number[],
+      lastSnr: number | null,
+      tag: number,
+    ) =>
+      ipcRenderer.invoke(
+        'db:saveMeshcoreTraceHistory',
+        nodeId,
+        timestamp,
+        pathLen,
+        pathSnrs,
+        lastSnr,
+        tag,
+      ),
+    getMeshcoreTraceHistory: (nodeId: number) =>
+      ipcRenderer.invoke('db:getMeshcoreTraceHistory', nodeId),
+    pruneMeshcorePathHistory: (nodeId: number) =>
+      ipcRenderer.invoke('db:pruneMeshcorePathHistory', nodeId),
     getContactGroups: (selfNodeId: number) => ipcRenderer.invoke('db:getContactGroups', selfNodeId),
     createContactGroup: (selfNodeId: number, name: string) =>
       ipcRenderer.invoke('db:createContactGroup', selfNodeId, name),

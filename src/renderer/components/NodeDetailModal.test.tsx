@@ -37,10 +37,13 @@ vi.mock('../stores/diagnosticsStore', () => ({
       packetCache: new Map(),
       hopHistory: new Map(),
       nodeRedundancy: new Map(),
+      meshcoreHopHistory: new Map(),
+      meshcoreTraceHistory: new Map(),
       mqttIgnoredNodes: new Set<number>(),
       setNodeMqttIgnored: vi.fn(),
       getCuStats24h: () => null,
       getForeignLoraDetectionsList: () => [],
+      loadMeshcorePathHistory: vi.fn(),
     };
     return selector(store);
   },
