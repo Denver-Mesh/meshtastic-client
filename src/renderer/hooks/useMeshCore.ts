@@ -1045,86 +1045,94 @@ export function useMeshCore() {
   const fetchAndUpdateLocalStats = useCallback(async () => {
     const conn = connRef.current;
     if (!conn) return;
+    let coreStats: Awaited<ReturnType<MeshCoreConnection['getStatsCore']>>;
     try {
-      const [coreStats, radioStats, packetStats] = await Promise.all([
-        conn.getStatsCore(),
-        conn.getStatsRadio(),
-        conn.getStatsPackets(),
-      ]);
-
-      const core = coreStats.data;
-      const queueLen = core.queueLen;
-      setQueueStatus({ free: 256 - queueLen, maxlen: 256, res: 0 });
-      const radio = radioStats.data;
-      const packet = packetStats.data;
-
-      const now = Date.now();
-      let channelUtilization: number | undefined;
-      let airUtilTx: number | undefined;
-
-      if (prevTxAirSecsRef.current !== null && prevStatsTimestampRef.current !== null) {
-        const deltaTxAirSecs = radio.txAirSecs - prevTxAirSecsRef.current;
-        const deltaTimeSecs = (now - prevStatsTimestampRef.current) / 1000;
-        if (deltaTimeSecs > 0 && deltaTxAirSecs >= 0) {
-          airUtilTx = (deltaTxAirSecs / deltaTimeSecs) * 100;
-          channelUtilization = airUtilTx;
-        }
-      }
-
-      prevTxAirSecsRef.current = radio.txAirSecs;
-      prevStatsTimestampRef.current = now;
-
-      const localStats: MeshCoreLocalStats = {
-        batteryMilliVolts: core.batteryMilliVolts,
-        uptimeSecs: core.uptimeSecs,
-        queueLen,
-        noiseFloor: radio.noiseFloor,
-        lastRssi: radio.lastRssi,
-        lastSnr: radio.lastSnr,
-        txAirSecs: radio.txAirSecs,
-        rxAirSecs: radio.rxAirSecs,
-        recv: packet.recv,
-        sent: packet.sent,
-        nSentFlood: packet.nSentFlood,
-        nSentDirect: packet.nSentDirect,
-        nRecvFlood: packet.nRecvFlood,
-        nRecvDirect: packet.nRecvDirect,
-        nRecvErrors: packet.nRecvErrors ?? undefined,
-        channelUtilization,
-        airUtilTx,
-      };
-
-      const myNodeId = myNodeNumRef.current || state.myNodeNum;
-      if (myNodeId > 0) {
-        setNodes((prev) => {
-          const updated = new Map(prev);
-          const node = prev.get(myNodeId);
-          const fallbackName =
-            selfInfoRef.current?.name?.trim() || `Node-${myNodeId.toString(16).toUpperCase()}`;
-          updated.set(myNodeId, {
-            ...(node ?? {
-              node_id: myNodeId,
-              long_name: fallbackName,
-              short_name: '',
-              hw_model: 'Unknown',
-              battery: meshcoreMilliVoltsToApproximateBatteryPercent(core.batteryMilliVolts),
-              snr: radio.lastSnr,
-              rssi: radio.lastRssi,
-              last_heard: Math.floor(now / 1000),
-              latitude: null,
-              longitude: null,
-              hops_away: 0,
-            }),
-            voltage: core.batteryMilliVolts / 1000,
-            channel_utilization: channelUtilization ?? node?.channel_utilization,
-            air_util_tx: airUtilTx ?? node?.air_util_tx,
-            meshcore_local_stats: localStats,
-          });
-          return updated;
-        });
-      }
+      coreStats = await conn.getStatsCore();
     } catch (e: unknown) {
-      console.warn('[useMeshCore] fetchAndUpdateLocalStats error', e);
+      console.warn('[useMeshCore] fetchAndUpdateLocalStats getStatsCore error', e);
+      return;
+    }
+
+    const core = coreStats.data;
+    const queueLen = core.queueLen;
+    setQueueStatus({ free: 256 - queueLen, maxlen: 256, res: 0 });
+
+    let radioStats: Awaited<ReturnType<MeshCoreConnection['getStatsRadio']>>;
+    let packetStats: Awaited<ReturnType<MeshCoreConnection['getStatsPackets']>>;
+    try {
+      [radioStats, packetStats] = await Promise.all([conn.getStatsRadio(), conn.getStatsPackets()]);
+    } catch (e: unknown) {
+      console.warn('[useMeshCore] fetchAndUpdateLocalStats radio/packet error', e);
+      return;
+    }
+
+    const radio = radioStats.data;
+    const packet = packetStats.data;
+
+    const now = Date.now();
+    let channelUtilization: number | undefined;
+    let airUtilTx: number | undefined;
+
+    if (prevTxAirSecsRef.current !== null && prevStatsTimestampRef.current !== null) {
+      const deltaTxAirSecs = radio.txAirSecs - prevTxAirSecsRef.current;
+      const deltaTimeSecs = (now - prevStatsTimestampRef.current) / 1000;
+      if (deltaTimeSecs > 0 && deltaTxAirSecs >= 0) {
+        airUtilTx = (deltaTxAirSecs / deltaTimeSecs) * 100;
+        channelUtilization = airUtilTx;
+      }
+    }
+
+    prevTxAirSecsRef.current = radio.txAirSecs;
+    prevStatsTimestampRef.current = now;
+
+    const localStats: MeshCoreLocalStats = {
+      batteryMilliVolts: core.batteryMilliVolts,
+      uptimeSecs: core.uptimeSecs,
+      queueLen,
+      noiseFloor: radio.noiseFloor,
+      lastRssi: radio.lastRssi,
+      lastSnr: radio.lastSnr,
+      txAirSecs: radio.txAirSecs,
+      rxAirSecs: radio.rxAirSecs,
+      recv: packet.recv,
+      sent: packet.sent,
+      nSentFlood: packet.nSentFlood,
+      nSentDirect: packet.nSentDirect,
+      nRecvFlood: packet.nRecvFlood,
+      nRecvDirect: packet.nRecvDirect,
+      nRecvErrors: packet.nRecvErrors ?? undefined,
+      channelUtilization,
+      airUtilTx,
+    };
+
+    const myNodeId = myNodeNumRef.current || state.myNodeNum;
+    if (myNodeId > 0) {
+      setNodes((prev) => {
+        const updated = new Map(prev);
+        const node = prev.get(myNodeId);
+        const fallbackName =
+          selfInfoRef.current?.name?.trim() || `Node-${myNodeId.toString(16).toUpperCase()}`;
+        updated.set(myNodeId, {
+          ...(node ?? {
+            node_id: myNodeId,
+            long_name: fallbackName,
+            short_name: '',
+            hw_model: 'Unknown',
+            battery: meshcoreMilliVoltsToApproximateBatteryPercent(core.batteryMilliVolts),
+            snr: radio.lastSnr,
+            rssi: radio.lastRssi,
+            last_heard: Math.floor(now / 1000),
+            latitude: null,
+            longitude: null,
+            hops_away: 0,
+          }),
+          voltage: core.batteryMilliVolts / 1000,
+          channel_utilization: channelUtilization ?? node?.channel_utilization,
+          air_util_tx: airUtilTx ?? node?.air_util_tx,
+          meshcore_local_stats: localStats,
+        });
+        return updated;
+      });
     }
   }, [state.myNodeNum]);
 

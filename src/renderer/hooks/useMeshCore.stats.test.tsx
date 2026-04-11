@@ -221,4 +221,28 @@ describe('useMeshCore stats parsing', () => {
     expect(getStatsRadioMock).toHaveBeenCalled();
     expect(getStatsPacketsMock).toHaveBeenCalled();
   });
+
+  it('still hydrates queueStatus when getStatsRadio/getStatsPackets fail after getStatsCore succeeds', async () => {
+    getStatsRadioMock.mockRejectedValue(new Error('radio stats timeout'));
+    getStatsPacketsMock.mockRejectedValue(new Error('packet stats timeout'));
+
+    const port = makeMockSerialPort();
+    Object.defineProperty(navigator, 'serial', {
+      configurable: true,
+      value: {
+        requestPort: vi.fn().mockResolvedValue(port),
+      },
+    });
+
+    const { result } = renderHook(() => useMeshCore());
+
+    await act(async () => {
+      await result.current.connect('serial');
+    });
+
+    await waitFor(() => {
+      expect(result.current.state.status).toBe('configured');
+      expect(result.current.queueStatus).toEqual({ free: 249, maxlen: 256, res: 0 });
+    });
+  });
 });
