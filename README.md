@@ -334,6 +334,7 @@ Enter your broker URL, topic, and optional credentials in the MQTT section of th
 | Maps       | Leaflet + OpenStreetMap                                                                                                            |
 | Charts     | Recharts                                                                                                                           |
 | Database   | SQLite (node:sqlite built-in, via db-compat.ts shim)                                                                               |
+| AI Context | [OpenWolf](https://openwolf.com/) (.wolf/ context management)                                                                      |
 | Build      | esbuild + Vite + electron-builder                                                                                                  |
 
 ### Architecture
@@ -347,6 +348,8 @@ For a detailed explanation of every diagnostic output — routing anomalies, RF 
 ---
 
 ## Contributing / Development
+
+This project is [OpenWolf-native](https://openwolf.com/) for optimized AI context management. If you are using an AI assistant to help you contribute, see the [AI-Native Development section](docs/development-environment.md#ai-native-development-openwolf) in the Dev Guide.
 
 For full local setup (shared requirements, npm/tooling install, test harness, and OS-specific steps/troubleshooting), see [docs/development-environment.md](docs/development-environment.md).
 

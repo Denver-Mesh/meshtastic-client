@@ -56,11 +56,12 @@ Renderer tests use jsdom (`src/renderer/**/*.test.{ts,tsx}`). Main tests use nod
 
 ## AI Tools
 
-AI assistants (Claude Code, GitHub Copilot, etc.) are welcome for brainstorming and drafts. However:
+AI assistants (Claude Code, GitHub Copilot, Gemini CLI, etc.) are welcome for brainstorming and drafts. This project is [OpenWolf-native](https://openwolf.com/) for optimized AI context management. If you are using an AI assistant to help you contribute:
 
-- All AI-generated code must be reviewed and tested by a human before merging
-- Never accept AI-generated IPC code without understanding it — Electron IPC security is a known weak spot
-- Note briefly in the PR if you used an AI tool
+- **Follow OpenWolf Protocols**: Point your AI at `.wolf/OPENWOLF.md` every session to ensure it respects project-specific patterns and do-not-repeat rules.
+- **Review Every Line**: All AI-generated code must be reviewed and tested by a human before merging.
+- **IPC Security**: Never accept AI-generated IPC code without understanding it — Electron IPC security is a known weak spot.
+- **Note Briefly**: Briefly note in the PR if you used an AI tool and which one.
 
 ---
 
