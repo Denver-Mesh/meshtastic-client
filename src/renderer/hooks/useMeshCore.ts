@@ -3629,9 +3629,7 @@ export function useMeshCore() {
           next.set(nodeId, { ...existing, hops_away: result.pathLen });
           return next;
         });
-        useRepeaterSignalStore
-          .getState()
-          .recordSignal(nodeId, result.lastSnr * MESHCORE_RPC_SNR_RAW_TO_DB);
+        useRepeaterSignalStore.getState().recordSignal(nodeId, result.lastSnr);
         bumpMeshcoreNodeLastHeardFromRpc(nodeId);
       } catch (e: unknown) {
         const rawErr = e instanceof Error ? e.message : String(e);
