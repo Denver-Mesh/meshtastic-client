@@ -12,7 +12,9 @@ import {
   MESHCORE_CHAT_STUB_ID_MIN,
   MESHCORE_CONTACTS_CRITICAL_THRESHOLD,
   MESHCORE_MAX_CONTACTS,
+  meshcoreTracePathLenToHops,
 } from '../lib/meshcoreUtils';
+import { MESHCORE_TRACE_PING_TOTAL_TIMEOUT_MS } from '../lib/timeConstants';
 import type { MeshCoreLocalStats, MeshNode, MeshProtocol, NeighborInfoRecord } from '../lib/types';
 import { useCoordFormatStore } from '../stores/coordFormatStore';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
@@ -253,19 +255,24 @@ export default function NodeDetailModal({
     };
   }, [protocol, node]);
 
-  // 60-second timeout for trace route
+  // Align with MESHCORE_TRACE_PING_TOTAL_TIMEOUT_MS (queue + tracePath in useMeshCore)
   useEffect(() => {
     if (!traceRoutePending) return;
     const timer = setTimeout(() => {
       setTraceRoutePending(false);
       setActionStatus('Trace route timed out');
-    }, 60_000);
+    }, MESHCORE_TRACE_PING_TOTAL_TIMEOUT_MS);
     return () => {
       clearTimeout(timer);
     };
   }, [traceRoutePending]);
 
   if (!node) return null;
+
+  const headerHopsDisplay =
+    protocol === 'meshcore' && meshcoreTraceResult != null
+      ? meshcoreTracePathLenToHops(meshcoreTraceResult.pathLen)
+      : node.hops_away;
 
   const hexId = `!${node.node_id.toString(16)}`;
   // Check if this appears to be a node with incomplete data (empty names and no role)
@@ -333,12 +340,16 @@ export default function NodeDetailModal({
               </div>
               <div className="mt-0.5 flex items-center gap-2">
                 <span className="text-muted font-mono text-xs">{hexId}</span>
-                {node.hops_away != null && (
+                {headerHopsDisplay != null && (
                   <span
-                    className={`text-xs ${node.hops_away === 0 ? 'text-bright-green' : 'text-gray-400'}`}
-                    title="Hops away (path length)"
+                    className={`text-xs ${headerHopsDisplay === 0 ? 'text-bright-green' : 'text-gray-400'}`}
+                    title={
+                      protocol === 'meshcore' && meshcoreTraceResult != null
+                        ? 'Hops from last trace (matches Path Trace below)'
+                        : 'Hops away (from contact routing when no trace yet)'
+                    }
                   >
-                    {node.hops_away} hop{node.hops_away !== 1 ? 's' : ''}
+                    {headerHopsDisplay} hop{headerHopsDisplay !== 1 ? 's' : ''}
                   </span>
                 )}
                 {node.hw_model && node.hw_model !== '0' && (
@@ -467,8 +478,17 @@ export default function NodeDetailModal({
                 <h4 className="text-muted text-xs font-medium tracking-wide uppercase">
                   Path Trace
                 </h4>
+                <div className="text-xs text-gray-400">
+                  Hops:{' '}
+                  <span className="font-mono text-gray-200">
+                    {meshcoreTracePathLenToHops(meshcoreTraceResult.pathLen)}
+                  </span>
+                </div>
                 <div className="bg-secondary-dark space-y-1 rounded p-2">
-                  {meshcoreTraceResult.pathSnrs.map((hop, i) => (
+                  {(Array.isArray(meshcoreTraceResult.pathSnrs)
+                    ? meshcoreTraceResult.pathSnrs
+                    : []
+                  ).map((hop, i) => (
                     <div key={i} className="flex items-center gap-2 text-xs">
                       <span className="text-muted w-10">Hop {i + 1}</span>
                       <SnrIndicator snr={hop} />

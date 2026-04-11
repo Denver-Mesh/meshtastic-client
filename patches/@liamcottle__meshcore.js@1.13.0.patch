@@ -1,0 +1,35 @@
+diff --git a/src/connection/connection.js b/src/connection/connection.js
+index af6f6d670adc0948d3453df34acbbde46c1b4250..b0eaddb5675fab04fa3d149b5e0f35b33198fdd5 100644
+--- a/src/connection/connection.js
++++ b/src/connection/connection.js
+@@ -494,15 +494,24 @@ class Connection extends EventEmitter {
+     onTraceDataPush(bufferReader) {
+         const reserved = bufferReader.readByte();
+         const pathLen = bufferReader.readUInt8();
++        const flags = bufferReader.readUInt8();
++        const tag = bufferReader.readUInt32LE();
++        const authCode = bufferReader.readUInt32LE();
++        const pathHashes = bufferReader.readBytes(pathLen);
++        // Companion protocol: path_snrs is exactly (path_len + 1) bytes (SNR x4 each); last byte is dest SNR.
++        const snrBytes = bufferReader.readBytes(pathLen + 1);
++        const pathSnrs = snrBytes.subarray(0, pathLen);
++        const lastSnr =
++            snrBytes.length > pathLen ? (snrBytes[pathLen] & 0xff) / 4 : 0;
+         this.emit(Constants.PushCodes.TraceData, {
+             reserved: reserved,
+             pathLen: pathLen,
+-            flags: bufferReader.readUInt8(),
+-            tag: bufferReader.readUInt32LE(),
+-            authCode: bufferReader.readUInt32LE(),
+-            pathHashes: bufferReader.readBytes(pathLen),
+-            pathSnrs: bufferReader.readBytes(pathLen),
+-            lastSnr: bufferReader.readInt8() / 4,
++            flags: flags,
++            tag: tag,
++            authCode: authCode,
++            pathHashes: pathHashes,
++            pathSnrs: pathSnrs,
++            lastSnr: lastSnr,
+         });
+     }
+ 

@@ -37,6 +37,19 @@ import { rfRowId } from '../lib/types';
 const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
 const FIFTEEN_MIN = 15 * 60 * 1000;
 
+/** `path_snrs` column is JSON array of numbers; tolerate legacy or corrupt DB values. */
+function meshcoreTracePathSnrsFromDbJson(raw: string | null | undefined): number[] {
+  if (raw == null || raw === '') return [];
+  try {
+    const p = JSON.parse(raw) as unknown;
+    if (!Array.isArray(p)) return [];
+    return p.filter((x): x is number => typeof x === 'number' && Number.isFinite(x));
+  } catch {
+    // catch-no-log-ok corrupt JSON in DB column; treat as empty SNR list
+    return [];
+  }
+}
+
 export interface PacketPath {
   transport: 'rf' | 'mqtt';
   snr?: number;
@@ -476,7 +489,7 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
               id: traceRow.id,
               timestamp: traceRow.timestamp,
               pathLen: traceRow.path_len,
-              pathSnrs: traceRow.path_snrs ? JSON.parse(traceRow.path_snrs) : [],
+              pathSnrs: meshcoreTracePathSnrsFromDbJson(traceRow.path_snrs),
               lastSnr: traceRow.last_snr,
               tag: traceRow.tag,
             }));

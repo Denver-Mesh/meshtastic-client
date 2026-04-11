@@ -1,7 +1,8 @@
 /**
- * Serialize MeshCore repeater-facing RPCs (tracePath, getStatus, sendBinaryRequest, CLI, etc.).
- * @liamcottle/meshcore.js registers `once(ResponseCodes.Sent)` / binary listeners per call; concurrent
- * overlapping calls can mis-attribute Sent/BinaryResponse to the wrong promise and surface as timeouts.
+ * Serialize MeshCore companion RPCs that share `ResponseCodes.Sent` (getStatus, sendBinaryRequest,
+ * CLI, trace **send**, etc.). Trace **results** are matched by 32-bit tag in
+ * `meshcoreTracePathMultiplex.ts`, so multiple traces can wait for `TraceData` concurrently once
+ * each send has passed the queue.
  */
 export function createRepeaterRemoteRpcQueue(): <T>(fn: () => Promise<T>) => Promise<T> {
   let tail: Promise<unknown> = Promise.resolve();

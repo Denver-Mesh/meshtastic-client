@@ -15,6 +15,7 @@ import {
   meshcoreMinimalNodeFromAdvertEvent,
   meshcoreSelfInfoBwToDisplayKhz,
   meshcoreSelfInfoFreqToDisplayHz,
+  meshcoreTracePathLenToHops,
   pubkeyToNodeId,
 } from './meshcoreUtils';
 
@@ -216,6 +217,23 @@ describe('repeater session auth (in-memory)', () => {
     meshcoreApplyRepeaterSessionAuth('topsecret');
     expect(sessionStorage.getItem('meshclient:meshcoreRepeaterPassword')).toBeNull();
     expect(sessionStorage.getItem('meshclient:meshcoreRepeaterAuthTouched')).toBeNull();
+  });
+});
+
+describe('meshcoreTracePathLenToHops', () => {
+  it('maps direct trace (pathLen 1) to 0 hops', () => {
+    expect(meshcoreTracePathLenToHops(1)).toBe(0);
+  });
+
+  it('subtracts one for multi-segment paths', () => {
+    expect(meshcoreTracePathLenToHops(2)).toBe(1);
+    expect(meshcoreTracePathLenToHops(5)).toBe(4);
+  });
+
+  it('clamps non-positive or non-finite values to 0', () => {
+    expect(meshcoreTracePathLenToHops(0)).toBe(0);
+    expect(meshcoreTracePathLenToHops(-1)).toBe(0);
+    expect(meshcoreTracePathLenToHops(Number.NaN)).toBe(0);
   });
 });
 

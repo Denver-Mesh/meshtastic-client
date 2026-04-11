@@ -34,6 +34,15 @@ export function meshcoreIsChatStubNodeId(nodeId: number): boolean {
   return u >= MESHCORE_CHAT_STUB_ID_MIN && u <= MESHCORE_CHAT_STUB_ID_MAX;
 }
 
+/**
+ * `tracePath` reports `pathLen` as segment count along the route (a direct RF link is often 1).
+ * UI hop count (repeaters between us and the peer) is one less; clamp at 0.
+ */
+export function meshcoreTracePathLenToHops(pathLen: number): number {
+  if (!Number.isFinite(pathLen)) return 0;
+  return Math.max(0, Math.trunc(pathLen) - 1);
+}
+
 /** MeshCore companion lines that are transport metadata, not user channel chat (splitting on `:` would mispick `SNR:`). */
 export function isMeshcoreTransportStatusChatLine(text: string): boolean {
   const t = (text ?? '').trim();

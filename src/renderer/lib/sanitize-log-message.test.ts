@@ -1,6 +1,6 @@
 /**
  * Tests for log sanitization (log injection prevention).
- * See CONTRIBUTING.md § Log injection (CodeQL js/log-injection). When changing
+ * See AGENTS.md (Security & Error Handling, log injection; CodeQL js/log-injection). When changing
  * the log pipeline or sanitizeLogMessage/sanitizeForLogSink, ensure these tests
  * still pass so regressions are caught by the suite (including pre-commit).
  */

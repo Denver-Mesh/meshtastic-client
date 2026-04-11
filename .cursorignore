@@ -5,7 +5,6 @@
 # (node_modules etc. are ignored by default; reference explicitly when needed.)
 
 # Local Cursor plugin/debug logs (large; keep out of default index)
-.cursor/*.log
 
 *.db
 .DS_Store
