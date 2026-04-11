@@ -290,10 +290,8 @@ export default function NodeDetailModal({
     setActionStatus('Trace route requested...');
     try {
       await onTraceRoute(node.node_id);
-    } catch (e) {
-      console.warn('[NodeDetailModal] trace route failed', e);
+    } finally {
       setTraceRoutePending(false);
-      setActionStatus('Trace route failed');
     }
   };
 

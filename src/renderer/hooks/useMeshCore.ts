@@ -3605,7 +3605,12 @@ export function useMeshCore() {
         });
         return;
       }
-      const outPath = outPathMapRef.current.get(nodeId) ?? new Uint8Array(0);
+      const storedPath = outPathMapRef.current.get(nodeId);
+      // For direct contacts (outPathLen=0), storedPath is empty. Firmware requires at least
+      // the destination's 1-byte routing hash (first byte of pubKey), consistent with
+      // how pingRepeaterZeroHop (connection.js:2065) targets direct nodes.
+      const outPath =
+        storedPath && storedPath.length > 0 ? storedPath : new Uint8Array([pubKey[0]]);
       console.debug('[useMeshCore] traceRoute nodeId=', nodeId.toString(16).toUpperCase());
       setMeshcorePingErrors((prev) => {
         const next = new Map(prev);
