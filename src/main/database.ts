@@ -258,15 +258,17 @@ function createBaseTables(): void {
         rssi        REAL
       );
 
-      -- MeshCore trace history (MeshCore only, upsert on newer timestamp)
+      -- MeshCore trace history (MeshCore only, keep up to 5 most recent per node)
       CREATE TABLE IF NOT EXISTS meshcore_trace_history (
-        node_id     INTEGER PRIMARY KEY,
-        timestamp   INTEGER NOT NULL,
-        path_len    INTEGER,
-        path_snrs   TEXT,
-        last_snr    REAL,
-        tag         INTEGER
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        node_id    INTEGER NOT NULL,
+        timestamp  INTEGER NOT NULL,
+        path_len   INTEGER,
+        path_snrs  TEXT,
+        last_snr   REAL,
+        tag        INTEGER
       );
+      CREATE INDEX IF NOT EXISTS idx_meshcore_trace_history_node_id ON meshcore_trace_history(node_id);
     `);
   } catch (error) {
     console.error(
@@ -1070,12 +1072,21 @@ export interface MeshCoreHopHistoryRow {
 }
 
 export interface MeshCoreTraceHistoryRow {
+  id: number;
   node_id: number;
   timestamp: number;
   path_len: number | null;
   path_snrs: string | null;
   last_snr: number | null;
   tag: number | null;
+}
+
+export function getMeshcoreTraceHistory(nodeId: number): MeshCoreTraceHistoryRow[] {
+  const d = getDatabase();
+  const rows = d
+    .prepare('SELECT * FROM meshcore_trace_history WHERE node_id = ? ORDER BY timestamp DESC')
+    .all(nodeId) as MeshCoreTraceHistoryRow[];
+  return rows;
 }
 
 export function saveMeshcoreHopHistory(
@@ -1114,31 +1125,25 @@ export function saveMeshcoreTraceHistory(
   pathLen: number | null,
   pathSnrs: number[],
   lastSnr: number | null,
-  tag: number,
+  tag: number | null,
 ): void {
   const d = getDatabase();
   const pathSnrsJson = JSON.stringify(pathSnrs);
   d.prepareOnce(
-    `
-    INSERT INTO meshcore_trace_history (node_id, timestamp, path_len, path_snrs, last_snr, tag)
-    VALUES (?, ?, ?, ?, ?, ?)
-    ON CONFLICT(node_id) DO UPDATE SET
-        timestamp = excluded.timestamp,
-        path_len = excluded.path_len,
-        path_snrs = excluded.path_snrs,
-        last_snr = excluded.last_snr,
-        tag = excluded.tag
-    WHERE excluded.timestamp > meshcore_trace_history.timestamp
-  `,
+    `INSERT INTO meshcore_trace_history (node_id, timestamp, path_len, path_snrs, last_snr, tag)
+     VALUES (?, ?, ?, ?, ?, ?)`,
   ).run(nodeId, timestamp, pathLen, pathSnrsJson, lastSnr, tag);
-}
 
-export function getMeshcoreTraceHistory(nodeId: number): MeshCoreTraceHistoryRow | null {
-  const d = getDatabase();
-  const row = d.prepare('SELECT * FROM meshcore_trace_history WHERE node_id = ?').get(nodeId) as
-    | MeshCoreTraceHistoryRow
-    | undefined;
-  return row ?? null;
+  const MAX_TRACES_PER_NODE = 5;
+  d.prepareOnce(
+    `DELETE FROM meshcore_trace_history
+     WHERE node_id = ? AND id NOT IN (
+       SELECT id FROM meshcore_trace_history
+       WHERE node_id = ?
+        ORDER BY timestamp DESC
+        LIMIT ?
+      )`,
+  ).run(nodeId, nodeId, MAX_TRACES_PER_NODE);
 }
 
 export function pruneMeshcorePathHistory(nodeId: number): void {

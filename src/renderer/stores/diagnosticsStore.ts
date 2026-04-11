@@ -283,16 +283,19 @@ interface DiagnosticsState {
     number,
     { timestamp: number; hops: number | null; snr: number | null; rssi: number | null }
   >;
-  /** MeshCore trace history from database (single record per node, upsert on newer timestamp). */
+  /** Detections for a node in the last 90 minutes, sorted by detectedAt desc. */
+  getForeignLoraDetectionsList(nodeId: number): ForeignLoraDetection[];
+  /** MeshCore trace history from database (up to 5 records per node). */
   meshcoreTraceHistory: Map<
     number,
     {
+      id: number;
       timestamp: number;
       pathLen: number | null;
       pathSnrs: number[];
       lastSnr: number | null;
       tag: number | null;
-    }
+    }[]
   >;
   /** Detections for a node in the last 90 minutes, sorted by detectedAt desc. */
   getForeignLoraDetectionsList(nodeId: number): ForeignLoraDetection[];
@@ -430,14 +433,17 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
         snr: number | null;
         rssi: number | null;
       } | null>;
-      getMeshcoreTraceHistory?: (nodeId: number) => Promise<{
-        node_id: number;
-        timestamp: number;
-        path_len: number | null;
-        path_snrs: string | null;
-        last_snr: number | null;
-        tag: number | null;
-      } | null>;
+      getMeshcoreTraceHistory?: (nodeId: number) => Promise<
+        {
+          id: number;
+          node_id: number;
+          timestamp: number;
+          path_len: number | null;
+          path_snrs: string | null;
+          last_snr: number | null;
+          tag: number | null;
+        }[]
+      >;
     } | null;
     if (!dbApi) return;
     try {
@@ -466,18 +472,19 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
     try {
       dbApi
         .getMeshcoreTraceHistory?.(nodeId)
-        .then((traceRow) => {
-          if (traceRow) {
-            const pathSnrs = traceRow.path_snrs ? JSON.parse(traceRow.path_snrs) : [];
+        .then((traceRows) => {
+          if (traceRows && traceRows.length > 0) {
+            const parsed = traceRows.map((traceRow) => ({
+              id: traceRow.id,
+              timestamp: traceRow.timestamp,
+              pathLen: traceRow.path_len,
+              pathSnrs: traceRow.path_snrs ? JSON.parse(traceRow.path_snrs) : [],
+              lastSnr: traceRow.last_snr,
+              tag: traceRow.tag,
+            }));
             set((state) => {
               const newMap = new Map(state.meshcoreTraceHistory);
-              newMap.set(nodeId, {
-                timestamp: traceRow.timestamp,
-                pathLen: traceRow.path_len,
-                pathSnrs,
-                lastSnr: traceRow.last_snr,
-                tag: traceRow.tag,
-              });
+              newMap.set(nodeId, parsed);
               return { meshcoreTraceHistory: newMap };
             });
           }
@@ -540,9 +547,12 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
     const timestamp = Date.now();
     try {
       await dbApi.saveMeshcoreTraceHistory?.(nodeId, timestamp, pathLen, pathSnrs, lastSnr, tag);
+      const newEntry = { id: 0, timestamp, pathLen, pathSnrs, lastSnr, tag };
       set((state) => {
         const newMap = new Map(state.meshcoreTraceHistory);
-        newMap.set(nodeId, { timestamp, pathLen, pathSnrs, lastSnr, tag });
+        const existing = newMap.get(nodeId) ?? [];
+        const updated = [newEntry, ...existing].slice(0, 5);
+        newMap.set(nodeId, updated);
         return { meshcoreTraceHistory: newMap };
       });
     } catch (e) {

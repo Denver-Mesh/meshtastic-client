@@ -463,21 +463,13 @@ export default function NodeDetailModal({
                 <div className="bg-secondary-dark space-y-1 rounded p-2">
                   {meshcoreTraceResult.pathSnrs.map((hop, i) => (
                     <div key={i} className="flex items-center gap-2 text-xs">
-                      <span className="text-muted">Hop {i + 1}</span>
-                      <span
-                        className={`font-mono ${hop >= 5 ? 'text-green-400' : hop >= 0 ? 'text-yellow-400' : 'text-red-400'}`}
-                      >
-                        {hop.toFixed(2)} dB
-                      </span>
+                      <span className="text-muted w-10">Hop {i + 1}</span>
+                      <SnrIndicator snr={hop} />
                     </div>
                   ))}
                   <div className="flex items-center gap-2 border-t border-gray-700 pt-1 text-xs">
-                    <span className="text-muted">Last hop (dest)</span>
-                    <span
-                      className={`font-mono ${meshcoreTraceResult.lastSnr >= 5 ? 'text-green-400' : meshcoreTraceResult.lastSnr >= 0 ? 'text-yellow-400' : 'text-red-400'}`}
-                    >
-                      {meshcoreTraceResult.lastSnr.toFixed(2)} dB
-                    </span>
+                    <span className="text-muted w-10">Dest</span>
+                    <SnrIndicator snr={meshcoreTraceResult.lastSnr} />
                   </div>
                 </div>
               </div>

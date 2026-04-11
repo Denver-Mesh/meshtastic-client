@@ -68,7 +68,12 @@ import {
   setMainWindow,
 } from './log-service';
 import { MeshcoreMqttAdapter } from './meshcore-mqtt-adapter';
-import { decodePathPayload, isPathPacket } from './meshcore-path-decoder';
+import {
+  decodePathPayload,
+  decodeTracePayload,
+  isPathPacket,
+  isTracePacket,
+} from './meshcore-path-decoder';
 import { MQTTManager } from './mqtt-manager';
 import { handleNobleBleToRadioWrite } from './noble-ble-ipc';
 import { NobleBleManager, type NobleSessionId } from './noble-ble-manager';
@@ -2460,6 +2465,23 @@ ipcMain.handle('db:saveNodePath', (_event, nodeId: number, lastHeard: number, bu
   } catch (err) {
     console.error(
       '[IPC] db:saveNodePath failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+ipcMain.handle('db:saveNodeTrace', (_event, nodeId: number, lastHeard: number, buffer: Buffer) => {
+  try {
+    if (!isTracePacket(buffer)) {
+      throw new Error('Not a TRACE packet');
+    }
+    const { hops, path } = decodeTracePayload(buffer);
+    console.debug('[IPC] db:saveNodeTrace: nodeId=', nodeId.toString(16), 'hops=', hops);
+    return { success: true, hops, path };
+  } catch (err) {
+    console.error(
+      '[IPC] db:saveNodeTrace failed:',
       sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
     );
     throw err;

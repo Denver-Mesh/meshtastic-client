@@ -26,6 +26,7 @@ import { routingRowToNodeAnomaly } from '../lib/types';
 import { useCoordFormatStore } from '../stores/coordFormatStore';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
 import MeshCongestionAttributionBlock from './MeshCongestionAttributionBlock';
+import SnrIndicator from './SnrIndicator';
 
 export const CATEGORY_STYLES: Record<string, string> = {
   Configuration: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
@@ -657,46 +658,35 @@ export default function NodeInfoBody({
                 </span>
               </div>
             )}
-            {meshcoreTraceHistory && meshcoreTraceHistory.pathSnrs.length > 0 && (
-              <div className="bg-deep-black/50 rounded p-1.5 text-[10px]">
-                <div className="mb-0.5 text-gray-400">
-                  Trace: {meshcoreTraceHistory.pathLen} hops{' '}
-                  <span className="text-gray-600">
-                    {new Date(meshcoreTraceHistory.timestamp).toLocaleTimeString()}
-                  </span>
+            {meshcoreTraceHistory &&
+              meshcoreTraceHistory.length > 0 &&
+              meshcoreTraceHistory[0].pathSnrs.length > 0 && (
+                <div className="bg-deep-black/50 rounded p-1.5 text-[10px]">
+                  <div className="mb-0.5 text-gray-400">
+                    Trace: {meshcoreTraceHistory[0].pathLen} hops{' '}
+                    <span className="text-gray-600">
+                      {new Date(meshcoreTraceHistory[0].timestamp).toLocaleTimeString()}
+                      {meshcoreTraceHistory.length > 1 && (
+                        <span className="ml-1 text-gray-500">
+                          (+{meshcoreTraceHistory.length - 1} older)
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  {meshcoreTraceHistory[0].pathSnrs.map((snr, i) => (
+                    <div key={i} className="flex items-center gap-2 pl-1.5">
+                      <span className="w-8 text-gray-500">Hop {i + 1}</span>
+                      <SnrIndicator snr={snr} className="text-[10px]" />
+                    </div>
+                  ))}
+                  {meshcoreTraceHistory[0].lastSnr != null && (
+                    <div className="mt-0.5 flex items-center gap-2 border-t border-gray-700/30 pt-0.5 pl-1.5">
+                      <span className="w-8 text-gray-500">Dest</span>
+                      <SnrIndicator snr={meshcoreTraceHistory[0].lastSnr} className="text-[10px]" />
+                    </div>
+                  )}
                 </div>
-                {meshcoreTraceHistory.pathSnrs.map((snr, i) => (
-                  <div key={i} className="flex items-center gap-2 pl-1.5">
-                    <span className="text-gray-500">Hop {i + 1}</span>
-                    <span
-                      className={`font-mono ${
-                        snr >= 5 ? 'text-green-400' : snr >= 0 ? 'text-yellow-400' : 'text-red-400'
-                      }`}
-                    >
-                      {snr > 0 ? '+' : ''}
-                      {snr.toFixed(1)} dB
-                    </span>
-                  </div>
-                ))}
-                {meshcoreTraceHistory.lastSnr != null && (
-                  <div className="mt-0.5 flex items-center gap-2 border-t border-gray-700/30 pt-0.5 pl-1.5">
-                    <span className="text-gray-500">Dest</span>
-                    <span
-                      className={`font-mono ${
-                        meshcoreTraceHistory.lastSnr >= 5
-                          ? 'text-green-400'
-                          : meshcoreTraceHistory.lastSnr >= 0
-                            ? 'text-yellow-400'
-                            : 'text-red-400'
-                      }`}
-                    >
-                      {meshcoreTraceHistory.lastSnr > 0 ? '+' : ''}
-                      {meshcoreTraceHistory.lastSnr.toFixed(1)} dB
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
+              )}
           </div>
         )}
       </div>
