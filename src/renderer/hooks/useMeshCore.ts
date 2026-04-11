@@ -1450,7 +1450,7 @@ export function useMeshCore() {
         const contactPathLen = contact.outPathLen ?? 0;
         outPathMapRef.current.set(
           node.node_id,
-          contact.outPath?.slice(0, contactPathLen) ?? new Uint8Array(0),
+          contact.outPath?.slice(0, contactPathLen + 1) ?? new Uint8Array(0),
         );
         const prefix = Array.from(contact.publicKey.slice(0, 6))
           .map((b) => b.toString(16).padStart(2, '0'))
@@ -1933,7 +1933,7 @@ export function useMeshCore() {
         const evt138PathLen = d.outPathLen ?? 0;
         outPathMapRef.current.set(
           node.node_id,
-          d.outPath?.slice(0, evt138PathLen) ?? new Uint8Array(0),
+          d.outPath?.slice(0, evt138PathLen + 1) ?? new Uint8Array(0),
         );
         const prefix = Array.from(d.publicKey.slice(0, 6))
           .map((b) => b.toString(16).padStart(2, '0'))
@@ -4927,7 +4927,12 @@ export function useMeshCore() {
       getNodes,
       getFullNodeLabel,
       getPickerStyleNodeLabel,
-      traceRouteResults: new Map<number, { route: number[]; from: number }>(),
+      traceRouteResults: new Map(
+        Array.from(meshcoreTraceResults.entries()).map(([id, res]) => [
+          id,
+          { route: res.pathHashes, from: id, timestamp: Date.now() },
+        ]),
+      ),
       queueStatus,
       neighborInfo: new Map<number, unknown>(),
       waypoints: [] as unknown[],
