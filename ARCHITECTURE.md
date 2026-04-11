@@ -1,6 +1,6 @@
 # Architecture
 
-Project layout, data flow, and code placement for AI-assisted development. Policy (style, security, git, testing commands) lives in [AGENTS.md](AGENTS.md).
+Project layout, data flow, and code placement for AI-assisted development. Mesh-specific workflow and security expectations: [AGENTS.md](AGENTS.md). Code style, testing protocols, hooks, and commands: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Layout map
 
@@ -24,7 +24,7 @@ Path alias `@/*` maps to `src/*` (see `tsconfig.json`).
 - **Renderer:** UI only; talk to main via `window.electronAPI` from preload.
 - **Shared:** Types and safe helpers imported by main and renderer.
 
-**Tests:** Co-located `*.test.ts` / `*.test.tsx`; update `src/main/index.contract.test.ts` when CSP, build config, IPC limits, or log filters change.
+**Tests:** Co-located `*.test.ts` / `*.test.tsx`; update `src/main/index.contract.test.ts` when CSP, build config, IPC limits, or log filters change (see [Testing protocols](CONTRIBUTING.md#testing-protocols) in CONTRIBUTING.md).
 
 **Package manager:** `pnpm` only.
 

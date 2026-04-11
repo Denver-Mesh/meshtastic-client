@@ -2,7 +2,21 @@
 
 Thank you for your interest in contributing. See [docs/development-environment.md](docs/development-environment.md) for setup.
 
-**Coding style, testing, accessibility, security, IPC, and AI workflow:** follow [AGENTS.md](AGENTS.md). This file focuses on human setup, hooks, and PR flow.
+**Where conventions live:** [AGENTS.md](AGENTS.md) covers mesh-specific architecture, scope, security and IPC expectations, and AI-oriented workflow. **This file** adds human setup, hooks, PR flow, and **detailed code style and testing protocols** (below). Read both when contributing.
+
+## Code style & standards
+
+- **Prettier:** Semi always, single quotes, trailing commas, print width 100, tab 2, LF.
+- **TypeScript:** Strict; avoid `any`; prefer `unknown` + guards; export types; prefer interfaces over type aliases.
+- **React:** Function components only; `exhaustive-deps` is errors; `?.` in JSX; **every interactive control needs `aria-label`**.
+- **Zustand:** Module-level defaults for stable refs; prefer `useStore(s => s.field)` over broad subscriptions; avoid subscribing to whole Maps when one id suffices; `persist` for localStorage, IPC from an effect for SQLite; extract time constants to `src/renderer/lib/timeConstants.ts` (e.g. `MS_PER_SECOND`).
+- **Performance:** No hot-path O(n); lazy cleanup when collections grow large.
+
+## Testing protocols
+
+- Renderer: jsdom (`src/renderer/**/*.test.{ts,tsx}`). Main: node (`src/main/**/*.test.ts`).
+- Mock console before spying logged errors (e.g. `vi.spyOn(console, 'warn').mockImplementation(() => {})`; use `beforeEach` when shared).
+- Update `src/main/index.contract.test.ts` when CSP, build config, IPC limits, or log filters change.
 
 ## Quick Commands
 
@@ -40,7 +54,9 @@ Skip in emergency: `git commit --no-verify`.
 
 ## AI-assisted contributions
 
-Follow [AGENTS.md](AGENTS.md) for all conventions. Review every line of AI-generated code before merging. Do not accept AI-generated IPC or preload changes without understanding them (Electron IPC is a common weak spot). You may note briefly in the PR if you used an AI tool.
+Follow [AGENTS.md](AGENTS.md) for mesh-specific and security expectations, and this file for code style and testing conventions. Review every line of AI-generated code before merging. Do not accept AI-generated IPC or preload changes without understanding them (Electron IPC is a common weak spot). You may note briefly in the PR if you used an AI tool.
+
+Avoid duplicating always-on Cursor or editor rules with this repo's docs; merge overlaps and prefer **requestable** rules over always-on where possible to reduce fixed context size.
 
 ---
 
