@@ -1821,7 +1821,7 @@ export default function App() {
                 setSelectedNodeId(null);
               }}
               onRequestPosition={device.requestPosition}
-              onTraceRoute={device.traceRoute}
+              onTraceRoute={protocol === 'meshcore' ? meshcoreDevice.traceRoute : device.traceRoute}
               traceRouteHops={traceRouteHops}
               onDeleteNode={async (nodeNum) => {
                 await device.deleteNode(nodeNum);

@@ -297,8 +297,6 @@ interface DiagnosticsState {
       tag: number | null;
     }[]
   >;
-  /** Detections for a node in the last 90 minutes, sorted by detectedAt desc. */
-  getForeignLoraDetectionsList(nodeId: number): ForeignLoraDetection[];
   processNodeUpdate(
     node: MeshNode,
     homeNode: MeshNode | null,
