@@ -9,6 +9,7 @@ import {
 } from 'react';
 
 import ErrorBoundary from './components/ErrorBoundary';
+import { HelpTooltip } from './components/HelpTooltip';
 import { LinkIcon } from './components/SignalBars';
 import Tabs from './components/Tabs';
 import { ToastProvider, useToast } from './components/Toast';
@@ -92,9 +93,11 @@ const STATUS_COLOR: Record<string, string> = {
   reconnecting: 'bg-orange-500 animate-pulse',
 };
 
-/** Header queue badge (MeshCore): `title` tooltip and extended aria-label. */
+/** Header queue badge tooltips. */
 const MESHCORE_QUEUE_TOOLTIP =
   'Because MeshCore sends messages rapidly, and we poll every 30 seconds, this should always be 0. If not 0, there is congestion.';
+const MESHTASTIC_QUEUE_TOOLTIP =
+  'Transmit queue: packets waiting to be sent. Green = low, amber = filling up, red = congested.';
 
 const TAB_NAMES = [
   'Connection',
@@ -1093,17 +1096,16 @@ export default function App() {
             )}
             {/* Queue status badge: 0–10 used = green, 11–14 = yellow, 15–16 = red */}
             {queueShowBadge && device.queueStatus && (
-              <div
-                aria-label={
-                  protocol === 'meshcore'
-                    ? `Q: ${queueUsed}/${device.queueStatus.maxlen}. ${MESHCORE_QUEUE_TOOLTIP}`
-                    : `Q: ${queueUsed}/${device.queueStatus.maxlen}`
-                }
-                title={protocol === 'meshcore' ? MESHCORE_QUEUE_TOOLTIP : undefined}
-                className={`flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium ${queueColorClass}`}
+              <HelpTooltip
+                text={protocol === 'meshcore' ? MESHCORE_QUEUE_TOOLTIP : MESHTASTIC_QUEUE_TOOLTIP}
               >
-                Q: {queueUsed}/{device.queueStatus.maxlen}
-              </div>
+                <div
+                  aria-label={`Q: ${queueUsed}/${device.queueStatus.maxlen}`}
+                  className={`flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium ${queueColorClass}`}
+                >
+                  Q: {queueUsed}/{device.queueStatus.maxlen}
+                </div>
+              </HelpTooltip>
             )}
           </div>
         </header>
