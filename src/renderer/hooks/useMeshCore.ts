@@ -1009,7 +1009,15 @@ export function useMeshCore() {
         conn.getStatsPackets(),
       ]);
 
-      const core = coreStats as { batteryMilliVolts: number; uptimeSecs: number; queueLen: number };
+      const core = coreStats as {
+        batteryMilliVolts: number;
+        uptimeSecs: number;
+        curr_tx_queue_len: number;
+      };
+
+      const queueLen = core.curr_tx_queue_len;
+      setQueueStatus({ free: 256 - queueLen, maxlen: 256, res: 0 });
+
       const radio = radioStats as {
         noiseFloor: number;
         lastRssi: number;
@@ -1026,10 +1034,6 @@ export function useMeshCore() {
         nRecvDirect: number;
         nRecvErrors?: number;
       };
-
-      setSelfInfo((prev) => (prev ? { ...prev, batteryMilliVolts: core.batteryMilliVolts } : prev));
-
-      setQueueStatus({ free: 256 - core.queueLen, maxlen: 256, res: 0 });
 
       const now = Date.now();
       let channelUtilization: number | undefined;
@@ -1050,7 +1054,7 @@ export function useMeshCore() {
       const localStats: MeshCoreLocalStats = {
         batteryMilliVolts: core.batteryMilliVolts,
         uptimeSecs: core.uptimeSecs,
-        queueLen: core.queueLen,
+        queueLen,
         noiseFloor: radio.noiseFloor,
         lastRssi: radio.lastRssi,
         lastSnr: radio.lastSnr,
