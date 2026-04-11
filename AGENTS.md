@@ -1,5 +1,11 @@
 # AGENTS.md — Coding Guidelines for AI Assistants
 
+# OpenWolf
+
+@.wolf/OPENWOLF.md
+
+This project uses OpenWolf for context management. Read and follow .wolf/OPENWOLF.md every session. Check .wolf/cerebrum.md before generating code. Check .wolf/anatomy.md before reading files.
+
 Before writing code, read [ARCHITECTURE.md](ARCHITECTURE.md) to understand the codebase map and data flow.
 
 ## 1. Strict AI Operational Guardrails (Read First)
