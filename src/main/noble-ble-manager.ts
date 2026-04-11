@@ -134,6 +134,12 @@ interface NobleBleSession {
     resolve: () => void;
     reject: (e: unknown) => void;
   } | null;
+  /**
+   * Serializes writeAsync() calls so at most one GATT write is in-flight at a time.
+   * Noble's _withDisconnectHandler adds a disconnect:${uuid} listener per in-flight
+   * operation; concurrent writes accumulate past Noble's 10-listener limit.
+   */
+  writeQueue: Promise<void>;
 }
 
 export class NobleBleManager extends EventEmitter {
@@ -167,10 +173,6 @@ export class NobleBleManager extends EventEmitter {
     // Seed from the current synchronous state in case noble already transitioned before
     // this manager was constructed (avoids false "adapter not powered on" errors on startup).
     this.adapterReady = noble.state === 'poweredOn';
-    // Noble routes peripheral events (e.g. disconnect:${uuid}) through its own emitter.
-    // With repeated reconnects to the same peripheral, these accumulate past the default
-    // limit of 10 and trigger a spurious MaxListenersExceededWarning. Set a generous cap.
-    noble.setMaxListeners(50);
     noble.on('stateChange', (state: string) => {
       this.lastAdapterState = state;
       this.adapterReady = state === 'poweredOn';
@@ -235,6 +237,7 @@ export class NobleBleManager extends EventEmitter {
       fromRadioUsedReadPumpFallback: false,
       meshcoreLinuxEarlyReadPollAttempts: 0,
       meshcoreGattInflight: null,
+      writeQueue: Promise.resolve(),
     };
   }
 
@@ -279,6 +282,7 @@ export class NobleBleManager extends EventEmitter {
     session.connectStartedAtMs = null;
     session.fromRadioUsedReadPumpFallback = false;
     session.meshcoreLinuxEarlyReadPollAttempts = 0;
+    session.writeQueue = Promise.resolve();
   }
 
   private emitFromRadio(
@@ -1074,6 +1078,13 @@ export class NobleBleManager extends EventEmitter {
           // catch-no-log-ok peripheral listener cleanup in connect error path — error already logged
         }
       }
+      if (peripheral) {
+        try {
+          peripheral.removeAllListeners('mtu');
+        } catch {
+          // catch-no-log-ok peripheral mtu listener cleanup in connect error path
+        }
+      }
       this.clearSessionState(session);
       if (connected) {
         await peripheral.disconnectAsync().catch(() => {});
@@ -1099,7 +1110,21 @@ export class NobleBleManager extends EventEmitter {
     const session = this.getSession(sessionId);
     if (!session.toRadioChar)
       throw new Error(`Not connected to a BLE device for session ${sessionId}`);
-    await session.toRadioChar.writeAsync(data, false);
+    // Serialize writes: each writeAsync() adds a disconnect:${uuid} listener to Noble via
+    // _withDisconnectHandler; concurrent writes accumulate past Noble's 10-listener limit.
+    const prev = session.writeQueue;
+    let release!: () => void;
+    session.writeQueue = new Promise<void>((r) => {
+      release = r;
+    });
+    try {
+      await prev;
+      if (!session.toRadioChar)
+        throw new Error(`Disconnected before write could execute for session ${sessionId}`);
+      await session.toRadioChar.writeAsync(data, false);
+    } finally {
+      release();
+    }
     const scheduleReadPump = this.shouldUseFromRadioReadPump(sessionId, session);
     if (scheduleReadPump) {
       if (session.postWriteReadPumpTimer !== null) {
