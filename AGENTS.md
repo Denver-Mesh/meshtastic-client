@@ -4,8 +4,6 @@
 
 @.wolf/OPENWOLF.md
 
-This project uses OpenWolf for context management. Read and follow .wolf/OPENWOLF.md every session. Check .wolf/cerebrum.md before generating code. Check .wolf/anatomy.md before reading files.
-
 Before writing code, read [ARCHITECTURE.md](ARCHITECTURE.md) to understand the codebase map and data flow.
 
 ## 1. Strict AI Operational Guardrails (Read First)
@@ -121,7 +119,7 @@ Before writing code, read [ARCHITECTURE.md](ARCHITECTURE.md) to understand the c
 
 - **Location:** `components/*.tsx`. Tests co-located as `*.test.tsx`.
 - **State:** Use Zustand stores in `stores/`. Define defaults at module level.
-- **Rules:** Every interactive element needs `aria-label`. Functional components only. No `dangerouslySetInnerHTML`.
+- **Rules:** Every interactive element needs `aria-label`.
 - **Adding a panel:** Add to `lazyTabPanels.ts` or `lazyAppPanels.ts`. Gate via `ProtocolCapabilities`.
 
 ## 16. IPC/Preload Extensions
@@ -135,7 +133,7 @@ Before writing code, read [ARCHITECTURE.md](ARCHITECTURE.md) to understand the c
 ## 17. Zustand Store Changes
 
 - **Location:** `stores/*.ts`.
-- **Pattern:** `create<Name>((set, get) => ({ ... }))`. Define defaults at module level.
+- **Pattern:** `create<Name>((set, get) => ({ ... }))`. (Defaults at module level per Section 4.)
 - **Persistence:** Use `persist` middleware for localStorage. For SQLite, call IPC from an effect.
 - **Subscriptions:** Prefer selecting specific fields (`useStore(s => s.field)`) over entire store.
 
