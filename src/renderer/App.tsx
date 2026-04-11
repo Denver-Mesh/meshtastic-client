@@ -931,7 +931,7 @@ export default function App() {
   const statusColor = STATUS_COLOR[device.state.status] ?? 'bg-gray-500';
 
   const queueUsed = device.queueStatus ? device.queueStatus.maxlen - device.queueStatus.free : 0;
-  const queueShowBadge = device.queueStatus != null && queueUsed > 0;
+  const queueShowBadge = device.queueStatus != null;
   const queueColorClass =
     queueUsed <= 10
       ? 'bg-green-900/60 text-green-300 border border-green-700'

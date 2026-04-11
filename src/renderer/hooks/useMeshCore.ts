@@ -2294,6 +2294,7 @@ export function useMeshCore() {
 
       conn.on('disconnected', () => {
         setState((prev) => ({ ...prev, status: 'disconnected' }));
+        setQueueStatus(null);
         // Clear pending contacts refresh timer
         if (meshcoreContactsRefreshTimerRef.current) {
           clearTimeout(meshcoreContactsRefreshTimerRef.current);

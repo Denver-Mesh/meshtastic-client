@@ -874,6 +874,7 @@ export function useDevice() {
           startWatchdog();
           void refreshOurPositionRef.current();
           startGpsInterval();
+          setQueueStatus({ free: 16, maxlen: 16, res: 0 });
         }
 
         // Always clean up on disconnect, even if we never reached configured
