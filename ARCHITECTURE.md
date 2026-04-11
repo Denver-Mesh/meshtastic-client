@@ -1,208 +1,38 @@
 # Architecture
 
-This document describes the project structure, code placement guidelines, and data flow for AI-assisted development.
+Project layout, data flow, and code placement for AI-assisted development. Policy (style, security, git, testing commands) lives in [AGENTS.md](AGENTS.md).
 
----
+## Layout map
 
-## Directory Tree
+Path alias `@/*` maps to `src/*` (see `tsconfig.json`).
 
-```
-mesh-client/
-├── .github/
-│   ├── workflows/                # CI and release (ci.yaml, release.yaml, tests.yaml)
-│   ├── ISSUE_TEMPLATE/           # Bug report and feature request templates
-│   ├── codeql/                   # CodeQL config
-│   └── dependabot.yml
-├── @/
-│   ├── main/
-│   │   ├── index.ts              # Window creation, BLE/Serial intercept, IPC (incl. meshcore TCP & MQTT)
-│   │   ├── noble-ble-manager.ts  # BLE via @stoprocent/noble (macOS/Windows); scan/connect IPC
-│   │   ├── meshcore-mqtt-adapter.ts  # MeshCore MQTT JSON v1 subscribe/publish
-│   │   ├── log-service.ts        # Log file, console patch, log panel IPC
-│   │   ├── sanitize-log-message.ts  # Log injection sanitization (CodeQL); use at call sites before appendLine
-│   │   ├── database.ts           # SQLite schema & migrations (WAL mode)
-│   │   ├── db-compat.ts          # better-sqlite3 API shim over node:sqlite (no node-gyp)
-│   │   ├── mqtt-manager.ts       # MQTT client: AES decrypt, dedup, protobuf decode (Meshtastic only)
-│   │   ├── updater.ts            # Auto-update checks via electron-updater
-│   │   └── gps.ts                # Main-process GPS helper
-│   ├── preload/
-│   │   └── index.ts              # contextBridge: electronAPI (db, mqtt, log, BLE, serial, session, meshcore.tcp)
-│   ├── shared/
-│   │   ├── electron-api.types.ts     # IPC / preload API contracts
-│   │   ├── meshcoreMqttEnvelope.ts   # JSON v1 envelope parse/validate (main + renderer)
-│   │   ├── nodeNameUtils.ts          # Shared node naming helpers
-│   │   ├── sqlLikeEscape.ts          # SQL LIKE escape for safe queries
-│   │   └── withTimeout.ts            # Shared timeout helper
-│   └── renderer/
-│       ├── index.html            # HTML entry
-│       ├── main.tsx              # React entry point
-│       ├── App.tsx               # Shell: 11 tabs Meshtastic / 9 MeshCore (TAK tab) (Security hidden; Modules vs Repeaters), Log panel, shortcuts
-│       ├── styles.css            # Global styles, theme variables
-│       ├── components/           # Panels and UI (many have co-located *.test.tsx)
-│       │   ├── ChatPanel.tsx         # Chat UI, DMs, emoji reactions, channel switching
-│       │   ├── SearchModal.tsx       # Cross-channel chat search (`user:` / `channel:` filters)
-│       │   ├── NodeListPanel.tsx     # Node & contact list; MeshCore: groups, Import Contacts JSON; online/stale/MQTT
-│       │   ├── ContactGroupsModal.tsx # MeshCore: contact group create/edit and members
-│       │   ├── SecurityPanel.tsx     # Meshtastic: PKI / admin keys (tab gated by hasSecurityPanel)
-│       │   ├── LogAnalyzeModal.tsx   # Log pattern analysis + recommendations
-│       │   ├── SnrIndicator.tsx      # SNR quality chip (color by threshold)
-│       │   ├── MapPanel.tsx          # Node positions on OpenStreetMap (Leaflet)
-│       │   ├── TelemetryPanel.tsx    # Battery/voltage/SNR charts (Recharts)
-│       │   ├── ModulePanel.tsx       # Meshtastic: modules tab (telemetry, MQTT, etc.)
-│       │   ├── ConnectionPanel.tsx   # BLE/Serial/HTTP/MQTT; protocol toggle; battery gauge; MeshCore contact settings
-│       │   ├── DiagnosticsPanel.tsx  # Health band + counts, diagnosticRows table, halos, max age
-│       │   ├── MeshCongestionAttributionBlock.tsx  # Shared mesh congestion / duplicate-traffic copy
-│       │   ├── LogPanel.tsx          # Live app log, Analyze modal, debug toggle, export/delete log file
-│       │   ├── RadioPanel.tsx        # Radio settings, position, GPS send; MeshCore: channels, Import Config JSON
-│       │   ├── RepeatersPanel.tsx    # MeshCore: repeater status/trace/neighbors/console (contacts: Nodes tab)
-│       │   ├── TakServerPanel.tsx      # TAK server: start/stop, settings, connected clients, data package export
-│       │   ├── AppPanel.tsx          # App settings, theme presets, GPS interval, database management
-│       │   ├── NodeDetailModal.tsx   # Node info overlay; MeshCore: trace, repeater status, telemetry, neighbors
-│       │   ├── NodeInfoBody.tsx      # Shared node info content (modal + map popup)
-│       │   ├── KeyboardShortcutsModal.tsx
-│       │   ├── UpdateStatusIndicator.tsx # Footer update status
-│       │   ├── ErrorBoundary.tsx     # Top-level React error boundary
-│       │   ├── SignalBars.tsx        # Signal strength → bars for direct (0-hop) RF only
-│       │   ├── RefreshButton.tsx
-│       │   ├── Toast.tsx
-│       │   └── Tabs.tsx
-│       ├── hooks/
-│       │   ├── useDevice.ts          # Meshtastic: device lifecycle, 3 transports, auto-reconnect
-│       │   ├── useMeshCore.ts        # MeshCore: BLE/Serial/TCP/MQTT, contacts, messages, ACK, trace, telemetry
-│       │   ├── useContactGroups.ts   # MeshCore: contact groups state + IPC
-│       │   └── useMeshcoreRepeaterRemoteAuth.tsx  # MeshCore: repeater remote auth session flow
-│       ├── stores/
-│       │   ├── diagnosticsStore.ts   # Anomalies, halo flags, MQTT ignore, foreign LoRa (both protocols)
-│       │   ├── mapViewportStore.ts   # Persisted map center/zoom
-│       │   ├── positionHistoryStore.ts  # Persisted position trail (1h–7d window, SQLite-backed); path overlay visibility
-│       │   └── repeaterSignalStore.ts    # MeshCore: repeater status cache
-│       ├── lib/
-│       │   ├── types.ts              # MeshNode, ChatMessage, DeviceState, MeshProtocol, etc.
-│       │   ├── connection.ts         # Meshtastic: createConnection (BLE/Serial/HTTP)
-│       │   ├── serialPortSignature.ts    # Serial port identity persistence for gesture-free reconnect (shared)
-│       │   ├── foreignLoraDetection.ts   # Cross-protocol: classify payload, foreign LoRa, RSSI/SNR
-│       │   ├── meshcoreUtils.ts      # MeshCore: pubkeyToNodeId, meshcoreContactToMeshNode, contact types
-│       │   ├── gpsSource.ts          # GPS waterfall: device → geolocation → null
-│       │   ├── nodeStatus.ts         # Node freshness: Meshtastic online <2 h, stale 2 h-7 d, offline >7 d; MeshCore online <48 h, stale 48-96 h, offline >96 h
-│       │   ├── coordUtils.ts         # Coordinate conversion helpers
-│       │   ├── reactions.ts          # Emoji reaction helpers
-│       │   ├── roleInfo.tsx          # Node role display metadata
-│       │   ├── signal.ts             # Signal strength → level for SignalBars (direct RF only)
-│       │   ├── themeColors.ts        # Theme color helpers
-│       │   ├── parseStoredJson.ts    # Safe JSON parse for persisted values
-│       │   ├── appSettingsStorage.ts # Renderer app settings persistence helpers
-│       │   ├── defaultAppSettings.ts # Default app settings shape
-│       │   ├── logAnalyzer.ts        # Heuristic log analysis for connection issues
-│       │   ├── repeaterCommandService.ts  # MeshCore: prefix-token CLI command correlation, retry, timeout
-│       │   ├── meshcoreRepeaterSession.ts # MeshCore: per-repeater session state helper
-│       │   ├── radio/
-│       │   │   ├── BaseRadioProvider.ts  # ProtocolCapabilities; MESHTASTIC_CAPABILITIES, MESHCORE_CAPABILITIES
-│       │   │   └── providerFactory.ts    # useRadioProvider(protocol) — memoized capabilities
-│       │   ├── transport/             # Meshtastic: transport abstraction (used by connection.ts)
-│       │   │   ├── TransportManager.ts
-│       │   │   └── types.ts
-│       │   └── diagnostics/
-│       │       ├── RoutingDiagnosticEngine.ts  # Hop anomalies (Meshtastic); protocol-aware
-│       │       ├── RFDiagnosticEngine.ts       # RF-layer signal diagnostics
-│       │       ├── diagnosticRows.ts           # Row merge/prune, default ages
-│       │       ├── meshCongestionAttribution.ts # Path mix + RF originator for congestion copy
-│       │       ├── snrMeaningfulForNodeDiagnostics.ts
-│       │       └── RemediationEngine.ts        # Suggested fixes for routing + RF rows
-│       ├── types/                  # Type declarations (web-serial.d.ts, meshcore.d.ts)
-│       └── workers/
-│           └── messageEncoder.worker.ts  # Meshtastic: message encoding worker
-├── resources/
-│   ├── icons/                    # App icons (linux/, mac/, win/)
-│   ├── entitlements.mac.plist    # macOS signing entitlements (main)
-│   └── entitlements.mac.inherit.plist  # macOS child-process entitlements
-├── scripts/
-│   ├── rebuild-native.mjs        # Rebuilds native modules for Electron ABI (postinstall)
-│   ├── wait-for-dev.mjs          # Waits for Vite dev server before launching Electron
-│   ├── check-log-injection.mjs   # Pre-commit: log call sites use sanitizeLogMessage (CodeQL)
-│   ├── check-db-migrations.mjs   # Pre-commit: migration / schema consistency
-│   ├── check-ipc-contract.mjs    # Pre-commit: preload and main API alignment
-│   ├── check-log-panel-filter.mjs
-│   ├── check-console-log.mjs
-│   ├── check-silent-catches.mjs
-│   ├── check-xss-patterns.mjs
-│   └── letsmesh-mqtt-probe.mjs   # Optional LetsMesh / MQTT debugging
-├── pnpm-patches/                 # pnpm native patches (e.g. electron-builder)
-├── docs/
-│   ├── accessibility-checklist.md
-│   ├── credits.md               # Authors, contributors, community, and libraries
-│   ├── development-environment.md  # Development guide and environment setup
-│   ├── diagnostics.md           # Full diagnostics reference
-│   ├── letsmesh-mqtt-auth.md    # LetsMesh broker auth and analyzer-related notes
-│   ├── meshcore-deferred-epics.md   # MeshCore deferred roadmap items
-│   ├── meshcore-meshtastic-parity.md  # Meshtastic vs MeshCore feature parity
-│   └── images/                  # README screenshots (nodes, map, diagnostics, node-detail, chat, connection, repeaters)
-├── release.sh                   # Release automation script
-├── electron-builder.yml         # Distributable config (targets, icons, signing)
-├── vite.config.ts               # Renderer build (Vite)
-├── vitest.config.ts             # Test runner config
-├── tsconfig.json                # Base TypeScript config (renderer)
-├── tsconfig.main.json           # TypeScript config for main/preload
-├── eslint.config.mjs            # Flat ESLint 9; type-aware TypeScript + React (details in CONTRIBUTING.md)
-├── postcss.config.cjs
-└── package.json
-```
+| Boundary | Path            | Role                                                                                                                                                                                                                  |
+| -------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Main     | `src/main/`     | SQLite (`database.ts`, `db-compat.ts`), BLE (`noble-ble-manager.ts`), MQTT (`mqtt-manager.ts`, `meshcore-mqtt-adapter.ts`), logging (`log-service.ts`, `sanitize-log-message.ts`), IPC handlers, window, GPS, updater |
+| Preload  | `src/preload/`  | `contextBridge` exposing namespaced `electronAPI` only; never expose `ipcRenderer`                                                                                                                                    |
+| Renderer | `src/renderer/` | React 19 + Vite + Zustand: `components/`, `hooks/`, `stores/`, `lib/` (includes `lib/diagnostics/`, `lib/radio/`, `lib/transport/`), `workers/`                                                                       |
+| Shared   | `src/shared/`   | IPC contracts (`electron-api.types.ts`), protocol-neutral helpers                                                                                                                                                     |
 
----
+**Entry points:** `src/main/index.ts`, `src/preload/index.ts`, `src/renderer/main.tsx`, `src/renderer/App.tsx`.
 
-## Where to Put New Code
+**Repo root (not exhaustive):** `.github/workflows/`, `scripts/check-*.mjs` (IPC, migrations, log injection, etc.), `docs/`, `resources/`, `vite.config.ts`, `electron-builder.yml`, `package.json`.
 
-This project uses Electron with three process boundaries. Use the appropriate directory based on what the code does.
+## Process boundaries
 
-### `@/main/` - Electron Main Process
+- **Main:** Node runtime; all privileged I/O and IPC handlers.
+- **Preload:** Thin bridge; namespaced channels (`db:*`, `mqtt:*`, `log:*`, `ble:*`, `serial:*`, `session:*`, etc.).
+- **Renderer:** UI only; talk to main via `window.electronAPI` from preload.
+- **Shared:** Types and safe helpers imported by main and renderer.
 
-Node.js runtime. Handles:
+**Tests:** Co-located `*.test.ts` / `*.test.tsx`; update `src/main/index.contract.test.ts` when CSP, build config, IPC limits, or log filters change.
 
-- SQLite database operations (`database.ts`, `db-compat.ts`)
-- BLE communication (`noble-ble-manager.ts`)
-- MQTT clients (`mqtt-manager.ts`, `meshcore-mqtt-adapter.ts`)
-- System integration (window management, GPS, auto-updater)
-- IPC handlers for renderer requests
+**Package manager:** `pnpm` only.
 
-### `@/preload/` - Context Bridge
+## Dual protocol (Meshtastic + MeshCore)
 
-Exposes a minimal, namespaced API to the renderer via `contextBridge`:
+Both stacks can run at once: independent connections, header switcher for focus, inactive protocol stays connected, per-protocol unread badges (Meshtastic green, MeshCore cyan). Capabilities differ (e.g. Meshtastic: Security/Modules/TAK; MeshCore: Repeaters, contact groups, MeshCore MQTT adapter).
 
-- Database operations (`db:*` channels)
-- MQTT operations (`mqtt:*` channels)
-- Logging (`log:*` channels)
-- Device communication (BLE, serial, TCP)
-- Session state
-
-Never expose `ipcRenderer` directly. Use namespaced channels.
-
-### `@/renderer/` - React UI
-
-React 19 + Vite + Zustand. Contains:
-
-- `components/` - UI panels, modals, reusable components
-- `hooks/` - Custom hooks for device/protocol interaction
-- `stores/` - Zustand stores for state management
-- `lib/` - Utilities, types, diagnostics engines, transport abstraction
-
-### `@/shared/` - Cross-Boundary Code
-
-Shared types, utilities, and API contracts used across all boundaries:
-
-- IPC type definitions (`electron-api.types.ts`)
-- Shared utilities (`nodeNameUtils.ts`, `sqlLikeEscape.ts`, `withTimeout.ts`)
-- Protocol-neutral helpers
-
-### Testing
-
-Tests live alongside source files:
-
-- `@/renderer/**/*.test.{ts,tsx}` - Renderer tests (jsdom)
-- `@/main/**/*.test.ts` - Main process tests (node)
-- `@/main/index.contract.test.ts` - IPC contract tests (update when changing CSP, IPC limits, or log filters)
-
-### Protocol-Specific Code
-
-The app supports both Meshtastic and MeshCore protocols. Gate features using `ProtocolCapabilities`:
+**Feature gating:** use `ProtocolCapabilities` via `useRadioProvider(protocol)` from `src/renderer/lib/radio/providerFactory.ts` — do not branch on raw `protocol === 'meshcore'` strings.
 
 ```typescript
 import { useRadioProvider } from '@/lib/radio/providerFactory';
@@ -210,171 +40,66 @@ import { useRadioProvider } from '@/lib/radio/providerFactory';
 const capabilities = useRadioProvider(protocol);
 ```
 
-Use `useRadioProvider(protocol)` rather than string comparisons to access protocol-specific features.
+## IPC data flow
 
-### Package Management
+Adding a cross-boundary feature:
 
-Always use `pnpm` for package operations to maintain launch speed benchmarks.
+1. Types in `src/shared/electron-api.types.ts`.
+2. `ipcMain.handle('namespace:action', ...)` in `src/main/index.ts` (mirror existing patterns).
+3. Expose on `electronAPI` in `src/preload/index.ts` via `ipcRenderer.invoke`.
+4. Call from renderer: `window.electronAPI....`
 
-### Security
-
-When passing user-controlled data through IPC or logging, sanitize first:
-
-```typescript
-import { sanitizeLogMessage } from '@/main/sanitize-log-message';
-
-appendLine(sanitizeLogMessage(userData));
-```
-
----
-
-## IPC Data Flow
-
-To add a new feature that spans the main process, preload, and renderer, follow this flow:
-
-### Step 1: Define Shared Types
-
-Add type definitions in `@/shared/electron-api.types.ts`:
-
-```typescript
-export interface MyFeatureResult {
-  success: boolean;
-  data?: MyData;
-  error?: string;
-}
-```
-
-### Step 2: Add IPC Handler in Main
-
-Register handler in `@/main/index.ts`:
-
-```typescript
-ipcMain.handle('myfeature:doThing', async (_event, param: string) => {
-  try {
-    const result = await doThing(param);
-    return { success: true, data: result };
-  } catch (e) {
-    return { success: false, error: String(e) };
-  }
-});
-```
-
-### Step 3: Expose via Preload
-
-Add to `@/preload/index.ts`:
-
-```typescript
-electronAPI.myFeature = {
-  doThing: (param: string) => ipcRenderer.invoke('myfeature:doThing', param),
-};
-```
-
-### Step 4: Consume in Renderer
-
-Use in a hook or component:
-
-```typescript
-const result = await window.electronAPI.myFeature.doThing('param');
-```
-
-### Channel Naming
-
-Use namespaced channels: `db:*`, `mqtt:*`, `log:*`, `ble:*`, `serial:*`, `session:*`.
-
-### Contract Tests
-
-When changing IPC contracts (CSP, build config, IPC limits, or log filters), update `@/main/index.contract.test.ts`.
-
----
-
-## Dual-Protocol Architecture
-
-This app supports both **Meshtastic** and **MeshCore** protocols running simultaneously.
-
-### Protocol Switching
-
-- Both protocols connect independently on startup
-- Use the protocol switcher pill in the header to bring a protocol's view into focus
-- The inactive protocol stays connected in the background
-- Per-protocol unread badges (Meshtastic = green, MeshCore = cyan)
-
-### Feature Gating
-
-UI features are gated via `ProtocolCapabilities`. Each protocol exposes different capabilities:
-
-- Meshtastic: Security tab, TAK Server, Modules, PKI
-- MeshCore: Repeaters panel, Contact Groups, different MQTT adapter
-
-Use `useRadioProvider(protocol)` to access protocol-specific capabilities.
-
----
+Sanitize user-controlled strings before logs and IPC per [AGENTS.md](AGENTS.md).
 
 ## AI assistant quick reference
 
-Condensed maps for debugging and edits. Policy (style, security, git) lives in [AGENTS.md](AGENTS.md). For subprocess, DOM, and injection rules not repeated here, follow project security guidance and Cursor rules.
-
 ### Diagnostics
 
-- **Engines:** `lib/diagnostics/` — `RoutingDiagnosticEngine.ts` (hop anomalies), `RFDiagnosticEngine.ts` (RF), `RemediationEngine.ts` (fixes).
-- **Store:** `diagnosticsStore.ts` — routing rows, RF rows, foreign LoRa, MQTT ignore, packet redundancy.
-- **New finding:** Extend `DiagnosticRow` in `types.ts`, add detector in the engine, wire store via `replaceRoutingRowsFromMap` or `replaceRfRowsForNode`.
-- **TTL:** Routing 24h, RF 1h — `diagnosticRows.ts`.
-- **Debug:** `console.debug` in detectors; inspect store in DevTools. Routing anomalies need GPS on both nodes.
+- **Engines:** `src/renderer/lib/diagnostics/` — `RoutingDiagnosticEngine.ts`, `RFDiagnosticEngine.ts`, `RemediationEngine.ts`.
+- **Store:** `src/renderer/stores/diagnosticsStore.ts` — routing/RF rows, foreign LoRa, MQTT ignore, redundancy.
+- **Extend:** adjust `DiagnosticRow` in `src/renderer/lib/types.ts`, add detector, wire `replaceRoutingRowsFromMap` / `replaceRfRowsForNode`; TTL defaults in `diagnosticRows.ts` (routing 24h, RF 1h).
+- **Full reference** (meanings, triggers, UI surfaces): [docs/diagnostics.md](docs/diagnostics.md).
 
-### Bug fix workflow
+### Bug workflow
 
-1. Reproduce (`pnpm start` on the failing path); report what you see.
-2. Locate: search error text under `src/main/` or `src/renderer/`.
-3. Add `console.debug` only if tracing needs it.
-4. Minimal fix; co-locate tests (`*.test.ts` / `*.test.tsx`).
-5. Verify: `pnpm dlx vitest run <test-file>` and `pnpm run lint`.
+1. Reproduce (`pnpm start`); note what you see.
+2. Search errors under `src/main/` or `src/renderer/`.
+3. Add `console.debug` only when needed.
+4. Minimal fix + co-located tests.
+5. `pnpm dlx vitest run <file>` and `pnpm run lint`.
 
-**Where to look first:** connection — `useDevice.ts` / `useMeshCore.ts`; UI state — relevant `stores/*`; IPC — `src/main/index.ts`.
+**First places to look:** `useDevice.ts` / `useMeshCore.ts` (connection); `stores/*` (UI state); `src/main/index.ts` (IPC).
 
 ### Protocols
 
-- **Meshtastic:** `useDevice.ts`, `createConnection()` in `connection.ts`.
-- **MeshCore:** `useMeshCore.ts`, `MeshCoreConnection` from `@liamcottle/meshcore.js`.
-- **Gating:** `useRadioProvider(protocol)` / `ProtocolCapabilities` in `providerFactory.ts`. Do not compare raw `protocol === 'meshcore'` strings.
+- **Meshtastic:** `useDevice.ts`, `connection.ts` (`createConnection`).
+- **MeshCore:** `useMeshCore.ts`, `@liamcottle/meshcore.js`.
 
 ### Database
 
-- SQLite WAL; version via `db.pragma('user_version')`.
-- Migrations: `migration_N()` in `database.ts`, bump version.
-- API: `db-compat.ts` over `node:sqlite` (not `better-sqlite3`).
-- After schema changes: `pnpm run check:db-migrations`.
+- WAL SQLite; `user_version` in `database.ts`; migrations as `migration_N()`; `db-compat.ts` over `node:sqlite`. After schema changes: `pnpm run check:db-migrations`.
 
 ### BLE and serial
 
-- **Meshtastic BLE:** `connection.ts` → `createBleConnection()` → `TransportManager`.
-- **MeshCore BLE:** macOS/Windows — `noble-ble-manager.ts`; Linux — Web Bluetooth via `TransportWebBluetoothIpc`.
-- **Serial:** `createSerialConnection()` in `connection.ts`; port identity — `serialPortSignature.ts`.
-- **Errors:** `humanizeBleError`, `humanizeSerialError`, `humanizeHttpError` in `connection.ts`.
-- **Reconnect:** `useDevice.ts` watchdog (`BLE_STALE_THRESHOLD_MS`, `BLE_DEAD_THRESHOLD_MS`).
+- Meshtastic BLE: `connection.ts` / `TransportManager`. MeshCore BLE: `noble-ble-manager.ts` (macOS/Windows), Web Bluetooth IPC on Linux. Serial: `connection.ts`, `serialPortSignature.ts`. Errors: `humanize*` in `connection.ts`. Reconnect watchdog: `useDevice.ts`.
 
 ### MQTT
 
-- **Meshtastic:** `mqtt-manager.ts` — AES decrypt, protobuf decode, dedup (~10 min in `seenPacketIds`).
-- **MeshCore:** `meshcore-mqtt-adapter.ts` — JSON v1 envelope.
-- **Debug:** `[MQTT]` logs in `mqtt-manager.ts`; `MQTTStatus` in UI.
+- Meshtastic: `mqtt-manager.ts` (AES, protobuf, dedup). MeshCore: `meshcore-mqtt-adapter.ts` (JSON v1 envelope).
 
-### UI components
+### UI
 
-- **Panels:** `src/renderer/components/*.tsx`; tests co-located `*.test.tsx`.
-- **New tab/panel:** `lazyTabPanels.ts` or `lazyAppPanels.ts`; gate with `ProtocolCapabilities`.
-- **Stores:** `stores/*.ts` — module-level defaults; `persist` vs SQLite via IPC as elsewhere in the app.
-
-### IPC and preload
-
-- Types: `electron-api.types.ts` (shared). Handlers: namespaced channels in `src/main/index.ts`. Preload: `preload/index.ts` via `contextBridge` (see **Adding a New IPC Channel** above). Contract tests: `src/main/index.contract.test.ts` when CSP, IPC limits, build, or log filters change.
+- Panels: `src/renderer/components/`. New tabs: `lazyTabPanels.ts` / `lazyAppPanels.ts` + capabilities. Stores: module defaults; persist vs SQLite IPC as elsewhere.
 
 ### Common issues
 
-- **Connection fails:** `useDevice.ts`, `useMeshCore.ts`
-- **Messages not sending:** `useDevice.sendText`, MeshCore send paths in `useMeshCore`
-- **UI not updating:** Zustand store, `useEffect` deps
-- **BLE timeout:** `noble-ble-manager.ts`, `bleConnectErrors`
-- **Serial port not found:** `serialPortSignature.ts`
-- **MQTT reconnect loop:** `mqtt-manager.ts`
-- **Database error:** `database.ts` migrations
-- **Log panel missing lines:** `log-service.ts`, `[TAG]` prefixes
+| Symptom          | Where to check                                 |
+| ---------------- | ---------------------------------------------- |
+| Connection fails | `useDevice.ts`, `useMeshCore.ts`               |
+| Send fails       | `useDevice.sendText`, `useMeshCore` send paths |
+| UI stale         | Zustand store, effect deps                     |
+| BLE timeout      | `noble-ble-manager.ts`, `bleConnectErrors`     |
+| Serial missing   | `serialPortSignature.ts`                       |
+| MQTT loop        | `mqtt-manager.ts`                              |
+| DB errors        | `database.ts` migrations                       |
+| Log gaps         | `log-service.ts`, log tags                     |
