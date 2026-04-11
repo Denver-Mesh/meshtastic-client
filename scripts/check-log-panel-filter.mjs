@@ -56,7 +56,7 @@ function extractTagsFromFile(filePath) {
     if (SUPPRESSED.test(line)) continue;
 
     // Match the opening quote/backtick of the first string argument, then [TAG
-    const match = line.match(/console\.\w+\s*\(\s*[`'"]\[([A-Za-z][A-Za-z0-9]*(?::[^`'"$\]]*)?)/);
+    const match = line.match(/console\.\w+\s*\(\s*[`'"]\[([A-Za-z][A-Za-z0-9 ]*(?::[^`'"$\]]*)?)/);
     if (!match) continue;
 
     const inner = match[1];

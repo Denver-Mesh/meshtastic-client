@@ -135,7 +135,7 @@ export class MQTTManager extends EventEmitter {
         ? `mqtts://${hostTrim}:${settings.port}`
         : `mqtt://${hostTrim}:${settings.port}`;
     console.debug(
-      '[MQTT] connect start',
+      '[Meshtastic MQTT] connect start',
       sanitizeLogMessage(logUrl),
       'ws:',
       settings.useWebSocket === true,
@@ -181,7 +181,10 @@ export class MQTTManager extends EventEmitter {
     }
 
     this.client.on('connect', () => {
-      console.debug('[MQTT] CONNACK received', `${Date.now() - this.meshtasticConnectT0}ms`); // log-filter-ok Meshtastic MQTT logs → App log panel
+      console.debug(
+        '[Meshtastic MQTT] CONNACK received',
+        `${Date.now() - this.meshtasticConnectT0}ms`,
+      ); // log-filter-ok Meshtastic MQTT logs → App log panel
       this.setStatus('connected');
       this.emit('clientId', this.clientId);
 
@@ -202,17 +205,17 @@ export class MQTTManager extends EventEmitter {
             err.message.toLowerCase().includes('connection reset');
           if (isCascade) {
             console.warn(
-              '[MQTT] Subscribe interrupted (will retry on reconnect):',
+              '[Meshtastic MQTT] Subscribe interrupted (will retry on reconnect):',
               sanitizeLogMessage(err.message),
             );
           } else {
-            console.error('[MQTT] Subscribe failed:', sanitizeLogMessage(err.message)); // log-filter-ok Meshtastic MQTT logs → App log panel
+            console.error('[Meshtastic MQTT] Subscribe failed:', sanitizeLogMessage(err.message)); // log-filter-ok Meshtastic MQTT logs → App log panel
             this.setError(`Subscribe failed: ${err.message}`);
           }
         } else {
           // Only reset retry count after a fully stable connection + subscribe
           this.retryCount = 0;
-          console.debug('[MQTT] Subscribed to', topic); // log-filter-ok Meshtastic MQTT logs → App log panel
+          console.debug('[Meshtastic MQTT] Subscribed to', topic); // log-filter-ok Meshtastic MQTT logs → App log panel
         }
       });
 
@@ -253,14 +256,17 @@ export class MQTTManager extends EventEmitter {
       if (isTransient) {
         if (isMsgTransient) {
           console.warn(
-            '[MQTT] Connection timeout (will reconnect):',
+            '[Meshtastic MQTT] Connection timeout (will reconnect):',
             sanitizeLogMessage(err.message),
           );
         } else {
-          console.warn('[MQTT] Network error (will reconnect):', sanitizeLogMessage(err.message)); // log-filter-ok Meshtastic MQTT logs → App log panel
+          console.warn(
+            '[Meshtastic MQTT] Network error (will reconnect):',
+            sanitizeLogMessage(err.message),
+          ); // log-filter-ok Meshtastic MQTT logs → App log panel
         }
       } else {
-        console.error('[MQTT] Fatal connection error:', sanitizeLogMessage(err.message)); // log-filter-ok Meshtastic MQTT logs → App log panel
+        console.error('[Meshtastic MQTT] Fatal connection error:', sanitizeLogMessage(err.message)); // log-filter-ok Meshtastic MQTT logs → App log panel
         this.setError(err.message);
       }
     });
@@ -295,7 +301,9 @@ export class MQTTManager extends EventEmitter {
       } else {
         delay = MESHTASTIC_MQTT_RECONNECT_10_MINUTE_DELAY_MS;
       }
-      console.warn(`[MQTT] Reconnecting in ${delay}ms (attempt ${this.retryCount}/${maxRetries})`); // log-filter-ok Meshtastic MQTT logs → App log panel
+      console.warn(
+        `[Meshtastic MQTT] Reconnecting in ${delay}ms (attempt ${this.retryCount}/${maxRetries})`,
+      ); // log-filter-ok Meshtastic MQTT logs → App log panel
       this.setStatus('connecting');
 
       this.reconnectTimer = setTimeout(() => {
@@ -335,7 +343,7 @@ export class MQTTManager extends EventEmitter {
         this.client.reschedulePing(true);
       } catch (e) {
         console.debug(
-          '[MQTT] reschedulePing failed',
+          '[Meshtastic MQTT] reschedulePing failed',
           sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
         );
       }
@@ -533,7 +541,9 @@ export class MQTTManager extends EventEmitter {
     // Hard cap: if the map is still very large after cleanup, clear it entirely to prevent
     // unbounded memory growth from a malicious or misbehaving broker.
     if (this.seenPacketIds.size > 50_000) {
-      console.warn('[MQTT] seenPacketIds exceeded 50k entries after cleanup — clearing dedup map'); // log-filter-ok Meshtastic MQTT logs → App log panel
+      console.warn(
+        '[Meshtastic MQTT] seenPacketIds exceeded 50k entries after cleanup — clearing dedup map',
+      ); // log-filter-ok Meshtastic MQTT logs → App log panel
       this.seenPacketIds.clear();
     }
     if (this.seenPacketIds.has(packetId)) {
@@ -579,19 +589,23 @@ export class MQTTManager extends EventEmitter {
     if (cleanBytes.length === 0) return;
 
     if (cleanBytes[0] === 0x7b) {
-      console.debug(`[MQTT] JSON message received, topic=${topic} bytes=${cleanBytes.length}`); // log-filter-ok Meshtastic MQTT logs → App log panel
+      console.debug(
+        `[Meshtastic MQTT] JSON message received, topic=${topic} bytes=${cleanBytes.length}`,
+      ); // log-filter-ok Meshtastic MQTT logs → App log panel
       try {
         const parsed = JSON.parse(new TextDecoder().decode(cleanBytes));
         this.handleJsonMessage(parsed, topic);
       } catch {
-        console.debug(`[MQTT] JSON parse failed, topic=${topic} bytes=${cleanBytes.length}`); // log-filter-ok Meshtastic MQTT logs → App log panel
+        console.debug(
+          `[Meshtastic MQTT] JSON parse failed, topic=${topic} bytes=${cleanBytes.length}`,
+        ); // log-filter-ok Meshtastic MQTT logs → App log panel
       }
       return;
     }
 
     if (cleanBytes[0] !== 0x0a) {
       console.debug(
-        `[MQTT] Unknown message format, firstByte=0x${cleanBytes[0].toString(16)} topic=${topic} bytes=${cleanBytes.length}`,
+        `[Meshtastic MQTT] Unknown message format, firstByte=0x${cleanBytes[0].toString(16)} topic=${topic} bytes=${cleanBytes.length}`,
       ); // log-filter-ok Meshtastic MQTT logs → App log panel
       return;
     }
@@ -600,7 +614,7 @@ export class MQTTManager extends EventEmitter {
       const envelope = fromBinary(ServiceEnvelopeSchema, cleanBytes);
       const packet = envelope.packet;
       if (!packet?.from) {
-        console.debug(`[MQTT] ServiceEnvelope has no packet.from, topic=${topic}`); // log-filter-ok Meshtastic MQTT logs → App log panel
+        console.debug(`[Meshtastic MQTT] ServiceEnvelope has no packet.from, topic=${topic}`); // log-filter-ok Meshtastic MQTT logs → App log panel
         return;
       }
 
@@ -621,7 +635,7 @@ export class MQTTManager extends EventEmitter {
           payload?: Uint8Array;
         };
         console.debug(
-          `[MQTT] Decoded payload: portnum=${decoded.portnum} nodeId=0x${nodeId.toString(16)}`,
+          `[Meshtastic MQTT] Decoded payload: portnum=${decoded.portnum} nodeId=0x${nodeId.toString(16)}`,
         ); // log-filter-ok Meshtastic MQTT logs → App log panel
         this.handleDecoded(nodeId, packetId, decoded, hopsAway);
       } else if (payloadCase === 'encrypted') {
@@ -629,7 +643,7 @@ export class MQTTManager extends EventEmitter {
         const decodedData = this.tryDecryptAllKeys(encrypted, packetId, nodeId);
         if (decodedData) {
           console.debug(
-            `[MQTT] Decryption succeeded: portnum=${decodedData.portnum} nodeId=0x${nodeId.toString(16)}`,
+            `[Meshtastic MQTT] Decryption succeeded: portnum=${decodedData.portnum} nodeId=0x${nodeId.toString(16)}`,
           ); // log-filter-ok Meshtastic MQTT logs → App log panel
           this.handleDecoded(nodeId, packetId, decodedData, hopsAway);
         }
@@ -637,7 +651,7 @@ export class MQTTManager extends EventEmitter {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.debug(
-        '[MQTT] ServiceEnvelope decode failed:',
+        '[Meshtastic MQTT] ServiceEnvelope decode failed:',
         sanitizeLogMessage(msg),
         '| Topic:',
         sanitizeLogMessage(topic),
@@ -652,7 +666,7 @@ export class MQTTManager extends EventEmitter {
 
     // Log raw JSON for debugging - truncate if too long
     const jsonStr = JSON.stringify(json).slice(0, 500);
-    console.debug(`[MQTT] JSON content: ${jsonStr}`); // log-filter-ok Meshtastic MQTT logs → App log panel
+    console.debug(`[Meshtastic MQTT] JSON content: ${jsonStr}`); // log-filter-ok Meshtastic MQTT logs → App log panel
 
     const type = json.type as string | undefined;
 
@@ -695,7 +709,7 @@ export class MQTTManager extends EventEmitter {
     }
 
     console.debug(
-      `[MQTT] JSON message unhandled: type="${type}" portnum=${portnumRaw} topic=${topic}`,
+      `[Meshtastic MQTT] JSON message unhandled: type="${type}" portnum=${portnumRaw} topic=${topic}`,
     ); // log-filter-ok Meshtastic MQTT logs → App log panel
   }
 
@@ -707,28 +721,28 @@ export class MQTTManager extends EventEmitter {
    */
   private parseFromNodeId(fromRaw: unknown, handler: string): number | null {
     if (fromRaw == null) {
-      console.debug(`[MQTT] JSON ${handler} missing "from" field`); // log-filter-ok Meshtastic MQTT logs → App log panel
+      console.debug(`[Meshtastic MQTT] JSON ${handler} missing "from" field`); // log-filter-ok Meshtastic MQTT logs → App log panel
       return null;
     }
     if (typeof fromRaw === 'number') {
       return fromRaw;
     }
     if (typeof fromRaw !== 'string') {
-      console.debug(`[MQTT] JSON ${handler} unexpected from type: ${typeof fromRaw}`); // log-filter-ok Meshtastic MQTT logs → App log panel
+      console.debug(`[Meshtastic MQTT] JSON ${handler} unexpected from type: ${typeof fromRaw}`); // log-filter-ok Meshtastic MQTT logs → App log panel
       return null;
     }
     const fromStr = fromRaw;
     if (fromStr.startsWith('!')) {
       const nodeId = parseInt(fromStr.slice(1), 16);
       if (isNaN(nodeId)) {
-        console.debug(`[MQTT] JSON ${handler} invalid from hex: ${fromStr}`); // log-filter-ok Meshtastic MQTT logs → App log panel
+        console.debug(`[Meshtastic MQTT] JSON ${handler} invalid from hex: ${fromStr}`); // log-filter-ok Meshtastic MQTT logs → App log panel
         return null;
       }
       return nodeId;
     }
     const nodeId = parseInt(fromStr, 10);
     if (isNaN(nodeId)) {
-      console.debug(`[MQTT] JSON ${handler} invalid from: ${fromStr}`); // log-filter-ok Meshtastic MQTT logs → App log panel
+      console.debug(`[Meshtastic MQTT] JSON ${handler} invalid from: ${fromStr}`); // log-filter-ok Meshtastic MQTT logs → App log panel
       return null;
     }
     return nodeId;
@@ -757,7 +771,7 @@ export class MQTTManager extends EventEmitter {
     const role = userData.role as number | undefined;
 
     console.debug(
-      `[MQTT] JSON nodeinfo: nodeId=0x${nodeId.toString(16)} longName="${longName}" shortName="${shortName}" role=${role}`,
+      `[Meshtastic MQTT] JSON nodeinfo: nodeId=0x${nodeId.toString(16)} longName="${longName}" shortName="${shortName}" role=${role}`,
     ); // log-filter-ok Meshtastic MQTT logs → App log panel
 
     const now = Date.now();
@@ -852,7 +866,9 @@ export class MQTTManager extends EventEmitter {
 
     const payload = json.payload as Record<string, unknown> | undefined;
     if (!payload) {
-      console.debug(`[MQTT] JSON telemetry missing payload, nodeId=0x${nodeId.toString(16)}`); // log-filter-ok
+      console.debug(
+        `[Meshtastic MQTT] JSON telemetry missing payload, nodeId=0x${nodeId.toString(16)}`,
+      ); // log-filter-ok
       return;
     }
 
@@ -863,7 +879,7 @@ export class MQTTManager extends EventEmitter {
     const uptime_seconds = payload.uptime_seconds as number | undefined;
 
     console.debug(
-      `[MQTT] JSON telemetry: nodeId=0x${nodeId.toString(16)} battery=${battery_level} voltage=${voltage} air_util_tx=${air_util_tx} channel_util=${channel_utilization} uptime=${uptime_seconds}`,
+      `[Meshtastic MQTT] JSON telemetry: nodeId=0x${nodeId.toString(16)} battery=${battery_level} voltage=${voltage} air_util_tx=${air_util_tx} channel_util=${channel_utilization} uptime=${uptime_seconds}`,
     ); // log-filter-ok Meshtastic MQTT logs -> App log panel
 
     const now = Date.now();
@@ -885,20 +901,22 @@ export class MQTTManager extends EventEmitter {
 
     const payload = json.payload as Record<string, unknown> | undefined;
     if (!payload) {
-      console.debug(`[MQTT] JSON neighborinfo missing payload, nodeId=0x${nodeId.toString(16)}`); // log-filter-ok
+      console.debug(
+        `[Meshtastic MQTT] JSON neighborinfo missing payload, nodeId=0x${nodeId.toString(16)}`,
+      ); // log-filter-ok
       return;
     }
 
     const neighbors = payload.neighbors as { node_id: number; snr: number }[] | undefined;
     if (!neighbors) {
       console.debug(
-        `[MQTT] JSON neighborinfo missing neighbors array, nodeId=0x${nodeId.toString(16)}`,
+        `[Meshtastic MQTT] JSON neighborinfo missing neighbors array, nodeId=0x${nodeId.toString(16)}`,
       ); // log-filter-ok
       return;
     }
 
     console.debug(
-      `[MQTT] JSON neighborinfo: nodeId=0x${nodeId.toString(16)} neighbors=${neighbors.length}`,
+      `[Meshtastic MQTT] JSON neighborinfo: nodeId=0x${nodeId.toString(16)} neighbors=${neighbors.length}`,
     ); // log-filter-ok Meshtastic MQTT logs -> App log panel
 
     const now = Date.now();
@@ -948,7 +966,7 @@ export class MQTTManager extends EventEmitter {
           ...(hopsAway !== undefined && { hops_away: hopsAway }),
         };
         console.debug(
-          `[MQTT] NODEINFO_APP: nodeId=0x${nodeId.toString(16)} longName="${long_name}" shortName="${short_name}" role=${user.role} hwModel=${user.hwModel}`,
+          `[Meshtastic MQTT] NODEINFO_APP: nodeId=0x${nodeId.toString(16)} longName="${long_name}" shortName="${short_name}" role=${user.role} hwModel=${user.hwModel}`,
         ); // log-filter-ok Meshtastic MQTT logs → App log panel
         this.upsertNodeCache({
           node_id: nodeId,
@@ -960,7 +978,7 @@ export class MQTTManager extends EventEmitter {
         this.emit('nodeUpdate', nodeUpdate);
       } catch (e) {
         console.warn(
-          '[MQTT] NodeInfo parse failed for node',
+          '[Meshtastic MQTT] NodeInfo parse failed for node',
           nodeId,
           sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
         );
@@ -1013,7 +1031,7 @@ export class MQTTManager extends EventEmitter {
         }
       } catch (e) {
         console.warn(
-          '[MQTT] Position parse failed for node',
+          '[Meshtastic MQTT] Position parse failed for node',
           nodeId,
           sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
         );
@@ -1041,7 +1059,7 @@ export class MQTTManager extends EventEmitter {
         this.emitMinimalNodeUpdate(nodeId, hopsAway);
       } catch (e) {
         console.warn(
-          '[MQTT] TextMessage parse failed for node',
+          '[Meshtastic MQTT] TextMessage parse failed for node',
           nodeId,
           sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
         );
@@ -1105,7 +1123,7 @@ export class MQTTManager extends EventEmitter {
   ): { portnum?: number; payload?: Uint8Array; emoji?: number; replyId?: number } | null {
     const allKeys = [DEFAULT_PSK, ...this.extraPsks];
     console.debug(
-      `[MQTT] Decrypt attempt: trying ${allKeys.length} PSKs (1 default + ${this.extraPsks.length} custom) for nodeId=0x${from.toString(16)}`,
+      `[Meshtastic MQTT] Decrypt attempt: trying ${allKeys.length} PSKs (1 default + ${this.extraPsks.length} custom) for nodeId=0x${from.toString(16)}`,
     ); // log-filter-ok Meshtastic MQTT logs → App log panel
     for (let i = 0; i < allKeys.length; i++) {
       const key = allKeys[i];
@@ -1121,7 +1139,7 @@ export class MQTTManager extends EventEmitter {
       } catch {
         // Wrong PSK produces garbage bytes that fail protobuf decode — try next key
         console.debug(
-          `[MQTT] decrypt attempt ${i + 1}/${allKeys.length} failed (protobuf decode error)`,
+          `[Meshtastic MQTT] decrypt attempt ${i + 1}/${allKeys.length} failed (protobuf decode error)`,
         ); // log-filter-ok Meshtastic MQTT logs → App log panel
       }
     }
