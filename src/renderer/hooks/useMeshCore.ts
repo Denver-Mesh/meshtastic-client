@@ -1156,7 +1156,7 @@ export function useMeshCore() {
   // Start stats polling when connected
   useEffect(() => {
     if (state.status === 'configured') {
-      const MESHCORE_STATS_POLL_MS = 60 * 1_000;
+      const MESHCORE_STATS_POLL_MS = 30 * 1_000;
       if (meshcoreStatsPollRef.current) clearInterval(meshcoreStatsPollRef.current);
       meshcoreStatsPollRef.current = setInterval(() => {
         if (!meshcoreHookMountedRef.current) return;
@@ -3076,6 +3076,7 @@ export function useMeshCore() {
 
         try {
           const result = await connRef.current.sendTextMessage(pubKey, textToSend);
+          void fetchAndUpdateLocalStats();
           const ackCrc = result?.expectedAckCrc;
           // Use max of: firmware estimate, hop-based calculation, minimum floor
           const estTimeout = Math.max(
@@ -3195,6 +3196,7 @@ export function useMeshCore() {
           const channelConn = connRef.current;
           if (channelConn) {
             await channelConn.sendChannelTextMessage(channelIdx, textToSend);
+            void fetchAndUpdateLocalStats();
             addMessage({
               sender_id: myNodeNumRef.current,
               sender_name: selfInfo?.name ?? 'Me',
@@ -3234,7 +3236,7 @@ export function useMeshCore() {
         }
       }
     },
-    [addMessage, selfInfo],
+    [addMessage, selfInfo, fetchAndUpdateLocalStats],
   );
 
   const refreshContacts = useCallback(async () => {

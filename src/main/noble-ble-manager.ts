@@ -167,6 +167,10 @@ export class NobleBleManager extends EventEmitter {
     // Seed from the current synchronous state in case noble already transitioned before
     // this manager was constructed (avoids false "adapter not powered on" errors on startup).
     this.adapterReady = noble.state === 'poweredOn';
+    // Noble routes peripheral events (e.g. disconnect:${uuid}) through its own emitter.
+    // With repeated reconnects to the same peripheral, these accumulate past the default
+    // limit of 10 and trigger a spurious MaxListenersExceededWarning. Set a generous cap.
+    noble.setMaxListeners(50);
     noble.on('stateChange', (state: string) => {
       this.lastAdapterState = state;
       this.adapterReady = state === 'poweredOn';
