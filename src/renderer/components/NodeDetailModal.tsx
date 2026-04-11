@@ -36,6 +36,7 @@ interface NodeDetailModalProps {
   useFahrenheit?: boolean;
   protocol?: MeshProtocol;
   meshcoreTraceResult?: { pathLen: number; pathSnrs: number[]; lastSnr: number };
+  meshcorePingError?: string;
   meshcoreRepeaterStatus?: MeshCoreRepeaterStatus;
   onRequestRepeaterStatus?: (nodeId: number) => Promise<void>;
   meshcoreNodeTelemetry?: MeshCoreNodeTelemetry;
@@ -73,6 +74,7 @@ export default function NodeDetailModal({
   useFahrenheit,
   protocol,
   meshcoreTraceResult,
+  meshcorePingError,
   meshcoreRepeaterStatus,
   onRequestRepeaterStatus,
   meshcoreNodeTelemetry,
@@ -453,6 +455,13 @@ export default function NodeDetailModal({
                   {meshcoreNeighborError}
                 </div>
               )}
+
+            {/* MeshCore: trace error */}
+            {protocol === 'meshcore' && !isOurNode && meshcorePingError && (
+              <div className="mt-3 rounded-lg border border-red-800/60 bg-red-950/40 px-3 py-2 text-xs text-red-300">
+                {meshcorePingError}
+              </div>
+            )}
 
             {/* MeshCore: trace path result */}
             {protocol === 'meshcore' && !isOurNode && meshcoreTraceResult && (

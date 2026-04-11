@@ -583,7 +583,7 @@ interface MeshCoreConnection {
     manufacturerModel: string;
   }>;
   tracePath(
-    pubKeys: Uint8Array[],
+    pubKey: Uint8Array,
     extraTimeoutMillis?: number,
   ): Promise<{
     pathLen: number;
@@ -3589,9 +3589,9 @@ export function useMeshCore() {
         return next;
       });
       try {
-        const result = await connRef.current.tracePath([pubKey], MESHCORE_TRACE_TIMEOUT_MS);
+        const result = await connRef.current.tracePath(pubKey, MESHCORE_TRACE_TIMEOUT_MS);
         const convertedSnrs = (result.pathSnrs ?? []).map((s) => s * MESHCORE_RPC_SNR_RAW_TO_DB);
-        const convertedLastSnr = result.lastSnr * MESHCORE_RPC_SNR_RAW_TO_DB;
+        const convertedLastSnr = result.lastSnr;
         setMeshcoreTraceResults((prev) => {
           const next = new Map(prev);
           next.set(nodeId, {

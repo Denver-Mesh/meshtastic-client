@@ -1841,6 +1841,11 @@ export default function App() {
                   ? meshcoreDevice.meshcoreTraceResults.get(selectedNode.node_id)
                   : undefined
               }
+              meshcorePingError={
+                protocol === 'meshcore' && selectedNode
+                  ? meshcoreDevice.meshcorePingErrors.get(selectedNode.node_id)
+                  : undefined
+              }
               meshcoreRepeaterStatus={
                 protocol === 'meshcore' && selectedNode
                   ? meshcoreDevice.meshcoreNodeStatus.get(selectedNode.node_id)

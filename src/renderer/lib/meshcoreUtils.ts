@@ -296,8 +296,8 @@ const REPEATER_AUTH_HINT =
   'Set or change the repeater admin password from the Repeaters panel (session only).';
 
 /**
- * Raw SNR from MeshCore `getStatus` / `tracePath` uses the same quarter-dB scaling as trace hops.
- * @see tracePath mapping in useMeshCore (`lastSnr * MESHCORE_RPC_SNR_RAW_TO_DB`)
+ * Raw SNR quarter-dB to dB scale factor. Applied to pathSnrs hop values.
+ * NOTE: tracePath lastSnr is already converted to dB by the library (readInt8() / 4); do NOT apply this to it.
  */
 export const MESHCORE_RPC_SNR_RAW_TO_DB = 0.25;
 

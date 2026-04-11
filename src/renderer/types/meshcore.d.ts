@@ -143,7 +143,7 @@ declare module '@liamcottle/meshcore.js' {
     ): Promise<Uint8Array>;
     // Tracing
     tracePath(
-      path: Uint8Array[],
+      path: Uint8Array,
       extraTimeoutMillis?: number,
     ): Promise<{
       pathLen: number;
