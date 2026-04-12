@@ -1,5 +1,18 @@
+import {
+  decodeMeshCorePathPrefix,
+  meshCorePayloadTypeNibble,
+  meshCorePayloadTypeStringFromByte0,
+  meshCoreRouteTypeStringFromByte0,
+} from '../../shared/meshcoreRfPath';
 import { pubkeyToNodeId } from './meshcoreUtils';
-import { MESHCORE_PAYLOAD_TYPE_ADVERT } from './rawPacketLogConstants';
+import {
+  MESHCORE_ADVERT_PUBKEY_BYTE_LEN,
+  MESHCORE_PAYLOAD_TYPE_ADVERT,
+} from './rawPacketLogConstants';
+
+function pubkeyPrefixHex6(key: Uint8Array): string {
+  return Array.from(key.subarray(0, 6), (b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 /**
  * Resolve sender node id for Raw Packets (MeshCore `Packet` after `fromBytes`).
@@ -11,16 +24,65 @@ export function meshcoreRawPacketResolveFromNodeId(
   pkt: { payload: Uint8Array; payload_type: number },
   pubKeyPrefixMap: Map<string, number>,
 ): number | null {
-  if (pkt.payload_type === MESHCORE_PAYLOAD_TYPE_ADVERT && pkt.payload.length >= 32) {
-    const id = pubkeyToNodeId(pkt.payload.subarray(0, 32));
+  if (
+    pkt.payload_type === MESHCORE_PAYLOAD_TYPE_ADVERT &&
+    pkt.payload.length >= MESHCORE_ADVERT_PUBKEY_BYTE_LEN
+  ) {
+    const id = pubkeyToNodeId(pkt.payload.subarray(0, MESHCORE_ADVERT_PUBKEY_BYTE_LEN));
     if (id !== 0) return id;
   }
   if (pkt.payload.length >= 6) {
-    const prefix = Array.from(pkt.payload.subarray(0, 6))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
-    const id = pubKeyPrefixMap.get(prefix) ?? 0;
+    const id = pubKeyPrefixMap.get(pubkeyPrefixHex6(pkt.payload)) ?? 0;
     if (id !== 0) return id;
   }
   return null;
+}
+
+/**
+ * When `Packet.fromBytes` throws, recover route/payload labels, hop count, and (for ADVERT) sender
+ * from the raw RF buffer using the same path-prefix layout as main `meshcore-path-decoder`.
+ */
+export function meshcoreRawPacketLogFromBytesFallback(
+  raw: Uint8Array,
+  pubKeyPrefixMap: Map<string, number>,
+): {
+  routeTypeString: string;
+  payloadTypeString: string;
+  hopCount: number;
+  fromNodeId: number | null;
+} | null {
+  try {
+    const { hops, pathEndOffset } = decodeMeshCorePathPrefix(raw);
+    const byte0 = raw[0];
+    const routeTypeString = meshCoreRouteTypeStringFromByte0(byte0);
+    const payloadTypeString = meshCorePayloadTypeStringFromByte0(byte0);
+    const payloadNibble = meshCorePayloadTypeNibble(byte0);
+    let fromNodeId: number | null = null;
+    if (payloadNibble === MESHCORE_PAYLOAD_TYPE_ADVERT) {
+      if (raw.length >= pathEndOffset + MESHCORE_ADVERT_PUBKEY_BYTE_LEN) {
+        const key = raw.subarray(pathEndOffset, pathEndOffset + MESHCORE_ADVERT_PUBKEY_BYTE_LEN);
+        const id = pubkeyToNodeId(key);
+        if (id !== 0) {
+          fromNodeId = id;
+        } else if (raw.length >= pathEndOffset + 6) {
+          const prefix = pubkeyPrefixHex6(key);
+          const mapped = pubKeyPrefixMap.get(prefix) ?? 0;
+          if (mapped !== 0) fromNodeId = mapped;
+        }
+      }
+    } else if (raw.length >= pathEndOffset + 6) {
+      const inner = raw.subarray(pathEndOffset);
+      const mapped = pubKeyPrefixMap.get(pubkeyPrefixHex6(inner)) ?? 0;
+      if (mapped !== 0) fromNodeId = mapped;
+    }
+    return {
+      routeTypeString,
+      payloadTypeString,
+      hopCount: hops,
+      fromNodeId,
+    };
+  } catch {
+    // catch-no-log-ok buffer is not a MeshCore path-prefix frame — fallback unavailable
+    return null;
+  }
 }

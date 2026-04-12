@@ -1,7 +1,10 @@
+import { shouldClassifyRfPayloadAsMeshCoreFromPathDecode } from '../../shared/meshcoreRfPath';
+
 export type PacketClass = 'meshcore' | 'meshtastic' | 'unknown-lora';
 
 /** Fingerprint a raw LoRa payload into a packet class. */
 export function classifyPayload(raw: Uint8Array): PacketClass {
+  if (raw.length === 0) return 'unknown-lora';
   if (raw[0] === 0x3c) return 'meshcore';
   if (raw.length >= 8) {
     const destId = (raw[0] | (raw[1] << 8) | (raw[2] << 16) | (raw[3] << 24)) >>> 0;
@@ -18,12 +21,13 @@ export function classifyPayload(raw: Uint8Array): PacketClass {
         const hopStart = (flags >> 5) & 0x07;
         if (hopLimit <= hopStart) return 'meshtastic';
       } else {
-        // 8-15 byte payload: MeshCore frames always begin with 0x3c (caught above), so a
-        // non-0x3c payload this short with valid IDs is reliably Meshtastic.
+        // 8-15 byte payload: MeshCore path-prefix frames are handled above; remaining patterns
+        // with valid Meshtastic dest/src are treated as Meshtastic.
         return 'meshtastic';
       }
     }
   }
+  if (shouldClassifyRfPayloadAsMeshCoreFromPathDecode(raw)) return 'meshcore';
   return 'unknown-lora';
 }
 

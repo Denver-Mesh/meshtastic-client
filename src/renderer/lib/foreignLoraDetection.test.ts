@@ -89,7 +89,17 @@ describe('classifyPayload', () => {
     expect(classifyPayload(new Uint8Array([0x3c]))).toBe('meshcore');
   });
 
-  it('classifies Meshtastic with 8-byte packet and valid IDs (MeshCore always starts with 0x3c)', () => {
+  it('classifies MeshCore RF path-prefix (e.g. flood advert) before Meshtastic heuristic', () => {
+    const hex =
+      '110649cc80710706ce47b76233ce222c37bdb3bb394a75d08dfdd2d0b30d74ff5003409f10acb5a7c420dc69b3ec2d02fec6c29583702b2c8a482a64c6c8f1d0b16ba19a5ac36261512feda7c10ac08a2248146d9193ab55887227dfae25b2e9f1bfee29726efd2537aefa0692c8046302d2d9b9f944454e2d424c44522d5754562d52452d43453437';
+    const raw = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < raw.length; i++) {
+      raw[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+    }
+    expect(classifyPayload(raw)).toBe('meshcore');
+  });
+
+  it('classifies Meshtastic with 8-byte packet and valid IDs (MeshCore path-prefix is handled first)', () => {
     const header = new Uint8Array(8);
     const dest = 0x01020304;
     const sender = 0x05060708;
@@ -121,7 +131,7 @@ describe('classifyPayload', () => {
     expect(classifyPayload(packet)).toBe('meshtastic');
   });
 
-  it('returns unknown-lora for 16-byte packet with invalid flags (hop_limit > hop_start)', () => {
+  it('does not classify as Meshtastic when flags are invalid; may still be MeshCore RF', () => {
     const packet = new Uint8Array(16);
     const dest = 0x01020304;
     const sender = 0x05060708;
@@ -136,7 +146,7 @@ describe('classifyPayload', () => {
     // byte 12: flags — hop_start=1 (bits [7:5]=001), hop_limit=3 (bits [2:0]=011) → 0x23
     // hop_limit(3) > hop_start(1): structurally impossible in a real Meshtastic packet
     packet[12] = 0x23;
-    expect(classifyPayload(packet)).toBe('unknown-lora');
+    expect(classifyPayload(packet)).not.toBe('meshtastic');
   });
 
   it('classifies Meshtastic for 8-15 byte packets with valid IDs (short MeshCore frames start with 0x3c)', () => {

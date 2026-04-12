@@ -40,7 +40,10 @@ import {
   parseMeshcoreGetNeighboursResponse,
 } from '../lib/meshcoreGetNeighboursBinary';
 import { readMeshcoreMqttSettingsFromStorage } from '../lib/meshcoreMqttSettingsStorage';
-import { meshcoreRawPacketResolveFromNodeId } from '../lib/meshcoreRawPacketSender';
+import {
+  meshcoreRawPacketLogFromBytesFallback,
+  meshcoreRawPacketResolveFromNodeId,
+} from '../lib/meshcoreRawPacketSender';
 import { meshcoreRepeaterTryLogin } from '../lib/meshcoreRepeaterSession';
 import {
   buildMeshcoreSetOtherParamsFrame,
@@ -2394,7 +2397,14 @@ export function useMeshCore() {
               if (id != null) fromNodeId = id;
             }
           } catch {
-            // catch-no-log-ok non-MeshCore packet (meshtastic or unknown) — leave route fields null
+            // catch-no-log-ok Packet.fromBytes throws on some RF frames — use path-prefix fallback
+            const fb = meshcoreRawPacketLogFromBytesFallback(d.raw, pubKeyPrefixMapRef.current);
+            if (fb) {
+              routeTypeString = fb.routeTypeString;
+              payloadTypeString = fb.payloadTypeString;
+              hopCount = fb.hopCount;
+              if (fb.fromNodeId != null) fromNodeId = fb.fromNodeId;
+            }
           }
           const rxEntry: RxPacketEntry = {
             ts: now,
