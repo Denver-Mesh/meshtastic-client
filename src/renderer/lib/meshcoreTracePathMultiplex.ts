@@ -45,7 +45,10 @@ function getMuxState(conn: object): MuxState {
     if (!Number.isFinite(tagNum)) return;
     const lookupTag = tagNum >>> 0;
     const p = pendingByTag.get(lookupTag) ?? pendingByTag.get(tagNum);
-    if (!p) return;
+    if (!p) {
+      console.debug(`[meshcore] TraceData tag 0x${tagNum.toString(16)} not pending`);
+      return;
+    }
     if (p.traceTimeoutId !== undefined) clearTimeout(p.traceTimeoutId);
     pendingByTag.delete(lookupTag);
     if (tagNum !== lookupTag) pendingByTag.delete(tagNum);
@@ -66,8 +69,12 @@ function traceDataPayloadToResult(response: Record<string, unknown>): MeshcoreTr
   const pathLen = Math.max(0, Math.floor(Number(response.pathLen ?? 0)));
 
   const getArray = (val: unknown): number[] => {
-    if (Array.isArray(val)) return val.map((x) => Number(x));
+    if (Array.isArray(val)) return val.map((x) => Number(x) || 0);
     if (val instanceof Uint8Array) return Array.from(val);
+    if (val instanceof ArrayBuffer) return Array.from(new Uint8Array(val));
+    if (val != null && typeof val === 'object' && 'length' in val) {
+      return Array.from(val as ArrayLike<unknown>).map((x) => Number(x) || 0);
+    }
     return [];
   };
 

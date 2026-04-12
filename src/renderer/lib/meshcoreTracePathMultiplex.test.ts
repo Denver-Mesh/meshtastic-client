@@ -60,6 +60,7 @@ function buildConn() {
   return {
     conn,
     sentTags,
+    emit,
     emitSent(estTimeout = 10_000) {
       emit(MC_RESP_SENT, { estTimeout });
     },
@@ -172,5 +173,37 @@ describe('runMeshcoreTracePathMultiplexed', () => {
     const [r1, r2] = await Promise.all([p1, p2]);
     expect(r1.tag).toBe(t1);
     expect(r2.tag).toBe(t2);
+  });
+
+  it('resolves when pathHashes/pathSnrs are array-like objects (Buffer-shaped)', async () => {
+    const { conn, emit, emitSent, sentTags } = buildConn();
+    const runSerialized = createRepeaterRemoteRpcQueue();
+
+    const p = runMeshcoreTracePathMultiplexed(conn, new Uint8Array([1, 2, 3]), 0, runSerialized);
+    await Promise.resolve();
+    emitSent(5000);
+    await Promise.resolve();
+
+    // array-like: not Array, not Uint8Array, but has numeric indices + length (like SmartBuffer result)
+    const arrayLike = (vals: number[]): ArrayLike<number> =>
+      Object.assign(Object.create(null) as object, {
+        ...Object.fromEntries(vals.entries()),
+        length: vals.length,
+      }) as ArrayLike<number>;
+
+    emit(MC_PUSH_TRACE_DATA, {
+      pathLen: 2,
+      tag: sentTags[0],
+      pathHashes: arrayLike([10, 20]),
+      pathSnrs: arrayLike([4, 5, 20]),
+      lastSnr: 5,
+    });
+
+    await expect(p).resolves.toMatchObject({
+      pathLen: 2,
+      pathHashes: [10, 20],
+      pathSnrs: [4, 5],
+      lastSnr: 5,
+    });
   });
 });
