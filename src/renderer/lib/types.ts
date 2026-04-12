@@ -246,6 +246,8 @@ export interface ChatMessage {
   isHistory?: boolean;
   /** Full raw line from device/MQTT for dedupe only (not persisted); avoids collapsing same-second identical payloads. */
   meshcoreDedupeKey?: string;
+  /** CRC-32 RF packet fingerprint (8 hex), when persisted from capture metadata */
+  rxPacketFingerprintHex?: string;
 }
 
 export interface TelemetryPoint {
@@ -382,7 +384,13 @@ declare global {
           reply_id?: number | null;
           to_node?: number | null;
           received_via?: string | null;
+          rx_packet_fingerprint?: string | null;
         }) => Promise<unknown>;
+        updateMeshcoreContactRfTransport: (
+          nodeId: number,
+          transportScope: number | null,
+          transportReturn: number | null,
+        ) => Promise<unknown>;
         saveMeshcoreContact: (contact: {
           node_id: number;
           public_key: string;

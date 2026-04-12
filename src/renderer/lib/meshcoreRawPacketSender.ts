@@ -1,3 +1,4 @@
+import type { MeshCoreRfParseOk } from '../../shared/meshcoreRfPacketParse';
 import {
   decodeMeshCorePathPrefix,
   meshCorePayloadTypeNibble,
@@ -34,6 +35,32 @@ export function meshcoreRawPacketResolveFromNodeId(
   if (pkt.payload.length >= 6) {
     const id = pubKeyPrefixMap.get(pubkeyPrefixHex6(pkt.payload)) ?? 0;
     if (id !== 0) return id;
+  }
+  return null;
+}
+
+/** Resolve sender node id from a full in-house RF parse (preferred for raw log). */
+export function meshcoreRawPacketResolveFromParsed(
+  parsed: MeshCoreRfParseOk,
+  pubKeyPrefixMap: Map<string, number>,
+): number | null {
+  const inner = parsed.innerPayload;
+  if (
+    parsed.payloadTypeNibble === MESHCORE_PAYLOAD_TYPE_ADVERT &&
+    inner.length >= MESHCORE_ADVERT_PUBKEY_BYTE_LEN
+  ) {
+    if (parsed.advert) {
+      const id = pubkeyToNodeId(parsed.advert.publicKey);
+      if (id !== 0) return id;
+    }
+    const key = inner.subarray(0, MESHCORE_ADVERT_PUBKEY_BYTE_LEN);
+    const id = pubkeyToNodeId(key);
+    if (id !== 0) return id;
+    const mapped = pubKeyPrefixMap.get(pubkeyPrefixHex6(key)) ?? 0;
+    if (mapped !== 0) return mapped;
+  } else if (inner.length >= 6) {
+    const mapped = pubKeyPrefixMap.get(pubkeyPrefixHex6(inner)) ?? 0;
+    if (mapped !== 0) return mapped;
   }
   return null;
 }

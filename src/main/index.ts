@@ -411,6 +411,13 @@ function validateSaveMeshcoreMessage(msg: unknown): asserts msg is Record<string
     if (!validReceivedVia.includes(m.received_via))
       throw new Error('db:saveMeshcoreMessage: received_via must be rf, mqtt, or both');
   }
+  if (m.rx_packet_fingerprint != null) {
+    if (
+      typeof m.rx_packet_fingerprint !== 'string' ||
+      !/^[0-9A-Fa-f]{8}$/.test(m.rx_packet_fingerprint)
+    )
+      throw new Error('db:saveMeshcoreMessage: rx_packet_fingerprint must be 8 hex chars');
+  }
 }
 
 function validateSaveMeshcoreContact(contact: unknown): asserts contact is Record<
@@ -3098,11 +3105,13 @@ ipcMain.handle('db:saveMeshcoreMessage', (_event, message) => {
       (validReceivedVia as readonly string[]).includes(receivedViaRaw)
         ? receivedViaRaw
         : null;
+    const rxFp =
+      typeof m.rx_packet_fingerprint === 'string' ? m.rx_packet_fingerprint.toUpperCase() : null;
     return db
       .prepareOnce(
         'INSERT OR IGNORE INTO meshcore_messages ' +
-          '(sender_id, sender_name, payload, channel_idx, timestamp, status, packet_id, emoji, reply_id, to_node, received_via) ' +
-          'VALUES (@sender_id, @sender_name, @payload, @channel_idx, @timestamp, @status, @packet_id, @emoji, @reply_id, @to_node, @received_via)',
+          '(sender_id, sender_name, payload, channel_idx, timestamp, status, packet_id, emoji, reply_id, to_node, received_via, rx_packet_fingerprint) ' +
+          'VALUES (@sender_id, @sender_name, @payload, @channel_idx, @timestamp, @status, @packet_id, @emoji, @reply_id, @to_node, @received_via, @rx_packet_fingerprint)',
       )
       .run({
         sender_id: m.sender_id != null ? Number(m.sender_id) : null,
@@ -3116,6 +3125,7 @@ ipcMain.handle('db:saveMeshcoreMessage', (_event, message) => {
         reply_id: replyId,
         to_node: m.to_node != null ? Number(m.to_node) : null,
         received_via,
+        rx_packet_fingerprint: rxFp,
       });
   } catch (err) {
     console.error(
@@ -3177,6 +3187,38 @@ ipcMain.handle('db:saveMeshcoreContact', (_event, contact) => {
     throw err;
   }
 });
+
+ipcMain.handle(
+  'db:updateMeshcoreContactRfTransport',
+  (_event, nodeId: number, transportScope: unknown, transportReturn: unknown) => {
+    try {
+      const id = safeNonNegativeInt(nodeId);
+      const ts =
+        transportScope != null &&
+        typeof transportScope === 'number' &&
+        Number.isFinite(transportScope)
+          ? Math.trunc(transportScope) & 0xffff
+          : null;
+      const tr =
+        transportReturn != null &&
+        typeof transportReturn === 'number' &&
+        Number.isFinite(transportReturn)
+          ? Math.trunc(transportReturn) & 0xffff
+          : null;
+      getDatabase()
+        .prepareOnce(
+          'UPDATE meshcore_contacts SET last_rf_transport_scope = ?, last_rf_transport_return = ? WHERE node_id = ?',
+        )
+        .run(ts, tr, id);
+    } catch (err) {
+      console.error(
+        '[IPC] db:updateMeshcoreContactRfTransport failed:',
+        sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+      );
+      throw err;
+    }
+  },
+);
 
 ipcMain.handle(
   'db:updateMeshcoreContactNickname',

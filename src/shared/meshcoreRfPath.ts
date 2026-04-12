@@ -4,11 +4,14 @@
  */
 
 export const MESHCORE_TYPE_MASK = 0x3c;
+/** Payload type nibble is in bits 2–5 of header byte 0. */
 export const MESHCORE_TYPE_SHIFT = 2;
 export const MESHCORE_ROUTE_MASK = 0x03;
 
 export const PAYLOAD_TYPE_PATH = 0x08;
 export const PAYLOAD_TYPE_TRACE = 0x09;
+/** Header payload-type nibble value for node advertisement (`PAYLOAD_TYPE_ADVERT`). */
+export const MESHCORE_PAYLOAD_TYPE_ADVERT_NIBBLE = 4;
 
 const ROUTE_TYPE_TRANSPORT_FLOOD = 0x00;
 const ROUTE_TYPE_TRANSPORT_DIRECT = 0x03;
@@ -25,12 +28,22 @@ export function decodeMeshCorePathPrefix(raw: Uint8Array): {
   hops: number;
   pathEndOffset: number;
   path: number[];
+  /** Present when route is transport flood (`0x00`) or transport direct (`0x03`): `[scope, returnRegion]` as on-air uint16 LE. */
+  transportCodes: readonly [number, number] | null;
 } {
   if (raw.length < 2) throw new Error('Packet too short for PATH header');
 
   const routeType = raw[0] & MESHCORE_ROUTE_MASK;
   const hasTransportCodes =
     routeType === ROUTE_TYPE_TRANSPORT_FLOOD || routeType === ROUTE_TYPE_TRANSPORT_DIRECT;
+  let transportCodes: readonly [number, number] | null = null;
+  if (hasTransportCodes) {
+    if (raw.length < 1 + TRANSPORT_CODES_SIZE) {
+      throw new Error('Packet too short for transport codes');
+    }
+    const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+    transportCodes = [view.getUint16(1, true), view.getUint16(3, true)];
+  }
   const pathLengthOffset = 1 + (hasTransportCodes ? TRANSPORT_CODES_SIZE : 0);
 
   if (raw.length < pathLengthOffset + 1) {
@@ -58,6 +71,7 @@ export function decodeMeshCorePathPrefix(raw: Uint8Array): {
     hops: pathLength,
     pathEndOffset,
     path: Array.from(path),
+    transportCodes,
   };
 }
 

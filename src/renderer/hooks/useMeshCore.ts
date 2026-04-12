@@ -1,7 +1,6 @@
 import {
   CayenneLpp,
   Connection,
-  Packet,
   SerialConnection,
   WebSerialConnection,
 } from '@liamcottle/meshcore.js';
@@ -10,6 +9,7 @@ import { flushSync } from 'react-dom';
 
 import { sanitizeLogMessage } from '@/main/sanitize-log-message';
 
+import { parseMeshCoreRfPacket } from '../../shared/meshcoreRfPacketParse';
 import { withTimeout } from '../../shared/withTimeout';
 import {
   classifyMeshcoreBleTimeoutStage,
@@ -42,7 +42,7 @@ import {
 import { readMeshcoreMqttSettingsFromStorage } from '../lib/meshcoreMqttSettingsStorage';
 import {
   meshcoreRawPacketLogFromBytesFallback,
-  meshcoreRawPacketResolveFromNodeId,
+  meshcoreRawPacketResolveFromParsed,
 } from '../lib/meshcoreRawPacketSender';
 import { meshcoreRepeaterTryLogin } from '../lib/meshcoreRepeaterSession';
 import {
@@ -202,6 +202,7 @@ function messageToDbRow(
     reply_id: msg.replyId ?? null,
     to_node: msg.to ?? null,
     received_via,
+    rx_packet_fingerprint: msg.rxPacketFingerprintHex ?? null,
   };
 }
 
@@ -789,6 +790,15 @@ export interface RxPacketEntry {
   hopCount: number;
   /** Resolved when Meshtastic frame or MeshCore payload prefix matches a known contact */
   fromNodeId: number | null;
+  /** CRC-32 fingerprint (8 hex chars), same as optional DB `rx_packet_fingerprint` on messages */
+  messageFingerprintHex: string | null;
+  transportScopeCode: number | null;
+  transportReturnCode: number | null;
+  advertName: string | null;
+  advertLat: number | null;
+  advertLon: number | null;
+  advertTimestampSec: number | null;
+  parseOk: boolean;
 }
 
 /** Repeater RPCs (tracePath, getStatus, getTelemetry, sendBinaryRequest neighbours). */
@@ -887,6 +897,7 @@ interface MeshcoreMessageDbRow {
   reply_id: number | null;
   to_node: number | null;
   received_via?: string | null;
+  rx_packet_fingerprint?: string | null;
 }
 
 /**
@@ -956,6 +967,11 @@ function mapMeshcoreDbRowsToChatMessages(rows: MeshcoreMessageDbRow[]): ChatMess
       to: r.to_node ?? undefined,
       receivedVia: meshcoreReceivedViaFromDb(r.received_via),
       isHistory: true,
+      rxPacketFingerprintHex:
+        typeof r.rx_packet_fingerprint === 'string' &&
+        /^[0-9A-Fa-f]{8}$/.test(r.rx_packet_fingerprint)
+          ? r.rx_packet_fingerprint.toUpperCase()
+          : undefined,
     });
   }
   return mapped;
@@ -2377,33 +2393,67 @@ export function useMeshCore() {
         const sigPoint: TelemetryPoint = { timestamp: now, snr, rssi };
         setSignalTelemetry((prev) => [...prev, sigPoint].slice(-MAX_TELEMETRY_POINTS));
 
-        // Raw packet log: decode MeshCore packets for the RawPacketLogPanel.
+        // Raw packet log: decode MeshCore packets for the RawPacketLogPanel (in-house parse).
         if (d.raw instanceof Uint8Array && d.raw.length > 0) {
           const pClass = classifyPayload(d.raw);
           let routeTypeString: string | null = null;
           let payloadTypeString: string | null = null;
           let hopCount = 0;
           let fromNodeId: number | null = null;
+          let messageFingerprintHex: string | null = null;
+          let transportScopeCode: number | null = null;
+          let transportReturnCode: number | null = null;
+          let advertName: string | null = null;
+          let advertLat: number | null = null;
+          let advertLon: number | null = null;
+          let advertTimestampSec: number | null = null;
+          let parseOk = false;
           if (pClass === 'meshtastic') {
             fromNodeId = extractMeshtasticSenderId(d.raw);
           }
-          try {
-            const pkt = Packet.fromBytes(d.raw);
-            routeTypeString = pkt.route_type_string;
-            payloadTypeString = pkt.payload_type_string;
-            hopCount = pkt.getPathHashCount();
-            if (pClass === 'meshcore') {
-              const id = meshcoreRawPacketResolveFromNodeId(pkt, pubKeyPrefixMapRef.current);
-              if (id != null) fromNodeId = id;
-            }
-          } catch {
-            // catch-no-log-ok Packet.fromBytes throws on some RF frames — use path-prefix fallback
-            const fb = meshcoreRawPacketLogFromBytesFallback(d.raw, pubKeyPrefixMapRef.current);
-            if (fb) {
-              routeTypeString = fb.routeTypeString;
-              payloadTypeString = fb.payloadTypeString;
-              hopCount = fb.hopCount;
-              if (fb.fromNodeId != null) fromNodeId = fb.fromNodeId;
+          if (pClass === 'meshcore' || pClass === 'unknown-lora') {
+            const parsed = parseMeshCoreRfPacket(d.raw);
+            if (parsed.ok) {
+              parseOk = true;
+              routeTypeString = parsed.routeTypeString;
+              payloadTypeString = parsed.payloadTypeString;
+              hopCount = parsed.hopCount;
+              messageFingerprintHex = parsed.messageFingerprintHex;
+              if (parsed.transportCodes) {
+                transportScopeCode = parsed.transportCodes[0];
+                transportReturnCode = parsed.transportCodes[1];
+              }
+              if (parsed.advert) {
+                advertName = parsed.advert.name.length > 0 ? parsed.advert.name : null;
+                advertLat = parsed.advert.latitudeDeg;
+                advertLon = parsed.advert.longitudeDeg;
+                advertTimestampSec = parsed.advert.timestampSec;
+              }
+              if (pClass === 'meshcore') {
+                const id = meshcoreRawPacketResolveFromParsed(parsed, pubKeyPrefixMapRef.current);
+                if (id != null) {
+                  fromNodeId = id;
+                  if (parsed.transportCodes) {
+                    void window.electronAPI.db
+                      .updateMeshcoreContactRfTransport(
+                        id,
+                        parsed.transportCodes[0],
+                        parsed.transportCodes[1],
+                      )
+                      .catch((e: unknown) => {
+                        console.warn('[useMeshCore] updateMeshcoreContactRfTransport error', e);
+                      });
+                  }
+                }
+              }
+            } else if (pClass === 'meshcore') {
+              const fb = meshcoreRawPacketLogFromBytesFallback(d.raw, pubKeyPrefixMapRef.current);
+              if (fb) {
+                routeTypeString = fb.routeTypeString;
+                payloadTypeString = fb.payloadTypeString;
+                hopCount = fb.hopCount;
+                if (fb.fromNodeId != null) fromNodeId = fb.fromNodeId;
+              }
             }
           }
           const rxEntry: RxPacketEntry = {
@@ -2415,6 +2465,14 @@ export function useMeshCore() {
             payloadTypeString,
             hopCount,
             fromNodeId,
+            messageFingerprintHex,
+            transportScopeCode,
+            transportReturnCode,
+            advertName,
+            advertLat,
+            advertLon,
+            advertTimestampSec,
+            parseOk,
           };
           setRawPackets((prev) => {
             const next = [...prev, rxEntry];

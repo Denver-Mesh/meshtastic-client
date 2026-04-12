@@ -102,6 +102,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
       reply_id?: number | null;
       to_node?: number | null;
       received_via?: string | null;
+      rx_packet_fingerprint?: string | null;
     }) => ipcRenderer.invoke('db:saveMeshcoreMessage', message),
     saveMeshcoreContact: (contact: {
       node_id: number;
@@ -119,6 +120,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
       on_radio?: number | null;
       last_synced_from_radio?: string | null;
     }) => ipcRenderer.invoke('db:saveMeshcoreContact', contact),
+    updateMeshcoreContactRfTransport: (
+      nodeId: number,
+      transportScope: number | null,
+      transportReturn: number | null,
+    ) =>
+      ipcRenderer.invoke(
+        'db:updateMeshcoreContactRfTransport',
+        nodeId,
+        transportScope,
+        transportReturn,
+      ),
     updateMeshcoreContactAdvert: (
       nodeId: number,
       lastAdvert: number | null,

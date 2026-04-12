@@ -29,6 +29,37 @@ function formatTs(ts: number): string {
   return formatLogTimeOfDay(ts);
 }
 
+function MeshcoreExpandedDetails({ p }: { p: RxPacketEntry }) {
+  if (!p.parseOk) return null;
+  return (
+    <div className="mb-2 space-y-0.5 text-[10px] text-gray-400">
+      {p.messageFingerprintHex != null && (
+        <p>
+          <span className="text-muted">CRC32 fp:</span> {p.messageFingerprintHex}
+        </p>
+      )}
+      {p.transportScopeCode != null && p.transportReturnCode != null && (
+        <p>
+          <span className="text-muted">Transport:</span> scope={p.transportScopeCode} return=
+          {p.transportReturnCode}
+        </p>
+      )}
+      {p.advertTimestampSec != null && p.advertTimestampSec > 0 && (
+        <p>
+          <span className="text-muted">ADVERT ts:</span> {p.advertTimestampSec}
+        </p>
+      )}
+      {(p.advertLat != null || p.advertLon != null) && (
+        <p>
+          <span className="text-muted">ADVERT lat/lon:</span>{' '}
+          {p.advertLat != null ? p.advertLat.toFixed(5) : '?'},{' '}
+          {p.advertLon != null ? p.advertLon.toFixed(5) : '?'}
+        </p>
+      )}
+    </div>
+  );
+}
+
 interface MeshcoreProps {
   variant: 'meshcore';
   packets: RxPacketEntry[];
@@ -63,6 +94,10 @@ export default function RawPacketLogPanel(props: Props) {
         (p) =>
           (p.routeTypeString ?? '').includes(q) ||
           (p.payloadTypeString ?? '').includes(q) ||
+          (p.messageFingerprintHex ?? '').toUpperCase().includes(q) ||
+          (p.advertName ?? '').toUpperCase().includes(q) ||
+          (p.transportScopeCode != null && String(p.transportScopeCode).includes(f)) ||
+          (p.transportReturnCode != null && String(p.transportReturnCode).includes(f)) ||
           toHex(p.raw).includes(f) ||
           (p.fromNodeId != null && getNodeLabel(p.fromNodeId).toUpperCase().includes(q)),
       );
@@ -189,6 +224,9 @@ export default function RawPacketLogPanel(props: Props) {
                   </div>
                   {isExpanded && (
                     <div className="bg-slate-900/60 px-3 pb-2">
+                      {variant === 'meshcore' && (
+                        <MeshcoreExpandedDetails p={(filtered as RxPacketEntry[])[vi.index]} />
+                      )}
                       <p className="text-muted mb-1 text-[10px]">Raw hex ({byteLen} bytes):</p>
                       <p className="text-[10px] break-all text-gray-400">{hexRaw}</p>
                     </div>
@@ -263,6 +301,13 @@ function MeshcoreRow({
       <span className="text-muted min-w-0 flex-1">
         {p.hopCount > 0 ? `hops=${p.hopCount} ` : ''}
         SNR={p.snr.toFixed(1)} RSSI={p.rssi}
+        {p.parseOk && p.messageFingerprintHex ? ` · ${p.messageFingerprintHex}` : ''}
+        {p.transportScopeCode != null && p.transportReturnCode != null
+          ? ` · tc=${p.transportScopeCode}/${p.transportReturnCode}`
+          : ''}
+        {p.advertName
+          ? ` · ${p.advertName.length > 36 ? `${p.advertName.slice(0, 36)}…` : p.advertName}`
+          : ''}
       </span>
     </>
   );

@@ -63,7 +63,7 @@ export function initDatabase(): void {
            WHERE packet_id IS NOT NULL`,
           )
           .run();
-        db!.pragma('user_version = 25');
+        db!.pragma('user_version = 26');
       } else {
         runMigrations();
       }
@@ -199,7 +199,9 @@ function createBaseTables(): void {
         last_rssi    REAL,
         favorited    INTEGER DEFAULT 0,
         nickname     TEXT,
-        contact_flags INTEGER DEFAULT 0
+        contact_flags INTEGER DEFAULT 0,
+        last_rf_transport_scope  INTEGER,
+        last_rf_transport_return   INTEGER
       );
 
       CREATE TABLE IF NOT EXISTS meshcore_messages (
@@ -214,7 +216,8 @@ function createBaseTables(): void {
         emoji       INTEGER,
         reply_id    INTEGER,
         to_node     INTEGER,
-        received_via TEXT
+        received_via TEXT,
+        rx_packet_fingerprint TEXT
       );
 
       CREATE INDEX IF NOT EXISTS idx_mc_msgs_ts ON meshcore_messages(timestamp);
@@ -893,6 +896,34 @@ function runMigrations(): void {
         sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
       );
       throw new Error(`Migration v25 failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  if (userVersion < 26) {
+    try {
+      const mc1 = db!.prepare('PRAGMA table_info(meshcore_contacts)').all() as { name: string }[];
+      if (!mc1.some((c) => c.name === 'last_rf_transport_scope')) {
+        db!
+          .prepare('ALTER TABLE meshcore_contacts ADD COLUMN last_rf_transport_scope INTEGER')
+          .run();
+      }
+      const mc2 = db!.prepare('PRAGMA table_info(meshcore_contacts)').all() as { name: string }[];
+      if (!mc2.some((c) => c.name === 'last_rf_transport_return')) {
+        db!
+          .prepare('ALTER TABLE meshcore_contacts ADD COLUMN last_rf_transport_return INTEGER')
+          .run();
+      }
+      const mm1 = db!.prepare('PRAGMA table_info(meshcore_messages)').all() as { name: string }[];
+      if (!mm1.some((c) => c.name === 'rx_packet_fingerprint')) {
+        db!.prepare('ALTER TABLE meshcore_messages ADD COLUMN rx_packet_fingerprint TEXT').run();
+      }
+      db!.pragma('user_version = 26');
+    } catch (e) {
+      console.error(
+        '[db] migration v26 failed',
+        sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+      );
+      throw new Error(`Migration v26 failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 }

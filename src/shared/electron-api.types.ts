@@ -177,6 +177,7 @@ export interface ElectronAPI {
       reply_id?: number | null;
       to_node?: number | null;
       received_via?: string | null;
+      rx_packet_fingerprint?: string | null;
     }) => Promise<unknown>;
     saveMeshcoreContact: (contact: {
       node_id: number;
@@ -194,6 +195,11 @@ export interface ElectronAPI {
       on_radio?: number | null;
       last_synced_from_radio?: string | null;
     }) => Promise<unknown>;
+    updateMeshcoreContactRfTransport: (
+      nodeId: number,
+      transportScope: number | null,
+      transportReturn: number | null,
+    ) => Promise<unknown>;
     updateMeshcoreContactAdvert: (
       nodeId: number,
       lastAdvert: number | null,
