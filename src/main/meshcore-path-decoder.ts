@@ -1,4 +1,5 @@
 const PAYLOAD_TYPE_PATH = 0x08;
+const PAYLOAD_TYPE_TRACE = 0x09;
 const TYPE_MASK = 0x3c;
 const TYPE_SHIFT = 2;
 const ROUTE_TYPE_MASK = 0x03;
@@ -9,6 +10,11 @@ const TRANSPORT_CODES_SIZE = 4;
 export function isPathPacket(buffer: Buffer): boolean {
   if (!buffer || buffer.length < 1) return false;
   return (buffer[0] & TYPE_MASK) >> TYPE_SHIFT === PAYLOAD_TYPE_PATH;
+}
+
+export function isTracePacket(buffer: Buffer): boolean {
+  if (!buffer || buffer.length < 1) return false;
+  return (buffer[0] & TYPE_MASK) >> TYPE_SHIFT === PAYLOAD_TYPE_TRACE;
 }
 
 export function decodePathPayload(buffer: Buffer): { hops: number; path: number[] } {
@@ -44,4 +50,8 @@ export function decodePathPayload(buffer: Buffer): { hops: number; path: number[
     hops: pathLength,
     path: Array.from(path),
   };
+}
+
+export function decodeTracePayload(buffer: Buffer): { hops: number; path: number[] } {
+  return decodePathPayload(buffer);
 }

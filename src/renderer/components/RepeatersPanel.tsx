@@ -14,6 +14,7 @@ import { formatCoordPair } from '../lib/coordUtils';
 import {
   meshcoreClearRepeaterRemoteSessionAuth,
   meshcoreIsRepeaterRemoteAuthTouched,
+  meshcoreTracePathLenToHops,
 } from '../lib/meshcoreUtils';
 import { getNodeStatus, normalizeLastHeardMs } from '../lib/nodeStatus';
 import { useRadioProvider } from '../lib/radio/providerFactory';
@@ -448,7 +449,7 @@ export default function RepeatersPanel({
                   </th>
                   <th
                     className="py-2 pr-4 font-medium"
-                    title="Hop count from last trace (Ping); MeshCore path differs from Meshtastic"
+                    title="Hop count from last Ping trace (repeaters between you and this node)"
                   >
                     Hops
                   </th>
@@ -500,8 +501,6 @@ export default function RepeatersPanel({
                   const neighborData = meshcoreNeighbors?.get(node.node_id);
                   const telemetryData = meshcoreTelemetry?.get(node.node_id);
                   const telemetryError = meshcoreTelemetryErrors?.get(node.node_id);
-                  const hasTraceResult = traceResult && traceResult.pathLen > 0;
-
                   return (
                     <Fragment key={node.node_id}>
                       <tr className="text-gray-300 hover:bg-gray-800/30">
@@ -568,18 +567,16 @@ export default function RepeatersPanel({
                         </td>
                         <td className="py-2 pr-4">
                           {traceResult ? (
-                            hasTraceResult ? (
-                              <button
-                                onClick={() => {
-                                  togglePath(node.node_id);
-                                }}
-                                className="text-blue-400 underline decoration-dotted hover:text-blue-300"
-                              >
-                                {traceResult.pathLen} hops
-                              </button>
-                            ) : (
-                              <span className="text-gray-500">—</span>
-                            )
+                            <button
+                              type="button"
+                              onClick={() => {
+                                togglePath(node.node_id);
+                              }}
+                              className="text-left text-blue-400 underline decoration-dotted hover:text-blue-300"
+                              title="Hops from last Ping trace (repeaters between you and this node)"
+                            >
+                              {meshcoreTracePathLenToHops(traceResult.pathLen)}
+                            </button>
                           ) : (
                             <span className="text-gray-500">—</span>
                           )}
@@ -731,7 +728,10 @@ export default function RepeatersPanel({
                             <div className="flex flex-wrap items-center gap-1 text-xs">
                               <span className="mr-1 text-gray-400">Path:</span>
                               <span className="text-brand-green">● Me</span>
-                              {traceResult.pathSnrs?.map((hop, i) => (
+                              {(Array.isArray(traceResult.pathSnrs)
+                                ? traceResult.pathSnrs
+                                : []
+                              ).map((hop, i) => (
                                 <span key={i} className="flex items-center gap-1">
                                   <span className="text-gray-600">→</span>
                                   <span className="rounded bg-blue-900/40 px-1.5 py-0.5 font-mono text-blue-300">

@@ -3,11 +3,13 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   isMeshcoreContactEligibleForUserGroup,
   isMeshcoreTransportStatusChatLine,
+  mergeHwModelOnContactUpdate,
   meshcoreAppendRepeaterAuthHint,
   meshcoreApplyRepeaterSessionAuth,
   meshcoreApplyRepeaterSessionAuthSkip,
   meshcoreClearRepeaterRemoteSessionAuth,
   meshcoreConnectionImpliesUsbPower,
+  meshcoreContactTypeFromHwModel,
   meshcoreDeriveChannelKeyHexFromName,
   meshcoreGetRepeaterSessionPassword,
   meshcoreIsRepeaterRemoteAuthTouched,
@@ -15,6 +17,7 @@ import {
   meshcoreMinimalNodeFromAdvertEvent,
   meshcoreSelfInfoBwToDisplayKhz,
   meshcoreSelfInfoFreqToDisplayHz,
+  meshcoreTracePathLenToHops,
   pubkeyToNodeId,
 } from './meshcoreUtils';
 
@@ -219,6 +222,23 @@ describe('repeater session auth (in-memory)', () => {
   });
 });
 
+describe('meshcoreTracePathLenToHops', () => {
+  it('maps direct trace (pathLen 1) to 0 hops', () => {
+    expect(meshcoreTracePathLenToHops(1)).toBe(0);
+  });
+
+  it('subtracts one for multi-segment paths', () => {
+    expect(meshcoreTracePathLenToHops(2)).toBe(1);
+    expect(meshcoreTracePathLenToHops(5)).toBe(4);
+  });
+
+  it('clamps non-positive or non-finite values to 0', () => {
+    expect(meshcoreTracePathLenToHops(0)).toBe(0);
+    expect(meshcoreTracePathLenToHops(-1)).toBe(0);
+    expect(meshcoreTracePathLenToHops(Number.NaN)).toBe(0);
+  });
+});
+
 describe('meshcoreAppendRepeaterAuthHint', () => {
   it('appends hint for authentication failed', () => {
     const out = meshcoreAppendRepeaterAuthHint('Authentication failed');
@@ -235,5 +255,63 @@ describe('meshcoreAppendRepeaterAuthHint', () => {
   it('does not double-append hint', () => {
     const once = meshcoreAppendRepeaterAuthHint('Authentication failed');
     expect(meshcoreAppendRepeaterAuthHint(once)).toBe(once);
+  });
+});
+
+describe('mergeHwModelOnContactUpdate', () => {
+  it('preserves Repeater hw_model when device pushes type None', () => {
+    expect(mergeHwModelOnContactUpdate('Repeater', 'None')).toBe('Repeater');
+  });
+
+  it('preserves Repeater hw_model when device pushes type Chat', () => {
+    expect(mergeHwModelOnContactUpdate('Repeater', 'Chat')).toBe('Repeater');
+  });
+
+  it('preserves Sensor hw_model when device pushes type Unknown', () => {
+    expect(mergeHwModelOnContactUpdate('Sensor', 'Unknown')).toBe('Sensor');
+  });
+
+  it('uses incoming hw_model when existing is None', () => {
+    expect(mergeHwModelOnContactUpdate('None', 'Repeater')).toBe('Repeater');
+  });
+
+  it('uses incoming hw_model when existing is undefined (new node)', () => {
+    expect(mergeHwModelOnContactUpdate(undefined, 'Chat')).toBe('Chat');
+  });
+
+  it('uses incoming hw_model when existing is Unknown', () => {
+    expect(mergeHwModelOnContactUpdate('Unknown', 'Repeater')).toBe('Repeater');
+  });
+
+  it('uses incoming hw_model when existing is Chat', () => {
+    expect(mergeHwModelOnContactUpdate('Chat', 'Repeater')).toBe('Repeater');
+  });
+});
+
+describe('meshcoreContactTypeFromHwModel', () => {
+  it('maps known hw_model strings to contact_type', () => {
+    expect(meshcoreContactTypeFromHwModel('Repeater')).toBe(2);
+    expect(meshcoreContactTypeFromHwModel('Chat')).toBe(1);
+    expect(meshcoreContactTypeFromHwModel('None')).toBe(0);
+    expect(meshcoreContactTypeFromHwModel('Sensor')).toBe(4);
+  });
+
+  it('returns undefined for labels not in CONTACT_TYPE_LABELS', () => {
+    expect(meshcoreContactTypeFromHwModel('Unknown')).toBeUndefined();
+  });
+});
+
+/** Regression: event 128 used to overwrite hw_model from raw advert type; must match contact refresh merge. */
+describe('event 128 advert hw_model merge', () => {
+  it('preserves Repeater when firmware advert reports Chat (type 1)', () => {
+    const newHwModelFromAdvert = 'Chat';
+    const mergedHwModel = mergeHwModelOnContactUpdate('Repeater', newHwModelFromAdvert);
+    expect(mergedHwModel).toBe('Repeater');
+    expect(meshcoreContactTypeFromHwModel(mergedHwModel)).toBe(2);
+  });
+
+  it('preserves Repeater when firmware advert reports None (type 0)', () => {
+    const mergedHwModel = mergeHwModelOnContactUpdate('Repeater', 'None');
+    expect(mergedHwModel).toBe('Repeater');
   });
 });

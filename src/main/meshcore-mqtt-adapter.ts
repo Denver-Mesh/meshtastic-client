@@ -33,10 +33,19 @@ function buildMeshcoreUrlForLog(settings: MQTTSettings): string {
 const MESHCORE_MQTT_CONNECT_ACK_MS = 30_000;
 /** Send WebSocket-level ping frames so LB/proxy idle timers see traffic at ~10s intervals. */
 const MESHCORE_MQTT_WSS_PING_MS = 10_000;
-const MESHCORE_MQTT_RESCHEDULE_MS = 60_000;
 /** Reconnect delay base/cap — mirrors MQTTManager. */
 const MESHCORE_MQTT_RECONNECT_IMMEDIATE_MS = 500;
 const MESHCORE_MQTT_RECONNECT_10_MINUTE_DELAY_MS = 600_000;
+/**
+ * Periodic reschedulePing(true) resets mqtt.js KeepaliveManager without waiting for PINGRESP/SUBACK
+ * on proxied WSS paths (LetsMesh broker) — same as MQTTManager.
+ */
+const MESHCORE_MQTT_RESCHEDULE_MS = 30_000;
+/**
+ * A session that lasted this long is considered stable. When the next disconnect occurs after a
+ * stable session, retryCount resets to 0 so the full retry budget is available again.
+ */
+const MESHCORE_MQTT_CONNECTION_STABLE_THRESHOLD_MS = 30_000;
 
 export class MeshcoreMqttAdapter extends EventEmitter {
   private client: mqtt.MqttClient | null = null;
@@ -49,11 +58,11 @@ export class MeshcoreMqttAdapter extends EventEmitter {
   /** One-shot: log first inbound MQTT message for broker delivery diagnostics. */
   private firstMessageLogged = false;
   private wssPingTimer: ReturnType<typeof setInterval> | null = null;
+  private keepaliveRescheduleTimer: ReturnType<typeof setInterval> | null = null;
   private pingReqLogged = false;
   private pingRespLogged = false;
   private retryCount = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private wssRescheduleTimer: ReturnType<typeof setInterval> | null = null;
   private lastConnected: number | null = null;
   private disconnectCount = 0;
   private tokenRefreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -64,8 +73,11 @@ export class MeshcoreMqttAdapter extends EventEmitter {
   private static readonly TOKEN_GRACE_PERIOD_MS = 5 * 60 * 1000;
   /** Proactive refresh schedule (50 minutes in ms = 90% of 60-minute token). */
   private static readonly PROACTIVE_REFRESH_MS = 54 * 60 * 1000;
-  /** Safety timeout: if renderer never responds to token refresh request, reconnect anyway. */
-  private static readonly PENDING_RECONNECT_TIMEOUT_MS = 10_000;
+  /**
+   * Safety timeout: if renderer never responds to token refresh request, reconnect anyway.
+   * 15s to allow for cold dynamic-import of @michaelhart/meshcore-decoder in the renderer.
+   */
+  private static readonly PENDING_RECONNECT_TIMEOUT_MS = 15_000;
 
   /** Event emitted when token needs refresh (before reconnect). */
   static readonly EVENT_TOKEN_REFRESH_NEEDED = 'tokenRefreshNeeded';
@@ -107,7 +119,7 @@ export class MeshcoreMqttAdapter extends EventEmitter {
         clearTimeout(this.pendingReconnectTimer);
         this.pendingReconnectTimer = null;
       }
-      console.debug('[MeshcoreMqttAdapter] Token updated, triggering pending reconnect');
+      console.debug('[MeshCore MQTT] Token updated, triggering pending reconnect');
       this._doConnect(this.lastSettings);
     }
   }
@@ -130,26 +142,19 @@ export class MeshcoreMqttAdapter extends EventEmitter {
     const scheduleMs = Math.min(refreshAt, MeshcoreMqttAdapter.PROACTIVE_REFRESH_MS);
     if (scheduleMs <= 0) {
       console.debug(
-        '[MeshcoreMqttAdapter] token already within grace period, skipping proactive refresh schedule',
+        '[MeshCore MQTT] token already within grace period, skipping proactive refresh schedule',
       );
       return;
     }
     console.debug(
-      '[MeshcoreMqttAdapter] scheduling proactive token refresh',
+      '[MeshCore MQTT] scheduling proactive token refresh',
       `in ${Math.round(scheduleMs / 1000 / 60)}min (expires in ${Math.round(timeUntilExpiry / 1000 / 60)}min)`,
     );
     this.tokenRefreshTimer = setTimeout(() => {
       if (this.status !== 'connected' || !this.lastSettings) return;
-      console.debug('[MeshcoreMqttAdapter] proactive token refresh fired');
+      console.debug('[MeshCore MQTT] proactive token refresh fired');
       this.emit(MeshcoreMqttAdapter.EVENT_PROACTIVE_TOKEN_REFRESH, this.lastSettings.server);
     }, scheduleMs);
-  }
-
-  private needsTokenRefresh(): boolean {
-    const expiresAt = this.lastSettings?.tokenExpiresAt;
-    if (!expiresAt) return false;
-    const now = Date.now();
-    return expiresAt - now <= MeshcoreMqttAdapter.TOKEN_GRACE_PERIOD_MS;
   }
 
   private clearConnectTimers(): void {
@@ -166,32 +171,33 @@ export class MeshcoreMqttAdapter extends EventEmitter {
     }
   }
 
+  private clearKeepaliveReschedule(): void {
+    if (this.keepaliveRescheduleTimer) {
+      clearInterval(this.keepaliveRescheduleTimer);
+      this.keepaliveRescheduleTimer = null;
+    }
+  }
+
+  private startKeepaliveReschedule(): void {
+    this.clearKeepaliveReschedule();
+    this.keepaliveRescheduleTimer = setInterval(() => {
+      if (!this.client?.connected) return;
+      try {
+        this.client.reschedulePing(true);
+      } catch (e) {
+        console.debug(
+          '[MeshCore MQTT] reschedulePing failed',
+          sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+        );
+      }
+    }, MESHCORE_MQTT_RESCHEDULE_MS);
+  }
+
   private clearReconnectTimer(): void {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-  }
-
-  private clearWssReschedule(): void {
-    if (this.wssRescheduleTimer) {
-      clearInterval(this.wssRescheduleTimer);
-      this.wssRescheduleTimer = null;
-    }
-  }
-
-  private startWssReschedule(): void {
-    this.clearWssReschedule();
-    this.wssRescheduleTimer = setInterval(() => {
-      if (!this.client?.connected) return;
-      const s = this.client?.stream as { ping?: () => void; _reschedule?: () => void } | undefined;
-      try {
-        s?.ping?.();
-        s?._reschedule?.();
-      } catch {
-        // catch-no-log-ok ws ping after teardown
-      }
-    }, MESHCORE_MQTT_RESCHEDULE_MS);
   }
 
   private setError(message: string): void {
@@ -204,7 +210,7 @@ export class MeshcoreMqttAdapter extends EventEmitter {
     this.clearTokenRefreshTimer();
     this.clearConnectTimers();
     this.clearWssPing();
-    this.clearWssReschedule();
+    this.clearKeepaliveReschedule();
     this.clearReconnectTimer();
     this.pendingReconnect = false;
     if (this.pendingReconnectTimer) {
@@ -218,7 +224,7 @@ export class MeshcoreMqttAdapter extends EventEmitter {
         this.client.end(true);
       } catch (e) {
         console.warn(
-          '[MeshcoreMqttAdapter] disconnect',
+          '[MeshCore MQTT] disconnect',
           sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
         );
       }
@@ -236,6 +242,9 @@ export class MeshcoreMqttAdapter extends EventEmitter {
   }
 
   private _doConnect(settings: MQTTSettings): void {
+    // Clear any stale connectAckTimer from a previous _doConnect call so the old watchdog
+    // cannot tear down the new client 30s later (Bug 3 fix).
+    this.clearConnectTimers();
     if (this.client) {
       try {
         this.client.removeAllListeners();
@@ -252,9 +261,9 @@ export class MeshcoreMqttAdapter extends EventEmitter {
 
     // Match MQTTManager: WebSocket uses mqtt.connect({ protocol, host, port, path, … }) — not
     // mqtt.connect(urlString, opts), which can hang or mis-handle TLS in Node mqtt.js.
-    // For WebSocket, set keepalive=0 to disable MQTT PINGREQ (broker doesn't respond to PINGRESP);
-    // rely on WebSocket-level ping frames (MESHCORE_MQTT_WSS_PING_MS) to keep connection alive.
-    const keepaliveSec = settings.useWebSocket ? 0 : (settings.keepalive ?? 60);
+    // Use MQTT keepalive for both WebSocket and raw TCP; letsmesh requires PINGREQ every 60s.
+    // WebSocket-level pings (MESHCORE_MQTT_WSS_PING_MS) additionally keep LB/proxy paths alive.
+    const keepaliveSec = settings.keepalive ?? 60;
     let connectOpts: mqtt.IClientOptions = {
       clientId,
       username: settings.username || undefined,
@@ -288,7 +297,7 @@ export class MeshcoreMqttAdapter extends EventEmitter {
     }
 
     console.debug(
-      '[MeshcoreMqttAdapter] connect start',
+      '[MeshCore MQTT] connect start',
       sanitizeLogMessage(logUrl),
       'ws:',
       settings.useWebSocket,
@@ -306,7 +315,7 @@ export class MeshcoreMqttAdapter extends EventEmitter {
       if (this.status !== 'connecting' || !this.client) return;
       this.connectAbortByWatchdog = true;
       const msg = `MeshCore MQTT: timed out before MQTT session (no CONNACK within ${MESHCORE_MQTT_CONNECT_ACK_MS / 1000}s). Check host, port, WebSocket path /mqtt, TLS, and network (firewall, VPN, DNS).`;
-      console.error('[MeshcoreMqttAdapter]', sanitizeLogMessage(msg));
+      console.error('[MeshCore MQTT]', sanitizeLogMessage(msg));
       this.emit('error', msg);
       try {
         this.client.removeAllListeners();
@@ -322,9 +331,16 @@ export class MeshcoreMqttAdapter extends EventEmitter {
         clearTimeout(this.connectAckTimer);
         this.connectAckTimer = null;
       }
-      console.debug('[MeshcoreMqttAdapter] CONNACK received', new Date().toISOString());
+      // retryCount is NOT reset here — it resets only after a stable session (>= 30s) in the
+      // close handler. Resetting on CONNACK alone caused perpetual "attempt 1/N" loops because
+      // some brokers (LetsMesh) send CONNACK(0) then validate JWT asynchronously and close
+      // immediately, causing retryCount to reset on every cycle.
+      console.debug(
+        '[MeshCore MQTT] CONNACK received',
+        new Date().toISOString(),
+        `retryCount=${this.retryCount}`,
+      );
       this.clientIdStr = this.client?.options?.clientId ?? '';
-      this.retryCount = 0;
       this.lastConnected = Date.now();
       this.setStatus('connected');
       this.emit('clientId', this.clientIdStr);
@@ -342,25 +358,22 @@ export class MeshcoreMqttAdapter extends EventEmitter {
             // Cascade after transport teardown (e.g. keepalive) — user already got `error`.
             if (/^connection closed$/i.test(err.message.trim())) {
               console.debug(
-                '[MeshcoreMqttAdapter] subscribe skipped (connection closed)',
+                '[MeshCore MQTT] subscribe skipped (connection closed)',
                 sanitizeLogMessage(subTopic),
               );
               return;
             }
             const detail = `Subscribe to ${subTopic} failed: ${err.message}`;
-            console.warn('[MeshcoreMqttAdapter] subscribe warning', sanitizeLogMessage(detail));
+            console.warn('[MeshCore MQTT] subscribe warning', sanitizeLogMessage(detail));
             this.emit('subscribeWarning', detail);
             return;
           }
-          console.debug(
-            '[MeshcoreMqttAdapter] subscribe callback OK',
-            sanitizeLogMessage(subTopic),
-          );
+          console.debug('[MeshCore MQTT] subscribe callback OK', sanitizeLogMessage(subTopic));
         });
       }, 500);
-      // Start periodic rescheduling for keepalive
+      // WebSocket-level pings keep LB/proxy paths alive independent of MQTT keepalive
       if (settings.useWebSocket) {
-        // Fast ping every 10s to keep LB/proxy connections alive
+        // Ping every 10s so intermediary idle timers stay reset
         this.clearWssPing();
         this.wssPingTimer = setInterval(() => {
           const s = this.client?.stream as { ping?: () => void } | undefined;
@@ -370,31 +383,28 @@ export class MeshcoreMqttAdapter extends EventEmitter {
             // catch-no-log-ok ws ping after teardown
           }
         }, MESHCORE_MQTT_WSS_PING_MS);
-        // Also start the 60s reschedule timer
-        this.startWssReschedule();
       }
+      // Start keepalive reschedule (same as MQTTManager) — resets mqtt.js keepalive without waiting for PINGRESP
+      this.startKeepaliveReschedule();
       // Schedule proactive token refresh
       this.scheduleTokenRefresh();
     });
     this.client.on('packetsend', (packet) => {
       if (packet.cmd === 'pingreq') {
         this.pingReqLogged = false;
-        console.debug('[MeshcoreMqttAdapter] PINGREQ sent', new Date().toISOString());
+        console.debug('[MeshCore MQTT] PINGREQ sent', new Date().toISOString());
       }
     });
     this.client.on('packetreceive', (packet) => {
       if (packet.cmd === 'pingresp') {
         this.pingRespLogged = false;
-        console.debug('[MeshcoreMqttAdapter] PINGRESP received', new Date().toISOString());
+        console.debug('[MeshCore MQTT] PINGRESP received', new Date().toISOString());
       }
     });
     this.client.on('message', (topic, payload) => {
       if (!this.firstMessageLogged) {
         this.firstMessageLogged = true;
-        console.debug(
-          '[MeshcoreMqttAdapter] first message received on topic',
-          sanitizeLogMessage(topic),
-        );
+        console.debug('[MeshCore MQTT] first message received on topic', sanitizeLogMessage(topic));
       }
       const buf = payload instanceof Buffer ? payload : Buffer.from(payload);
       let text = '';
@@ -406,7 +416,7 @@ export class MeshcoreMqttAdapter extends EventEmitter {
       }
       const env = tryParseMeshcoreMqttChatEnvelope(text.trim());
       if (!env) {
-        console.debug('[MeshcoreMqttAdapter] MQTT message not a chat envelope, skipping');
+        console.debug('[MeshCore MQTT] MQTT message not a chat envelope, skipping');
         return;
       }
       this.emit('chatMessage', { topic, ...env });
@@ -414,7 +424,7 @@ export class MeshcoreMqttAdapter extends EventEmitter {
     this.client.on('error', (err) => {
       this.clearConnectTimers();
       console.error(
-        '[MeshcoreMqttAdapter] client error',
+        '[MeshCore MQTT] client error',
         sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
       );
       this.emit('error', err instanceof Error ? err.message : String(err));
@@ -425,13 +435,13 @@ export class MeshcoreMqttAdapter extends EventEmitter {
     });
     this.client.on('close', () => {
       this.clearWssPing();
-      this.clearWssReschedule();
+      this.clearKeepaliveReschedule();
       this.clearConnectTimers();
       const now = Date.now();
       this.disconnectCount++;
       const sessionDuration = this.lastConnected ? now - this.lastConnected : 0;
       console.debug(
-        `[MeshcoreMqttAdapter] connection closed after ${Math.round(sessionDuration / 1000)}s (disconnect #${this.lastConnected ? this.disconnectCount : 'first'})`,
+        `[MeshCore MQTT] connection closed after ${Math.round(sessionDuration / 1000)}s (disconnect #${this.lastConnected ? this.disconnectCount : 'first'})`,
         new Date().toISOString(),
       );
       const skipReconnect =
@@ -441,6 +451,14 @@ export class MeshcoreMqttAdapter extends EventEmitter {
       }
       if (skipReconnect) return;
 
+      // Bug 1b fix: reset retry budget only when the session was genuinely stable (>= 30s).
+      // Resetting on CONNACK alone allowed brokers that send CONNACK then immediately drop
+      // (e.g. async JWT validation) to trap the adapter in a perpetual "attempt 1/N" loop.
+      const isStableSession = sessionDuration >= MESHCORE_MQTT_CONNECTION_STABLE_THRESHOLD_MS;
+      if (isStableSession) {
+        this.retryCount = 0;
+      }
+
       const maxRetries = Math.max(
         1,
         Math.min(
@@ -448,21 +466,35 @@ export class MeshcoreMqttAdapter extends EventEmitter {
           MQTT_MAX_RECONNECT_ATTEMPTS,
         ),
       );
-      if (this.retryCount >= maxRetries) {
+
+      // Bug 4 fix: increment retryCount BEFORE the token-refresh branch so that the max-retry
+      // guard fires even when we always enter the refresh path (JWT brokers).
+      this.retryCount++;
+
+      const isJwtBroker = !!this.lastSettings?.tokenExpiresAt;
+      console.debug(
+        `[MeshCore MQTT] close: session=${Math.round(sessionDuration / 1000)}s stable=${isStableSession} attempt=${this.retryCount}/${maxRetries} jwtBroker=${isJwtBroker}`,
+      );
+
+      if (this.retryCount > maxRetries) {
         this.setError(
           `Connection lost after ${maxRetries} reconnect attempt${maxRetries === 1 ? '' : 's'}`,
         );
         return;
       }
 
-      if (this.needsTokenRefresh()) {
-        console.debug('[MeshcoreMqttAdapter] Token stale, emitting refresh event before reconnect');
+      // Bug 2 fix: for JWT-auth brokers (tokenExpiresAt set) always request a fresh token before
+      // reconnecting — not only when within the 5-min grace window. meshcoretomqtt generates a
+      // new token on every reconnect; reusing a stale/rejected token on every attempt is the
+      // second cause of the infinite reconnect loop.
+      if (isJwtBroker) {
+        console.debug('[MeshCore MQTT] JWT broker: requesting fresh token before reconnect');
         this.pendingReconnect = true;
         this.emit(MeshcoreMqttAdapter.EVENT_TOKEN_REFRESH_NEEDED, this.lastSettings?.server ?? '');
         this.pendingReconnectTimer = setTimeout(() => {
           if (this.pendingReconnect && this.lastSettings) {
             console.warn(
-              '[MeshcoreMqttAdapter] Token refresh timed out, reconnecting with existing token',
+              '[MeshCore MQTT] Token refresh timed out, reconnecting with existing token',
             );
             this.pendingReconnect = false;
             this.pendingReconnectTimer = null;
@@ -472,24 +504,27 @@ export class MeshcoreMqttAdapter extends EventEmitter {
         return;
       }
 
-      this.retryCount++;
+      // Bug 6 fix: add jitter to the first reconnect to avoid thundering herd on broker restart.
+      const jitterMs = Math.floor(Math.random() * 2000);
       const delay =
         this.retryCount === 1
-          ? MESHCORE_MQTT_RECONNECT_IMMEDIATE_MS
+          ? MESHCORE_MQTT_RECONNECT_IMMEDIATE_MS + jitterMs
           : MESHCORE_MQTT_RECONNECT_10_MINUTE_DELAY_MS;
       console.warn(
-        `[MeshcoreMqttAdapter] Reconnecting in ${delay}ms (attempt ${this.retryCount}/${maxRetries})`,
+        `[MeshCore MQTT] Reconnecting in ${delay}ms (attempt ${this.retryCount}/${maxRetries})`,
       );
       this.setStatus('connecting');
       this.reconnectTimer = setTimeout(() => {
         this.reconnectTimer = null;
-        if (this.status !== 'disconnected' && this.lastSettings) {
+        // Bug 5 fix: check status === 'connecting', not !== 'disconnected', so a manual
+        // connect() call during the window does not trigger a second _doConnect().
+        if (this.status === 'connecting' && this.lastSettings) {
           this._doConnect(this.lastSettings);
         }
       }, delay);
     });
     this.client.on('offline', () => {
-      console.warn('[MeshcoreMqttAdapter] client offline');
+      console.warn('[MeshCore MQTT] client offline');
       if (this.status === 'connected' || this.status === 'connecting') {
         this.setStatus('disconnected');
       }

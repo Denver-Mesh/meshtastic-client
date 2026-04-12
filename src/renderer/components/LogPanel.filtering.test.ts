@@ -35,10 +35,10 @@ describe('isDeviceEntry — Meshtastic protocol', () => {
     );
   });
 
-  it('classifies [MQTT] message as app-level (not Meshtastic device entry)', () => {
+  it('classifies [Meshtastic MQTT] message as app-level (not Meshtastic device entry)', () => {
     expect(
       isDeviceEntry(
-        entry('main', '[MQTT] ServiceEnvelope decode failed: illegal tag'),
+        entry('main', '[Meshtastic MQTT] ServiceEnvelope decode failed: illegal tag'),
         'meshtastic',
       ),
     ).toBe(false);
@@ -70,8 +70,8 @@ describe('isDeviceEntry — Meshtastic protocol', () => {
     expect(isDeviceEntry(entry('main', '[useMeshCore] connected'), 'meshtastic')).toBe(false);
   });
 
-  it('does NOT classify [MeshcoreMqttAdapter] message as Meshtastic device entry', () => {
-    expect(isDeviceEntry(entry('main', '[MeshcoreMqttAdapter] status changed'), 'meshtastic')).toBe(
+  it('does NOT classify [MeshCore MQTT] message as Meshtastic device entry', () => {
+    expect(isDeviceEntry(entry('main', '[MeshCore MQTT] status changed'), 'meshtastic')).toBe(
       false,
     );
   });
@@ -86,10 +86,8 @@ describe('isDeviceEntry — MeshCore protocol', () => {
     expect(isDeviceEntry(entry('main', '[useMeshCore] rx packet'), 'meshcore')).toBe(true);
   });
 
-  it('classifies [MeshcoreMqttAdapter] message as MeshCore device entry', () => {
-    expect(isDeviceEntry(entry('main', '[MeshcoreMqttAdapter] status changed'), 'meshcore')).toBe(
-      true,
-    );
+  it('classifies [MeshCore MQTT] message as MeshCore device entry', () => {
+    expect(isDeviceEntry(entry('main', '[MeshCore MQTT] status changed'), 'meshcore')).toBe(true);
   });
 
   it('does NOT classify Meshtastic SDK source as MeshCore device entry', () => {
@@ -100,10 +98,10 @@ describe('isDeviceEntry — MeshCore protocol', () => {
     expect(isDeviceEntry(entry('main', '[iMeshDevice] connected'), 'meshcore')).toBe(false);
   });
 
-  it('does NOT classify [MQTT] message as MeshCore device entry', () => {
-    expect(isDeviceEntry(entry('main', '[MQTT] ServiceEnvelope decode failed'), 'meshcore')).toBe(
-      false,
-    );
+  it('does NOT classify [Meshtastic MQTT] message as MeshCore device entry', () => {
+    expect(
+      isDeviceEntry(entry('main', '[Meshtastic MQTT] ServiceEnvelope decode failed'), 'meshcore'),
+    ).toBe(false);
   });
 
   it('does NOT classify [NobleBleManager] message as MeshCore device entry', () => {
@@ -176,12 +174,12 @@ describe('isDeviceEntry — no protocol (fallback)', () => {
     expect(isDeviceEntry(entry('meshcore', 'msg'))).toBe(true);
   });
 
-  it('classifies [MQTT] message as app-level when no protocol', () => {
-    expect(isDeviceEntry(entry('main', '[MQTT] something'))).toBe(false);
+  it('classifies [Meshtastic MQTT] message as app-level when no protocol', () => {
+    expect(isDeviceEntry(entry('main', '[Meshtastic MQTT] something'))).toBe(false);
   });
 
-  it('classifies [MeshcoreMqttAdapter] message as device entry', () => {
-    expect(isDeviceEntry(entry('main', '[MeshcoreMqttAdapter] something'))).toBe(true);
+  it('classifies [MeshCore MQTT] message as device entry', () => {
+    expect(isDeviceEntry(entry('main', '[MeshCore MQTT] something'))).toBe(true);
   });
 
   it('classifies [iMeshDevice] message as device entry', () => {
@@ -199,14 +197,14 @@ describe('isDeviceEntry — no protocol (fallback)', () => {
 });
 
 describe('dual-mode appEntries guard', () => {
-  it('Meshtastic [MQTT] entry appears in app view (not treated as device log)', () => {
-    const mqttEntry = entry('main', '[MQTT] ServiceEnvelope decode failed');
+  it('Meshtastic [Meshtastic MQTT] entry appears in app view (not treated as device log)', () => {
+    const mqttEntry = entry('main', '[Meshtastic MQTT] ServiceEnvelope decode failed');
     const isApp = !isDeviceEntry(mqttEntry, 'meshtastic') && !isDeviceEntry(mqttEntry, 'meshcore');
     expect(isApp).toBe(true);
   });
 
-  it('MeshCore [MeshcoreMqttAdapter] entry is excluded from app view when Meshtastic is active', () => {
-    const mqttEntry = entry('main', '[MeshcoreMqttAdapter] status: connected');
+  it('MeshCore [MeshCore MQTT] entry is excluded from app view when Meshtastic is active', () => {
+    const mqttEntry = entry('main', '[MeshCore MQTT] status: connected');
     const isApp = !isDeviceEntry(mqttEntry, 'meshtastic') && !isDeviceEntry(mqttEntry, 'meshcore');
     expect(isApp).toBe(false);
   });

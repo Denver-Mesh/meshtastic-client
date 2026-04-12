@@ -9,6 +9,7 @@ import {
 } from 'react';
 
 import ErrorBoundary from './components/ErrorBoundary';
+import { HelpTooltip } from './components/HelpTooltip';
 import { LinkIcon } from './components/SignalBars';
 import Tabs from './components/Tabs';
 import { ToastProvider, useToast } from './components/Toast';
@@ -91,6 +92,12 @@ const STATUS_COLOR: Record<string, string> = {
   stale: 'bg-yellow-500 animate-pulse',
   reconnecting: 'bg-orange-500 animate-pulse',
 };
+
+/** Header queue badge tooltips. */
+const MESHCORE_QUEUE_TOOLTIP =
+  'Because MeshCore sends messages rapidly, and we poll every 30 seconds, this should always be 0. If not 0, there is congestion.';
+const MESHTASTIC_QUEUE_TOOLTIP =
+  'Transmit queue: packets waiting to be sent. Green = low, amber = filling up, red = congested.';
 
 const TAB_NAMES = [
   'Connection',
@@ -451,6 +458,7 @@ export default function App() {
 
   const traceRouteHops = useMemo(() => {
     if (!selectedNode) return undefined;
+    if (protocol === 'meshcore') return undefined;
     const result = device.traceRouteResults.get(selectedNode.node_id);
     if (!result) return undefined;
     return [
@@ -458,7 +466,7 @@ export default function App() {
       ...result.route.map((id) => device.getFullNodeLabel(id)),
       device.getFullNodeLabel(result.from),
     ];
-  }, [selectedNode, device]);
+  }, [selectedNode, device, protocol]);
 
   /** In meshcore mode, only show configured channels (key !== all zeros) in chat. */
   const chatChannels = useMemo(() => {
@@ -930,7 +938,7 @@ export default function App() {
   const statusColor = STATUS_COLOR[device.state.status] ?? 'bg-gray-500';
 
   const queueUsed = device.queueStatus ? device.queueStatus.maxlen - device.queueStatus.free : 0;
-  const queueShowBadge = device.queueStatus != null && queueUsed > 0;
+  const queueShowBadge = device.queueStatus != null;
   const queueColorClass =
     queueUsed <= 10
       ? 'bg-green-900/60 text-green-300 border border-green-700'
@@ -1088,13 +1096,16 @@ export default function App() {
             )}
             {/* Queue status badge: 0–10 used = green, 11–14 = yellow, 15–16 = red */}
             {queueShowBadge && device.queueStatus && (
-              <div
-                aria-label={`Q: ${queueUsed}/${device.queueStatus.maxlen}`}
-                className={`flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium ${queueColorClass}`}
-                title={`Queue: ${queueUsed}/${device.queueStatus.maxlen} used`}
+              <HelpTooltip
+                text={protocol === 'meshcore' ? MESHCORE_QUEUE_TOOLTIP : MESHTASTIC_QUEUE_TOOLTIP}
               >
-                Q: {queueUsed}/{device.queueStatus.maxlen}
-              </div>
+                <div
+                  aria-label={`Q: ${queueUsed}/${device.queueStatus.maxlen}`}
+                  className={`flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium ${queueColorClass}`}
+                >
+                  Q: {queueUsed}/{device.queueStatus.maxlen}
+                </div>
+              </HelpTooltip>
             )}
           </div>
         </header>
@@ -1143,7 +1154,7 @@ export default function App() {
             </nav>
 
             {/* Content */}
-            <main className="min-h-0 flex-1 overflow-auto p-4">
+            <div role="main" className="min-h-0 flex-1 overflow-auto p-4">
               <ErrorBoundary>
                 <div
                   id="panel-0"
@@ -1647,7 +1658,7 @@ export default function App() {
                   ) : null}
                 </div>
               </ErrorBoundary>
-            </main>
+            </div>
 
             {/* Footer — same centering idea as header: 1fr | auto | 1fr so middle stays true center */}
             <footer className="bg-deep-black text-muted grid shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-4 border-t border-gray-700 px-4 py-1.5 text-[11px]">
@@ -1820,7 +1831,7 @@ export default function App() {
                 setSelectedNodeId(null);
               }}
               onRequestPosition={device.requestPosition}
-              onTraceRoute={device.traceRoute}
+              onTraceRoute={protocol === 'meshcore' ? meshcoreDevice.traceRoute : device.traceRoute}
               traceRouteHops={traceRouteHops}
               onDeleteNode={async (nodeNum) => {
                 await device.deleteNode(nodeNum);
@@ -1838,6 +1849,11 @@ export default function App() {
               meshcoreTraceResult={
                 protocol === 'meshcore' && selectedNode
                   ? meshcoreDevice.meshcoreTraceResults.get(selectedNode.node_id)
+                  : undefined
+              }
+              meshcorePingError={
+                protocol === 'meshcore' && selectedNode
+                  ? meshcoreDevice.meshcorePingErrors.get(selectedNode.node_id)
                   : undefined
               }
               meshcoreRepeaterStatus={

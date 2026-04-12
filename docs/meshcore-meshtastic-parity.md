@@ -33,6 +33,10 @@ Shared UI gates use `ProtocolCapabilities` in [`src/renderer/lib/radio/BaseRadio
 | Contact groups                  | Built-in groups (GPS, RF+MQTT) via `meshtasticContactGroupUtils`; user-managed via `ContactGroupsModal` | SQLite-backed groups + Nodes toolbar (`useContactGroups`, `ContactGroupsModal`); built-in Room filter                                                                                                                                                                                                                                       | **App** — protocol-neutral with Meshtastic built-ins            |
 | Log analyzer                    | `LogPanel` → **Analyze** (`logAnalyzer.ts`, protocol-aware)                                             | Same shared UI                                                                                                                                                                                                                                                                                                                              | **App** (implemented)                                           |
 
+## MeshCore: Trace Route and Ping trace
+
+**Trace Route** (node detail) and **Ping trace** (Repeaters panel) use the firmware `tracePath` flow. Remote nodes often answer only when they have **your** node in **their** contact list. Heard-only or one-way peers may produce no response until the client times out. See [troubleshooting.md](troubleshooting.md#meshcore-trace-route-or-ping-trace-times-out).
+
 ## Windows: MeshCore over BLE
 
 Pair the radio in **Settings → Bluetooth & devices** before connecting from the app; WinRT is much more reliable with a bonded device. The client may **retry once** after transient GATT discovery failures, and canceling mid-connect should not surface a misleading long-running channel timeout. User-facing copy lives in the Connection tab on Windows; contributor details are in [CONTRIBUTING.md](../CONTRIBUTING.md) (MeshCore internals, BLE) and [README.md](../README.md) (MeshCore Transport Notes).

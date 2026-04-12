@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { decodePathPayload, isPathPacket } from './meshcore-path-decoder';
+import {
+  decodePathPayload,
+  decodeTracePayload,
+  isPathPacket,
+  isTracePacket,
+} from './meshcore-path-decoder';
 
 describe('meshcore-path-decoder', () => {
   describe('isPathPacket', () => {
@@ -20,6 +25,56 @@ describe('meshcore-path-decoder', () => {
       expect(isPathPacket(Buffer.alloc(0))).toBe(false);
       // @ts-expect-error test invalid input
       expect(isPathPacket(null)).toBe(false);
+    });
+  });
+
+  describe('isTracePacket', () => {
+    it('returns true for a valid TRACE packet (type 0x09)', () => {
+      // (0x24 & 0x3C) >> 2 = 0x09
+      const buffer = Buffer.from([0x24, 0x00]);
+      expect(isTracePacket(buffer)).toBe(true);
+    });
+
+    it('returns false for PATH type (0x08)', () => {
+      // (0x20 & 0x3C) >> 2 = 0x08
+      const buffer = Buffer.from([0x20, 0x00]);
+      expect(isTracePacket(buffer)).toBe(false);
+    });
+
+    it('returns false for other types', () => {
+      // (0x28 & 0x3C) >> 2 = 0x0A
+      const buffer = Buffer.from([0x28, 0x00]);
+      expect(isTracePacket(buffer)).toBe(false);
+    });
+
+    it('handles empty or short buffers', () => {
+      expect(isTracePacket(Buffer.alloc(0))).toBe(false);
+      // @ts-expect-error test invalid input
+      expect(isTracePacket(null)).toBe(false);
+    });
+  });
+
+  describe('decodeTracePayload', () => {
+    it('correctly extracts trace request path data', () => {
+      // Header: 0x25 (ROUTE_TYPE_FLOOD + PAYLOAD_TYPE_TRACE, no transport codes)
+      // Bits 0-1 = 01 (ROUTE_TYPE_FLOOD), Bits 2-5 = 1001 (PAYLOAD_TYPE_TRACE = 0x09)
+      // Path length: 0x03 (3 hops, 1-byte hashes)
+      // Path: 0xAA, 0xBB, 0xCC
+      const buffer = Buffer.from([0x25, 0x03, 0xaa, 0xbb, 0xcc]);
+      const result = decodeTracePayload(buffer);
+      expect(result.hops).toBe(3);
+      expect(result.path).toEqual([0xaa, 0xbb, 0xcc]);
+    });
+
+    it('handles route type with transport codes', () => {
+      // Header: 0x24 (ROUTE_TYPE_TRANSPORT_FLOOD + PAYLOAD_TYPE_TRACE)
+      // Transport codes: 4 bytes (0x00, 0x00, 0x00, 0x00)
+      // Path length: 0x02 (2 hops, 1-byte hashes)
+      // Path: 0x11, 0x22
+      const buffer = Buffer.from([0x24, 0x00, 0x00, 0x00, 0x00, 0x02, 0x11, 0x22]);
+      const result = decodeTracePayload(buffer);
+      expect(result.hops).toBe(2);
+      expect(result.path).toEqual([0x11, 0x22]);
     });
   });
 

@@ -37,12 +37,17 @@ import {
   getContactGroupMembers,
   getContactGroups,
   getDatabase,
+  getMeshcoreHopHistory,
+  getMeshcoreTraceHistory,
   initDatabase,
   mergeDatabase,
   migrateRfStubNodes,
   pruneMeshcoreContactsByCount,
+  pruneMeshcorePathHistory,
   prunePositionHistory,
   removeContactFromGroup,
+  saveMeshcoreHopHistory,
+  saveMeshcoreTraceHistory,
   searchMeshcoreMessages,
   searchMessages,
   updateContactGroup,
@@ -63,7 +68,12 @@ import {
   setMainWindow,
 } from './log-service';
 import { MeshcoreMqttAdapter } from './meshcore-mqtt-adapter';
-import { decodePathPayload, isPathPacket } from './meshcore-path-decoder';
+import {
+  decodePathPayload,
+  decodeTracePayload,
+  isPathPacket,
+  isTracePacket,
+} from './meshcore-path-decoder';
 import { MQTTManager } from './mqtt-manager';
 import { handleNobleBleToRadioWrite } from './noble-ble-ipc';
 import { NobleBleManager, type NobleSessionId } from './noble-ble-manager';
@@ -2461,6 +2471,23 @@ ipcMain.handle('db:saveNodePath', (_event, nodeId: number, lastHeard: number, bu
   }
 });
 
+ipcMain.handle('db:saveNodeTrace', (_event, nodeId: number, lastHeard: number, buffer: Buffer) => {
+  try {
+    if (!isTracePacket(buffer)) {
+      throw new Error('Not a TRACE packet');
+    }
+    const { hops, path } = decodeTracePayload(buffer);
+    console.debug('[IPC] db:saveNodeTrace: nodeId=', nodeId.toString(16), 'hops=', hops);
+    return { success: true, hops, path };
+  } catch (err) {
+    console.error(
+      '[IPC] db:saveNodeTrace failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
 ipcMain.handle('db:setNodeFavorited', (_event, nodeId: number, favorited: boolean) => {
   try {
     const id = safeNonNegativeInt(nodeId);
@@ -3648,6 +3675,92 @@ ipcMain.handle('db:clearPositionHistory', () => {
   } catch (err) {
     console.error(
       '[IPC] db:clearPositionHistory failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+// ─── MeshCore Path History ───────────────────────────────────────────────
+
+ipcMain.handle(
+  'db:saveMeshcoreHopHistory',
+  (
+    _event,
+    nodeId: number,
+    timestamp: number,
+    hops: number | null,
+    snr: number | null,
+    rssi: number | null,
+  ) => {
+    try {
+      saveMeshcoreHopHistory(nodeId, timestamp, hops, snr, rssi);
+      return true;
+    } catch (err) {
+      console.error(
+        '[IPC] db:saveMeshcoreHopHistory failed:',
+        sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+      );
+      throw err;
+    }
+  },
+);
+
+ipcMain.handle('db:getMeshcoreHopHistory', (_event, nodeId: number) => {
+  try {
+    return getMeshcoreHopHistory(nodeId);
+  } catch (err) {
+    console.error(
+      '[IPC] db:getMeshcoreHopHistory failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+ipcMain.handle(
+  'db:saveMeshcoreTraceHistory',
+  (
+    _event,
+    nodeId: number,
+    timestamp: number,
+    pathLen: number | null,
+    pathSnrs: number[],
+    lastSnr: number | null,
+    tag: number,
+  ) => {
+    try {
+      saveMeshcoreTraceHistory(nodeId, timestamp, pathLen, pathSnrs, lastSnr, tag);
+      return true;
+    } catch (err) {
+      console.error(
+        '[IPC] db:saveMeshcoreTraceHistory failed:',
+        sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+      );
+      throw err;
+    }
+  },
+);
+
+ipcMain.handle('db:getMeshcoreTraceHistory', (_event, nodeId: number) => {
+  try {
+    return getMeshcoreTraceHistory(nodeId);
+  } catch (err) {
+    console.error(
+      '[IPC] db:getMeshcoreTraceHistory failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+ipcMain.handle('db:pruneMeshcorePathHistory', (_event, nodeId: number) => {
+  try {
+    pruneMeshcorePathHistory(nodeId);
+    return true;
+  } catch (err) {
+    console.error(
+      '[IPC] db:pruneMeshcorePathHistory failed:',
       sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
     );
     throw err;

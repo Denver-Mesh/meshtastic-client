@@ -55,7 +55,7 @@ describe('analyzeLogs', () => {
 
   it('does not flag MQTT connection timeout as BLE issue', () => {
     const entries: LogEntry[] = [
-      makeEntry('[MQTT] Connection timeout (will reconnect): connack timeout', 'error'),
+      makeEntry('[Meshtastic MQTT] Connection timeout (will reconnect): connack timeout', 'error'),
     ];
     const result = analyzeLogs(entries, 'meshtastic');
     expect(result.categories.find((c) => c.id === 'ble-connection')).toBeUndefined();
@@ -112,7 +112,7 @@ describe('analyzeLogs', () => {
 
   it('detects MQTT connection timeout', () => {
     const entries: LogEntry[] = [
-      makeEntry('[MQTT] Connection timeout (will reconnect): connack timeout', 'warn'),
+      makeEntry('[Meshtastic MQTT] Connection timeout (will reconnect): connack timeout', 'warn'),
     ];
     const result = analyzeLogs(entries, 'meshtastic');
     const mqttCategory = result.categories.find((c) => c.id === 'mqtt');
@@ -122,7 +122,7 @@ describe('analyzeLogs', () => {
 
   it('detects MQTT will reconnect messages', () => {
     const entries: LogEntry[] = [
-      makeEntry('[MQTT] Network error (will reconnect): socket hang up', 'warn'),
+      makeEntry('[Meshtastic MQTT] Network error (will reconnect): socket hang up', 'warn'),
     ];
     const result = analyzeLogs(entries, 'meshtastic');
     const mqttCategory = result.categories.find((c) => c.id === 'mqtt');
@@ -130,12 +130,12 @@ describe('analyzeLogs', () => {
     expect(mqttCategory?.count).toBe(1);
   });
 
-  it('detects MQTT issues with various formats including [MQTT] prefix', () => {
+  it('detects MQTT issues with various formats including [Meshtastic MQTT] prefix', () => {
     const entries: LogEntry[] = [
-      makeEntry('[MQTT] Connection timeout (will reconnect): connack timeout', 'warn'),
-      makeEntry('[MQTT] Network error (will reconnect): socket hang up', 'warn'),
-      makeEntry('[MQTT] Fatal connection error: certificate has expired', 'error'),
-      makeEntry('[MQTT] Reconnecting in 500ms (attempt 1/3)', 'warn'),
+      makeEntry('[Meshtastic MQTT] Connection timeout (will reconnect): connack timeout', 'warn'),
+      makeEntry('[Meshtastic MQTT] Network error (will reconnect): socket hang up', 'warn'),
+      makeEntry('[Meshtastic MQTT] Fatal connection error: certificate has expired', 'error'),
+      makeEntry('[Meshtastic MQTT] Reconnecting in 500ms (attempt 1/3)', 'warn'),
     ];
     const result = analyzeLogs(entries, 'meshtastic');
     const mqttCategory = result.categories.find((c) => c.id === 'mqtt');
@@ -152,7 +152,7 @@ describe('analyzeLogs', () => {
 
   it('flags MQTT-context connection refused', () => {
     const entries: LogEntry[] = [
-      makeEntry('[MQTT] broker connection refused', 'error'),
+      makeEntry('[Meshtastic MQTT] broker connection refused', 'error'),
       makeEntry('connect failed: connection refused for mqtt client', 'error'),
     ];
     const result = analyzeLogs(entries, 'meshtastic');

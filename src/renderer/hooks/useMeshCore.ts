@@ -33,6 +33,11 @@ import {
   meshcoreCoerceRadioRxFrame,
   parseAutoaddConfigResponse,
 } from '../lib/meshcoreContactAutoAdd';
+import { queueLenFromMeshCoreCoreStatsRaw } from '../lib/meshcoreCoreStatsQueue';
+import {
+  buildMeshcoreGetNeighboursRequest,
+  parseMeshcoreGetNeighboursResponse,
+} from '../lib/meshcoreGetNeighboursBinary';
 import { readMeshcoreMqttSettingsFromStorage } from '../lib/meshcoreMqttSettingsStorage';
 import { meshcoreRepeaterTryLogin } from '../lib/meshcoreRepeaterSession';
 import {
@@ -43,8 +48,13 @@ import {
   packMeshcoreTelemetryModesByte,
 } from '../lib/meshcoreTelemetryPrivacy';
 import {
+  type MeshcoreTracePathMuxConnection,
+  runMeshcoreTracePathMultiplexed,
+} from '../lib/meshcoreTracePathMultiplex';
+import {
   CONTACT_TYPE_LABELS,
   isMeshcoreTransportStatusChatLine,
+  mergeHwModelOnContactUpdate,
   mergeMeshcoreChatStubNodes,
   MESHCORE_CONTACTS_WARNING_THRESHOLD,
   MESHCORE_MAX_CONTACTS,
@@ -53,11 +63,13 @@ import {
   meshcoreChatStubNodeIdFromDisplayName,
   meshcoreConnectionImpliesUsbPower,
   meshcoreContactToMeshNode,
+  meshcoreContactTypeFromHwModel,
   meshcoreIsChatStubNodeId,
   meshcoreIsSyntheticPlaceholderPubKeyHex,
   meshcoreMilliVoltsToApproximateBatteryPercent,
   meshcoreMinimalNodeFromAdvertEvent,
   meshcoreSyntheticPlaceholderPubKeyHex,
+  meshcoreTracePathLenToHops,
   minimalMeshcoreChatNode,
   pubkeyToNodeId,
 } from '../lib/meshcoreUtils';
@@ -69,6 +81,7 @@ import {
   createRepeaterCommandService,
   type RepeaterCommandService,
 } from '../lib/repeaterCommandService';
+import { createRepeaterRemoteRpcQueue } from '../lib/repeaterRemoteRpcQueue';
 import {
   getPortSignature,
   LAST_SERIAL_PORT_KEY,
@@ -76,6 +89,7 @@ import {
   selectGrantedSerialPort,
 } from '../lib/serialPortSignature';
 import { getStoredMeshProtocol } from '../lib/storedMeshProtocol';
+import { MESHCORE_TRACE_PING_TOTAL_TIMEOUT_MS } from '../lib/timeConstants';
 import { TransportWebBluetoothIpc } from '../lib/transportWebBluetoothIpc';
 import type {
   ChatMessage,
@@ -144,7 +158,10 @@ function contactToDbRow(
     adv_lon: contact.advLon !== 0 ? contact.advLon / MESHCORE_COORD_SCALE : null,
     nickname: nickname ?? null,
     contact_flags: contact.flags & 0xff,
-    hops_away: contact.outPathLen != null && contact.outPathLen >= 0 ? contact.outPathLen : null,
+    hops_away:
+      contact.outPathLen != null && contact.outPathLen >= 0 && contact.outPathLen <= 61
+        ? contact.outPathLen
+        : null,
     on_radio: onRadio ?? 0,
     last_synced_from_radio: lastSyncedFromRadio ?? null,
   };
@@ -580,7 +597,7 @@ interface MeshCoreConnection {
     manufacturerModel: string;
   }>;
   tracePath(
-    pubKeys: Uint8Array[],
+    pubKey: Uint8Array,
     extraTimeoutMillis?: number,
   ): Promise<{
     pathLen: number;
@@ -589,6 +606,7 @@ interface MeshCoreConnection {
     lastSnr: number;
     tag: number;
   }>;
+  sendCommandSendTracePath(tag: number, auth: number, path: Uint8Array): Promise<void>;
   login(
     contactPublicKey: Uint8Array,
     password: string,
@@ -619,17 +637,22 @@ interface MeshCoreConnection {
     contactPublicKey: Uint8Array,
     extraTimeoutMillis?: number,
   ): Promise<{ reserved: number; pubKeyPrefix: Uint8Array; lppSensorData: Uint8Array }>;
+  /** @liamcottle/meshcore.js does not pass extra timeout to sendBinaryRequest for neighbour list. */
   getNeighbours(
     publicKey: Uint8Array,
     count?: number,
     offset?: number,
     orderBy?: number,
     pubKeyPrefixLength?: number,
-    extraTimeoutMillis?: number,
   ): Promise<{
     totalNeighboursCount: number;
     neighbours: { publicKeyPrefix: Uint8Array; heardSecondsAgo: number; snr: number }[];
   }>;
+  sendBinaryRequest(
+    contactPublicKey: Uint8Array,
+    requestCodeAndParams: Uint8Array,
+    extraTimeoutMillis?: number,
+  ): Promise<Uint8Array>;
   setOtherParams(manualAddContacts: boolean): Promise<void>;
   setAutoAddContacts(): Promise<void>;
   setManualAddContacts(): Promise<void>;
@@ -641,10 +664,10 @@ interface MeshCoreConnection {
   // Contact path management
   resetPath(pubKey: Uint8Array): Promise<void>;
   // Statistics
-  getStats(statsType: number): Promise<Record<string, unknown>>;
-  getStatsCore(): Promise<Record<string, unknown>>;
-  getStatsRadio(): Promise<Record<string, unknown>>;
-  getStatsPackets(): Promise<Record<string, unknown>>;
+  getStats(statsType: number): Promise<MeshCoreStatsResponse<Record<string, unknown>>>;
+  getStatsCore(): Promise<MeshCoreStatsResponse<MeshCoreCoreStatsData>>;
+  getStatsRadio(): Promise<MeshCoreStatsResponse<MeshCoreRadioStatsData>>;
+  getStatsPackets(): Promise<MeshCoreStatsResponse<MeshCorePacketStatsData>>;
   // Channel data
   sendChannelData(
     channelIdx: number,
@@ -704,6 +727,36 @@ interface DeviceLogEntry {
   message: string;
 }
 
+interface MeshCoreCoreStatsData {
+  batteryMilliVolts: number;
+  uptimeSecs: number;
+  queueLen: number;
+}
+
+interface MeshCoreRadioStatsData {
+  noiseFloor: number;
+  lastRssi: number;
+  lastSnr: number;
+  txAirSecs: number;
+  rxAirSecs: number;
+}
+
+interface MeshCorePacketStatsData {
+  recv: number;
+  sent: number;
+  nSentFlood: number;
+  nSentDirect: number;
+  nRecvFlood: number;
+  nRecvDirect: number;
+  nRecvErrors?: number | null;
+}
+
+interface MeshCoreStatsResponse<TData> {
+  type: number;
+  raw: Uint8Array;
+  data: TData;
+}
+
 const MANUAL_CONTACTS_KEY = 'mesh-client:meshcoreManualContacts';
 const MESHCORE_COORD_SCALE = 1e6;
 
@@ -715,12 +768,12 @@ const INITIAL_STATE: DeviceState = {
 
 const MAX_DEVICE_LOGS = 500;
 
-// MeshCore timeout constants - all derived from base timeout for consistency
-const MESHCORE_BASE_TIMEOUT_MS = 30000;
-const MESHCORE_STATUS_TIMEOUT_MS = MESHCORE_BASE_TIMEOUT_MS * 2; // 60000ms
-const MESHCORE_TELEMETRY_TIMEOUT_MS = MESHCORE_BASE_TIMEOUT_MS * 2; // 60000ms
-const MESHCORE_NEIGHBORS_TIMEOUT_MS = MESHCORE_BASE_TIMEOUT_MS * 2; // 60000ms
-const MESHCORE_TRACE_TIMEOUT_MS = MESHCORE_BASE_TIMEOUT_MS * 2; // 60000ms
+/** Repeater RPCs (tracePath, getStatus, getTelemetry, sendBinaryRequest neighbours). */
+const MESHCORE_REPEATER_RPC_TIMEOUT_MS = 120_000;
+const MESHCORE_STATUS_TIMEOUT_MS = MESHCORE_REPEATER_RPC_TIMEOUT_MS;
+const MESHCORE_TELEMETRY_TIMEOUT_MS = MESHCORE_REPEATER_RPC_TIMEOUT_MS;
+const MESHCORE_NEIGHBORS_TIMEOUT_MS = MESHCORE_REPEATER_RPC_TIMEOUT_MS;
+const MESHCORE_TRACE_TIMEOUT_MS = MESHCORE_REPEATER_RPC_TIMEOUT_MS;
 const MAX_TELEMETRY_POINTS = 50;
 
 const MAX_ENV_TELEMETRY_POINTS = 50;
@@ -737,6 +790,20 @@ function normalizeMeshCoreError(e: unknown, fallbackMessage: string): Error {
     return e;
   }
   return new Error(typeof e === 'string' ? e : 'Unknown error');
+}
+
+/** meshcore.js `tracePath` may reject with `undefined`; avoid `String(object)` pitfalls. */
+function meshcoreTraceRouteRejectReason(e: unknown): string {
+  if (e instanceof Error && e.message) return e.message;
+  if (e === undefined || e === null) return 'radio rejected trace (no detail)';
+  if (typeof e === 'string') return e;
+  if (typeof e === 'number' || typeof e === 'boolean' || typeof e === 'bigint') return String(e);
+  try {
+    return JSON.stringify(e);
+  } catch {
+    // catch-no-log-ok JSON.stringify throws on circular/non-serializable values
+    return 'unknown error';
+  }
 }
 
 function meshcoreMessageDedupeKey(msg: ChatMessage): string {
@@ -893,8 +960,21 @@ function mergeStubNodesFromMeshcoreMessages(
   return next;
 }
 
+interface MeshcoreTraceResultEntry {
+  pathLen: number;
+  pathHashes: number[];
+  pathSnrs: number[];
+  lastSnr: number;
+  tag: number;
+}
+
 export function useMeshCore() {
   const [state, setState] = useState<DeviceState>(INITIAL_STATE);
+  const [queueStatus, setQueueStatus] = useState<{
+    free: number;
+    maxlen: number;
+    res: number;
+  } | null>(null);
   const [nodes, setNodes] = useState<Map<number, MeshNode>>(new Map());
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [channels, setChannels] = useState<{ index: number; name: string; secret: Uint8Array }[]>(
@@ -910,11 +990,9 @@ export function useMeshCore() {
   const [telemetry, setTelemetry] = useState<TelemetryPoint[]>([]);
   const [signalTelemetry, setSignalTelemetry] = useState<TelemetryPoint[]>([]);
   const [meshcoreTraceResults, setMeshcoreTraceResults] = useState<
-    Map<
-      number,
-      { pathLen: number; pathHashes: number[]; pathSnrs: number[]; lastSnr: number; tag: number }
-    >
+    Map<number, MeshcoreTraceResultEntry>
   >(new Map());
+  const meshcoreTraceResultsRef = useRef<Map<number, MeshcoreTraceResultEntry>>(new Map());
   const [meshcoreNodeStatus, setMeshcoreNodeStatus] = useState<Map<number, MeshCoreRepeaterStatus>>(
     new Map(),
   );
@@ -959,6 +1037,8 @@ export function useMeshCore() {
   const pubKeyPrefixMapRef = useRef<Map<string, number>>(new Map());
   // Full pubKey → nodeId for sending
   const pubKeyMapRef = useRef<Map<number, Uint8Array>>(new Map());
+  // nodeId → outPath bytes (sliced to outPathLen) for tracePath calls
+  const outPathMapRef = useRef<Map<number, Uint8Array>>(new Map());
   // nodeId → nickname (from JSON import or DB)
   const nicknameMapRef = useRef<Map<number, string>>(new Map());
   // Stable ref to current nodes so event listeners don't form stale closures
@@ -977,6 +1057,7 @@ export function useMeshCore() {
   const lastPacketLogPublishFailureLogAtRef = useRef(0);
   const meshcoreHookMountedRef = useRef(true);
   const repeaterCommandServiceRef = useRef<RepeaterCommandService | null>(null);
+  const repeaterRemoteRpcRef = useRef(createRepeaterRemoteRpcQueue());
   /** Debounced contacts refresh after path updates (event 129). */
   const meshcoreContactsRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Periodic poll for waiting messages when event 131 may have been missed. */
@@ -987,101 +1068,109 @@ export function useMeshCore() {
   const prevTxAirSecsRef = useRef<number | null>(null);
   /** Previous timestamp for calculating channel utilization delta. */
   const prevStatsTimestampRef = useRef<number | null>(null);
-  /** Periodic poll for local radio stats (every 60s). */
+  /** Periodic poll for local radio stats (see MESHCORE_STATS_POLL_MS in stats effect). */
   const meshcoreStatsPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   /** Fetch and update local radio stats (core, radio, packet). Called by requestRefresh and on connect. */
   const fetchAndUpdateLocalStats = useCallback(async () => {
     const conn = connRef.current;
     if (!conn) return;
+    let coreStats: Awaited<ReturnType<MeshCoreConnection['getStatsCore']>>;
     try {
-      const [coreStats, radioStats, packetStats] = await Promise.all([
-        conn.getStatsCore(),
-        conn.getStatsRadio(),
-        conn.getStatsPackets(),
-      ]);
-
-      const core = coreStats as { batteryMilliVolts: number; uptimeSecs: number; queueLen: number };
-      const radio = radioStats as {
-        noiseFloor: number;
-        lastRssi: number;
-        lastSnr: number;
-        txAirSecs: number;
-        rxAirSecs: number;
-      };
-      const packet = packetStats as {
-        recv: number;
-        sent: number;
-        nSentFlood: number;
-        nSentDirect: number;
-        nRecvFlood: number;
-        nRecvDirect: number;
-        nRecvErrors?: number;
-      };
-
-      setSelfInfo((prev) => (prev ? { ...prev, batteryMilliVolts: core.batteryMilliVolts } : prev));
-
-      setState((prev) => ({
-        ...prev,
-        queueStatus: { free: 256 - core.queueLen, maxlen: 256, res: 0 },
-      }));
-
-      const now = Date.now();
-      let channelUtilization: number | undefined;
-      let airUtilTx: number | undefined;
-
-      if (prevTxAirSecsRef.current !== null && prevStatsTimestampRef.current !== null) {
-        const deltaTxAirSecs = radio.txAirSecs - prevTxAirSecsRef.current;
-        const deltaTimeSecs = (now - prevStatsTimestampRef.current) / 1000;
-        if (deltaTimeSecs > 0 && deltaTxAirSecs >= 0) {
-          airUtilTx = (deltaTxAirSecs / deltaTimeSecs) * 100;
-          channelUtilization = airUtilTx;
-        }
-      }
-
-      prevTxAirSecsRef.current = radio.txAirSecs;
-      prevStatsTimestampRef.current = now;
-
-      const localStats: MeshCoreLocalStats = {
-        batteryMilliVolts: core.batteryMilliVolts,
-        uptimeSecs: core.uptimeSecs,
-        queueLen: core.queueLen,
-        noiseFloor: radio.noiseFloor,
-        lastRssi: radio.lastRssi,
-        lastSnr: radio.lastSnr,
-        txAirSecs: radio.txAirSecs,
-        rxAirSecs: radio.rxAirSecs,
-        recv: packet.recv,
-        sent: packet.sent,
-        nSentFlood: packet.nSentFlood,
-        nSentDirect: packet.nSentDirect,
-        nRecvFlood: packet.nRecvFlood,
-        nRecvDirect: packet.nRecvDirect,
-        nRecvErrors: packet.nRecvErrors,
-        channelUtilization,
-        airUtilTx,
-      };
-
-      const myNodeId = myNodeNumRef.current;
-      if (myNodeId > 0) {
-        setNodes((prev) => {
-          const node = prev.get(myNodeId);
-          if (!node) return prev;
-          const updated = new Map(prev);
-          updated.set(myNodeId, {
-            ...node,
-            voltage: core.batteryMilliVolts / 1000,
-            channel_utilization: channelUtilization ?? node.channel_utilization,
-            air_util_tx: airUtilTx ?? node.air_util_tx,
-            meshcore_local_stats: localStats,
-          });
-          return updated;
-        });
-      }
+      coreStats = await conn.getStatsCore();
     } catch (e: unknown) {
-      console.warn('[useMeshCore] fetchAndUpdateLocalStats error', e);
+      console.warn('[useMeshCore] fetchAndUpdateLocalStats getStatsCore error', e);
+      return;
     }
-  }, []);
+
+    const core = coreStats.data;
+    // STATS CORE queue_len = PacketManager outbound total (MeshCore stats_binary_frames.md).
+    // Do not merge conn.getStatus(self): companion CMD_SEND_STATUS_REQ resolves the pubkey via
+    // lookupContactByPubKey; self is often not a contact row, so the request fails with NOT_FOUND.
+    const queueLenCapped = Math.min(
+      queueLenFromMeshCoreCoreStatsRaw(coreStats.raw, core.queueLen),
+      256,
+    );
+    setQueueStatus({ free: 256 - queueLenCapped, maxlen: 256, res: 0 });
+
+    let radioStats: Awaited<ReturnType<MeshCoreConnection['getStatsRadio']>>;
+    let packetStats: Awaited<ReturnType<MeshCoreConnection['getStatsPackets']>>;
+    try {
+      [radioStats, packetStats] = await Promise.all([conn.getStatsRadio(), conn.getStatsPackets()]);
+    } catch (e: unknown) {
+      console.warn('[useMeshCore] fetchAndUpdateLocalStats radio/packet error', e);
+      return;
+    }
+
+    const radio = radioStats.data;
+    const packet = packetStats.data;
+
+    const now = Date.now();
+    let channelUtilization: number | undefined;
+    let airUtilTx: number | undefined;
+
+    if (prevTxAirSecsRef.current !== null && prevStatsTimestampRef.current !== null) {
+      const deltaTxAirSecs = radio.txAirSecs - prevTxAirSecsRef.current;
+      const deltaTimeSecs = (now - prevStatsTimestampRef.current) / 1000;
+      if (deltaTimeSecs > 0 && deltaTxAirSecs >= 0) {
+        airUtilTx = (deltaTxAirSecs / deltaTimeSecs) * 100;
+        channelUtilization = airUtilTx;
+      }
+    }
+
+    prevTxAirSecsRef.current = radio.txAirSecs;
+    prevStatsTimestampRef.current = now;
+
+    const localStats: MeshCoreLocalStats = {
+      batteryMilliVolts: core.batteryMilliVolts,
+      uptimeSecs: core.uptimeSecs,
+      queueLen: queueLenCapped,
+      noiseFloor: radio.noiseFloor,
+      lastRssi: radio.lastRssi,
+      lastSnr: radio.lastSnr,
+      txAirSecs: radio.txAirSecs,
+      rxAirSecs: radio.rxAirSecs,
+      recv: packet.recv,
+      sent: packet.sent,
+      nSentFlood: packet.nSentFlood,
+      nSentDirect: packet.nSentDirect,
+      nRecvFlood: packet.nRecvFlood,
+      nRecvDirect: packet.nRecvDirect,
+      nRecvErrors: packet.nRecvErrors ?? undefined,
+      channelUtilization,
+      airUtilTx,
+    };
+
+    const myNodeId = myNodeNumRef.current || state.myNodeNum;
+    if (myNodeId > 0) {
+      setNodes((prev) => {
+        const updated = new Map(prev);
+        const node = prev.get(myNodeId);
+        const fallbackName =
+          selfInfoRef.current?.name?.trim() || `Node-${myNodeId.toString(16).toUpperCase()}`;
+        updated.set(myNodeId, {
+          ...(node ?? {
+            node_id: myNodeId,
+            long_name: fallbackName,
+            short_name: '',
+            hw_model: 'Unknown',
+            battery: meshcoreMilliVoltsToApproximateBatteryPercent(core.batteryMilliVolts),
+            snr: radio.lastSnr,
+            rssi: radio.lastRssi,
+            last_heard: Math.floor(now / 1000),
+            latitude: null,
+            longitude: null,
+            hops_away: 0,
+          }),
+          voltage: core.batteryMilliVolts / 1000,
+          channel_utilization: channelUtilization ?? node?.channel_utilization,
+          air_util_tx: airUtilTx ?? node?.air_util_tx,
+          meshcore_local_stats: localStats,
+        });
+        return updated;
+      });
+    }
+  }, [state.myNodeNum]);
 
   const buildNodesFromContactsRef = useRef<
     | ((
@@ -1141,6 +1230,10 @@ export function useMeshCore() {
   }, [nodes]);
 
   useEffect(() => {
+    meshcoreTraceResultsRef.current = meshcoreTraceResults;
+  }, [meshcoreTraceResults]);
+
+  useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
 
@@ -1151,7 +1244,7 @@ export function useMeshCore() {
   // Start stats polling when connected
   useEffect(() => {
     if (state.status === 'configured') {
-      const MESHCORE_STATS_POLL_MS = 60 * 1_000;
+      const MESHCORE_STATS_POLL_MS = 30 * 1_000;
       if (meshcoreStatsPollRef.current) clearInterval(meshcoreStatsPollRef.current);
       meshcoreStatsPollRef.current = setInterval(() => {
         if (!meshcoreHookMountedRef.current) return;
@@ -1171,7 +1264,7 @@ export function useMeshCore() {
         meshcoreStatsPollRef.current = null;
       }
     };
-  }, [state.status, fetchAndUpdateLocalStats]);
+  }, [state.status, state.myNodeNum, fetchAndUpdateLocalStats]);
 
   useEffect(() => {
     mqttStatusRef.current = mqttStatus;
@@ -1389,15 +1482,6 @@ export function useMeshCore() {
     });
   }, [addMessage]);
 
-  const updateNode = useCallback((node: MeshNode) => {
-    setNodes((prev) => {
-      const next = new Map(prev);
-      const existing = prev.get(node.node_id);
-      next.set(node.node_id, existing ? { ...existing, ...node } : node);
-      return next;
-    });
-  }, []);
-
   const buildNodesFromContacts = useCallback(
     async (
       contacts: MeshCoreContactRaw[],
@@ -1414,6 +1498,7 @@ export function useMeshCore() {
       const nextNodes = new Map<number, MeshNode>();
       pubKeyMapRef.current.clear();
       pubKeyPrefixMapRef.current.clear();
+      outPathMapRef.current.clear();
       for (const contact of contacts) {
         const base = meshcoreContactToMeshNode(contact);
         const last_heard = mergeMeshcoreLastHeardFromAdvert(
@@ -1422,16 +1507,17 @@ export function useMeshCore() {
         );
         const node: MeshNode = { ...base, last_heard };
         const prevNode = prevSnap.get(node.node_id);
-        const prevHwModel = prevNode?.hw_model;
-        const mergedHwModel =
-          prevHwModel && prevHwModel !== 'None' && prevHwModel !== 'Unknown'
-            ? prevHwModel
-            : node.hw_model;
+        const mergedHwModel = mergeHwModelOnContactUpdate(prevNode?.hw_model, node.hw_model);
         if (mergedHwModel !== node.hw_model) {
           node.hw_model = mergedHwModel;
         }
         nextNodes.set(node.node_id, node);
         pubKeyMapRef.current.set(node.node_id, contact.publicKey);
+        const contactPathLen = contact.outPathLen ?? 0;
+        outPathMapRef.current.set(
+          node.node_id,
+          contact.outPath?.slice(0, contactPathLen + 1) ?? new Uint8Array(0),
+        );
         const prefix = Array.from(contact.publicKey.slice(0, 6))
           .map((b) => b.toString(16).padStart(2, '0'))
           .join('');
@@ -1549,6 +1635,17 @@ export function useMeshCore() {
         }
       }
 
+      for (const [nodeId, tr] of meshcoreTraceResultsRef.current) {
+        if (myNodeId > 0 && nodeId === myNodeId) continue;
+        const existing = nextNodes.get(nodeId);
+        if (existing) {
+          nextNodes.set(nodeId, {
+            ...existing,
+            hops_away: meshcoreTracePathLenToHops(tr.pathLen),
+          });
+        }
+      }
+
       return nextNodes;
     },
     [],
@@ -1659,11 +1756,11 @@ export function useMeshCore() {
           const advertType = typeof d.type === 'number' && Number.isFinite(d.type) ? d.type : -1;
           const newHwModel =
             advertType >= 0 ? (CONTACT_TYPE_LABELS[advertType] ?? 'Unknown') : existing.hw_model;
-          const typeChanged = advertType >= 0 && newHwModel !== existing.hw_model;
+          const mergedHwModel = mergeHwModelOnContactUpdate(existing.hw_model, newHwModel);
           next.set(nodeId, {
             ...existing,
             last_heard: lastHeard,
-            hw_model: typeChanged ? newHwModel : existing.hw_model,
+            hw_model: mergedHwModel,
             latitude: hasLat ? d.advLat! / MESHCORE_COORD_SCALE : existing.latitude,
             longitude: hasLon ? d.advLon! / MESHCORE_COORD_SCALE : existing.longitude,
             ...(nick
@@ -1672,12 +1769,15 @@ export function useMeshCore() {
                 ? { long_name: advNameTrim, short_name: '' }
                 : {}),
           });
-          if (typeChanged) {
-            void window.electronAPI.db
-              .updateMeshcoreContactType(nodeId, advertType)
-              .catch((e: unknown) => {
-                console.warn('[useMeshCore] updateMeshcoreContactType error', e);
-              });
+          if (mergedHwModel !== existing.hw_model) {
+            const mergedType = meshcoreContactTypeFromHwModel(mergedHwModel);
+            if (mergedType !== undefined) {
+              void window.electronAPI.db
+                .updateMeshcoreContactType(nodeId, mergedType)
+                .catch((e: unknown) => {
+                  console.warn('[useMeshCore] updateMeshcoreContactType error', e);
+                });
+            }
           }
           return next;
         });
@@ -1820,12 +1920,14 @@ export function useMeshCore() {
       });
 
       // Push: send confirmed — event 0x82 = 130; resolve pending DM delivery
+      // ackCode: 0x80 = RESP_CODE_ACK (success), 0x81 = RESP_CODE_NACK (failure)
       conn.on(130, (data: unknown) => {
         const d = data as { ackCode: number; roundTrip?: number };
         if (typeof d.ackCode !== 'number' || !Number.isFinite(d.ackCode)) {
           console.warn('[useMeshCore] event 130: non-numeric ackCode', d.ackCode);
           return;
         }
+        const isNack = d.ackCode === 0x81 || d.ackCode === 129; // 0x81 or signed representation
         let pending: PendingDmAckEntry | undefined;
         for (const lk of meshcoreDeviceAckLookupKeys(d.ackCode)) {
           pending = pendingAcksRef.current.get(lk);
@@ -1844,9 +1946,12 @@ export function useMeshCore() {
           );
           if (hadLateOutbound) {
             console.debug(
-              '[useMeshCore] event 130: late ACK matched, ackCode',
+              isNack
+                ? '[useMeshCore] event 130: late NACK received, marking failed'
+                : '[useMeshCore] event 130: late ACK received, marking acked',
               d.ackCode.toString(16),
             );
+            const newStatus = isNack ? 'failed' : 'acked';
             setMessages((prev) =>
               prev.map((m) =>
                 m.packetId != null &&
@@ -1854,19 +1959,19 @@ export function useMeshCore() {
                 m.sender_id === selfId &&
                 m.to != null &&
                 (m.status === 'sending' || m.status === 'failed')
-                  ? { ...m, status: 'acked' as const }
+                  ? { ...m, status: newStatus as typeof m.status }
                   : m,
               ),
             );
             void window.electronAPI.db
-              .updateMeshcoreMessageStatus(lateKey, 'acked')
+              .updateMeshcoreMessageStatus(lateKey, newStatus)
               .catch((e: unknown) => {
                 console.warn('[useMeshCore] updateMeshcoreMessageStatus (late 130) error', e);
               });
             return;
           }
           console.debug(
-            '[useMeshCore] event 130: orphaned ACK (no pending, no late match), ackCode',
+            '[useMeshCore] event 130: orphaned ACK/NACK (no pending, no late match), ackCode',
             d.ackCode.toString(16),
           );
           return;
@@ -1876,15 +1981,25 @@ export function useMeshCore() {
           pendingAcksRef.current.delete(k);
         }
         const canon = pending.canonicalPacketIdU32;
+        const newStatus = isNack ? 'failed' : 'acked';
+        console.debug(
+          isNack
+            ? '[useMeshCore] event 130: NACK received for DM, marking failed'
+            : '[useMeshCore] event 130: ACK received for DM, marking acked',
+          'packetId',
+          canon.toString(16),
+          'roundTrip',
+          d.roundTrip,
+        );
         setMessages((prev) =>
           prev.map((m) =>
             m.packetId != null && meshcoreDmAckKeyU32(m.packetId) === canon
-              ? { ...m, status: 'acked' as const }
+              ? { ...m, status: newStatus as typeof m.status }
               : m,
           ),
         );
         void window.electronAPI.db
-          .updateMeshcoreMessageStatus(canon, 'acked')
+          .updateMeshcoreMessageStatus(canon, newStatus)
           .catch((e: unknown) => {
             console.warn('[useMeshCore] updateMeshcoreMessageStatus error', e);
           });
@@ -1895,6 +2010,11 @@ export function useMeshCore() {
         const d = meshcoreContactRawFromDevice(data as MeshCoreContactRaw);
         const node = meshcoreContactToMeshNode(d);
         pubKeyMapRef.current.set(node.node_id, d.publicKey);
+        const evt138PathLen = d.outPathLen ?? 0;
+        outPathMapRef.current.set(
+          node.node_id,
+          d.outPath?.slice(0, evt138PathLen + 1) ?? new Uint8Array(0),
+        );
         const prefix = Array.from(d.publicKey.slice(0, 6))
           .map((b) => b.toString(16).padStart(2, '0'))
           .join('');
@@ -1905,7 +2025,16 @@ export function useMeshCore() {
           '[useMeshCore] event 138: new contact',
           node.node_id.toString(16).toUpperCase(),
         );
-        updateNode(nodeWithNick);
+        setNodes((prev) => {
+          const next = new Map(prev);
+          const existing = prev.get(nodeWithNick.node_id);
+          next.set(nodeWithNick.node_id, {
+            ...(existing ?? {}),
+            ...nodeWithNick,
+            hw_model: mergeHwModelOnContactUpdate(existing?.hw_model, nodeWithNick.hw_model),
+          });
+          return next;
+        });
         void window.electronAPI.db
           .saveMeshcoreContact(contactToDbRow(d, nick ?? null, 1))
           .catch((e: unknown) => {
@@ -2254,6 +2383,7 @@ export function useMeshCore() {
 
       conn.on('disconnected', () => {
         setState((prev) => ({ ...prev, status: 'disconnected' }));
+        setQueueStatus(null);
         // Clear pending contacts refresh timer
         if (meshcoreContactsRefreshTimerRef.current) {
           clearTimeout(meshcoreContactsRefreshTimerRef.current);
@@ -2283,7 +2413,7 @@ export function useMeshCore() {
         if (parsed) setMeshcoreAutoadd(parsed);
       });
     },
-    [addMessage, updateNode, setDeviceLogs, addCliHistoryEntry],
+    [addMessage, setDeviceLogs, addCliHistoryEntry],
   );
 
   /** Reject promptly when `disconnect()` bumps `meshcoreSetupGenerationRef` (avoids hanging on getChannels, etc.). */
@@ -2978,6 +3108,7 @@ export function useMeshCore() {
     connRef.current = null;
     pubKeyMapRef.current.clear();
     pubKeyPrefixMapRef.current.clear();
+    outPathMapRef.current.clear();
     nicknameMapRef.current.clear();
     setNodes(new Map());
     setMessages([]);
@@ -3046,10 +3177,21 @@ export function useMeshCore() {
         };
         setMessages((prev) => [...prev, tempMsg]);
 
+        // Calculate dynamic timeout based on hop count for multi-hop paths
+        const destNode = nodesRef.current.get(destNodeId);
+        const hopsAway = destNode?.hops_away ?? 0;
+        const hopBasedTimeoutMs = 3000 + hopsAway * 2500; // 3s base + 2.5s per hop
+
         try {
           const result = await connRef.current.sendTextMessage(pubKey, textToSend);
+          void fetchAndUpdateLocalStats();
           const ackCrc = result?.expectedAckCrc;
-          const estTimeout = Math.max(result?.estTimeout ?? 30_000, MESHCORE_DM_ACK_TIMEOUT_MIN_MS);
+          // Use max of: firmware estimate, hop-based calculation, minimum floor
+          const estTimeout = Math.max(
+            result?.estTimeout ?? 30_000,
+            hopBasedTimeoutMs,
+            MESHCORE_DM_ACK_TIMEOUT_MIN_MS,
+          );
 
           if (ackCrc !== undefined) {
             const ackKey = meshcoreDmAckKeyU32(ackCrc);
@@ -3162,6 +3304,7 @@ export function useMeshCore() {
           const channelConn = connRef.current;
           if (channelConn) {
             await channelConn.sendChannelTextMessage(channelIdx, textToSend);
+            void fetchAndUpdateLocalStats();
             addMessage({
               sender_id: myNodeNumRef.current,
               sender_name: selfInfo?.name ?? 'Me',
@@ -3201,15 +3344,12 @@ export function useMeshCore() {
         }
       }
     },
-    [addMessage, selfInfo],
+    [addMessage, selfInfo, fetchAndUpdateLocalStats],
   );
 
   const refreshContacts = useCallback(async () => {
     if (!connRef.current) return;
     try {
-      // Mark all existing contacts as not on radio before refreshing
-      await window.electronAPI.db.markAllMeshcoreContactsOffRadio();
-
       // Mark all existing contacts as not on radio before refreshing
       await window.electronAPI.db.markAllMeshcoreContactsOffRadio();
 
@@ -3224,13 +3364,6 @@ export function useMeshCore() {
       });
       setNodes((prev) => mergeMeshcoreChatStubNodes(prev, newNodes));
       console.debug('[useMeshCore] refreshContacts: loaded', contacts.length);
-
-      // Warn if approaching contact limit
-      if (contacts.length > MESHCORE_CONTACTS_WARNING_THRESHOLD) {
-        console.warn(
-          `[useMeshCore] refreshContacts: radio contacts near limit (${contacts.length}/${MESHCORE_MAX_CONTACTS})`,
-        );
-      }
 
       // Warn if approaching contact limit
       if (contacts.length > MESHCORE_CONTACTS_WARNING_THRESHOLD) {
@@ -3381,6 +3514,7 @@ export function useMeshCore() {
     const pk = pubKeyMapRef.current.get(myId);
     pubKeyMapRef.current.clear();
     pubKeyPrefixMapRef.current.clear();
+    outPathMapRef.current.clear();
     if (pk && myId !== 0) {
       pubKeyMapRef.current.set(myId, pk);
       const prefix = Array.from(pk.slice(0, 6))
@@ -3551,42 +3685,77 @@ export function useMeshCore() {
         });
         return;
       }
-      console.debug('[useMeshCore] traceRoute nodeId=', nodeId.toString(16).toUpperCase());
       setMeshcorePingErrors((prev) => {
         const next = new Map(prev);
         next.delete(nodeId);
         return next;
       });
+
       try {
-        const result = await connRef.current.tracePath([pubKey], MESHCORE_TRACE_TIMEOUT_MS);
+        const conn = connRef.current;
+        if (!conn) {
+          throw new Error('Not connected to device');
+        }
+        const storedPath = outPathMapRef.current.get(nodeId);
+        let outPath =
+          storedPath && storedPath.length > 0 ? storedPath : new Uint8Array([pubKey[0]]);
+        if (outPath.length === 1 && outPath[0] === 0 && pubKey[0] !== 0) {
+          outPath = new Uint8Array([pubKey[0]]);
+        }
+        const result = await withTimeout(
+          runMeshcoreTracePathMultiplexed(
+            conn as unknown as MeshcoreTracePathMuxConnection,
+            outPath,
+            MESHCORE_TRACE_TIMEOUT_MS,
+            repeaterRemoteRpcRef.current,
+          ),
+          MESHCORE_TRACE_PING_TOTAL_TIMEOUT_MS,
+          'meshcoreTracePing',
+        );
+        const traceHops = meshcoreTracePathLenToHops(result.pathLen);
+        const convertedSnrs = (result.pathSnrs ?? []).map((s) => s * MESHCORE_RPC_SNR_RAW_TO_DB);
+        const convertedLastSnr = result.lastSnr;
         setMeshcoreTraceResults((prev) => {
           const next = new Map(prev);
           next.set(nodeId, {
             pathLen: result.pathLen,
             pathHashes: result.pathHashes ?? [],
-            pathSnrs: (result.pathSnrs ?? []).map((s) => s * MESHCORE_RPC_SNR_RAW_TO_DB),
-            lastSnr: result.lastSnr * MESHCORE_RPC_SNR_RAW_TO_DB,
+            pathSnrs: convertedSnrs,
+            lastSnr: convertedLastSnr,
             tag: result.tag,
           });
           return next;
         });
-        // Sync pathLen to node's hops_away so it appears in NodeListPanel
+        void useDiagnosticsStore
+          .getState()
+          .saveMeshcoreTraceHistory(
+            nodeId,
+            result.pathLen,
+            convertedSnrs,
+            convertedLastSnr,
+            result.tag,
+          );
         setNodes((prev) => {
           const existing = prev.get(nodeId);
           if (!existing) return prev;
           const next = new Map(prev);
-          next.set(nodeId, { ...existing, hops_away: result.pathLen });
+          next.set(nodeId, { ...existing, hops_away: traceHops });
           return next;
         });
-        useRepeaterSignalStore
-          .getState()
-          .recordSignal(nodeId, result.lastSnr * MESHCORE_RPC_SNR_RAW_TO_DB);
+        useRepeaterSignalStore.getState().recordSignal(nodeId, result.lastSnr);
         bumpMeshcoreNodeLastHeardFromRpc(nodeId);
+        setMeshcorePingErrors((prev) => {
+          const next = new Map(prev);
+          next.delete(nodeId);
+          return next;
+        });
       } catch (e: unknown) {
-        const rawErr = e instanceof Error ? e.message : String(e);
+        const rawErr = meshcoreTraceRouteRejectReason(e);
         const errMsg = rawErr && rawErr !== 'undefined' ? rawErr : 'request failed';
-        let friendlyErr = errMsg.toLowerCase().includes('timeout')
-          ? `Request timed out (~${Math.round(MESHCORE_TRACE_TIMEOUT_MS / 1000)}s)`
+        const isTimeout =
+          errMsg.toLowerCase().includes('timeout') || errMsg.toLowerCase().includes('timed out');
+        let friendlyErr = isTimeout
+          ? `Request timed out (up to ~${Math.round(MESHCORE_TRACE_PING_TOTAL_TIMEOUT_MS / 1000)}s)`
           : `Failed: ${errMsg}`;
         friendlyErr = meshcoreAppendRepeaterAuthHint(friendlyErr);
         setMeshcorePingErrors((prev) => {
@@ -3629,48 +3798,54 @@ export function useMeshCore() {
         return next;
       });
       try {
-        await meshcoreRepeaterTryLogin(connRef.current, pubKey);
-        const raw = await connRef.current.getStatus(pubKey, MESHCORE_STATUS_TIMEOUT_MS);
-        const lastSnrDb = raw.last_snr * MESHCORE_RPC_SNR_RAW_TO_DB;
-        const status: MeshCoreRepeaterStatus = {
-          battMilliVolts: raw.batt_milli_volts,
-          noiseFloor: raw.noise_floor,
-          lastRssi: raw.last_rssi,
-          lastSnr: lastSnrDb,
-          nPacketsRecv: raw.n_packets_recv,
-          nPacketsSent: raw.n_packets_sent,
-          totalAirTimeSecs: raw.total_air_time_secs,
-          totalUpTimeSecs: raw.total_up_time_secs,
-          nSentFlood: raw.n_sent_flood,
-          nSentDirect: raw.n_sent_direct,
-          nRecvFlood: raw.n_recv_flood,
-          nRecvDirect: raw.n_recv_direct,
-          errEvents: raw.err_events,
-          nDirectDups: raw.n_direct_dups,
-          nFloodDups: raw.n_flood_dups,
-          currTxQueueLen: raw.curr_tx_queue_len,
-        };
-        setMeshcoreNodeStatus((prev) => {
-          const next = new Map(prev);
-          next.set(nodeId, status);
-          return next;
+        await repeaterRemoteRpcRef.current(async () => {
+          const conn = connRef.current;
+          if (!conn) {
+            throw new Error('Not connected to device');
+          }
+          await meshcoreRepeaterTryLogin(conn, pubKey);
+          const raw = await conn.getStatus(pubKey, MESHCORE_STATUS_TIMEOUT_MS);
+          const lastSnrDb = raw.last_snr * MESHCORE_RPC_SNR_RAW_TO_DB;
+          const status: MeshCoreRepeaterStatus = {
+            battMilliVolts: raw.batt_milli_volts,
+            noiseFloor: raw.noise_floor,
+            lastRssi: raw.last_rssi,
+            lastSnr: lastSnrDb,
+            nPacketsRecv: raw.n_packets_recv,
+            nPacketsSent: raw.n_packets_sent,
+            totalAirTimeSecs: raw.total_air_time_secs,
+            totalUpTimeSecs: raw.total_up_time_secs,
+            nSentFlood: raw.n_sent_flood,
+            nSentDirect: raw.n_sent_direct,
+            nRecvFlood: raw.n_recv_flood,
+            nRecvDirect: raw.n_recv_direct,
+            errEvents: raw.err_events,
+            nDirectDups: raw.n_direct_dups,
+            nFloodDups: raw.n_flood_dups,
+            currTxQueueLen: raw.curr_tx_queue_len,
+          };
+          setMeshcoreNodeStatus((prev) => {
+            const next = new Map(prev);
+            next.set(nodeId, status);
+            return next;
+          });
+          setNodes((prev) => {
+            const cur = prev.get(nodeId);
+            if (!cur) return prev;
+            const next = new Map(prev);
+            next.set(nodeId, { ...cur, snr: lastSnrDb, rssi: raw.last_rssi });
+            return next;
+          });
+          useRepeaterSignalStore.getState().recordSignal(nodeId, status.lastSnr);
+          bumpMeshcoreNodeLastHeardFromRpc(nodeId);
+          if (Number.isFinite(lastSnrDb) && Number.isFinite(raw.last_rssi)) {
+            void window.electronAPI.db
+              .updateMeshcoreContactLastRf(nodeId, lastSnrDb, raw.last_rssi)
+              .catch((e: unknown) => {
+                console.warn('[useMeshCore] updateMeshcoreContactLastRf error', e);
+              });
+          }
         });
-        setNodes((prev) => {
-          const cur = prev.get(nodeId);
-          if (!cur) return prev;
-          const next = new Map(prev);
-          next.set(nodeId, { ...cur, snr: lastSnrDb, rssi: raw.last_rssi });
-          return next;
-        });
-        useRepeaterSignalStore.getState().recordSignal(nodeId, status.lastSnr);
-        bumpMeshcoreNodeLastHeardFromRpc(nodeId);
-        if (Number.isFinite(lastSnrDb) && Number.isFinite(raw.last_rssi)) {
-          void window.electronAPI.db
-            .updateMeshcoreContactLastRf(nodeId, lastSnrDb, raw.last_rssi)
-            .catch((e: unknown) => {
-              console.warn('[useMeshCore] updateMeshcoreContactLastRf error', e);
-            });
-        }
       } catch (e: unknown) {
         const rawErr = e instanceof Error ? e.message : String(e);
         const errMsg = rawErr && rawErr !== 'undefined' ? rawErr : 'request failed';
@@ -3716,63 +3891,69 @@ export function useMeshCore() {
     }
     console.debug('[useMeshCore] requestTelemetry nodeId=', nodeId.toString(16).toUpperCase());
     try {
-      await meshcoreRepeaterTryLogin(connRef.current, pubKey);
-      const raw = await connRef.current.getTelemetry(pubKey, MESHCORE_TELEMETRY_TIMEOUT_MS);
-      let entries: CayenneLppEntry[] = [];
-      try {
-        entries = CayenneLpp.parse(raw.lppSensorData) as CayenneLppEntry[];
-      } catch (parseErr) {
-        console.warn('[useMeshCore] requestTelemetry CayenneLpp.parse error', parseErr);
-      }
-      const result: MeshCoreNodeTelemetry = { fetchedAt: Date.now(), entries };
-      for (const entry of entries) {
-        if (entry.type === CayenneLpp.LPP_TEMPERATURE && typeof entry.value === 'number') {
-          result.temperature = entry.value;
-        } else if (
-          entry.type === CayenneLpp.LPP_RELATIVE_HUMIDITY &&
-          typeof entry.value === 'number'
-        ) {
-          result.relativeHumidity = entry.value;
-        } else if (
-          entry.type === CayenneLpp.LPP_BAROMETRIC_PRESSURE &&
-          typeof entry.value === 'number'
-        ) {
-          result.barometricPressure = entry.value;
-        } else if (entry.type === CayenneLpp.LPP_VOLTAGE && typeof entry.value === 'number') {
-          result.voltage = entry.value;
-        } else if (
-          entry.type === CayenneLpp.LPP_GPS &&
-          typeof entry.value === 'object' &&
-          entry.value !== null
-        ) {
-          result.gps = entry.value as { latitude: number; longitude: number; altitude: number };
+      await repeaterRemoteRpcRef.current(async () => {
+        const conn = connRef.current;
+        if (!conn) {
+          throw new Error('Not connected to device');
         }
-      }
-      setMeshcoreNodeTelemetry((prev) => {
-        const next = new Map(prev);
-        next.set(nodeId, result);
-        return next;
+        await meshcoreRepeaterTryLogin(conn, pubKey);
+        const raw = await conn.getTelemetry(pubKey, MESHCORE_TELEMETRY_TIMEOUT_MS);
+        let entries: CayenneLppEntry[] = [];
+        try {
+          entries = CayenneLpp.parse(raw.lppSensorData) as CayenneLppEntry[];
+        } catch (parseErr) {
+          console.warn('[useMeshCore] requestTelemetry CayenneLpp.parse error', parseErr);
+        }
+        const result: MeshCoreNodeTelemetry = { fetchedAt: Date.now(), entries };
+        for (const entry of entries) {
+          if (entry.type === CayenneLpp.LPP_TEMPERATURE && typeof entry.value === 'number') {
+            result.temperature = entry.value;
+          } else if (
+            entry.type === CayenneLpp.LPP_RELATIVE_HUMIDITY &&
+            typeof entry.value === 'number'
+          ) {
+            result.relativeHumidity = entry.value;
+          } else if (
+            entry.type === CayenneLpp.LPP_BAROMETRIC_PRESSURE &&
+            typeof entry.value === 'number'
+          ) {
+            result.barometricPressure = entry.value;
+          } else if (entry.type === CayenneLpp.LPP_VOLTAGE && typeof entry.value === 'number') {
+            result.voltage = entry.value;
+          } else if (
+            entry.type === CayenneLpp.LPP_GPS &&
+            typeof entry.value === 'object' &&
+            entry.value !== null
+          ) {
+            result.gps = entry.value as { latitude: number; longitude: number; altitude: number };
+          }
+        }
+        setMeshcoreNodeTelemetry((prev) => {
+          const next = new Map(prev);
+          next.set(nodeId, result);
+          return next;
+        });
+        setMeshcoreTelemetryErrors((prev) => {
+          const next = new Map(prev);
+          next.delete(nodeId);
+          return next;
+        });
+        const hasEnv =
+          result.temperature != null ||
+          result.relativeHumidity != null ||
+          result.barometricPressure != null;
+        if (hasEnv) {
+          const pt: EnvironmentTelemetryPoint = {
+            timestamp: result.fetchedAt,
+            nodeNum: nodeId,
+            temperature: result.temperature,
+            relativeHumidity: result.relativeHumidity,
+            barometricPressure: result.barometricPressure,
+          };
+          setEnvironmentTelemetry((prev) => [...prev, pt].slice(-MAX_ENV_TELEMETRY_POINTS));
+        }
+        console.debug('[useMeshCore] requestTelemetry result:', result);
       });
-      setMeshcoreTelemetryErrors((prev) => {
-        const next = new Map(prev);
-        next.delete(nodeId);
-        return next;
-      });
-      const hasEnv =
-        result.temperature != null ||
-        result.relativeHumidity != null ||
-        result.barometricPressure != null;
-      if (hasEnv) {
-        const pt: EnvironmentTelemetryPoint = {
-          timestamp: result.fetchedAt,
-          nodeNum: nodeId,
-          temperature: result.temperature,
-          relativeHumidity: result.relativeHumidity,
-          barometricPressure: result.barometricPressure,
-        };
-        setEnvironmentTelemetry((prev) => [...prev, pt].slice(-MAX_ENV_TELEMETRY_POINTS));
-      }
-      console.debug('[useMeshCore] requestTelemetry result:', result);
     } catch (e: unknown) {
       const rawErr = e instanceof Error ? e.message : String(e);
       const errMsg = rawErr && rawErr !== 'undefined' ? rawErr : 'request failed';
@@ -3818,49 +3999,60 @@ export function useMeshCore() {
       return next;
     });
     try {
-      await meshcoreRepeaterTryLogin(connRef.current, pubKey);
-      const raw = await connRef.current.getNeighbours(
-        pubKey,
-        10,
-        0,
-        0,
-        6,
-        MESHCORE_NEIGHBORS_TIMEOUT_MS,
-      );
-      const neighbours: MeshCoreNeighborEntry[] = raw.neighbours.map((nb) => {
-        const prefixHex = Array.from(nb.publicKeyPrefix)
-          .map((b) => b.toString(16).padStart(2, '0'))
-          .join('');
-        const resolvedNodeId = pubKeyPrefixMapRef.current.get(prefixHex) ?? 0;
-        return {
-          publicKeyPrefix: nb.publicKeyPrefix,
-          prefixHex,
-          resolvedNodeId,
-          heardSecondsAgo: nb.heardSecondsAgo,
-          snr: nb.snr * MESHCORE_RPC_SNR_RAW_TO_DB,
+      await repeaterRemoteRpcRef.current(async () => {
+        const conn = connRef.current;
+        if (!conn) {
+          throw new Error('Not connected to device');
+        }
+        await meshcoreRepeaterTryLogin(conn, pubKey);
+        const neighbourPrefixLen = 6;
+        const reqBytes = buildMeshcoreGetNeighboursRequest({
+          count: 10,
+          offset: 0,
+          orderBy: 0,
+          pubKeyPrefixLength: neighbourPrefixLen,
+        });
+        const responseData = await conn.sendBinaryRequest(
+          pubKey,
+          reqBytes,
+          MESHCORE_NEIGHBORS_TIMEOUT_MS,
+        );
+        const raw = parseMeshcoreGetNeighboursResponse(responseData, neighbourPrefixLen);
+        const neighbours: MeshCoreNeighborEntry[] = raw.neighbours.map((nb) => {
+          const prefixHex = Array.from(nb.publicKeyPrefix)
+            .map((b) => b.toString(16).padStart(2, '0'))
+            .join('');
+          const resolvedNodeId = pubKeyPrefixMapRef.current.get(prefixHex) ?? 0;
+          return {
+            publicKeyPrefix: nb.publicKeyPrefix,
+            prefixHex,
+            resolvedNodeId,
+            heardSecondsAgo: nb.heardSecondsAgo,
+            snr: nb.snr * MESHCORE_RPC_SNR_RAW_TO_DB,
+          };
+        });
+        const result: MeshCoreNeighborResult = {
+          totalNeighboursCount: raw.totalNeighboursCount,
+          neighbours,
+          fetchedAt: Date.now(),
         };
+        setMeshcoreNeighbors((prev) => {
+          const next = new Map(prev);
+          next.set(nodeId, result);
+          return next;
+        });
+        setMeshcoreNeighborErrors((prev) => {
+          const next = new Map(prev);
+          next.delete(nodeId);
+          return next;
+        });
+        console.debug(
+          '[useMeshCore] requestNeighbors result: total=',
+          raw.totalNeighboursCount,
+          'fetched=',
+          neighbours.length,
+        );
       });
-      const result: MeshCoreNeighborResult = {
-        totalNeighboursCount: raw.totalNeighboursCount,
-        neighbours,
-        fetchedAt: Date.now(),
-      };
-      setMeshcoreNeighbors((prev) => {
-        const next = new Map(prev);
-        next.set(nodeId, result);
-        return next;
-      });
-      setMeshcoreNeighborErrors((prev) => {
-        const next = new Map(prev);
-        next.delete(nodeId);
-        return next;
-      });
-      console.debug(
-        '[useMeshCore] requestNeighbors result: total=',
-        raw.totalNeighboursCount,
-        'fetched=',
-        neighbours.length,
-      );
     } catch (e: unknown) {
       const rawErr = e instanceof Error ? e.message : String(e);
       const errMsg = rawErr && rawErr !== 'undefined' ? rawErr : 'request failed';
@@ -3912,42 +4104,49 @@ export function useMeshCore() {
       const path: Uint8Array[] = useSavedPath
         ? (() => {
             const trace = meshcoreTraceResults.get(nodeId);
-            if (!trace || trace.pathSnrs.length === 0) return [];
-            return trace.pathSnrs.map(() => pubKey);
+            const snrs = trace?.pathSnrs;
+            if (!trace || !Array.isArray(snrs) || snrs.length === 0) return [];
+            return snrs.map(() => pubKey);
           })()
         : [];
 
-      const { token, promise } = service.registerPendingCommand(command, path);
-      const commandWithToken = service.formatCommandWithToken(command, token);
-
-      addCliHistoryEntry(nodeId, {
-        type: 'sent',
-        text: command,
-        timestamp: Date.now(),
-      });
-
-      console.debug(
-        '[useMeshCore] sendRepeaterCliCommand nodeId=',
-        nodeId.toString(16).toUpperCase(),
-        'token=',
-        token,
-        'command=',
-        command,
-      );
-
       try {
-        await meshcoreRepeaterTryLogin(connRef.current, pubKey);
-        const txtType = 1; // TxtTypes.CliData
-        await connRef.current.sendTextMessage(pubKey, commandWithToken, txtType);
+        return await repeaterRemoteRpcRef.current(async () => {
+          const conn = connRef.current;
+          if (!conn) {
+            throw new Error('Not connected to device');
+          }
+          const { token, promise } = service.registerPendingCommand(command, path);
+          const commandWithToken = service.formatCommandWithToken(command, token);
 
-        const response = await promise;
-        addCliHistoryEntry(nodeId, {
-          type: 'received',
-          text: response,
-          timestamp: Date.now(),
+          addCliHistoryEntry(nodeId, {
+            type: 'sent',
+            text: command,
+            timestamp: Date.now(),
+          });
+
+          console.debug(
+            '[useMeshCore] sendRepeaterCliCommand nodeId=',
+            nodeId.toString(16).toUpperCase(),
+            'token=',
+            token,
+            'command=',
+            command,
+          );
+
+          await meshcoreRepeaterTryLogin(conn, pubKey);
+          const txtType = 1; // TxtTypes.CliData
+          await conn.sendTextMessage(pubKey, commandWithToken, txtType);
+
+          const response = await promise;
+          addCliHistoryEntry(nodeId, {
+            type: 'received',
+            text: response,
+            timestamp: Date.now(),
+          });
+          bumpMeshcoreNodeLastHeardFromRpc(nodeId);
+          return response;
         });
-        bumpMeshcoreNodeLastHeardFromRpc(nodeId);
-        return response;
       } catch (e: unknown) {
         const rawErr = e instanceof Error ? e.message : String(e);
         const errMsg = rawErr && rawErr !== 'undefined' ? rawErr : 'request failed';
@@ -4607,29 +4806,31 @@ export function useMeshCore() {
   }, []);
 
   // ─── MeshCore Statistics ───────────────────────────────────────
-  const getRadioStats = useCallback(async (): Promise<Record<string, unknown> | null> => {
-    const conn = connRef.current;
-    if (!conn) return null;
-    try {
-      const result = await conn.getStatsRadio();
-      return result;
-    } catch (e: unknown) {
-      console.warn('[useMeshCore] getRadioStats error', e);
-      return null;
-    }
-  }, []);
+  const getRadioStats =
+    useCallback(async (): Promise<MeshCoreStatsResponse<MeshCoreRadioStatsData> | null> => {
+      const conn = connRef.current;
+      if (!conn) return null;
+      try {
+        const result = await conn.getStatsRadio();
+        return result;
+      } catch (e: unknown) {
+        console.warn('[useMeshCore] getRadioStats error', e);
+        return null;
+      }
+    }, []);
 
-  const getPacketStats = useCallback(async (): Promise<Record<string, unknown> | null> => {
-    const conn = connRef.current;
-    if (!conn) return null;
-    try {
-      const result = await conn.getStatsPackets();
-      return result;
-    } catch (e: unknown) {
-      console.warn('[useMeshCore] getPacketStats error', e);
-      return null;
-    }
-  }, []);
+  const getPacketStats =
+    useCallback(async (): Promise<MeshCoreStatsResponse<MeshCorePacketStatsData> | null> => {
+      const conn = connRef.current;
+      if (!conn) return null;
+      try {
+        const result = await conn.getStatsPackets();
+        return result;
+      } catch (e: unknown) {
+        console.warn('[useMeshCore] getPacketStats error', e);
+        return null;
+      }
+    }, []);
 
   // ─── MeshCore Channel Data ──────────────────────────────────────
   const sendChannelData = useCallback(
@@ -4856,8 +5057,13 @@ export function useMeshCore() {
       getNodes,
       getFullNodeLabel,
       getPickerStyleNodeLabel,
-      traceRouteResults: new Map<number, { route: number[]; from: number }>(),
-      queueStatus: null,
+      traceRouteResults: new Map(
+        Array.from(meshcoreTraceResults.entries()).map(([id, res]) => [
+          id,
+          { route: res.pathHashes, from: id, timestamp: Date.now() },
+        ]),
+      ),
+      queueStatus,
       neighborInfo: new Map<number, unknown>(),
       waypoints: [] as unknown[],
       telemetry,
@@ -4963,6 +5169,7 @@ export function useMeshCore() {
       clearCliHistory,
       manualAddContacts,
       mqttStatus,
+      queueStatus,
       telemetry,
       signalTelemetry,
       environmentTelemetry,

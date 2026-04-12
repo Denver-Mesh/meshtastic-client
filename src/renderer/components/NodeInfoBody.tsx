@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { formatCoordPair } from '../lib/coordUtils';
 import {
@@ -18,6 +18,7 @@ import {
   type RFDiagnosis,
 } from '../lib/diagnostics/RFDiagnosticEngine';
 import { snrMeaningfulForNodeDiagnostics } from '../lib/diagnostics/snrMeaningfulForNodeDiagnostics';
+import { meshcoreTracePathLenToHops } from '../lib/meshcoreUtils';
 import { normalizeLastHeardMs } from '../lib/nodeStatus';
 import { RoleDisplay } from '../lib/roleInfo';
 import { MS_PER_DAY, MS_PER_HOUR, MS_PER_MINUTE } from '../lib/timeConstants';
@@ -26,6 +27,7 @@ import { routingRowToNodeAnomaly } from '../lib/types';
 import { useCoordFormatStore } from '../stores/coordFormatStore';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
 import MeshCongestionAttributionBlock from './MeshCongestionAttributionBlock';
+import SnrIndicator from './SnrIndicator';
 
 export const CATEGORY_STYLES: Record<string, string> = {
   Configuration: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
@@ -177,7 +179,25 @@ export default function NodeInfoBody({
     (s) => s.hopHistory.get(node.node_id) ?? EMPTY_HOP_HISTORY,
   );
   const nodeRedundancy = useDiagnosticsStore((s) => s.nodeRedundancy.get(node.node_id));
+  const meshcoreHopHistory = useDiagnosticsStore((s) => s.meshcoreHopHistory.get(node.node_id));
+  const meshcoreTraceHistory = useDiagnosticsStore((s) => s.meshcoreTraceHistory.get(node.node_id));
+  const loadMeshcorePathHistory = useDiagnosticsStore((s) => s.loadMeshcorePathHistory);
   const [pathHistoryOpen, setPathHistoryOpen] = useState(false);
+
+  const meshcoreTraceFirst = meshcoreTraceHistory?.[0];
+  const meshcoreTracePathSnrsSafe =
+    meshcoreTraceFirst != null && Array.isArray(meshcoreTraceFirst.pathSnrs)
+      ? meshcoreTraceFirst.pathSnrs
+      : [];
+  const showMeshcoreTraceHistoryBlock =
+    meshcoreTraceFirst != null &&
+    (meshcoreTraceFirst.pathLen != null || meshcoreTracePathSnrsSafe.length > 0);
+
+  useEffect(() => {
+    if (protocol === 'meshcore' && node.node_id) {
+      loadMeshcorePathHistory(node.node_id);
+    }
+  }, [protocol, node.node_id, loadMeshcorePathHistory]);
 
   const batteryColor =
     node.battery > 50
@@ -621,6 +641,70 @@ export default function NodeInfoBody({
                 </div>
               );
             })()}
+          </div>
+        )}
+
+        {/* MeshCore trace history from database */}
+        {protocol === 'meshcore' && (meshcoreHopHistory || meshcoreTraceHistory) && (
+          <div className="mt-2 border-t border-gray-700/50 pt-2">
+            <div className="mb-1 text-[10px] tracking-wide text-gray-500 uppercase">
+              MeshCore Path History
+            </div>
+            {meshcoreHopHistory && (
+              <div className="mb-1 text-xs">
+                <span className="text-gray-400">Hops: </span>
+                <span className="font-mono text-gray-200">{meshcoreHopHistory.hops ?? '?'}</span>
+                {meshcoreHopHistory.snr != null && (
+                  <span className="ml-2 text-gray-500">
+                    SNR {meshcoreHopHistory.snr > 0 ? '+' : ''}
+                    {meshcoreHopHistory.snr.toFixed(1)} dB
+                  </span>
+                )}
+                {meshcoreHopHistory.rssi != null && (
+                  <span className="ml-2 text-gray-500">{meshcoreHopHistory.rssi} dBm</span>
+                )}
+                <span className="ml-2 text-[10px] text-gray-600">
+                  {new Date(meshcoreHopHistory.timestamp).toLocaleTimeString()}
+                </span>
+              </div>
+            )}
+            {meshcoreTraceHistory &&
+              meshcoreTraceHistory.length > 0 &&
+              showMeshcoreTraceHistoryBlock &&
+              meshcoreTraceFirst != null && (
+                <div className="bg-deep-black/50 rounded p-1.5 text-[10px]">
+                  <div className="mb-0.5 text-gray-400">
+                    {meshcoreTraceFirst.pathLen != null && (
+                      <>
+                        Hops:{' '}
+                        <span className="font-mono text-gray-200">
+                          {meshcoreTracePathLenToHops(meshcoreTraceFirst.pathLen)}
+                        </span>{' '}
+                      </>
+                    )}
+                    <span className="text-gray-600">
+                      {new Date(meshcoreTraceFirst.timestamp).toLocaleTimeString()}
+                      {meshcoreTraceHistory.length > 1 && (
+                        <span className="ml-1 text-gray-500">
+                          (+{meshcoreTraceHistory.length - 1} older)
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  {meshcoreTracePathSnrsSafe.map((snr, i) => (
+                    <div key={i} className="flex items-center gap-2 pl-1.5">
+                      <span className="w-8 text-gray-500">Hop {i + 1}</span>
+                      <SnrIndicator snr={snr} className="text-[10px]" />
+                    </div>
+                  ))}
+                  {meshcoreTraceFirst.lastSnr != null && (
+                    <div className="mt-0.5 flex items-center gap-2 border-t border-gray-700/30 pt-0.5 pl-1.5">
+                      <span className="w-8 text-gray-500">Dest</span>
+                      <SnrIndicator snr={meshcoreTraceFirst.lastSnr} className="text-[10px]" />
+                    </div>
+                  )}
+                </div>
+              )}
           </div>
         )}
       </div>

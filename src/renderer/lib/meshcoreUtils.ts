@@ -34,6 +34,15 @@ export function meshcoreIsChatStubNodeId(nodeId: number): boolean {
   return u >= MESHCORE_CHAT_STUB_ID_MIN && u <= MESHCORE_CHAT_STUB_ID_MAX;
 }
 
+/**
+ * `tracePath` reports `pathLen` as segment count along the route (a direct RF link is often 1).
+ * UI hop count (repeaters between us and the peer) is one less; clamp at 0.
+ */
+export function meshcoreTracePathLenToHops(pathLen: number): number {
+  if (!Number.isFinite(pathLen)) return 0;
+  return Math.max(0, Math.trunc(pathLen) - 1);
+}
+
 /** MeshCore companion lines that are transport metadata, not user channel chat (splitting on `:` would mispick `SNR:`). */
 export function isMeshcoreTransportStatusChatLine(text: string): boolean {
   const t = (text ?? '').trim();
@@ -53,7 +62,11 @@ export function mergeMeshcoreChatStubNodes(
 ): Map<number, MeshNode> {
   const next = new Map(deviceNodes);
   for (const [id, node] of prev) {
-    if (meshcoreIsChatStubNodeId(id) && !deviceNodes.has(id)) {
+    if (meshcoreIsChatStubNodeId(id)) {
+      const deviceNode = deviceNodes.get(id);
+      if (deviceNode && deviceNode.hw_model !== 'Chat') continue;
+    }
+    if (!deviceNodes.has(id)) {
       next.set(id, node);
     }
   }
@@ -124,6 +137,14 @@ export const CONTACT_TYPE_LABELS: Record<number, string> = {
   4: 'Sensor',
 };
 
+/** Reverse of {@link CONTACT_TYPE_LABELS} for persisting merged UI `hw_model` to DB `contact_type`. */
+export function meshcoreContactTypeFromHwModel(hwModel: string): number | undefined {
+  for (const [typeNum, label] of Object.entries(CONTACT_TYPE_LABELS)) {
+    if (label === hwModel) return Number(typeNum);
+  }
+  return undefined;
+}
+
 /**
  * Map measured cell voltage to an approximate 0–100% for UI (e.g. node list bar).
  * Uses a simple 1S LiPo-style linear range (3.5 V empty → 4.2 V full); not accurate for all chemistries or loads.
@@ -182,7 +203,9 @@ export function meshcoreContactToMeshNode(contact: MeshCoreContact): MeshNode {
     latitude: lat,
     longitude: lon,
     hops_away:
-      contact.outPathLen != null && contact.outPathLen >= 0 ? contact.outPathLen : undefined,
+      contact.outPathLen != null && contact.outPathLen >= 0 && contact.outPathLen <= 61
+        ? contact.outPathLen
+        : undefined,
   };
 }
 
@@ -290,10 +313,31 @@ const REPEATER_AUTH_HINT =
   'Set or change the repeater admin password from the Repeaters panel (session only).';
 
 /**
- * Raw SNR from MeshCore `getStatus` / `tracePath` uses the same quarter-dB scaling as trace hops.
- * @see tracePath mapping in useMeshCore (`lastSnr * MESHCORE_RPC_SNR_RAW_TO_DB`)
+ * Raw SNR quarter-dB to dB scale factor. Applied to pathSnrs hop values.
+ * NOTE: tracePath lastSnr is already converted to dB by the library (readInt8() / 4); do NOT apply this to it.
  */
 export const MESHCORE_RPC_SNR_RAW_TO_DB = 0.25;
+
+/**
+ * Merge hw_model when updating a node from a device contact push (event 138 or contacts refresh).
+ * Preserves an existing meaningful hw_model (e.g. 'Repeater', 'Sensor') over an incoming
+ * generic/unclassified type. Device may push type 0 ('None') or 1 ('Chat') for a contact
+ * that was already classified by a prior full contacts fetch.
+ */
+export function mergeHwModelOnContactUpdate(
+  existingHwModel: string | undefined,
+  incomingHwModel: string,
+): string {
+  if (
+    existingHwModel &&
+    existingHwModel !== 'None' &&
+    existingHwModel !== 'Unknown' &&
+    existingHwModel !== 'Chat'
+  ) {
+    return existingHwModel;
+  }
+  return incomingHwModel;
+}
 
 // In-memory only — never written to any persistent or inspectable storage.
 let _repeaterAuthTouched = false;

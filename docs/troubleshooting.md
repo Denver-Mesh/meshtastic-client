@@ -263,3 +263,9 @@ With **Wi‑Fi off** or **airplane mode** on, using a **packaged** build if poss
 **Cause**: The button is only shown for **Repeater**-type contacts (contact type 2). Chat and Room contacts do not support the neighbor query command.
 
 **Fix**: Open the node detail modal for a Repeater node (shown as "Repeater" in the hardware model field).
+
+### MeshCore: Trace Route or Ping trace times out
+
+**Cause**: Nodes you only **hear** on the mesh—but that do **not** have **your** node in **their** contact list—are sometimes called foreign or one-way contacts. MeshCore firmware may not answer **Trace Route** (node detail) or **Ping trace** (Repeaters panel) for those peers, so the app waits until the trace/ping timeout with no TraceData response. You may see **Trace route timed out** in the node detail modal or an error toast from **Ping trace**.
+
+**Fix**: When possible, exchange contact adds so the remote node lists you as a contact. If you cannot add them (or they never add you), treat the timeout as expected—not a Mesh-Client defect when the radio never returns a result.

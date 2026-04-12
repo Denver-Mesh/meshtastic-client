@@ -1,4 +1,34 @@
 declare module '@liamcottle/meshcore.js' {
+  export interface MeshCoreStatsResponse<TData> {
+    type: number;
+    raw: Uint8Array;
+    data: TData;
+  }
+
+  export interface MeshCoreCoreStatsData {
+    batteryMilliVolts: number;
+    uptimeSecs: number;
+    queueLen: number;
+  }
+
+  export interface MeshCoreRadioStatsData {
+    noiseFloor: number;
+    lastRssi: number;
+    lastSnr: number;
+    txAirSecs: number;
+    rxAirSecs: number;
+  }
+
+  export interface MeshCorePacketStatsData {
+    recv: number;
+    sent: number;
+    nSentFlood: number;
+    nSentDirect: number;
+    nRecvFlood: number;
+    nRecvDirect: number;
+    nRecvErrors?: number | null;
+  }
+
   /** Subset of meshcore.js constants used in tests and app code. */
   export class Constants {
     static SerialFrameTypes: { Incoming: number; Outgoing: number };
@@ -119,10 +149,10 @@ declare module '@liamcottle/meshcore.js' {
     }>;
     getTelemetry(pubKey: Uint8Array, extraTimeoutMillis?: number): Promise<unknown>;
     // Statistics
-    getStats(statsType: number): Promise<Record<string, unknown>>;
-    getStatsCore(): Promise<Record<string, unknown>>;
-    getStatsRadio(): Promise<Record<string, unknown>>;
-    getStatsPackets(): Promise<Record<string, unknown>>;
+    getStats(statsType: number): Promise<MeshCoreStatsResponse<Record<string, unknown>>>;
+    getStatsCore(): Promise<MeshCoreStatsResponse<MeshCoreCoreStatsData>>;
+    getStatsRadio(): Promise<MeshCoreStatsResponse<MeshCoreRadioStatsData>>;
+    getStatsPackets(): Promise<MeshCoreStatsResponse<MeshCorePacketStatsData>>;
     // Neighbors
     getNeighbours(
       pubKey: Uint8Array,
@@ -130,7 +160,6 @@ declare module '@liamcottle/meshcore.js' {
       offset?: number,
       orderBy?: number,
       pubKeyPrefixLength?: number,
-      extraTimeoutMillis?: number,
     ): Promise<{
       totalNeighboursCount: number;
       neighbours: { publicKeyPrefix: Uint8Array; heardSecondsAgo: number; snr: number }[];
@@ -143,7 +172,7 @@ declare module '@liamcottle/meshcore.js' {
     ): Promise<Uint8Array>;
     // Tracing
     tracePath(
-      path: Uint8Array[],
+      path: Uint8Array,
       extraTimeoutMillis?: number,
     ): Promise<{
       pathLen: number;
