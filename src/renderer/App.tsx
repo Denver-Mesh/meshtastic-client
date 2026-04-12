@@ -85,7 +85,7 @@ const TAB_CAPABILITY_REQUIREMENTS: (keyof ProtocolCapabilities | undefined)[] = 
   'hasTakPanel', // TAK
   undefined, // App
   undefined, // Diagnostics
-  'hasRawPacketLog', // Raw Packets
+  'hasRawPacketLog', // Sniffer (keyboard help: Packet Sniffer)
 ];
 
 const STATUS_COLOR: Record<string, string> = {
@@ -115,7 +115,7 @@ const TAB_NAMES = [
   'TAK',
   'App',
   'Diagnostics',
-  'Raw Packets',
+  'Sniffer',
 ];
 
 export interface LocationFilter {
@@ -787,7 +787,7 @@ export default function App() {
 
   // ─── Keyboard shortcuts: Cmd/Ctrl+1-9, 0, A, S for tabs, ? for help ───────
   // 1–9 = first nine visible tabs (indices 0–8). Cmd+0 / A / S jump by tab *name*
-  // (App, Diagnostics, Raw Packets) so indices stay correct when Security/TAK are hidden.
+  // (App, Diagnostics, Sniffer) so indices stay correct when Security/TAK are hidden.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const maxTab = displayTabNames.length - 1;
@@ -813,7 +813,7 @@ export default function App() {
           setActiveTab(targetIndex);
         }
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
-        const targetIndex = displayTabNames.indexOf('Raw Packets');
+        const targetIndex = displayTabNames.indexOf('Sniffer');
         if (targetIndex >= 0 && targetIndex <= maxTab) {
           e.preventDefault();
           setActiveTab(targetIndex);

@@ -1,4 +1,4 @@
-/** Ring-buffer size for Raw Packets tab (MeshCore LOG_RX_DATA and Meshtastic onMeshPacket). */
+/** Ring-buffer size for the Sniffer tab (MeshCore LOG_RX_DATA and Meshtastic onMeshPacket). */
 export const MAX_RAW_PACKET_LOG_ENTRIES = 2500;
 
 /**

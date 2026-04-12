@@ -38,10 +38,10 @@ describe('Tabs', () => {
     expect(onChange).toHaveBeenCalledWith(1);
   });
 
-  it('renders an icon for Raw Packets tab', () => {
+  it('renders an icon for Sniffer tab', () => {
     const onChange = vi.fn();
-    render(<Tabs tabs={['Raw Packets']} active={0} onChange={onChange} />);
-    const tab = screen.getByRole('tab', { name: 'Raw Packets' });
+    render(<Tabs tabs={['Sniffer']} active={0} onChange={onChange} />);
+    const tab = screen.getByRole('tab', { name: 'Sniffer' });
     expect(tab.querySelector('svg')).toBeInTheDocument();
   });
 });

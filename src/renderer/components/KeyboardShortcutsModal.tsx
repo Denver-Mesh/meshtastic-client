@@ -12,8 +12,12 @@ const DEFAULT_TAB_NAMES = [
   'TAK',
   'App',
   'Diagnostics',
-  'Raw Packets',
+  'Sniffer',
 ];
+
+function tabShortcutDisplayName(tabName: string): string {
+  return tabName === 'Sniffer' ? 'Packet Sniffer' : tabName;
+}
 
 const OTHER_SHORTCUTS = [
   { keys: 'Cmd/Ctrl + Shift + F', action: 'Toggle message search (Chat tab)' },
@@ -52,7 +56,7 @@ export default function KeyboardShortcutsModal({ onClose, tabNames }: KeyboardSh
       }
       return {
         keys: `Cmd/Ctrl + ${keys[i]}`,
-        action: `Switch to ${name} tab${suffix}`,
+        action: `Switch to ${tabShortcutDisplayName(name)} tab${suffix}`,
       };
     });
     return [...tabShortcuts, ...OTHER_SHORTCUTS];
@@ -161,9 +165,9 @@ export default function KeyboardShortcutsModal({ onClose, tabNames }: KeyboardSh
             </tbody>
           </table>
           <p className="text-muted mt-3 text-xs leading-relaxed">
-            Cmd/Ctrl+0, A, and S switch to the App, Diagnostics, and Raw Packets tabs by name when
-            those tabs are visible (not by fixed slot, so shortcuts stay correct when some tabs are
-            hidden).
+            Cmd/Ctrl+0, A, and S switch to the App, Diagnostics, and Packet Sniffer tabs by name
+            when those tabs are visible (not by fixed slot, so shortcuts stay correct when some tabs
+            are hidden).
           </p>
         </div>
       </div>

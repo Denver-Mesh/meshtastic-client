@@ -1,3 +1,7 @@
+/**
+ * Virtualized raw RF / mesh packet log. Shown on the **Sniffer** tab in the UI; keyboard shortcuts
+ * help refers to it as **Packet Sniffer** (component name retains RawPacket* for code consistency).
+ */
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
