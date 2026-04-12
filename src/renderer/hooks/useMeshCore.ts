@@ -54,6 +54,7 @@ import {
 import {
   CONTACT_TYPE_LABELS,
   isMeshcoreTransportStatusChatLine,
+  mergeHwModelOnContactUpdate,
   mergeMeshcoreChatStubNodes,
   MESHCORE_CONTACTS_WARNING_THRESHOLD,
   MESHCORE_MAX_CONTACTS,
@@ -1480,15 +1481,6 @@ export function useMeshCore() {
     });
   }, [addMessage]);
 
-  const updateNode = useCallback((node: MeshNode) => {
-    setNodes((prev) => {
-      const next = new Map(prev);
-      const existing = prev.get(node.node_id);
-      next.set(node.node_id, existing ? { ...existing, ...node } : node);
-      return next;
-    });
-  }, []);
-
   const buildNodesFromContacts = useCallback(
     async (
       contacts: MeshCoreContactRaw[],
@@ -1514,14 +1506,7 @@ export function useMeshCore() {
         );
         const node: MeshNode = { ...base, last_heard };
         const prevNode = prevSnap.get(node.node_id);
-        const prevHwModel = prevNode?.hw_model;
-        const mergedHwModel =
-          prevHwModel &&
-          prevHwModel !== 'None' &&
-          prevHwModel !== 'Unknown' &&
-          prevHwModel !== 'Chat'
-            ? prevHwModel
-            : node.hw_model;
+        const mergedHwModel = mergeHwModelOnContactUpdate(prevNode?.hw_model, node.hw_model);
         if (mergedHwModel !== node.hw_model) {
           node.hw_model = mergedHwModel;
         }
@@ -2036,7 +2021,16 @@ export function useMeshCore() {
           '[useMeshCore] event 138: new contact',
           node.node_id.toString(16).toUpperCase(),
         );
-        updateNode(nodeWithNick);
+        setNodes((prev) => {
+          const next = new Map(prev);
+          const existing = prev.get(nodeWithNick.node_id);
+          next.set(nodeWithNick.node_id, {
+            ...(existing ?? {}),
+            ...nodeWithNick,
+            hw_model: mergeHwModelOnContactUpdate(existing?.hw_model, nodeWithNick.hw_model),
+          });
+          return next;
+        });
         void window.electronAPI.db
           .saveMeshcoreContact(contactToDbRow(d, nick ?? null, 1))
           .catch((e: unknown) => {
@@ -2415,7 +2409,7 @@ export function useMeshCore() {
         if (parsed) setMeshcoreAutoadd(parsed);
       });
     },
-    [addMessage, updateNode, setDeviceLogs, addCliHistoryEntry],
+    [addMessage, setDeviceLogs, addCliHistoryEntry],
   );
 
   /** Reject promptly when `disconnect()` bumps `meshcoreSetupGenerationRef` (avoids hanging on getChannels, etc.). */

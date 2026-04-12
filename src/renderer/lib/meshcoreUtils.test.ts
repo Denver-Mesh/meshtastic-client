@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   isMeshcoreContactEligibleForUserGroup,
   isMeshcoreTransportStatusChatLine,
+  mergeHwModelOnContactUpdate,
   meshcoreAppendRepeaterAuthHint,
   meshcoreApplyRepeaterSessionAuth,
   meshcoreApplyRepeaterSessionAuthSkip,
@@ -253,5 +254,35 @@ describe('meshcoreAppendRepeaterAuthHint', () => {
   it('does not double-append hint', () => {
     const once = meshcoreAppendRepeaterAuthHint('Authentication failed');
     expect(meshcoreAppendRepeaterAuthHint(once)).toBe(once);
+  });
+});
+
+describe('mergeHwModelOnContactUpdate', () => {
+  it('preserves Repeater hw_model when device pushes type None', () => {
+    expect(mergeHwModelOnContactUpdate('Repeater', 'None')).toBe('Repeater');
+  });
+
+  it('preserves Repeater hw_model when device pushes type Chat', () => {
+    expect(mergeHwModelOnContactUpdate('Repeater', 'Chat')).toBe('Repeater');
+  });
+
+  it('preserves Sensor hw_model when device pushes type Unknown', () => {
+    expect(mergeHwModelOnContactUpdate('Sensor', 'Unknown')).toBe('Sensor');
+  });
+
+  it('uses incoming hw_model when existing is None', () => {
+    expect(mergeHwModelOnContactUpdate('None', 'Repeater')).toBe('Repeater');
+  });
+
+  it('uses incoming hw_model when existing is undefined (new node)', () => {
+    expect(mergeHwModelOnContactUpdate(undefined, 'Chat')).toBe('Chat');
+  });
+
+  it('uses incoming hw_model when existing is Unknown', () => {
+    expect(mergeHwModelOnContactUpdate('Unknown', 'Repeater')).toBe('Repeater');
+  });
+
+  it('uses incoming hw_model when existing is Chat', () => {
+    expect(mergeHwModelOnContactUpdate('Chat', 'Repeater')).toBe('Repeater');
   });
 });

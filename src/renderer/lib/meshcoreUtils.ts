@@ -310,6 +310,27 @@ const REPEATER_AUTH_HINT =
  */
 export const MESHCORE_RPC_SNR_RAW_TO_DB = 0.25;
 
+/**
+ * Merge hw_model when updating a node from a device contact push (event 138 or contacts refresh).
+ * Preserves an existing meaningful hw_model (e.g. 'Repeater', 'Sensor') over an incoming
+ * generic/unclassified type. Device may push type 0 ('None') or 1 ('Chat') for a contact
+ * that was already classified by a prior full contacts fetch.
+ */
+export function mergeHwModelOnContactUpdate(
+  existingHwModel: string | undefined,
+  incomingHwModel: string,
+): string {
+  if (
+    existingHwModel &&
+    existingHwModel !== 'None' &&
+    existingHwModel !== 'Unknown' &&
+    existingHwModel !== 'Chat'
+  ) {
+    return existingHwModel;
+  }
+  return incomingHwModel;
+}
+
 // In-memory only — never written to any persistent or inspectable storage.
 let _repeaterAuthTouched = false;
 let _repeaterPassword = '';
