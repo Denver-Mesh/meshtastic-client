@@ -9,6 +9,7 @@ import {
   meshcoreApplyRepeaterSessionAuthSkip,
   meshcoreClearRepeaterRemoteSessionAuth,
   meshcoreConnectionImpliesUsbPower,
+  meshcoreContactTypeFromHwModel,
   meshcoreDeriveChannelKeyHexFromName,
   meshcoreGetRepeaterSessionPassword,
   meshcoreIsRepeaterRemoteAuthTouched,
@@ -284,5 +285,33 @@ describe('mergeHwModelOnContactUpdate', () => {
 
   it('uses incoming hw_model when existing is Chat', () => {
     expect(mergeHwModelOnContactUpdate('Chat', 'Repeater')).toBe('Repeater');
+  });
+});
+
+describe('meshcoreContactTypeFromHwModel', () => {
+  it('maps known hw_model strings to contact_type', () => {
+    expect(meshcoreContactTypeFromHwModel('Repeater')).toBe(2);
+    expect(meshcoreContactTypeFromHwModel('Chat')).toBe(1);
+    expect(meshcoreContactTypeFromHwModel('None')).toBe(0);
+    expect(meshcoreContactTypeFromHwModel('Sensor')).toBe(4);
+  });
+
+  it('returns undefined for labels not in CONTACT_TYPE_LABELS', () => {
+    expect(meshcoreContactTypeFromHwModel('Unknown')).toBeUndefined();
+  });
+});
+
+/** Regression: event 128 used to overwrite hw_model from raw advert type; must match contact refresh merge. */
+describe('event 128 advert hw_model merge', () => {
+  it('preserves Repeater when firmware advert reports Chat (type 1)', () => {
+    const newHwModelFromAdvert = 'Chat';
+    const mergedHwModel = mergeHwModelOnContactUpdate('Repeater', newHwModelFromAdvert);
+    expect(mergedHwModel).toBe('Repeater');
+    expect(meshcoreContactTypeFromHwModel(mergedHwModel)).toBe(2);
+  });
+
+  it('preserves Repeater when firmware advert reports None (type 0)', () => {
+    const mergedHwModel = mergeHwModelOnContactUpdate('Repeater', 'None');
+    expect(mergedHwModel).toBe('Repeater');
   });
 });

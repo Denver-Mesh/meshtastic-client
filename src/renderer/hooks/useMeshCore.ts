@@ -63,6 +63,7 @@ import {
   meshcoreChatStubNodeIdFromDisplayName,
   meshcoreConnectionImpliesUsbPower,
   meshcoreContactToMeshNode,
+  meshcoreContactTypeFromHwModel,
   meshcoreIsChatStubNodeId,
   meshcoreIsSyntheticPlaceholderPubKeyHex,
   meshcoreMilliVoltsToApproximateBatteryPercent,
@@ -1755,11 +1756,11 @@ export function useMeshCore() {
           const advertType = typeof d.type === 'number' && Number.isFinite(d.type) ? d.type : -1;
           const newHwModel =
             advertType >= 0 ? (CONTACT_TYPE_LABELS[advertType] ?? 'Unknown') : existing.hw_model;
-          const typeChanged = advertType >= 0 && newHwModel !== existing.hw_model;
+          const mergedHwModel = mergeHwModelOnContactUpdate(existing.hw_model, newHwModel);
           next.set(nodeId, {
             ...existing,
             last_heard: lastHeard,
-            hw_model: typeChanged ? newHwModel : existing.hw_model,
+            hw_model: mergedHwModel,
             latitude: hasLat ? d.advLat! / MESHCORE_COORD_SCALE : existing.latitude,
             longitude: hasLon ? d.advLon! / MESHCORE_COORD_SCALE : existing.longitude,
             ...(nick
@@ -1768,12 +1769,15 @@ export function useMeshCore() {
                 ? { long_name: advNameTrim, short_name: '' }
                 : {}),
           });
-          if (typeChanged) {
-            void window.electronAPI.db
-              .updateMeshcoreContactType(nodeId, advertType)
-              .catch((e: unknown) => {
-                console.warn('[useMeshCore] updateMeshcoreContactType error', e);
-              });
+          if (mergedHwModel !== existing.hw_model) {
+            const mergedType = meshcoreContactTypeFromHwModel(mergedHwModel);
+            if (mergedType !== undefined) {
+              void window.electronAPI.db
+                .updateMeshcoreContactType(nodeId, mergedType)
+                .catch((e: unknown) => {
+                  console.warn('[useMeshCore] updateMeshcoreContactType error', e);
+                });
+            }
           }
           return next;
         });

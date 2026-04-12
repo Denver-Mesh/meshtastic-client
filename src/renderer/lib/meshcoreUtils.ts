@@ -137,6 +137,14 @@ export const CONTACT_TYPE_LABELS: Record<number, string> = {
   4: 'Sensor',
 };
 
+/** Reverse of {@link CONTACT_TYPE_LABELS} for persisting merged UI `hw_model` to DB `contact_type`. */
+export function meshcoreContactTypeFromHwModel(hwModel: string): number | undefined {
+  for (const [typeNum, label] of Object.entries(CONTACT_TYPE_LABELS)) {
+    if (label === hwModel) return Number(typeNum);
+  }
+  return undefined;
+}
+
 /**
  * Map measured cell voltage to an approximate 0–100% for UI (e.g. node list bar).
  * Uses a simple 1S LiPo-style linear range (3.5 V empty → 4.2 V full); not accurate for all chemistries or loads.
