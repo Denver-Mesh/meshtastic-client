@@ -102,6 +102,7 @@ import type {
   TelemetryPoint,
 } from '../lib/types';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
+import { computePathHash, usePathHistoryStore } from '../stores/pathHistoryStore';
 import { usePositionHistoryStore } from '../stores/positionHistoryStore';
 import { useRepeaterSignalStore } from '../stores/repeaterSignalStore';
 
@@ -132,6 +133,10 @@ interface PendingDmAckEntry {
   mapKeys: number[];
   /** Same as `ChatMessage.packetId` / DB `packet_id` for this send (uint32). */
   canonicalPacketIdU32: number;
+  /** Destination node for path outcome attribution. */
+  destNodeId?: number;
+  /** Path hash of the route used for this send (empty string = flood). */
+  pathHash?: string;
 }
 
 function meshcoreContactRawFromDevice(c: MeshCoreContactRaw): MeshCoreContactRaw {
@@ -1060,6 +1065,8 @@ export function useMeshCore() {
   const repeaterRemoteRpcRef = useRef(createRepeaterRemoteRpcQueue());
   /** Debounced contacts refresh after path updates (event 129). */
   const meshcoreContactsRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** NodeIds that fired event 129 since last debounced contacts refresh (for path history recording). */
+  const meshcorePathUpdatePendingRef = useRef<Set<number>>(new Set());
   /** Periodic poll for waiting messages when event 131 may have been missed. */
   const meshcoreWaitingMessagesPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   /** Stable ref to the current connection's processWaitingMessages fn (set by setupEventListeners). */
@@ -1893,6 +1900,8 @@ export function useMeshCore() {
               console.warn('[useMeshCore] saveMeshcoreContact (event 129 new) error', e);
             });
         }
+        // Accumulate nodeIds for path history recording after the debounced refresh
+        meshcorePathUpdatePendingRef.current.add(nodeId);
         // Path updates may change hop counts; debounced contacts refresh to fetch updated outPathLen
         if (meshcoreContactsRefreshTimerRef.current) {
           clearTimeout(meshcoreContactsRefreshTimerRef.current);
@@ -1912,6 +1921,22 @@ export function useMeshCore() {
                 previousNodes: nodesRef.current,
               });
               setNodes((prev) => mergeMeshcoreChatStubNodes(prev, newNodes));
+              // Record path history for any nodeIds that triggered event 129
+              const pendingIds = meshcorePathUpdatePendingRef.current;
+              meshcorePathUpdatePendingRef.current = new Set();
+              for (const contact of contacts) {
+                const cNodeId = pubkeyToNodeId(contact.publicKey);
+                if (!pendingIds.has(cNodeId)) continue;
+                const pathLen = contact.outPathLen ?? 0;
+                const pathBytes =
+                  contact.outPath && pathLen > 0
+                    ? Array.from(contact.outPath.slice(0, pathLen + 1))
+                    : [];
+                if (pathBytes.length > 0) {
+                  const hops = newNodes.get(cNodeId)?.hops_away ?? 0;
+                  usePathHistoryStore.getState().recordPathUpdated(cNodeId, pathBytes, hops, false);
+                }
+              }
             } catch (e) {
               console.warn('[useMeshCore] debounced contacts refresh error', e);
             }
@@ -1979,6 +2004,16 @@ export function useMeshCore() {
         clearTimeout(pending.timeoutId);
         for (const k of pending.mapKeys) {
           pendingAcksRef.current.delete(k);
+        }
+        if (pending.destNodeId != null && pending.pathHash != null) {
+          usePathHistoryStore
+            .getState()
+            .recordOutcome(
+              pending.destNodeId,
+              pending.pathHash,
+              !isNack,
+              !isNack && typeof d.roundTrip === 'number' ? d.roundTrip : undefined,
+            );
         }
         const canon = pending.canonicalPacketIdU32;
         const newStatus = isNack ? 'failed' : 'acked';
@@ -3221,10 +3256,23 @@ export function useMeshCore() {
                 console.warn('[useMeshCore] saveMeshcoreMessage (outgoing) error', e);
               });
 
+            // Capture outbound path for delivery outcome attribution
+            const outPathRaw = outPathMapRef.current.get(destNodeId);
+            const sendPathBytes = outPathRaw && outPathRaw.length > 0 ? Array.from(outPathRaw) : [];
+            const sendPathHash = sendPathBytes.length > 0 ? computePathHash(sendPathBytes) : '';
+            if (sendPathBytes.length > 0) {
+              usePathHistoryStore
+                .getState()
+                .recordPathUpdated(destNodeId, sendPathBytes, hopsAway, false);
+            }
+
             // Schedule failure timeout
             const timeoutId = setTimeout(() => {
               for (const k of pendingMapKeys) {
                 pendingAcksRef.current.delete(k);
+              }
+              if (sendPathHash) {
+                usePathHistoryStore.getState().recordOutcome(destNodeId, sendPathHash, false);
               }
               setMessages((prev) =>
                 prev.map((m) =>
@@ -3245,6 +3293,8 @@ export function useMeshCore() {
               timeoutId,
               mapKeys: pendingMapKeys,
               canonicalPacketIdU32: ackKey,
+              destNodeId,
+              pathHash: sendPathHash,
             };
             for (const k of pendingMapKeys) {
               pendingAcksRef.current.set(k, pendingEntry);

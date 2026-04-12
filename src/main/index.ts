@@ -28,9 +28,11 @@ import {
   addContactToGroup,
   closeDatabase,
   createContactGroup,
+  deleteAllMeshcorePathHistory,
   deleteContactGroup,
   deleteMeshcoreContactsByAge,
   deleteMeshcoreContactsNeverAdvertised,
+  deleteMeshcorePathHistoryForNode,
   deleteNodesBySource,
   deleteNodesWithoutLongname,
   exportDatabase,
@@ -38,6 +40,7 @@ import {
   getContactGroups,
   getDatabase,
   getMeshcoreHopHistory,
+  getMeshcorePathHistory,
   getMeshcoreTraceHistory,
   initDatabase,
   mergeDatabase,
@@ -45,12 +48,14 @@ import {
   pruneMeshcoreContactsByCount,
   pruneMeshcorePathHistory,
   prunePositionHistory,
+  recordMeshcorePathOutcome,
   removeContactFromGroup,
   saveMeshcoreHopHistory,
   saveMeshcoreTraceHistory,
   searchMeshcoreMessages,
   searchMessages,
   updateContactGroup,
+  upsertMeshcorePathHistory,
   upsertNodePath,
 } from './database';
 import { getGpsFix } from './gps';
@@ -3761,6 +3766,91 @@ ipcMain.handle('db:pruneMeshcorePathHistory', (_event, nodeId: number) => {
   } catch (err) {
     console.error(
       '[IPC] db:pruneMeshcorePathHistory failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+ipcMain.handle(
+  'db:upsertMeshcorePathHistory',
+  (
+    _event,
+    nodeId: number,
+    pathHash: string,
+    hopCount: number,
+    pathBytes: number[],
+    wasFloodDiscovery: boolean,
+    routeWeight: number,
+  ) => {
+    try {
+      upsertMeshcorePathHistory(
+        nodeId,
+        pathHash,
+        hopCount,
+        pathBytes,
+        wasFloodDiscovery,
+        routeWeight,
+      );
+      return true;
+    } catch (err) {
+      console.error(
+        '[IPC] db:upsertMeshcorePathHistory failed:',
+        sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+      );
+      throw err;
+    }
+  },
+);
+
+ipcMain.handle(
+  'db:recordMeshcorePathOutcome',
+  (_event, nodeId: number, pathHash: string, success: boolean, tripTimeMs?: number) => {
+    try {
+      recordMeshcorePathOutcome(nodeId, pathHash, success, tripTimeMs);
+      return true;
+    } catch (err) {
+      console.error(
+        '[IPC] db:recordMeshcorePathOutcome failed:',
+        sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+      );
+      throw err;
+    }
+  },
+);
+
+ipcMain.handle('db:getMeshcorePathHistory', (_event, nodeId: number) => {
+  try {
+    return getMeshcorePathHistory(nodeId);
+  } catch (err) {
+    console.error(
+      '[IPC] db:getMeshcorePathHistory failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+ipcMain.handle('db:deleteMeshcorePathHistoryForNode', (_event, nodeId: number) => {
+  try {
+    deleteMeshcorePathHistoryForNode(nodeId);
+    return true;
+  } catch (err) {
+    console.error(
+      '[IPC] db:deleteMeshcorePathHistoryForNode failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+ipcMain.handle('db:deleteAllMeshcorePathHistory', () => {
+  try {
+    deleteAllMeshcorePathHistory();
+    return true;
+  } catch (err) {
+    console.error(
+      '[IPC] db:deleteAllMeshcorePathHistory failed:',
       sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
     );
     throw err;

@@ -282,6 +282,39 @@ export interface ElectronAPI {
       }[]
     >;
     pruneMeshcorePathHistory: (nodeId: number) => Promise<boolean>;
+    upsertMeshcorePathHistory: (
+      nodeId: number,
+      pathHash: string,
+      hopCount: number,
+      pathBytes: number[],
+      wasFloodDiscovery: boolean,
+      routeWeight: number,
+    ) => Promise<boolean>;
+    recordMeshcorePathOutcome: (
+      nodeId: number,
+      pathHash: string,
+      success: boolean,
+      tripTimeMs?: number,
+    ) => Promise<boolean>;
+    getMeshcorePathHistory: (nodeId: number) => Promise<
+      {
+        id: number;
+        node_id: number;
+        path_hash: string;
+        hop_count: number;
+        path_bytes: string;
+        was_flood_discovery: number;
+        success_count: number;
+        failure_count: number;
+        trip_time_ms: number;
+        route_weight: number;
+        last_success_ts: number | null;
+        created_at: number;
+        updated_at: number;
+      }[]
+    >;
+    deleteMeshcorePathHistoryForNode: (nodeId: number) => Promise<boolean>;
+    deleteAllMeshcorePathHistory: () => Promise<boolean>;
     getContactGroups: (selfNodeId: number) => Promise<ContactGroup[]>;
     createContactGroup: (selfNodeId: number, name: string) => Promise<number>;
     updateContactGroup: (groupId: number, name: string) => Promise<void>;

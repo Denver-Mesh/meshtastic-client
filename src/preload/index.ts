@@ -207,6 +207,34 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('db:getMeshcoreTraceHistory', nodeId),
     pruneMeshcorePathHistory: (nodeId: number) =>
       ipcRenderer.invoke('db:pruneMeshcorePathHistory', nodeId),
+    upsertMeshcorePathHistory: (
+      nodeId: number,
+      pathHash: string,
+      hopCount: number,
+      pathBytes: number[],
+      wasFloodDiscovery: boolean,
+      routeWeight: number,
+    ) =>
+      ipcRenderer.invoke(
+        'db:upsertMeshcorePathHistory',
+        nodeId,
+        pathHash,
+        hopCount,
+        pathBytes,
+        wasFloodDiscovery,
+        routeWeight,
+      ),
+    recordMeshcorePathOutcome: (
+      nodeId: number,
+      pathHash: string,
+      success: boolean,
+      tripTimeMs?: number,
+    ) => ipcRenderer.invoke('db:recordMeshcorePathOutcome', nodeId, pathHash, success, tripTimeMs),
+    getMeshcorePathHistory: (nodeId: number) =>
+      ipcRenderer.invoke('db:getMeshcorePathHistory', nodeId),
+    deleteMeshcorePathHistoryForNode: (nodeId: number) =>
+      ipcRenderer.invoke('db:deleteMeshcorePathHistoryForNode', nodeId),
+    deleteAllMeshcorePathHistory: () => ipcRenderer.invoke('db:deleteAllMeshcorePathHistory'),
     getContactGroups: (selfNodeId: number) => ipcRenderer.invoke('db:getContactGroups', selfNodeId),
     createContactGroup: (selfNodeId: number, name: string) =>
       ipcRenderer.invoke('db:createContactGroup', selfNodeId, name),

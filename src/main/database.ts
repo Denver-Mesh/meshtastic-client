@@ -63,7 +63,7 @@ export function initDatabase(): void {
            WHERE packet_id IS NOT NULL`,
           )
           .run();
-        db!.pragma('user_version = 20');
+        db!.pragma('user_version = 25');
       } else {
         runMigrations();
       }
@@ -269,6 +269,25 @@ function createBaseTables(): void {
         tag        INTEGER
       );
       CREATE INDEX IF NOT EXISTS idx_meshcore_trace_history_node_id ON meshcore_trace_history(node_id);
+
+      -- MeshCore path history: per-path delivery outcome tracking for weighted route scoring
+      CREATE TABLE IF NOT EXISTS meshcore_path_history (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        node_id           INTEGER NOT NULL,
+        path_hash         TEXT    NOT NULL,
+        hop_count         INTEGER NOT NULL,
+        path_bytes        TEXT    NOT NULL,
+        was_flood_discovery INTEGER DEFAULT 0,
+        success_count     INTEGER DEFAULT 0,
+        failure_count     INTEGER DEFAULT 0,
+        trip_time_ms      INTEGER DEFAULT 0,
+        route_weight      REAL    DEFAULT 1.0,
+        last_success_ts   INTEGER,
+        created_at        INTEGER NOT NULL,
+        updated_at        INTEGER NOT NULL,
+        UNIQUE(node_id, path_hash)
+      );
+      CREATE INDEX IF NOT EXISTS idx_meshcore_path_history_node ON meshcore_path_history(node_id);
     `);
   } catch (error) {
     console.error(
@@ -840,6 +859,42 @@ function runMigrations(): void {
       throw new Error(`Migration v24 failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
+
+  if (userVersion < 25) {
+    try {
+      const tableExists = db!
+        .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='meshcore_path_history'")
+        .get();
+      if (!tableExists) {
+        db!.execScript(`
+          CREATE TABLE IF NOT EXISTS meshcore_path_history (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            node_id           INTEGER NOT NULL,
+            path_hash         TEXT    NOT NULL,
+            hop_count         INTEGER NOT NULL,
+            path_bytes        TEXT    NOT NULL,
+            was_flood_discovery INTEGER DEFAULT 0,
+            success_count     INTEGER DEFAULT 0,
+            failure_count     INTEGER DEFAULT 0,
+            trip_time_ms      INTEGER DEFAULT 0,
+            route_weight      REAL    DEFAULT 1.0,
+            last_success_ts   INTEGER,
+            created_at        INTEGER NOT NULL,
+            updated_at        INTEGER NOT NULL,
+            UNIQUE(node_id, path_hash)
+          );
+          CREATE INDEX IF NOT EXISTS idx_meshcore_path_history_node ON meshcore_path_history(node_id);
+        `);
+      }
+      db!.pragma('user_version = 25');
+    } catch (e) {
+      console.error(
+        '[db] migration v25 failed',
+        sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+      );
+      throw new Error(`Migration v25 failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
 }
 
 /** Export DB to a file. Best-effort for very large databases; may take a long time with no progress callback. */
@@ -1191,4 +1246,92 @@ export function pruneMeshcorePathHistory(nodeId: number): void {
   const d = getDatabase();
   d.prepare('DELETE FROM meshcore_hop_history WHERE node_id = ?').run(nodeId);
   d.prepare('DELETE FROM meshcore_trace_history WHERE node_id = ?').run(nodeId);
+}
+
+export interface MeshcorePathHistoryRow {
+  id: number;
+  node_id: number;
+  path_hash: string;
+  hop_count: number;
+  path_bytes: string; // JSON array
+  was_flood_discovery: number; // 0 | 1
+  success_count: number;
+  failure_count: number;
+  trip_time_ms: number;
+  route_weight: number;
+  last_success_ts: number | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export function upsertMeshcorePathHistory(
+  nodeId: number,
+  pathHash: string,
+  hopCount: number,
+  pathBytes: number[],
+  wasFloodDiscovery: boolean,
+  routeWeight: number,
+): void {
+  const d = getDatabase();
+  const now = Date.now();
+  d.prepareOnce(
+    `INSERT INTO meshcore_path_history
+       (node_id, path_hash, hop_count, path_bytes, was_flood_discovery, route_weight, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(node_id, path_hash) DO UPDATE SET
+       hop_count           = excluded.hop_count,
+       was_flood_discovery = excluded.was_flood_discovery,
+       route_weight        = excluded.route_weight,
+       updated_at          = excluded.updated_at`,
+  ).run(
+    nodeId,
+    pathHash,
+    hopCount,
+    JSON.stringify(pathBytes),
+    wasFloodDiscovery ? 1 : 0,
+    routeWeight,
+    now,
+    now,
+  );
+}
+
+export function recordMeshcorePathOutcome(
+  nodeId: number,
+  pathHash: string,
+  success: boolean,
+  tripTimeMs?: number,
+): void {
+  const d = getDatabase();
+  const now = Date.now();
+  if (success) {
+    d.prepareOnce(
+      `UPDATE meshcore_path_history
+       SET success_count   = success_count + 1,
+           trip_time_ms    = CASE WHEN ? > 0 AND (trip_time_ms = 0 OR ? < trip_time_ms) THEN ? ELSE trip_time_ms END,
+           last_success_ts = ?,
+           updated_at      = ?
+       WHERE node_id = ? AND path_hash = ?`,
+    ).run(tripTimeMs ?? 0, tripTimeMs ?? 0, tripTimeMs ?? 0, now, now, nodeId, pathHash);
+  } else {
+    d.prepareOnce(
+      `UPDATE meshcore_path_history
+       SET failure_count = failure_count + 1,
+           updated_at    = ?
+       WHERE node_id = ? AND path_hash = ?`,
+    ).run(now, nodeId, pathHash);
+  }
+}
+
+export function getMeshcorePathHistory(nodeId: number): MeshcorePathHistoryRow[] {
+  return getDatabase()
+    .prepare(`SELECT * FROM meshcore_path_history WHERE node_id = ? ORDER BY updated_at DESC`)
+    .all(nodeId) as MeshcorePathHistoryRow[];
+}
+
+export function deleteMeshcorePathHistoryForNode(nodeId: number): void {
+  getDatabase().prepare(`DELETE FROM meshcore_path_history WHERE node_id = ?`).run(nodeId);
+}
+
+export function deleteAllMeshcorePathHistory(): void {
+  getDatabase().prepare(`DELETE FROM meshcore_path_history`).run();
 }
