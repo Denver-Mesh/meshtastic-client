@@ -176,6 +176,8 @@ From real-time diagnostics to permanent message archives, Mesh-Client delivers t
 
 MeshCore runs simultaneously alongside Meshtastic. Use the protocol switcher pill in the header to bring MeshCore into view — the Meshtastic session stays connected in the background. **Meshtastic** shows **11** main tabs (including **Security** and **TAK**); **MeshCore** shows **9** (**Security** is hidden; the sixth tab is **Repeaters** instead of **Modules**). Network Diagnostics and the rest of the shell stay available.
 
+- **Transmit queue** — header badge (with tooltip) when the connected radio reports outbound queue depth (STATS).
+
 **Contacts & Discovery**
 
 - Contact list with advert-based positions, contact types (Chat, Repeater, Room), and GPS coordinates persisted to SQLite; contacts seed from DB on reconnect as a fallback cache
@@ -205,7 +207,7 @@ MeshCore runs simultaneously alongside Meshtastic. Use the protocol switcher pil
 
 **Repeaters**
 
-- **Repeaters panel** (MeshCore-only tab) — list repeaters with on-demand status (noise floor, RSSI/SNR, packet counts, air time, uptime, TX queue); **Path** column shows a per-hop SNR sparkline from the last trace; per-row **Neighbors** expands an inline neighbor list (same query as node detail)
+- **Repeaters panel** (MeshCore-only tab) — list repeaters with on-demand status (noise floor, RSSI/SNR, packet counts, air time, uptime, TX queue); **Path** column shows a per-hop SNR sparkline from the last trace (last trace/path hop data is also stored in local SQLite so sparklines can survive app restarts); per-row **Neighbors** expands an inline neighbor list (same query as node detail)
 - **Repeater CLI** — per-repeater expandable **CLI** interface; command input with Enter to send, scrollable command/response history, Up/Down arrow history navigation, quick-command bar (get name, get radio, neighbors, version, …), flood vs. auto (saved path) routing toggle; responses are correlated to commands via 2-character hex prefix tokens; configurable retries with dynamic timeout
 - **Remote session authentication** — when the firmware requires it, a banner guides you through one-time setup so status and neighbor RPCs can run; credentials are session-scoped
 - **Panel toolbar** — **Reboot Device** (shown when the device supports the command); **Send Advert** and **Sync Clock** moved to Radio panel Device Actions section
@@ -239,6 +241,7 @@ MeshCore runs simultaneously alongside Meshtastic. Use the protocol switcher pil
 - **MeshCore — no channel/device config editing**: MeshCore does not expose a channel-configuration API. Radio parameters (frequency, bandwidth, spreading factor, coding rate, TX power) can be set via the Radio tab.
 - **MeshCore — remote telemetry availability**: `getTelemetry` requires the remote node to have environment sensors. A timeout is returned if the node has no sensor data.
 - **MeshCore — neighbor info availability**: `getNeighbours` is supported only by Repeater-type nodes running firmware v1.9.0+. The button is hidden for Chat and Room contacts.
+- **MeshCore — Trace Route / Ping trace**: Remote nodes typically respond only if they have **your** node as a contact. One-way or foreign heard nodes may lead to a client-side timeout — see [Troubleshooting — MeshCore: Trace Route or Ping trace times out](docs/troubleshooting.md#meshcore-trace-route-or-ping-trace-times-out).
 - **MeshCore — contact type labels**: MeshCore reports a numeric `type` field (0 = None, 1 = Chat, 2 = Repeater, 3 = Room); displayed in the hw_model field in the node list.
 - **MeshCore — no Security / PKI tab**: Meshtastic-style admin key management is not exposed for MeshCore; the **Security** tab is omitted in MeshCore mode (`hasSecurityPanel`).
 - **Map tiles — OpenStreetMap Referer requirement**: Packaged desktop builds load the UI from the local filesystem. The main process now loads the renderer with an explicit HTTP referrer so OpenStreetMap tile requests include a valid `Referer` header and comply with the [tile usage policy](https://operations.osmfoundation.org/policies/tiles/). If you point the app at a different tile server, ensure its usage policy permits this client.
