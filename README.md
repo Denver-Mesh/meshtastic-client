@@ -174,7 +174,7 @@ From real-time diagnostics to permanent message archives, Mesh-Client delivers t
 
 ### MeshCore Features
 
-MeshCore runs simultaneously alongside Meshtastic. Use the protocol switcher pill in the header to bring MeshCore into view — the Meshtastic session stays connected in the background. **Meshtastic** shows **11** main tabs (including **Security** and **TAK**); **MeshCore** shows **9** (**Security** is hidden; the sixth tab is **Repeaters** instead of **Modules**). Network Diagnostics and the rest of the shell stay available.
+MeshCore runs simultaneously alongside Meshtastic. Use the protocol switcher pill in the header to bring MeshCore into view — the Meshtastic session stays connected in the background. **Meshtastic** shows **11** main tabs (including **Security** and **TAK**); **MeshCore** shows **10** (**Security** and **TAK** are hidden; the sixth tab is **Repeaters** instead of **Modules**; **Raw Packets** is an additional MeshCore-only tab). Network Diagnostics and the rest of the shell stay available.
 
 - **Transmit queue** — header badge (with tooltip) when the connected radio reports outbound queue depth (STATS).
 
@@ -223,6 +223,12 @@ MeshCore runs simultaneously alongside Meshtastic. Use the protocol switcher pil
 
 - Battery voltage from device `selfInfo`; per-packet signal telemetry (SNR/RSSI) from RF event 0x88 — visible in the Telemetry tab
 - **Environment charts** (temperature, humidity, barometric pressure, etc.) in the Telemetry tab when pulled Cayenne LPP data is available — same panel as Meshtastic environment telemetry
+- **Raw Packet Log** (MeshCore-only **Raw Packets** tab) — real-time virtualized log of every RF packet received via the `LOG_RX_DATA` push event (0x88); each entry shows timestamp, color-coded route type (FLOOD/DIRECT/T_FLOOD/T_DIRECT), payload type, hop count, SNR, RSSI, and byte length; click a row to expand the full raw hex dump; filter by type string or hex substring; **Clear** button resets the log; ring-buffer capped at 2,500 entries
+
+**Device Control**
+
+- **Reboot** — Radio tab Danger Zone; issues `reboot()` to the connected MeshCore device with a protocol-aware confirmation message
+- _Not available for MeshCore_ (not implemented in the meshcore.js library): shutdown, factory reset, reset NodeDB, reboot-to-OTA, enter DFU mode
 
 **Transport Notes**
 

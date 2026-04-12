@@ -9,3 +9,4 @@ export const RadioPanel = lazy(() => import('./components/RadioPanel'));
 export const RepeatersPanel = lazy(() => import('./components/RepeatersPanel'));
 export const SecurityPanel = lazy(() => import('./components/SecurityPanel'));
 export const TelemetryPanel = lazy(() => import('./components/TelemetryPanel'));
+export const RawPacketLogPanel = lazy(() => import('./components/RawPacketLogPanel'));

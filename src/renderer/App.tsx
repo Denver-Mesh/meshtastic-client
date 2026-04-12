@@ -31,6 +31,7 @@ import {
   MapPanel,
   ModulePanel,
   RadioPanel,
+  RawPacketLogPanel,
   RepeatersPanel,
   SecurityPanel,
   TakServerPanel,
@@ -82,6 +83,7 @@ const TAB_CAPABILITY_REQUIREMENTS: (keyof ProtocolCapabilities | undefined)[] = 
   'hasTakPanel', // TAK
   undefined, // App
   undefined, // Diagnostics
+  'hasRawPacketLog', // Raw Packets
 ];
 
 const STATUS_COLOR: Record<string, string> = {
@@ -111,6 +113,7 @@ const TAB_NAMES = [
   'TAK',
   'App',
   'Diagnostics',
+  'Raw Packets',
 ];
 
 export interface LocationFilter {
@@ -1357,7 +1360,9 @@ export default function App() {
                           channelConfigs={device.channelConfigs}
                           isConnected={isOperational}
                           telemetryDeviceUpdateInterval={device.telemetryDeviceUpdateInterval}
-                          onReboot={device.reboot}
+                          onReboot={
+                            protocol === 'meshcore' ? () => meshcoreDevice.reboot() : device.reboot
+                          }
                           onShutdown={device.shutdown}
                           onFactoryReset={device.factoryReset}
                           onResetNodeDb={device.resetNodeDb}
@@ -1652,6 +1657,23 @@ export default function App() {
                             setSelectedNodeId(node.node_id);
                           }}
                           capabilities={capabilities}
+                        />
+                      </Suspense>
+                    </ErrorBoundary>
+                  ) : null}
+                </div>
+                <div
+                  id="panel-11"
+                  role="tabpanel"
+                  aria-labelledby="tab-11"
+                  hidden={activePanelIndex !== 11}
+                >
+                  {activePanelIndex === 11 && protocol === 'meshcore' ? (
+                    <ErrorBoundary>
+                      <Suspense fallback={<PanelSkeleton />}>
+                        <RawPacketLogPanel
+                          packets={meshcoreDevice.rawPackets}
+                          onClear={meshcoreDevice.clearRawPackets}
                         />
                       </Suspense>
                     </ErrorBoundary>

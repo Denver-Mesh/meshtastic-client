@@ -1,6 +1,7 @@
 import {
   CayenneLpp,
   Connection,
+  Packet,
   SerialConnection,
   WebSerialConnection,
 } from '@liamcottle/meshcore.js';
@@ -772,6 +773,17 @@ const INITIAL_STATE: DeviceState = {
 };
 
 const MAX_DEVICE_LOGS = 500;
+const MAX_RAW_PACKETS = 2500;
+
+export interface RxPacketEntry {
+  ts: number;
+  snr: number;
+  rssi: number;
+  raw: Uint8Array;
+  routeTypeString: string | null;
+  payloadTypeString: string | null;
+  hopCount: number;
+}
 
 /** Repeater RPCs (tracePath, getStatus, getTelemetry, sendBinaryRequest neighbours). */
 const MESHCORE_REPEATER_RPC_TIMEOUT_MS = 120_000;
@@ -992,6 +1004,7 @@ export function useMeshCore() {
   const [meshcoreAutoadd, setMeshcoreAutoadd] = useState<MeshcoreAutoaddWireState | null>(null);
   const [ourPosition, setOurPosition] = useState<OurPosition | null>(null);
   const [deviceLogs, setDeviceLogs] = useState<DeviceLogEntry[]>([]);
+  const [rawPackets, setRawPackets] = useState<RxPacketEntry[]>([]);
   const [telemetry, setTelemetry] = useState<TelemetryPoint[]>([]);
   const [signalTelemetry, setSignalTelemetry] = useState<TelemetryPoint[]>([]);
   const [meshcoreTraceResults, setMeshcoreTraceResults] = useState<
@@ -2358,6 +2371,34 @@ export function useMeshCore() {
         const sigPoint: TelemetryPoint = { timestamp: now, snr, rssi };
         setSignalTelemetry((prev) => [...prev, sigPoint].slice(-MAX_TELEMETRY_POINTS));
 
+        // Raw packet log: decode MeshCore packets for the RawPacketLogPanel.
+        if (d.raw instanceof Uint8Array && d.raw.length > 0) {
+          let routeTypeString: string | null = null;
+          let payloadTypeString: string | null = null;
+          let hopCount = 0;
+          try {
+            const pkt = Packet.fromBytes(d.raw);
+            routeTypeString = pkt.route_type_string;
+            payloadTypeString = pkt.payload_type_string;
+            hopCount = pkt.getPathHashCount();
+          } catch {
+            // catch-no-log-ok non-MeshCore packet (meshtastic or unknown) — leave fields null
+          }
+          const rxEntry: RxPacketEntry = {
+            ts: now,
+            snr,
+            rssi,
+            raw: d.raw,
+            routeTypeString,
+            payloadTypeString,
+            hopCount,
+          };
+          setRawPackets((prev) => {
+            const next = [...prev, rxEntry];
+            return next.length > MAX_RAW_PACKETS ? next.slice(next.length - MAX_RAW_PACKETS) : next;
+          });
+        }
+
         // Foreign LoRa fingerprinting: only flag non-MeshCore packets as foreign (requires known self node ID)
         if (
           getStoredMeshProtocol() === 'meshcore' &&
@@ -3515,6 +3556,10 @@ export function useMeshCore() {
     await window.electronAPI.db.deleteMeshcoreContact(nodeId).catch((e: unknown) => {
       console.warn('[useMeshCore] deleteMeshcoreContact error', e);
     });
+  }, []);
+
+  const clearRawPackets = useCallback(() => {
+    setRawPackets([]);
   }, []);
 
   const clearAllRepeaters = useCallback(async () => {
@@ -5089,6 +5134,8 @@ export function useMeshCore() {
       setMeshcoreChannel,
       deleteMeshcoreChannel,
       deviceLogs,
+      rawPackets,
+      clearRawPackets,
       meshcoreTraceResults,
       meshcoreNodeStatus,
       meshcoreStatusErrors,
@@ -5205,6 +5252,8 @@ export function useMeshCore() {
       setMeshcoreChannel,
       deleteMeshcoreChannel,
       deviceLogs,
+      rawPackets,
+      clearRawPackets,
       meshcoreTraceResults,
       meshcoreNodeStatus,
       meshcoreStatusErrors,
