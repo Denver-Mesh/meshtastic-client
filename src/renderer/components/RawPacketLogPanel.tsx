@@ -1,6 +1,7 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
+import { formatLogTimeOfDay } from '../../shared/formatLogTimestamp';
 import type { RxPacketEntry } from '../hooks/useMeshCore';
 import type { MeshtasticRawPacketEntry } from '../lib/rawPacketLogConstants';
 
@@ -21,7 +22,7 @@ function toHex(bytes: Uint8Array): string {
 }
 
 function formatTs(ts: number): string {
-  return new Date(ts).toISOString().slice(11, 23);
+  return formatLogTimeOfDay(ts);
 }
 
 interface MeshcoreProps {
