@@ -41,19 +41,28 @@ function getMuxState(conn: object): MuxState {
   const pendingByTag = new Map<number, PendingTrace>();
   const onTraceData = (...args: unknown[]) => {
     const response = args[0] as Record<string, unknown>;
-    const tagNum = Number(response.tag);
-    if (!Number.isFinite(tagNum)) return;
-    const lookupTag = tagNum >>> 0;
-    const p = pendingByTag.get(lookupTag) ?? pendingByTag.get(tagNum);
-    if (!p) {
-      console.debug(`[meshcore] TraceData tag 0x${tagNum.toString(16)} not pending`);
+
+    let tagRaw = response.tag;
+    if (typeof tagRaw === 'string') tagRaw = Number(tagRaw);
+    if (typeof tagRaw !== 'number' || !Number.isFinite(tagRaw)) {
       return;
     }
+
+    const tagSigned = tagRaw;
+    const tagUnsigned = tagRaw >>> 0;
+
+    const p = pendingByTag.get(tagUnsigned) ?? pendingByTag.get(tagSigned);
+    if (!p) {
+      return;
+    }
+
     if (p.traceTimeoutId !== undefined) clearTimeout(p.traceTimeoutId);
-    pendingByTag.delete(lookupTag);
-    if (tagNum !== lookupTag) pendingByTag.delete(tagNum);
+    pendingByTag.delete(tagUnsigned);
+    pendingByTag.delete(tagSigned);
+
     try {
-      p.resolve(traceDataPayloadToResult(response));
+      const result = traceDataPayloadToResult(response);
+      p.resolve(result);
     } catch (err) {
       // catch-no-log-ok bad TraceData shape; caller gets Error via p.reject
       p.reject(unknownToError(err, 'invalid trace response'));
@@ -95,6 +104,8 @@ function traceDataPayloadToResult(response: Record<string, unknown>): MeshcoreTr
     lastSnr = lastFromResponse;
   } else if (pathLen > 0 && pathSnrsWire.length > pathLen) {
     lastSnr = (pathSnrsWire[pathLen] & 0xff) / 4;
+  } else if (pathSnrsWire.length > 0) {
+    lastSnr = (pathSnrsWire[pathSnrsWire.length - 1] & 0xff) / 4;
   } else {
     lastSnr = 0;
   }
