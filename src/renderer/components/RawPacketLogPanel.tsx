@@ -7,6 +7,11 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { formatLogTimeOfDay } from '../../shared/formatLogTimestamp';
 import { parseMeshCoreRfPacket } from '../../shared/meshcoreRfPacketParse';
+import {
+  MESHCORE_PAYLOAD_TYPE_ANON_REQ_NIBBLE,
+  MESHCORE_PAYLOAD_TYPE_GRP_TXT_NIBBLE,
+  MESHCORE_PAYLOAD_TYPE_RESPONSE_NIBBLE,
+} from '../../shared/meshcoreRfPath';
 import type { RxPacketEntry } from '../hooks/useMeshCore';
 import { meshcoreRawPacketSenderColumnText } from '../lib/nodeLongNameOrHex';
 import type { MeshtasticRawPacketEntry } from '../lib/rawPacketLogConstants';
@@ -39,12 +44,35 @@ function innerPayloadFirstU32Hex(inner: Uint8Array): { be: string; le: string } 
   return { be, le };
 }
 
+function hexByte(byte: number): string {
+  return byte.toString(16).padStart(2, '0');
+}
+
 function MeshcoreExpandedDetails({ p }: { p: RxPacketEntry }) {
   if (!p.parseOk) return null;
   const reparsed = parseMeshCoreRfPacket(p.raw);
   const innerWords =
     reparsed.ok && reparsed.innerPayload.length >= 4
       ? innerPayloadFirstU32Hex(reparsed.innerPayload)
+      : null;
+  const inner = reparsed.ok ? reparsed.innerPayload : null;
+  const nibble = reparsed.ok ? reparsed.payloadTypeNibble : null;
+  const reqRespHashes =
+    inner != null &&
+    (nibble === 0 || nibble === MESHCORE_PAYLOAD_TYPE_RESPONSE_NIBBLE) &&
+    inner.length >= 2
+      ? { dest: hexByte(inner[0]), src: hexByte(inner[1]) }
+      : null;
+  const grpTxtChannelHash =
+    inner != null && nibble === MESHCORE_PAYLOAD_TYPE_GRP_TXT_NIBBLE && inner.length >= 1
+      ? hexByte(inner[0])
+      : null;
+  const anonReqFields =
+    inner != null && nibble === MESHCORE_PAYLOAD_TYPE_ANON_REQ_NIBBLE && inner.length >= 7
+      ? {
+          dest: hexByte(inner[0]),
+          senderKeyPrefix: toHex(inner.subarray(1, 7)),
+        }
       : null;
   return (
     <div className="mb-2 space-y-0.5 text-[10px] text-gray-400">
@@ -57,6 +85,23 @@ function MeshcoreExpandedDetails({ p }: { p: RxPacketEntry }) {
         <p title="First four bytes after path prefix; not a node id. Meaning depends on payload type.">
           <span className="text-muted">Inner first u32 (debug):</span>{' '}
           {`BE 0x${innerWords.be} · LE 0x${innerWords.le}`}
+        </p>
+      )}
+      {reqRespHashes != null && (
+        <p>
+          <span className="text-muted">Dest hash:</span> {reqRespHashes.dest}{' '}
+          <span className="text-muted">Src hash:</span> {reqRespHashes.src}
+        </p>
+      )}
+      {grpTxtChannelHash != null && (
+        <p>
+          <span className="text-muted">Channel hash:</span> {grpTxtChannelHash}
+        </p>
+      )}
+      {anonReqFields != null && (
+        <p>
+          <span className="text-muted">Dest hash:</span> {anonReqFields.dest}{' '}
+          <span className="text-muted">Sender key (prefix):</span> {anonReqFields.senderKeyPrefix}
         </p>
       )}
       {p.transportScopeCode != null && p.transportReturnCode != null && (

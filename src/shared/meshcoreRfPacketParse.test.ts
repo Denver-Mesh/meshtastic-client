@@ -70,6 +70,22 @@ describe('parseMeshCoreRfPacket', () => {
       0;
     expect(innerBeU32).toBe(0x111337a7);
   });
+
+  it('maps byte0 nibble 1 to RESPONSE label', () => {
+    const p = parseMeshCoreRfPacket(new Uint8Array([0x05, 0x00, 0xaa, 0xbb, 0xcc]));
+    expect(p.ok).toBe(true);
+    if (!p.ok) return;
+    expect(p.payloadTypeNibble).toBe(1);
+    expect(p.payloadTypeString).toBe('RESPONSE');
+  });
+
+  it('maps byte0 nibble 7 to ANON_REQ label', () => {
+    const p = parseMeshCoreRfPacket(new Uint8Array([0x1d, 0x00, 0x03, 0x88, 0x71, 0x06, 0xdb]));
+    expect(p.ok).toBe(true);
+    if (!p.ok) return;
+    expect(p.payloadTypeNibble).toBe(7);
+    expect(p.payloadTypeString).toBe('ANON_REQ');
+  });
 });
 
 describe('meshCoreTransportCodeForRegion', () => {
