@@ -12,6 +12,8 @@ export const PAYLOAD_TYPE_PATH = 0x08;
 export const PAYLOAD_TYPE_TRACE = 0x09;
 /** Header payload-type nibble value for node advertisement (`PAYLOAD_TYPE_ADVERT`). */
 export const MESHCORE_PAYLOAD_TYPE_ADVERT_NIBBLE = 4;
+/** Align with `@liamcottle/meshcore.js` `Packet.PAYLOAD_TYPE_GRP_TXT` (0x05). */
+export const MESHCORE_PAYLOAD_TYPE_GRP_TXT_NIBBLE = 5;
 
 const ROUTE_TYPE_TRANSPORT_FLOOD = 0x00;
 const ROUTE_TYPE_TRANSPORT_DIRECT = 0x03;
@@ -112,6 +114,8 @@ export function meshCorePayloadTypeStringFromByte0(byte0: number): string {
       return 'TXT_MSG';
     case 4:
       return 'ADVERT';
+    case MESHCORE_PAYLOAD_TYPE_GRP_TXT_NIBBLE:
+      return 'GRP_TXT';
     case 8:
       return 'PATH';
     case 9:

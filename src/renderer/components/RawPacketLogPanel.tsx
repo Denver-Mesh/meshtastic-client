@@ -6,6 +6,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { formatLogTimeOfDay } from '../../shared/formatLogTimestamp';
+import { parseMeshCoreRfPacket } from '../../shared/meshcoreRfPacketParse';
 import type { RxPacketEntry } from '../hooks/useMeshCore';
 import { meshcoreRawPacketSenderColumnText } from '../lib/nodeLongNameOrHex';
 import type { MeshtasticRawPacketEntry } from '../lib/rawPacketLogConstants';
@@ -30,13 +31,32 @@ function formatTs(ts: number): string {
   return formatLogTimeOfDay(ts);
 }
 
+function innerPayloadFirstU32Hex(inner: Uint8Array): { be: string; le: string } | null {
+  if (inner.length < 4) return null;
+  const dv = new DataView(inner.buffer, inner.byteOffset, inner.byteLength);
+  const be = (dv.getUint32(0, false) >>> 0).toString(16).toUpperCase().padStart(8, '0');
+  const le = (dv.getUint32(0, true) >>> 0).toString(16).toUpperCase().padStart(8, '0');
+  return { be, le };
+}
+
 function MeshcoreExpandedDetails({ p }: { p: RxPacketEntry }) {
   if (!p.parseOk) return null;
+  const reparsed = parseMeshCoreRfPacket(p.raw);
+  const innerWords =
+    reparsed.ok && reparsed.innerPayload.length >= 4
+      ? innerPayloadFirstU32Hex(reparsed.innerPayload)
+      : null;
   return (
     <div className="mb-2 space-y-0.5 text-[10px] text-gray-400">
       {p.messageFingerprintHex != null && (
         <p>
           <span className="text-muted">CRC32 fp:</span> {p.messageFingerprintHex}
+        </p>
+      )}
+      {innerWords != null && (
+        <p title="First four bytes after path prefix; not a node id. Meaning depends on payload type.">
+          <span className="text-muted">Inner first u32 (debug):</span>{' '}
+          {`BE 0x${innerWords.be} · LE 0x${innerWords.le}`}
         </p>
       )}
       {p.transportScopeCode != null && p.transportReturnCode != null && (
