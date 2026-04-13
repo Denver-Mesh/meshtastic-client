@@ -48,6 +48,7 @@ import {
   meshcoreRawPacketLogFromBytesFallback,
   meshcoreRawPacketResolveFromParsed,
 } from '../lib/meshcoreRawPacketSender';
+import { shouldCoalesceSelfFloodAdvert } from '../lib/meshcoreRawSelfFloodAdvertCoalesce';
 import { meshcoreRepeaterTryLogin } from '../lib/meshcoreRepeaterSession';
 import {
   buildMeshcoreSetOtherParamsFrame,
@@ -99,7 +100,10 @@ import {
   selectGrantedSerialPort,
 } from '../lib/serialPortSignature';
 import { getStoredMeshProtocol } from '../lib/storedMeshProtocol';
-import { MESHCORE_TRACE_PING_TOTAL_TIMEOUT_MS } from '../lib/timeConstants';
+import {
+  MESHCORE_RAW_SELF_FLOOD_ADVERT_COALESCE_MS,
+  MESHCORE_TRACE_PING_TOTAL_TIMEOUT_MS,
+} from '../lib/timeConstants';
 import { TransportWebBluetoothIpc } from '../lib/transportWebBluetoothIpc';
 import type {
   ChatMessage,
@@ -2479,6 +2483,22 @@ export function useMeshCore() {
             parseOk,
           };
           setRawPackets((prev) => {
+            const myId = myNodeNumRef.current;
+            const last = prev[prev.length - 1];
+            if (
+              myId !== 0 &&
+              shouldCoalesceSelfFloodAdvert(
+                last,
+                rxEntry,
+                myId,
+                MESHCORE_RAW_SELF_FLOOD_ADVERT_COALESCE_MS,
+              )
+            ) {
+              const next = [...prev.slice(0, -1), rxEntry];
+              return next.length > MAX_RAW_PACKET_LOG_ENTRIES
+                ? next.slice(next.length - MAX_RAW_PACKET_LOG_ENTRIES)
+                : next;
+            }
             const next = [...prev, rxEntry];
             return next.length > MAX_RAW_PACKET_LOG_ENTRIES
               ? next.slice(next.length - MAX_RAW_PACKET_LOG_ENTRIES)
