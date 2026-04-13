@@ -1149,7 +1149,15 @@ export function useMeshCore() {
     try {
       [radioStats, packetStats] = await Promise.all([conn.getStatsRadio(), conn.getStatsPackets()]);
     } catch (e: unknown) {
-      console.warn('[useMeshCore] fetchAndUpdateLocalStats radio/packet error', e);
+      const reason =
+        e instanceof Error
+          ? e.message
+          : typeof e === 'string'
+            ? e
+            : e == null
+              ? 'no error details'
+              : JSON.stringify(e);
+      console.warn('[useMeshCore] fetchAndUpdateLocalStats radio/packet error:', reason);
       return;
     }
 
