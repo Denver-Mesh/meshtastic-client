@@ -99,6 +99,19 @@ export function extractMeshtasticSenderId(raw: Uint8Array): number | null {
   return id;
 }
 
+/**
+ * Raw packet log: only treat bytes 4–7 as Meshtastic `from` when the buffer did **not** parse as
+ * MeshCore. If `parseMeshCoreRfPacket` succeeded, those offsets are MeshCore path/payload — not
+ * Meshtastic node IDs.
+ */
+export function meshtasticSenderIdForRawLogFallback(
+  meshcoreParseOk: boolean,
+  raw: Uint8Array,
+): number | null {
+  if (meshcoreParseOk) return null;
+  return extractMeshtasticSenderId(raw);
+}
+
 /** Rolling window packet counter for rate detection. */
 export class RollingRateCounter {
   private readonly windowMs: number;

@@ -61,7 +61,7 @@ import {
 import { pubkeyToNodeId } from './lib/meshcoreUtils';
 import { meshNodeStubForDetailModal } from './lib/meshNodeStubForDetail';
 import { MESHTASTIC_OFFICIAL_PRESET_DEFAULTS } from './lib/meshtasticMqttTlsMigration';
-import { nodeLongNameOrHexLabel } from './lib/nodeLongNameOrHex';
+import { nodeLabelForRawPacket } from './lib/nodeLongNameOrHex';
 import { parseStoredJson } from './lib/parseStoredJson';
 import type { ProtocolCapabilities } from './lib/radio/BaseRadioProvider';
 import { useRadioProvider } from './lib/radio/providerFactory';
@@ -363,8 +363,8 @@ export default function App() {
   meshcoreSelfIdRef.current = meshcoreDevice.selfNodeId;
   const nodesForUi = protocol === 'meshcore' ? meshcoreDevice.nodes : meshtasticDevice.nodes;
   const rawPacketGetNodeLabel = useCallback(
-    (id: number) => nodeLongNameOrHexLabel(nodesForUi.get(id), id),
-    [nodesForUi],
+    (id: number) => nodeLabelForRawPacket(nodesForUi.get(id), id, protocol),
+    [nodesForUi, protocol],
   );
   const nodeCountLabel = protocol === 'meshcore' ? 'contacts' : 'nodes';
 

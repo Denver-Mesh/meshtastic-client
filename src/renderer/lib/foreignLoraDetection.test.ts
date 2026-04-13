@@ -7,6 +7,7 @@ import {
   containsMeshCorePattern,
   extractMeshtasticSenderId,
   extractRssiSnr,
+  meshtasticSenderIdForRawLogFallback,
   RollingRateCounter,
 } from './foreignLoraDetection';
 
@@ -235,6 +236,26 @@ describe('extractMeshtasticSenderId', () => {
     broadcast[6] = 0xff;
     broadcast[7] = 0xff;
     expect(extractMeshtasticSenderId(broadcast)).toBe(null);
+  });
+});
+
+describe('meshtasticSenderIdForRawLogFallback', () => {
+  it('returns null when MeshCore parse succeeded even if bytes 4-7 look like a Meshtastic id', () => {
+    const raw = new Uint8Array(12);
+    raw[4] = 0x78;
+    raw[5] = 0x56;
+    raw[6] = 0x34;
+    raw[7] = 0x12;
+    expect(meshtasticSenderIdForRawLogFallback(true, raw)).toBe(null);
+  });
+
+  it('delegates to extractMeshtasticSenderId when MeshCore parse failed', () => {
+    const raw = new Uint8Array(12);
+    raw[4] = 0x78;
+    raw[5] = 0x56;
+    raw[6] = 0x34;
+    raw[7] = 0x12;
+    expect(meshtasticSenderIdForRawLogFallback(false, raw)).toBe(0x12345678);
   });
 });
 

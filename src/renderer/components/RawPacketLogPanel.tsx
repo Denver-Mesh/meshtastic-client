@@ -7,6 +7,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { formatLogTimeOfDay } from '../../shared/formatLogTimestamp';
 import type { RxPacketEntry } from '../hooks/useMeshCore';
+import { meshcoreRawPacketSenderColumnText } from '../lib/nodeLongNameOrHex';
 import type { MeshtasticRawPacketEntry } from '../lib/rawPacketLogConstants';
 
 const ROUTE_LABEL: Record<string, string> = {
@@ -99,7 +100,10 @@ export default function RawPacketLogPanel(props: Props) {
           (p.transportScopeCode != null && String(p.transportScopeCode).includes(f)) ||
           (p.transportReturnCode != null && String(p.transportReturnCode).includes(f)) ||
           toHex(p.raw).includes(f) ||
-          (p.fromNodeId != null && getNodeLabel(p.fromNodeId).toUpperCase().includes(q)),
+          (p.fromNodeId != null &&
+            meshcoreRawPacketSenderColumnText(p.fromNodeId, getNodeLabel)
+              .toUpperCase()
+              .includes(q)),
       );
     }
     return packets.filter(
@@ -250,7 +254,8 @@ function MeshcoreRow({
   const routeLabel =
     p.routeTypeString != null ? (ROUTE_LABEL[p.routeTypeString] ?? p.routeTypeString) : '?';
   const payloadLabel = p.payloadTypeString ?? '?';
-  const label = p.fromNodeId != null ? getNodeLabel(p.fromNodeId) : null;
+  const senderLine =
+    p.fromNodeId != null ? meshcoreRawPacketSenderColumnText(p.fromNodeId, getNodeLabel) : null;
   const name =
     p.fromNodeId != null ? (
       onNodeClick ? (
@@ -258,22 +263,22 @@ function MeshcoreRow({
           <button
             type="button"
             className="block w-full min-w-0 truncate text-left text-cyan-200/90 underline-offset-2 hover:underline"
-            title={label ?? undefined}
-            aria-label={`Open node details for ${label ?? p.fromNodeId}`}
+            title={senderLine ?? undefined}
+            aria-label={`Open node details for ${senderLine ?? p.fromNodeId}`}
             onClick={(e) => {
               e.stopPropagation();
               onNodeClick(p.fromNodeId!);
             }}
           >
-            {label}
+            {senderLine}
           </button>
         </div>
       ) : (
         <span
           className={`${RAW_PACKET_NAME_COL} truncate text-cyan-200/90`}
-          title={label ?? undefined}
+          title={senderLine ?? undefined}
         >
-          {label}
+          {senderLine}
         </span>
       )
     ) : (
@@ -298,7 +303,6 @@ function MeshcoreRow({
       <span className="text-muted min-w-0 flex-1">
         {p.hopCount > 0 ? `hops=${p.hopCount} ` : ''}
         SNR={p.snr.toFixed(1)} RSSI={p.rssi}
-        {p.parseOk && p.messageFingerprintHex ? ` · ${p.messageFingerprintHex}` : ''}
         {p.transportScopeCode != null && p.transportReturnCode != null
           ? ` · tc=${p.transportScopeCode}/${p.transportReturnCode}`
           : ''}

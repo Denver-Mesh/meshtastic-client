@@ -16,7 +16,11 @@ import {
   isMeshcoreRetryableBleErrorMessage,
   MESHCORE_SETUP_ABORT_MESSAGE,
 } from '../lib/bleConnectErrors';
-import { classifyPayload, extractMeshtasticSenderId } from '../lib/foreignLoraDetection';
+import {
+  classifyPayload,
+  extractMeshtasticSenderId,
+  meshtasticSenderIdForRawLogFallback,
+} from '../lib/foreignLoraDetection';
 import type { OurPosition } from '../lib/gpsSource';
 import { resolveOurPosition } from '../lib/gpsSource';
 import { isLetsMeshSettings } from '../lib/letsMeshJwt';
@@ -2453,7 +2457,7 @@ export function useMeshCore() {
           }
 
           if (fromNodeId == null) {
-            const mtId = extractMeshtasticSenderId(rawU8);
+            const mtId = meshtasticSenderIdForRawLogFallback(parseOk, rawU8);
             if (mtId != null) fromNodeId = mtId;
           }
           const rxEntry: RxPacketEntry = {
