@@ -2537,6 +2537,20 @@ export function useMeshCore() {
             }
           }
 
+          // Update hops_away on known MeshCore nodes from RF packet hop count.
+          // Only use fromNodeId resolved by MeshCore parsing (before the Meshtastic fallback).
+          if (fromNodeId !== null && fromNodeId !== myNodeNumRef.current) {
+            setNodes((prev) => {
+              const existing = prev.get(fromNodeId!);
+              if (!existing || existing.hops_away === hopCount) return prev;
+              const updated = { ...existing, hops_away: hopCount };
+              const next = new Map(prev);
+              next.set(fromNodeId!, updated);
+              void window.electronAPI.db.saveNode(updated);
+              return next;
+            });
+          }
+
           if (fromNodeId == null) {
             const mtId = meshtasticSenderIdForRawLogFallback(parseOk, rawU8);
             if (mtId != null) fromNodeId = mtId;
