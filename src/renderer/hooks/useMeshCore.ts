@@ -44,7 +44,10 @@ import {
   parseMeshcoreGetNeighboursResponse,
 } from '../lib/meshcoreGetNeighboursBinary';
 import { readMeshcoreMqttSettingsFromStorage } from '../lib/meshcoreMqttSettingsStorage';
-import { meshcoreCorrelateOrSynthesizeChatEntry } from '../lib/meshcoreRawPacketCorrelate';
+import {
+  MESHCORE_CHAT_CORRELATE_WINDOW_MS,
+  meshcoreCorrelateOrSynthesizeChatEntry,
+} from '../lib/meshcoreRawPacketCorrelate';
 import {
   meshcoreRawPacketLogFromBytesFallback,
   meshcoreRawPacketResolveFromParsed,
@@ -1093,6 +1096,7 @@ export function useMeshCore() {
   // Stable ref to current nodes so event listeners don't form stale closures
   const nodesRef = useRef<Map<number, MeshNode>>(new Map());
   const messagesRef = useRef<ChatMessage[]>([]);
+  const rawPacketsRef = useRef<RxPacketEntry[]>([]);
   // Stable ref to own node ID so event listeners don't form stale closures
   const myNodeNumRef = useRef<number>(0);
   // Pending ACK tracking: CRC key (raw and/or u32) → shared entry for one in-flight DM
@@ -1295,6 +1299,10 @@ export function useMeshCore() {
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  useEffect(() => {
+    rawPacketsRef.current = rawPackets;
+  }, [rawPackets]);
 
   useEffect(() => {
     myNodeNumRef.current = state.myNodeNum;
@@ -2356,18 +2364,35 @@ export function useMeshCore() {
         console.debug('[useMeshCore] event 8: channel msg idx=', d.channelIdx);
         const displayName = normalized.senderName ?? 'Unknown';
         const stubId = meshcoreChatStubNodeIdFromDisplayName(displayName);
+        // Look up hopCount from the most recent unattributed GRP_TXT raw packet
+        // (event 136 always fires before event 8 for the same RF message).
+        const rfMatch = rawPacketsRef.current
+          .slice()
+          .reverse()
+          .find(
+            (e) =>
+              e.payloadTypeString === 'GRP_TXT' &&
+              e.fromNodeId === null &&
+              now - e.ts <= MESHCORE_CHAT_CORRELATE_WINDOW_MS,
+          );
+        const hopsAway = rfMatch?.hopCount;
         setNodes((prev) => {
           const next = new Map(prev);
           const existing = next.get(stubId);
-          next.set(
-            stubId,
-            existing
-              ? {
-                  ...existing,
-                  last_heard: Math.max(existing.last_heard ?? 0, d.senderTimestamp),
-                }
-              : minimalMeshcoreChatNode(stubId, displayName, d.senderTimestamp, 'rf'),
-          );
+          const updated = existing
+            ? {
+                ...existing,
+                last_heard: Math.max(existing.last_heard ?? 0, d.senderTimestamp),
+                ...(hopsAway != null ? { hops_away: hopsAway } : {}),
+              }
+            : {
+                ...minimalMeshcoreChatNode(stubId, displayName, d.senderTimestamp, 'rf'),
+                ...(hopsAway != null ? { hops_away: hopsAway } : {}),
+              };
+          next.set(stubId, updated);
+          if (hopsAway != null) {
+            void window.electronAPI.db.saveNode(updated);
+          }
           return next;
         });
         addMessage(
