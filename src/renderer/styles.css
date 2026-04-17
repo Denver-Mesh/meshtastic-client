@@ -74,8 +74,8 @@
 }
 
 .cm-watermark-mark {
-  width: 1.08rem;
-  height: 1.08rem;
+  width: 1.35rem;
+  height: 1.35rem;
   flex-shrink: 0;
   opacity: 0;
   transform: scale(0.92);
@@ -84,13 +84,13 @@
     transform 170ms ease;
 }
 
-.cm-watermark-mountain-outline {
+.cm-watermark-brand-stroke {
   stroke: var(--color-bright-green, #9ae6b4);
 }
 
 .cm-watermark-sun {
-  fill: #fff;
-  filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 4px rgb(255 255 255 / 0.5));
+  fill: var(--color-bright-green, #9ae6b4);
+  filter: drop-shadow(0 0 2px rgb(255 255 255 / 0.95)) drop-shadow(0 0 5px rgb(255 255 255 / 0.45));
 }
 
 .cm-watermark-text {
