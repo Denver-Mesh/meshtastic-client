@@ -270,13 +270,21 @@ export default function Sidebar({
   const safeActive = tabs.length === 0 ? 0 : Math.max(0, Math.min(active, tabs.length - 1));
 
   return (
-    <div className="bg-deep-black flex h-full w-full shrink-0 flex-col">
+    <div className="bg-deep-black relative flex h-full w-full shrink-0 flex-col overflow-hidden">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 flex items-center justify-center select-none"
+      >
+        <span className="-rotate-12 text-6xl font-black tracking-[0.18em] whitespace-nowrap text-slate-300 opacity-[0.03]">
+          Colorado Mesh
+        </span>
+      </div>
       {/* Nav items */}
       <div
         role="tablist"
         aria-label="Application panels"
         aria-orientation="vertical"
-        className="flex flex-1 flex-col gap-0.5 overflow-x-hidden overflow-y-auto py-1"
+        className="relative z-10 flex flex-1 flex-col gap-0.5 overflow-x-hidden overflow-y-auto py-1"
       >
         {tabs.map((name, i) => {
           const isActive = safeActive === i;
@@ -329,7 +337,7 @@ export default function Sidebar({
         onClick={onToggle}
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         aria-expanded={!collapsed}
-        className="text-muted hover:bg-secondary-dark flex h-9 shrink-0 items-center justify-center border-t border-slate-800 transition-colors hover:text-gray-200"
+        className="text-muted hover:bg-secondary-dark relative z-10 flex h-9 shrink-0 items-center justify-center border-t border-slate-800 transition-colors hover:text-gray-200"
       >
         <svg
           aria-hidden="true"

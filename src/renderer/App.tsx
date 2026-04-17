@@ -1061,7 +1061,7 @@ export default function App() {
         </div>
 
         {/* Content Wrapper - right side: flex column with header, viewport, footer */}
-        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex h-screen min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {/* Header */}
           <header
             className={`bg-deep-black relative flex w-full items-center gap-3 border-b px-4 py-2 ${
