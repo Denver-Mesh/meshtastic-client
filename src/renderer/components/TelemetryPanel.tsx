@@ -527,7 +527,7 @@ export default function TelemetryPanel({
           {showPacketStats && (
             <div className="bg-deep-black rounded-lg p-4">
               <h3 className="text-muted mb-3 text-sm font-medium">Packets (MeshCore)</h3>
-              <div className="mb-4 grid grid-cols-2 gap-4">
+              <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-cyan-400">{meshcorePacketStats.sent}</div>
                   <div className="text-xs text-gray-500">Sent</div>

@@ -272,7 +272,7 @@ export default function Sidebar({
   return (
     <div
       className={`bg-deep-black flex shrink-0 flex-col border-r border-gray-700 transition-[width] duration-300 ${
-        collapsed ? 'w-16' : 'w-60'
+        collapsed ? 'w-16' : 'w-48'
       }`}
     >
       {/* Nav items */}

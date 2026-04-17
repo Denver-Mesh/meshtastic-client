@@ -1538,7 +1538,7 @@ export default function ConnectionPanel({
   // ─── Connecting Progress View ───────────────────────────────────
   if (connecting && !isConnected) {
     return (
-      <div className="mx-auto flex max-w-5xl flex-col items-center justify-center space-y-6 py-16">
+      <div className="flex w-full flex-col items-center justify-center space-y-6 py-16">
         <Spinner className="text-bright-green h-12 w-12" />
         <div className="space-y-2 text-center">
           <h2 className="text-xl font-semibold text-gray-200">
@@ -2059,7 +2059,7 @@ export default function ConnectionPanel({
               )}
             </div>
           )}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             <div className="col-span-2 space-y-1">
               <label htmlFor="mqtt-server" className="text-muted text-xs">
                 Server
@@ -2173,7 +2173,7 @@ export default function ConnectionPanel({
                 </label>
               </div>
             )}
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             <div className="space-y-1">
               <label htmlFor="mqtt-username" className="text-muted text-xs">
                 Username
@@ -2382,7 +2382,7 @@ export default function ConnectionPanel({
   // ─── Connected View ────────────────────────────────────────────
   if (isConnected) {
     return (
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="w-full space-y-6">
         {protocolToggle}
         <button
           onClick={async () => {
@@ -2522,7 +2522,7 @@ export default function ConnectionPanel({
 
   // ─── Disconnected View ─────────────────────────────────────────
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="w-full space-y-6">
       {protocolToggle}
       {mqttStatus === 'connected' && (
         <button
@@ -2681,7 +2681,7 @@ export default function ConnectionPanel({
               <div
                 role="radiogroup"
                 aria-labelledby="connection-type-legend"
-                className="grid grid-cols-3 gap-2"
+                className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
               >
                 {(['ble', 'serial', 'http'] as const).map((type) => (
                   <button
@@ -2710,7 +2710,7 @@ export default function ConnectionPanel({
               <div
                 role="radiogroup"
                 aria-labelledby="connection-type-legend"
-                className="grid grid-cols-3 gap-2"
+                className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
               >
                 {(['ble', 'serial', 'http'] as const).map((type) => (
                   <button

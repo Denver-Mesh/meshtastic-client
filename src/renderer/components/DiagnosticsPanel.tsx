@@ -597,7 +597,7 @@ export default function DiagnosticsPanel({
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="w-full space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-gray-200">Network Diagnostics</h2>
         <a

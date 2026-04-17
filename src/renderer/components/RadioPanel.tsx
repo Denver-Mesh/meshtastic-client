@@ -907,7 +907,7 @@ export default function RadioPanel({
   }, [addToast, onSetOwner, onApplyLoraParams, shortName, isLicensed, bandwidth, radioFreqHz]);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
+    <div className="w-full space-y-4">
       <h2 className="text-xl font-semibold text-gray-200">Radio Configuration</h2>
 
       {capabilities?.protocol === 'meshcore' && (
@@ -1849,7 +1849,7 @@ export default function RadioPanel({
             These actions affect the connected device immediately (reboot, shutdown, firmware modes,
             etc.).
           </p>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             <button
               type="button"
               onClick={() => {

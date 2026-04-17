@@ -420,7 +420,7 @@ export default function AppPanel({
   }, [pendingAction, addToast, onNodesPruned, onMessagesPruned]);
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="w-full space-y-6">
       <h2 className="text-xl font-semibold text-gray-200">App Settings</h2>
 
       {/* Log panel visibility */}
@@ -1046,7 +1046,7 @@ export default function AppPanel({
           Export your local database (messages &amp; nodes) as a .db file, or import/merge another
           user's database into yours.
         </p>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           <button
             aria-label="Export Database"
             onClick={async () => {
