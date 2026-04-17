@@ -519,7 +519,7 @@ function ChatPanel({
     if (!el) return;
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     setShowScrollButton(distFromBottom > 200);
-    setShowScrollToLatest(distFromBottom > 50);
+    setShowScrollToLatest(distFromBottom > 1);
     return distFromBottom;
   }, []);
 

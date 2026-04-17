@@ -1331,7 +1331,7 @@ export default function App() {
                   role="tabpanel"
                   aria-labelledby="tab-1"
                   hidden={activePanelIndex !== 1}
-                  className="w-full min-w-0"
+                  className="h-full w-full min-w-0"
                 >
                   <Suspense fallback={<PanelSkeleton />}>
                     <ChatPanel
