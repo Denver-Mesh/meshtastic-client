@@ -2414,10 +2414,10 @@ ipcMain.handle('db:saveNode', (_event, node) => {
     validateSaveNode(node);
     const db = getDatabase();
     const stmt = db.prepareOnce(`
-      INSERT INTO nodes (node_id, long_name, short_name, hw_model, snr, rssi, battery, last_heard, latitude, longitude, role, hops_away, via_mqtt, voltage, channel_utilization, air_util_tx, altitude, favorited, source, num_packets_rx_bad, num_rx_dupe, num_packets_rx, num_packets_tx)
+      INSERT INTO nodes (node_id, long_name, short_name, hw_model, snr, rssi, battery, last_heard, latitude, longitude, role, hops_away, via_mqtt, voltage, channel_utilization, air_util_tx, altitude, favorited, source, num_packets_rx_bad, num_rx_dupe, num_packets_rx, num_packets_tx, hops, path)
       VALUES (@node_id, @long_name, @short_name, @hw_model, @snr, @rssi, @battery, @last_heard, @latitude, @longitude, @role, @hops_away, @via_mqtt, @voltage, @channel_utilization, @air_util_tx, @altitude,
         COALESCE((SELECT favorited FROM nodes WHERE node_id = @node_id), 0),
-        @source, @num_packets_rx_bad, @num_rx_dupe, @num_packets_rx, @num_packets_tx)
+        @source, @num_packets_rx_bad, @num_rx_dupe, @num_packets_rx, @num_packets_tx, @hops, @path)
       ON CONFLICT(node_id) DO UPDATE SET
         long_name = COALESCE(NULLIF(excluded.long_name, ''), nodes.long_name),
         short_name = COALESCE(NULLIF(excluded.short_name, ''), nodes.short_name),
@@ -2439,7 +2439,9 @@ ipcMain.handle('db:saveNode', (_event, node) => {
         num_packets_rx_bad = COALESCE(excluded.num_packets_rx_bad, num_packets_rx_bad),
         num_rx_dupe = COALESCE(excluded.num_rx_dupe, num_rx_dupe),
         num_packets_rx = COALESCE(excluded.num_packets_rx, num_packets_rx),
-        num_packets_tx = COALESCE(excluded.num_packets_tx, num_packets_tx)
+        num_packets_tx = COALESCE(excluded.num_packets_tx, num_packets_tx),
+        hops = COALESCE(excluded.hops, nodes.hops),
+        path = COALESCE(excluded.path, nodes.path)
     `);
     return stmt.run({
       role: null,
@@ -2456,6 +2458,8 @@ ipcMain.handle('db:saveNode', (_event, node) => {
       num_packets_tx: null,
       ...node,
       via_mqtt: node.via_mqtt != null ? (node.via_mqtt ? 1 : 0) : null,
+      hops: node.hops ?? null,
+      path: node.path != null ? JSON.stringify(node.path) : null,
     });
   } catch (err) {
     console.error(
