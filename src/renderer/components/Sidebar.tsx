@@ -273,9 +273,9 @@ export default function Sidebar({
     <div className="bg-deep-black relative flex h-full w-full shrink-0 flex-col overflow-hidden">
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 flex items-center justify-center select-none"
+        className="pointer-events-none absolute inset-x-0 bottom-20 flex justify-center px-2 select-none"
       >
-        <span className="-rotate-12 text-6xl font-black tracking-[0.18em] whitespace-nowrap text-slate-300 opacity-[0.03]">
+        <span className="-rotate-6 text-base font-black tracking-[0.08em] whitespace-nowrap text-slate-300 opacity-[0.03]">
           Colorado Mesh
         </span>
       </div>
