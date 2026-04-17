@@ -9,5 +9,6 @@ export const RadioPanel = lazy(() => import('./components/RadioPanel'));
 export const RepeatersPanel = lazy(() => import('./components/RepeatersPanel'));
 export const SecurityPanel = lazy(() => import('./components/SecurityPanel'));
 export const TelemetryPanel = lazy(() => import('./components/TelemetryPanel'));
+export const PacketDistributionPanel = lazy(() => import('./components/PacketDistributionPanel'));
 /** Sniffer tab in the UI (keyboard help: Packet Sniffer). */
 export const RawPacketLogPanel = lazy(() => import('./components/RawPacketLogPanel'));

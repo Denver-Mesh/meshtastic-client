@@ -30,6 +30,7 @@ import {
   DiagnosticsPanel,
   MapPanel,
   ModulePanel,
+  PacketDistributionPanel,
   RadioPanel,
   RawPacketLogPanel,
   RepeatersPanel,
@@ -85,6 +86,7 @@ const TAB_CAPABILITY_REQUIREMENTS: (keyof ProtocolCapabilities | undefined)[] = 
   'hasTakPanel', // TAK
   undefined, // App
   undefined, // Diagnostics
+  'hasRawPacketLog', // Distribution
   'hasRawPacketLog', // Sniffer (keyboard help: Packet Sniffer)
 ];
 
@@ -115,6 +117,7 @@ const TAB_NAMES = [
   'TAK',
   'App',
   'Diagnostics',
+  'Distribution',
   'Sniffer',
 ];
 
@@ -808,6 +811,12 @@ export default function App() {
         }
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'a') {
         const targetIndex = displayTabNames.indexOf('Diagnostics');
+        if (targetIndex >= 0 && targetIndex <= maxTab) {
+          e.preventDefault();
+          setActiveTab(targetIndex);
+        }
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
+        const targetIndex = displayTabNames.indexOf('Distribution');
         if (targetIndex >= 0 && targetIndex <= maxTab) {
           e.preventDefault();
           setActiveTab(targetIndex);
@@ -1684,6 +1693,32 @@ export default function App() {
                   hidden={activePanelIndex !== 11}
                 >
                   {activePanelIndex === 11 && capabilities.hasRawPacketLog ? (
+                    <ErrorBoundary>
+                      <Suspense fallback={<PanelSkeleton />}>
+                        {protocol === 'meshcore' ? (
+                          <PacketDistributionPanel
+                            variant="meshcore"
+                            packets={meshcoreDevice.rawPackets}
+                            getNodeLabel={rawPacketGetNodeLabel}
+                          />
+                        ) : (
+                          <PacketDistributionPanel
+                            variant="meshtastic"
+                            packets={meshtasticDevice.rawPackets}
+                            getNodeLabel={rawPacketGetNodeLabel}
+                          />
+                        )}
+                      </Suspense>
+                    </ErrorBoundary>
+                  ) : null}
+                </div>
+                <div
+                  id="panel-12"
+                  role="tabpanel"
+                  aria-labelledby="tab-12"
+                  hidden={activePanelIndex !== 12}
+                >
+                  {activePanelIndex === 12 && capabilities.hasRawPacketLog ? (
                     <ErrorBoundary>
                       <Suspense fallback={<PanelSkeleton />}>
                         {protocol === 'meshcore' ? (
