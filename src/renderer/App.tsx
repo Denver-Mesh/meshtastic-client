@@ -10,8 +10,8 @@ import {
 
 import ErrorBoundary from './components/ErrorBoundary';
 import { HelpTooltip } from './components/HelpTooltip';
+import Sidebar from './components/Sidebar';
 import { LinkIcon } from './components/SignalBars';
-import Tabs from './components/Tabs';
 import { ToastProvider, useToast } from './components/Toast';
 import UpdateStatusIndicator from './components/UpdateStatusIndicator';
 import { useContactGroups } from './hooks/useContactGroups';
@@ -238,6 +238,16 @@ function MqttGlobeIcon({ status }: { status: MQTTStatus }) {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState(0);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    return localStorage.getItem('mesh-client:sidebarCollapsed') === 'true';
+  });
+  const handleSidebarToggle = useCallback(() => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem('mesh-client:sidebarCollapsed', String(next));
+      return next;
+    });
+  }, []);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -1169,16 +1179,16 @@ export default function App() {
         )}
 
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {/* Tabs */}
-            <nav aria-label="Application panels">
-              <Tabs
-                tabs={displayTabNames}
-                active={activeTab}
-                onChange={setActiveTab}
-                chatUnread={protocol === 'meshtastic' ? meshtasticUnread : meshcoreUnread}
-              />
-            </nav>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-row">
+            {/* Sidebar */}
+            <Sidebar
+              tabs={displayTabNames}
+              active={activeTab}
+              onChange={setActiveTab}
+              chatUnread={protocol === 'meshtastic' ? meshtasticUnread : meshcoreUnread}
+              collapsed={sidebarCollapsed}
+              onToggle={handleSidebarToggle}
+            />
 
             {/* Content */}
             <div role="main" className="min-h-0 flex-1 overflow-auto p-4">
