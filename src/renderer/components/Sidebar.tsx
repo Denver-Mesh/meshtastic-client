@@ -280,14 +280,15 @@ export default function Sidebar({
         >
           <svg
             className="cm-watermark-mark"
-            viewBox="0 0 20 14"
+            viewBox="0 0 24 24"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
           >
             <path
-              d="M1.8 11.1L6.15 6.15L8.85 9.05L12.55 4.7L17.9 11.1M6.95 11.1L10 7.2L13.05 11.1"
+              d="M3 18L9 10L13 15L16 11L21 18H3Z"
               className="cm-watermark-mountain-outline"
-              strokeWidth="1.2"
+              strokeWidth="1.8"
               strokeLinecap="round"
               strokeLinejoin="round"
             />

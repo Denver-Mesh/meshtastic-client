@@ -64,15 +64,15 @@
 }
 
 .cm-watermark-collapsed {
-  width: 1.75rem;
-  min-height: 1.75rem;
-  padding: 0.2rem;
-  border-radius: 7px;
+  width: 1.9rem;
+  min-height: 1.9rem;
+  padding: 0.22rem;
+  border-radius: 8px;
 }
 
 .cm-watermark-mark {
-  width: 0.95rem;
-  height: 0.72rem;
+  width: 1.08rem;
+  height: 1.08rem;
   flex-shrink: 0;
   opacity: 0;
   transform: scale(0.92);
@@ -82,7 +82,12 @@
 }
 
 .cm-watermark-mountain-outline {
-  stroke: rgb(113 151 138 / 0.82);
+  stroke: var(--color-bright-green, #9ae6b4);
+}
+
+.cm-watermark-sun {
+  fill: #fff;
+  filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 4px rgb(255 255 255 / 0.5));
 }
 
 .cm-watermark-text {
@@ -112,8 +117,7 @@
 }
 
 .cm-watermark-expanded .cm-watermark-mark {
-  width: 0;
-  opacity: 0;
+  display: none;
 }
 
 .cm-watermark-collapsed .cm-watermark-text {
@@ -122,6 +126,7 @@
 }
 
 .cm-watermark-collapsed .cm-watermark-mark {
-  opacity: 0.9;
+  display: block;
+  opacity: 1;
   transform: scale(1);
 }
