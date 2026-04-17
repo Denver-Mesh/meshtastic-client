@@ -1009,8 +1009,12 @@ export default function App() {
         onResult={handleFirmwareResult}
       />
       <div className="flex h-screen w-screen overflow-hidden bg-slate-950">
-        {/* Sidebar - fixed width on left */}
-        <div className="flex h-full w-48 flex-col border-r border-slate-800">
+        {/* Sidebar - collapsible width on left */}
+        <div
+          className={`flex h-full flex-col border-r border-slate-800 transition-[width] duration-300 ${
+            sidebarCollapsed ? 'w-16' : 'w-48'
+          }`}
+        >
           <Sidebar
             tabs={displayTabNames}
             active={activeTab}
@@ -1022,10 +1026,10 @@ export default function App() {
         </div>
 
         {/* Content Wrapper - right side: flex column with header, viewport, footer */}
-        <div className="flex h-full min-w-0 flex-1 flex-col">
+        <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
           {/* Header */}
           <header
-            className={`bg-deep-black relative flex items-center gap-3 border-b px-4 py-2 ${
+            className={`bg-deep-black relative flex w-full items-center gap-3 border-b px-4 py-2 ${
               isConfigured
                 ? protocol === 'meshcore'
                   ? 'border-cyan-500/20'
@@ -1053,7 +1057,7 @@ export default function App() {
                       : 'text-gray-400 hover:bg-gray-800 hover:text-gray-300'
                   }`}
                 >
-                  (M) Meshtastic
+                  Meshtastic
                   {meshtasticUnread > 0 && protocol !== 'meshtastic' && (
                     <span className="bg-brand-green/30 text-brand-green ml-1.5 inline-flex h-4 min-w-[1.1rem] animate-pulse items-center justify-center rounded-full px-0.5 text-[10px] font-bold">
                       {meshtasticUnread > 99 ? '99+' : meshtasticUnread}
@@ -1074,7 +1078,7 @@ export default function App() {
                       : 'text-gray-400 hover:bg-gray-800 hover:text-gray-300'
                   }`}
                 >
-                  (MC) MeshCore
+                  MeshCore
                   {meshcoreUnread > 0 && protocol !== 'meshcore' && (
                     <span className="ml-1.5 inline-flex h-4 min-w-[1.1rem] animate-pulse items-center justify-center rounded-full bg-cyan-600/30 px-0.5 text-[10px] font-bold text-cyan-400">
                       {meshcoreUnread > 99 ? '99+' : meshcoreUnread}
@@ -1197,8 +1201,8 @@ export default function App() {
           <div
             role="main"
             ref={mainViewportRef}
-            className={`flex-1 overflow-x-auto overflow-y-auto ${
-              activePanelIndex === 1 ? 'px-8 pt-4 pb-2' : 'p-8 pt-4'
+            className={`min-h-0 w-full flex-1 overflow-x-auto overflow-y-auto ${
+              activePanelIndex === 1 ? 'px-8 pt-6 pb-2' : 'p-8 pt-6'
             }`}
           >
             <ErrorBoundary>
@@ -1207,6 +1211,7 @@ export default function App() {
                 role="tabpanel"
                 aria-labelledby="tab-0"
                 hidden={activePanelIndex !== 0}
+                className="w-full min-w-0"
               >
                 {/* Both panels are always mounted so each protocol auto-connects at startup */}
                 <Suspense fallback={<PanelSkeleton />}>
@@ -1282,6 +1287,7 @@ export default function App() {
                   role="tabpanel"
                   aria-labelledby="tab-1"
                   hidden={activePanelIndex !== 1}
+                  className="w-full min-w-0"
                 >
                   <Suspense fallback={<PanelSkeleton />}>
                     <ChatPanel
@@ -1311,6 +1317,7 @@ export default function App() {
                 role="tabpanel"
                 aria-labelledby="tab-2"
                 hidden={activePanelIndex !== 2}
+                className="w-full min-w-0"
               >
                 {activePanelIndex === 2 ? (
                   <Suspense fallback={<PanelSkeleton />}>
@@ -1360,7 +1367,7 @@ export default function App() {
                 role="tabpanel"
                 aria-labelledby="tab-3"
                 hidden={activePanelIndex !== 3}
-                className="h-full"
+                className="h-full w-full min-w-0"
               >
                 {activePanelIndex === 3 ? (
                   <ErrorBoundary>
@@ -1389,6 +1396,7 @@ export default function App() {
                 role="tabpanel"
                 aria-labelledby="tab-4"
                 hidden={activePanelIndex !== 4}
+                className="w-full min-w-0"
               >
                 {activePanelIndex === 4 ? (
                   <ErrorBoundary>
@@ -1510,6 +1518,7 @@ export default function App() {
                 role="tabpanel"
                 aria-labelledby="tab-5"
                 hidden={activePanelIndex !== 5}
+                className="w-full min-w-0"
               >
                 {activePanelIndex === 5 && protocol === 'meshcore' ? (
                   <ErrorBoundary>
@@ -1567,6 +1576,7 @@ export default function App() {
                 role="tabpanel"
                 aria-labelledby="tab-6"
                 hidden={activePanelIndex !== 6}
+                className="w-full min-w-0"
               >
                 {activePanelIndex === 6 ? (
                   <ErrorBoundary>
@@ -1593,6 +1603,7 @@ export default function App() {
                 role="tabpanel"
                 aria-labelledby="tab-7"
                 hidden={activePanelIndex !== 7}
+                className="w-full min-w-0"
               >
                 {activePanelIndex === 7 ? (
                   <ErrorBoundary>
@@ -1620,6 +1631,7 @@ export default function App() {
                 role="tabpanel"
                 aria-labelledby="tab-8"
                 hidden={activePanelIndex !== 8}
+                className="w-full min-w-0"
               >
                 {activePanelIndex === 8 ? (
                   <ErrorBoundary>
@@ -1637,6 +1649,7 @@ export default function App() {
                 role="tabpanel"
                 aria-labelledby="tab-9"
                 hidden={activePanelIndex !== 9}
+                className="w-full min-w-0"
               >
                 {activePanelIndex === 9 ? (
                   <ErrorBoundary>
@@ -1677,6 +1690,7 @@ export default function App() {
                 role="tabpanel"
                 aria-labelledby="tab-10"
                 hidden={activePanelIndex !== 10}
+                className="w-full min-w-0"
               >
                 {activePanelIndex === 10 ? (
                   <ErrorBoundary>
@@ -1703,6 +1717,7 @@ export default function App() {
                 role="tabpanel"
                 aria-labelledby="tab-11"
                 hidden={activePanelIndex !== 11}
+                className="w-full min-w-0"
               >
                 {activePanelIndex === 11 && capabilities.hasRawPacketLog ? (
                   <ErrorBoundary>
@@ -1729,6 +1744,7 @@ export default function App() {
                 role="tabpanel"
                 aria-labelledby="tab-12"
                 hidden={activePanelIndex !== 12}
+                className="w-full min-w-0"
               >
                 {activePanelIndex === 12 && capabilities.hasRawPacketLog ? (
                   <ErrorBoundary>

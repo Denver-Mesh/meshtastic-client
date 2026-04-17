@@ -270,11 +270,7 @@ export default function Sidebar({
   const safeActive = tabs.length === 0 ? 0 : Math.max(0, Math.min(active, tabs.length - 1));
 
   return (
-    <div
-      className={`bg-deep-black flex h-full shrink-0 flex-col transition-[width] duration-300 ${
-        collapsed ? 'w-16' : 'w-48'
-      }`}
-    >
+    <div className="bg-deep-black flex h-full w-full shrink-0 flex-col">
       {/* Nav items */}
       <div
         role="tablist"
