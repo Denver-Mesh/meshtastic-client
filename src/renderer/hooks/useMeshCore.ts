@@ -4883,7 +4883,7 @@ export function useMeshCore() {
         ? Array.from(pk)
             .map((b) => b.toString(16).padStart(2, '0'))
             .join('')
-        : null;
+        : meshcoreSyntheticPlaceholderPubKeyHex(nodeId);
     setNodes((prev) => {
       const n = prev.get(nodeId);
       if (!n) return prev;
