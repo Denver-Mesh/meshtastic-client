@@ -1538,7 +1538,7 @@ export default function ConnectionPanel({
   // ─── Connecting Progress View ───────────────────────────────────
   if (connecting && !isConnected) {
     return (
-      <div className="mx-auto flex max-w-5xl flex-col items-center justify-center space-y-6 py-16">
+      <div className="flex w-full flex-col items-center justify-center space-y-6 py-16">
         <Spinner className="text-bright-green h-12 w-12" />
         <div className="space-y-2 text-center">
           <h2 className="text-xl font-semibold text-gray-200">
@@ -1571,7 +1571,7 @@ export default function ConnectionPanel({
           <div
             role="region"
             aria-labelledby="ble-device-picker-heading"
-            className="bg-deep-black w-full max-w-4xl overflow-hidden rounded-lg border border-gray-600"
+            className="bg-deep-black w-full overflow-hidden rounded-lg border border-gray-600"
           >
             <div className="bg-secondary-dark flex items-center justify-between border-b border-gray-600 px-4 py-2.5">
               <span id="ble-device-picker-heading" className="text-sm font-medium text-gray-200">
@@ -1645,7 +1645,7 @@ export default function ConnectionPanel({
           <div
             role="region"
             aria-labelledby="serial-port-picker-heading"
-            className="bg-deep-black w-full max-w-4xl overflow-hidden rounded-lg border border-gray-600"
+            className="bg-deep-black w-full overflow-hidden rounded-lg border border-gray-600"
           >
             <div className="bg-secondary-dark flex items-center justify-between border-b border-gray-600 px-4 py-2.5">
               <span id="serial-port-picker-heading" className="text-sm font-medium text-gray-200">
@@ -1694,14 +1694,14 @@ export default function ConnectionPanel({
 
         {/* Error in progress view */}
         {error && (
-          <div className="w-full max-w-4xl rounded-lg border border-red-700 bg-red-900/50 px-4 py-2 text-sm text-red-300">
+          <div className="w-full rounded-lg border border-red-700 bg-red-900/50 px-4 py-2 text-sm text-red-300">
             {error}
           </div>
         )}
 
         {/* Re-pair button for Linux BLE pairing issues */}
         {showRePairButton && (
-          <div className="flex w-full max-w-4xl flex-col gap-2">
+          <div className="flex w-full flex-col gap-2">
             <button
               type="button"
               onClick={handleRePair}
@@ -1714,7 +1714,7 @@ export default function ConnectionPanel({
 
         {/* PIN input prompt for Linux BLE pairing (connecting view) */}
         {showPinPrompt && (
-          <div className="w-full max-w-4xl rounded-lg border border-blue-700 bg-blue-900/50 px-4 py-3 text-blue-300">
+          <div className="w-full rounded-lg border border-blue-700 bg-blue-900/50 px-4 py-3 text-blue-300">
             <p className="mb-2 text-sm">Enter the PIN shown on your device:</p>
             {pinCountdown !== null && (
               <p
@@ -2059,7 +2059,7 @@ export default function ConnectionPanel({
               )}
             </div>
           )}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             <div className="col-span-2 space-y-1">
               <label htmlFor="mqtt-server" className="text-muted text-xs">
                 Server
@@ -2173,7 +2173,7 @@ export default function ConnectionPanel({
                 </label>
               </div>
             )}
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             <div className="space-y-1">
               <label htmlFor="mqtt-username" className="text-muted text-xs">
                 Username
@@ -2382,7 +2382,7 @@ export default function ConnectionPanel({
   // ─── Connected View ────────────────────────────────────────────
   if (isConnected) {
     return (
-      <div className="mx-auto max-w-5xl space-y-6">
+      <div className="w-full space-y-6">
         {protocolToggle}
         <button
           onClick={async () => {
@@ -2522,7 +2522,7 @@ export default function ConnectionPanel({
 
   // ─── Disconnected View ─────────────────────────────────────────
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="w-full space-y-6">
       {protocolToggle}
       {mqttStatus === 'connected' && (
         <button
@@ -2681,7 +2681,7 @@ export default function ConnectionPanel({
               <div
                 role="radiogroup"
                 aria-labelledby="connection-type-legend"
-                className="grid grid-cols-3 gap-2"
+                className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
               >
                 {(['ble', 'serial', 'http'] as const).map((type) => (
                   <button
@@ -2710,7 +2710,7 @@ export default function ConnectionPanel({
               <div
                 role="radiogroup"
                 aria-labelledby="connection-type-legend"
-                className="grid grid-cols-3 gap-2"
+                className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
               >
                 {(['ble', 'serial', 'http'] as const).map((type) => (
                   <button

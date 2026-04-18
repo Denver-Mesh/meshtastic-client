@@ -5,7 +5,10 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { meshcoreSyntheticPlaceholderPubKeyHex } from '../lib/meshcoreUtils';
 import { useMeshCore } from './useMeshCore';
+
+const STUB_SENDER_ID = 0x12345678;
 
 const APPLY_PARAMS = {
   autoAddAll: true,
@@ -64,5 +67,40 @@ describe('useMeshCore contact management (no radio connection)', () => {
     });
 
     expect(result.current.meshcoreAutoadd).toBeNull();
+  });
+
+  it('setNodeFavorited passes synthetic pubkey hex when contact has no key in memory (DB insert path)', async () => {
+    vi.mocked(window.electronAPI.db.getMeshcoreMessages).mockResolvedValue([
+      {
+        id: 1,
+        sender_id: STUB_SENDER_ID,
+        sender_name: 'Alice',
+        payload: 'hi',
+        channel_idx: 0,
+        timestamp: 1_700_000_000_000,
+        status: 'acked',
+        packet_id: null,
+        emoji: null,
+        reply_id: null,
+        to_node: null,
+        received_via: 'mqtt',
+      },
+    ]);
+
+    const { result } = renderHook(() => useMeshCore());
+
+    await waitFor(() => {
+      expect(result.current.nodes.has(STUB_SENDER_ID)).toBe(true);
+    });
+
+    await act(async () => {
+      await result.current.setNodeFavorited(STUB_SENDER_ID, true);
+    });
+
+    expect(window.electronAPI.db.updateMeshcoreContactFavorited).toHaveBeenCalledWith(
+      STUB_SENDER_ID,
+      true,
+      meshcoreSyntheticPlaceholderPubKeyHex(STUB_SENDER_ID),
+    );
   });
 });

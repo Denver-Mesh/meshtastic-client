@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
 
@@ -302,5 +302,55 @@ describe('App accessibility', () => {
     render(<App />);
 
     expect(await screen.findByText('Q: 7/256')).toBeInTheDocument();
+  });
+
+  it('keeps scrolling inside the main viewport container', () => {
+    render(<App />);
+
+    // role="main" clips children with overflow-hidden; no padding
+    const mainViewport = screen.getByRole('main');
+    expect(mainViewport.className).toContain('min-w-0');
+    expect(mainViewport.className).toContain('overflow-hidden');
+    expect(mainViewport.className).not.toContain('overflow-x-auto');
+    expect(mainViewport.className).not.toContain('overflow-y-auto');
+
+    // First child is the scroll container — overflow-auto here, no padding
+    const scrollContainer = mainViewport.firstElementChild as HTMLElement;
+    expect(scrollContainer).not.toBeNull();
+    expect(scrollContainer.className).toContain('overflow-auto');
+    expect(scrollContainer.className).not.toContain('overflow-x-auto');
+    expect(scrollContainer.className).not.toContain('overflow-y-auto');
+    expect(scrollContainer.className).not.toContain('px-8');
+
+    // Second child (inside scroll container) is the content wrapper with padding
+    const contentWrapper = scrollContainer.firstElementChild as HTMLElement;
+    expect(contentWrapper).not.toBeNull();
+    expect(contentWrapper.className).toContain('px-8');
+    expect(contentWrapper.className).toContain('pt-8');
+    expect(contentWrapper.className).toContain('pb-8');
+
+    const mainColumn = mainViewport.parentElement;
+    expect(mainColumn).not.toBeNull();
+    expect(mainColumn?.className).toContain('min-w-0');
+    expect(mainColumn?.className).toContain('overflow-hidden');
+  });
+
+  it('shows global back-to-top control after main viewport scroll', () => {
+    render(<App />);
+
+    // Scroll events and scrollTo come from the scroll container (first child of role="main")
+    const mainViewport = screen.getByRole('main');
+    const scrollContainer = mainViewport.firstElementChild as HTMLElement;
+    const scrollToSpy = vi.fn();
+    Object.defineProperty(scrollContainer, 'scrollTo', { value: scrollToSpy, writable: true });
+    Object.defineProperty(scrollContainer, 'scrollTop', { value: 260, writable: true });
+
+    fireEvent.scroll(scrollContainer);
+
+    const backToTop = screen.getByRole('button', { name: 'Back to top' });
+    expect(backToTop).toBeInTheDocument();
+
+    fireEvent.click(backToTop);
+    expect(scrollToSpy).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
   });
 });

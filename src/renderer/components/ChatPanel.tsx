@@ -1,4 +1,13 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import {
   dismissedDmTabsStorageKey,
@@ -10,6 +19,7 @@ import {
 import { nodeDisplayName } from '../lib/nodeLongNameOrHex';
 import { parseStoredJson } from '../lib/parseStoredJson';
 import { emojiDisplayChar, emojiDisplayLabel } from '../lib/reactions';
+import { truncateReplyPreviewText } from '../lib/replyPreview';
 import type { ChatMessage, MeshNode, MeshProtocol } from '../lib/types';
 import { ChatPayloadText } from './ChatPayloadText';
 import { HelpTooltip } from './HelpTooltip';
@@ -169,6 +179,35 @@ function withoutDmNode(source: Record<number, number>, nodeNum: number): Record<
   ) as Record<number, number>;
 }
 
+/**
+ * Distance from the “bottom” of the chat (latest messages). Uses the **maximum** of:
+ * - Inner `overflow-y-auto` distance when the message list overflows, and
+ * - Message-end sentinel vs `outerScrollRoot` (app main viewport), so we still
+ *   detect “not at latest” when the inner scroller is at max but the shell scroll
+ *   has moved the thread off-screen (or vice versa).
+ */
+export function getDistFromChatBottom(
+  inner: HTMLDivElement | null,
+  messagesEnd: HTMLDivElement | null,
+  outerScrollRoot: HTMLElement | null,
+): number | null {
+  if (!inner) return null;
+
+  let dist = 0;
+
+  if (inner.scrollHeight > inner.clientHeight + 1) {
+    dist = Math.max(dist, inner.scrollHeight - inner.scrollTop - inner.clientHeight);
+  }
+
+  if (outerScrollRoot && messagesEnd) {
+    const rootRect = outerScrollRoot.getBoundingClientRect();
+    const endRect = messagesEnd.getBoundingClientRect();
+    dist = Math.max(dist, Math.max(0, endRect.bottom - rootRect.bottom));
+  }
+
+  return dist;
+}
+
 export interface ChatPanelProps {
   messages: ChatMessage[];
   channels: { index: number; name: string }[];
@@ -192,6 +231,14 @@ export interface ChatPanelProps {
   onGlobalSearch?: () => void;
   /** When `meshcore`, show full names, hide redundant RF-only transport badge. */
   protocol?: MeshProtocol;
+  /** Ref for scroll-to-top (Chat has its own Top button positioned inside the message list). */
+  scrollToTopRef?: React.RefObject<(() => void) | null>;
+  /**
+   * Main app scrollport (e.g. App `mainViewportRef`). When the message list does not
+   * overflow its own `overflow-y-auto` box, chat still scrolls inside this root; we use
+   * it to measure whether the user has scrolled away from the latest messages.
+   */
+  outerScrollMetricsRootRef?: React.RefObject<HTMLElement | null>;
 }
 
 function ChatPanel({
@@ -211,7 +258,14 @@ function ChatPanel({
   isActive = true,
   onGlobalSearch,
   protocol = 'meshtastic',
+  scrollToTopRef,
+  outerScrollMetricsRootRef,
 }: ChatPanelProps) {
+  const scrollToTop = useCallback(() => {
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  useImperativeHandle(scrollToTopRef, () => scrollToTop, [scrollToTop]);
   const [input, setInput] = useState('');
   const [channel, setChannel] = useState(() => (channels.length > 0 ? channels[0].index : 0));
   useEffect(() => {
@@ -496,29 +550,88 @@ function ChatPanel({
     setTriggerScrollToUnread((n) => n + 1);
   }, [viewKey]);
 
+  const updateScrollButtonVisibility = useCallback(() => {
+    const distFromBottom = getDistFromChatBottom(
+      scrollContainerRef.current,
+      messagesEndRef.current,
+      outerScrollMetricsRootRef?.current ?? null,
+    );
+    if (distFromBottom == null) return undefined;
+    setShowScrollButton(distFromBottom > 200);
+    return distFromBottom;
+  }, [outerScrollMetricsRootRef]);
+
+  const applyNearBottomReadState = useCallback(
+    (distFromBottom: number) => {
+      if (distFromBottom < 50) {
+        const now = Date.now();
+        setPersistedLastRead((prev) => ({ ...prev, [viewKey]: now }));
+        setUnreadDividerTimestamp(0); // hide divider once user has read to bottom
+      }
+    },
+    [viewKey],
+  );
+
   // Scroll tracking for scroll-to-bottom button + mark-as-read when at bottom
   const handleScroll = useCallback(() => {
-    const el = scrollContainerRef.current;
-    if (!el) return;
-    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    setShowScrollButton(distFromBottom > 200);
+    const distFromBottom = updateScrollButtonVisibility();
+    if (distFromBottom === undefined) return;
+    applyNearBottomReadState(distFromBottom);
+  }, [applyNearBottomReadState, updateScrollButtonVisibility]);
 
-    if (distFromBottom < 50) {
-      const now = Date.now();
-      setPersistedLastRead((prev) => ({ ...prev, [viewKey]: now }));
-      setUnreadDividerTimestamp(0); // hide divider once user has read to bottom
-    }
-  }, [viewKey]);
+  // Initialize scroll button visibility on mount — critical for async message loading (e.g., meshcore SQLite load)
+  useLayoutEffect(() => {
+    requestAnimationFrame(() => {
+      updateScrollButtonVisibility();
+    });
+  }, [updateScrollButtonVisibility]);
 
   // Auto-scroll on new messages (only if near bottom)
   useEffect(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
-    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    if (distFromBottom < 200) {
+    const distFromBottom = getDistFromChatBottom(
+      el,
+      messagesEndRef.current,
+      outerScrollMetricsRootRef?.current ?? null,
+    );
+    if (distFromBottom != null && distFromBottom < 200) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [filteredMessages.length]);
+    requestAnimationFrame(() => {
+      updateScrollButtonVisibility();
+    });
+  }, [filteredMessages.length, outerScrollMetricsRootRef, updateScrollButtonVisibility]);
+
+  // Outer shell scroll (when the message list box does not overflow on its own)
+  useEffect(() => {
+    if (!isActive) return;
+    const root = outerScrollMetricsRootRef?.current;
+    if (!root) return;
+    const onOuterScroll = () => {
+      const dist = updateScrollButtonVisibility();
+      if (dist !== undefined) applyNearBottomReadState(dist);
+    };
+    root.addEventListener('scroll', onOuterScroll, { passive: true });
+    return () => {
+      root.removeEventListener('scroll', onOuterScroll);
+    };
+  }, [applyNearBottomReadState, isActive, outerScrollMetricsRootRef, updateScrollButtonVisibility]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    const root = outerScrollMetricsRootRef?.current;
+    if (!root || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => {
+      requestAnimationFrame(() => {
+        updateScrollButtonVisibility();
+      });
+    });
+    ro.observe(root);
+    return () => {
+      ro.disconnect();
+    };
+  }, [isActive, outerScrollMetricsRootRef, updateScrollButtonVisibility]);
 
   // Fires after view switch (triggerScrollToUnread increments). useLayoutEffect
   // ensures DOM is committed before scrolling, preventing flash of wrong position.
@@ -530,7 +643,17 @@ function ChatPanel({
     } else {
       messagesEndRef.current?.scrollIntoView();
     }
-  }, [triggerScrollToUnread, isActive]);
+    requestAnimationFrame(() => {
+      updateScrollButtonVisibility();
+    });
+  }, [triggerScrollToUnread, isActive, updateScrollButtonVisibility]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    requestAnimationFrame(() => {
+      updateScrollButtonVisibility();
+    });
+  }, [isActive, viewKey, updateScrollButtonVisibility]);
 
   const scrollToUnreadOrBottom = useCallback(() => {
     if (unreadDividerRef.current) {
@@ -742,57 +865,59 @@ function ChatPanel({
   );
 
   return (
-    <div className="flex h-full max-h-[calc(100vh-10rem)] flex-col">
+    <div className="flex h-full min-h-0 min-w-0 flex-col">
       {/* Row 1 — Channel selector + Search toggle */}
-      <div className={`mb-1 flex items-center gap-2 ${viewMode === 'dm' ? 'opacity-50' : ''}`}>
-        <span className="text-muted mr-1 text-[10px] font-medium tracking-wider uppercase">
-          Channels
-        </span>
-        <button
-          aria-label="All"
-          onClick={() => {
-            setChannel(-1);
-            setViewMode('channels');
-          }}
-          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-            viewMode === 'channels' && channel === -1
-              ? 'bg-readable-green text-white'
-              : 'bg-secondary-dark text-muted hover:text-gray-200'
-          }`}
-        >
-          All
-        </button>
-        {channels.map((ch) => {
-          const unread = unreadCounts.get(ch.index) ?? 0;
-          const channelUnreadSuffix =
-            unread > 0 && !(viewMode === 'channels' && channel === ch.index)
-              ? ` ${unread > 99 ? '99+' : unread}`
-              : '';
-          return (
-            <button
-              key={ch.index}
-              aria-label={`${ch.name}${channelUnreadSuffix}`}
-              onClick={() => {
-                setChannel(ch.index);
-                setViewMode('channels');
-              }}
-              className={`relative rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                viewMode === 'channels' && channel === ch.index
-                  ? 'bg-readable-green text-white'
-                  : 'bg-secondary-dark text-muted hover:text-gray-200'
-              }`}
-            >
-              {ch.name}
-              {unread > 0 && !(viewMode === 'channels' && channel === ch.index) && (
-                <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                  {unread > 99 ? '99+' : unread}
-                </span>
-              )}
-            </button>
-          );
-        })}
-
-        <div className="flex-1" />
+      <div
+        className={`mb-1 flex min-w-0 items-center gap-2 ${viewMode === 'dm' ? 'opacity-50' : ''}`}
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
+          <span className="text-muted mr-1 shrink-0 text-[10px] font-medium tracking-wider uppercase">
+            Channels
+          </span>
+          <button
+            aria-label="All"
+            onClick={() => {
+              setChannel(-1);
+              setViewMode('channels');
+            }}
+            className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              viewMode === 'channels' && channel === -1
+                ? 'bg-readable-green text-white'
+                : 'bg-secondary-dark text-muted hover:text-gray-200'
+            }`}
+          >
+            All
+          </button>
+          {channels.map((ch) => {
+            const unread = unreadCounts.get(ch.index) ?? 0;
+            const channelUnreadSuffix =
+              unread > 0 && !(viewMode === 'channels' && channel === ch.index)
+                ? ` ${unread > 99 ? '99+' : unread}`
+                : '';
+            return (
+              <button
+                key={ch.index}
+                aria-label={`${ch.name}${channelUnreadSuffix}`}
+                onClick={() => {
+                  setChannel(ch.index);
+                  setViewMode('channels');
+                }}
+                className={`relative shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  viewMode === 'channels' && channel === ch.index
+                    ? 'bg-readable-green text-white'
+                    : 'bg-secondary-dark text-muted hover:text-gray-200'
+                }`}
+              >
+                {ch.name}
+                {unread > 0 && !(viewMode === 'channels' && channel === ch.index) && (
+                  <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                    {unread > 99 ? '99+' : unread}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
 
         {/* Search toggle */}
         <button
@@ -801,7 +926,7 @@ function ChatPanel({
           }}
           aria-pressed={showSearch}
           aria-label="Search messages"
-          className={`rounded-lg p-1.5 transition-colors ${
+          className={`shrink-0 rounded-lg p-1.5 transition-colors ${
             showSearch ? 'bg-brand-green/20 text-bright-green' : 'text-muted hover:text-gray-300'
           }`}
           title="Search messages (Cmd+F)"
@@ -825,7 +950,7 @@ function ChatPanel({
           <button
             onClick={onGlobalSearch}
             aria-label="Search all channels"
-            className="text-muted rounded-lg p-1.5 transition-colors hover:text-gray-300"
+            className="text-muted shrink-0 rounded-lg p-1.5 transition-colors hover:text-gray-300"
             title="Search all channels (Cmd+Shift+F)"
           >
             <svg
@@ -849,9 +974,9 @@ function ChatPanel({
 
       {/* Row 2 — DM tabs */}
       <div
-        className={`mb-2 flex min-h-[28px] items-center gap-2 ${viewMode === 'channels' ? 'opacity-50' : ''}`}
+        className={`mb-2 flex min-h-[28px] min-w-0 items-center gap-2 overflow-x-auto ${viewMode === 'channels' ? 'opacity-50' : ''}`}
       >
-        <span className="text-muted mr-1 text-[10px] font-medium tracking-wider uppercase">
+        <span className="text-muted mr-1 shrink-0 text-[10px] font-medium tracking-wider uppercase">
           DMs
         </span>
         {visibleDmTabs.length === 0 ? (
@@ -864,7 +989,7 @@ function ChatPanel({
             return (
               <div
                 key={nodeNum}
-                className={`relative flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                className={`relative flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                   viewMode === 'dm' && activeDmNode === nodeNum
                     ? 'bg-purple-600 text-white'
                     : 'bg-secondary-dark text-muted hover:text-gray-200'
@@ -938,262 +1063,221 @@ function ChatPanel({
       )}
 
       {/* Messages area */}
-      <div
-        ref={scrollContainerRef}
-        onScroll={handleScroll}
-        className="bg-deep-black/50 relative min-h-0 flex-1 space-y-1.5 overflow-y-auto rounded-xl p-3"
-      >
-        {filteredMessages.length === 0 ? (
-          <div className="text-muted py-12 text-center">
-            {searchQuery
-              ? 'No messages match your search.'
-              : isDmMode
-                ? `No messages with ${dmNodeName} yet.`
-                : isConnected
-                  ? 'No messages yet. Send one or wait for incoming messages.'
-                  : 'Connect to a device to start chatting.'}
-          </div>
-        ) : (
-          filteredMessages.map((msg, i) => {
-            const isOwn = msg.sender_id === myNodeNum;
-            const isDm = !!msg.to;
-            const reactionRows = getReactionRows(msg.packetId ?? msg.timestamp);
-            const messageRowKey = msg.packetId ?? msg.timestamp;
-            const showPicker = pickerOpenFor === (msg.packetId ?? msg.timestamp);
-            const pickerOpensAbove = i >= filteredMessages.length - 3;
+      <div className="relative min-h-0 flex-1">
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="bg-deep-black/50 h-full space-y-1.5 overflow-y-auto rounded-xl p-3"
+        >
+          {filteredMessages.length === 0 ? (
+            <div className="text-muted py-12 text-center">
+              {searchQuery
+                ? 'No messages match your search.'
+                : isDmMode
+                  ? `No messages with ${dmNodeName} yet.`
+                  : isConnected
+                    ? 'No messages yet. Send one or wait for incoming messages.'
+                    : 'Connect to a device to start chatting.'}
+            </div>
+          ) : (
+            filteredMessages.map((msg, i) => {
+              const isOwn = msg.sender_id === myNodeNum;
+              const isDm = !!msg.to;
+              const reactionRows = getReactionRows(msg.packetId ?? msg.timestamp);
+              const messageRowKey = msg.packetId ?? msg.timestamp;
+              const showPicker = pickerOpenFor === (msg.packetId ?? msg.timestamp);
+              const pickerOpensAbove = i >= filteredMessages.length - 3;
 
-            const senderNode = nodes.get(msg.sender_id);
-            const displaySenderName = nodeDisplayName(senderNode, protocol) || msg.sender_name;
+              const senderNode = nodes.get(msg.sender_id);
+              const displaySenderName = nodeDisplayName(senderNode, protocol) || msg.sender_name;
 
-            // Day separator
-            const daySeparator = daySeparatorIndices.has(i) ? (
-              <div className="flex items-center gap-3 py-2">
-                <div className="flex-1 border-t border-gray-700" />
-                <span className="text-muted shrink-0 text-xs font-medium">
-                  {formatDayLabel(msg.timestamp)}
-                </span>
-                <div className="flex-1 border-t border-gray-700" />
-              </div>
-            ) : null;
+              // Day separator
+              const daySeparator = daySeparatorIndices.has(i) ? (
+                <div className="flex items-center gap-3 py-2">
+                  <div className="flex-1 border-t border-gray-700" />
+                  <span className="text-muted shrink-0 text-xs font-medium">
+                    {formatDayLabel(msg.timestamp)}
+                  </span>
+                  <div className="flex-1 border-t border-gray-700" />
+                </div>
+              ) : null;
 
-            const isUnreadStart = i === unreadStartIndex;
+              const isUnreadStart = i === unreadStartIndex;
 
-            return (
-              <div
-                key={
-                  msg.id != null ? `db-${msg.id}` : `${msg.timestamp}-${msg.packetId ?? 'x'}-${i}`
-                }
-              >
-                {daySeparator}
-                {isUnreadStart && (
-                  <div ref={unreadDividerRef}>
-                    <UnreadDivider />
-                  </div>
-                )}
+              return (
                 <div
-                  className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}
-                  data-chat-message-key={messageRowKey}
+                  key={
+                    msg.id != null ? `db-${msg.id}` : `${msg.timestamp}-${msg.packetId ?? 'x'}-${i}`
+                  }
                 >
-                  {/* Bubble row */}
+                  {daySeparator}
+                  {isUnreadStart && (
+                    <div ref={unreadDividerRef}>
+                      <UnreadDivider />
+                    </div>
+                  )}
                   <div
-                    className={`group/msg flex max-w-[80%] items-end gap-1 ${
-                      isOwn ? 'flex-row-reverse' : 'flex-row'
-                    }`}
+                    className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}
+                    data-chat-message-key={messageRowKey}
                   >
-                    {/* Message bubble */}
+                    {/* Bubble row */}
                     <div
-                      className={`min-w-0 rounded-2xl px-3 py-2 ${
-                        isDm
-                          ? isOwn
-                            ? 'rounded-br-sm border border-purple-500/30 bg-purple-600/20'
-                            : 'rounded-bl-sm border border-purple-600/30 bg-purple-700/20'
-                          : isOwn
-                            ? 'rounded-br-sm border border-blue-500/30 bg-blue-600/20'
-                            : 'bg-secondary-dark/50 rounded-bl-sm border border-gray-600/30'
+                      className={`group/msg flex max-w-[80%] items-end gap-1 ${
+                        isOwn ? 'flex-row-reverse' : 'flex-row'
                       }`}
                     >
-                      {/* Header: sender name (clickable) + DM indicator + time */}
-                      <div className="mb-0.5 flex items-center gap-2">
-                        <button
-                          onClick={() => {
-                            onNodeClick(msg.sender_id);
-                          }}
-                          className={`cursor-pointer text-xs font-semibold hover:underline ${
-                            isDm ? 'text-purple-400' : isOwn ? 'text-blue-400' : 'text-bright-green'
-                          }`}
-                        >
-                          {displaySenderName}
-                        </button>
-                        {isDm && (
-                          <span className="text-[10px] font-medium text-purple-400/70">DM</span>
-                        )}
-                        <span className="text-muted/70 text-[10px]">
-                          {formatTime(msg.timestamp)}
-                        </span>
-                        {channels.length > 1 && !isDm && (
-                          <span className="text-[10px] text-gray-600">ch{msg.channel}</span>
+                      {/* Message bubble */}
+                      <div
+                        className={`min-w-0 rounded-2xl px-3 py-2 ${
+                          isDm
+                            ? isOwn
+                              ? 'rounded-br-sm border border-purple-500/30 bg-purple-600/20'
+                              : 'rounded-bl-sm border border-purple-600/30 bg-purple-700/20'
+                            : isOwn
+                              ? 'rounded-br-sm border border-blue-500/30 bg-blue-600/20'
+                              : 'bg-secondary-dark/50 rounded-bl-sm border border-gray-600/30'
+                        }`}
+                      >
+                        {/* Header: sender name (clickable) + DM indicator + time */}
+                        <div className="mb-0.5 flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              onNodeClick(msg.sender_id);
+                            }}
+                            className={`cursor-pointer text-xs font-semibold hover:underline ${
+                              isDm
+                                ? 'text-purple-400'
+                                : isOwn
+                                  ? 'text-blue-400'
+                                  : 'text-bright-green'
+                            }`}
+                          >
+                            {displaySenderName}
+                          </button>
+                          {isDm && (
+                            <span className="text-[10px] font-medium text-purple-400/70">DM</span>
+                          )}
+                          <span className="text-muted/70 text-[10px]">
+                            {formatTime(msg.timestamp)}
+                          </span>
+                          {channels.length > 1 && !isDm && (
+                            <span className="text-[10px] text-gray-600">ch{msg.channel}</span>
+                          )}
+                        </div>
+
+                        {/* Quoted reply preview */}
+                        {msg.replyId &&
+                          !msg.emoji &&
+                          (() => {
+                            const orig = messageByReplyKey.get(msg.replyId);
+                            const quoteSnippet = orig
+                              ? truncateReplyPreviewText(orig.payload)
+                              : msg.replyPreviewText;
+                            const quotedLabel = orig
+                              ? nodeDisplayName(nodes.get(orig.sender_id), protocol) ||
+                                orig.sender_name
+                              : msg.replyPreviewSender;
+                            if (!quoteSnippet && !quotedLabel) return null;
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  scrollToQuotedParent(msg.replyId!);
+                                }}
+                                className="bg-secondary-dark/50 hover:bg-secondary-dark/80 mb-1.5 flex w-full gap-1.5 rounded-lg border border-gray-600/50 px-2 py-1.5 text-left transition-colors"
+                                aria-label={`Jump to quoted message from ${quotedLabel ?? ''}`}
+                              >
+                                <div className="min-h-[2rem] w-0.5 shrink-0 self-stretch rounded-full bg-gray-500" />
+                                <div className="min-w-0 flex-1">
+                                  <span className="block text-[10px] font-semibold text-gray-400">
+                                    {quotedLabel}
+                                  </span>
+                                  <span className="line-clamp-2 block text-[11px] break-words text-gray-500">
+                                    {quoteSnippet}
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          })()}
+
+                        {/* Message text with optional search highlight */}
+                        <p className="text-sm leading-relaxed break-words whitespace-pre-wrap text-gray-200">
+                          <ChatPayloadText text={msg.payload} query={searchQuery} />
+                        </p>
+
+                        {/* Transport indicator for incoming messages (MeshCore is RF-first; hide redundant RF-only badge) */}
+                        {!isOwn &&
+                          msg.receivedVia &&
+                          (protocol !== 'meshcore' ||
+                            msg.receivedVia === 'mqtt' ||
+                            msg.receivedVia === 'both') && (
+                            <div className="mt-0.5 flex items-center justify-end">
+                              <TransportBadge via={msg.receivedVia} />
+                            </div>
+                          )}
+
+                        {/* Delivery status for own messages */}
+                        {isOwn && (msg.status || msg.mqttStatus) && (
+                          <div className="mt-0.5 flex items-center justify-end gap-1">
+                            {isOwn && msg.status === 'failed' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onResend(msg);
+                                }}
+                                className="text-gray-500 transition-colors hover:text-gray-300"
+                                title="Resend message"
+                              >
+                                <svg
+                                  className="h-3.5 w-3.5"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth={2}
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                  />
+                                </svg>
+                              </button>
+                            )}
+                            {msg.mqttStatus ? (
+                              <>
+                                <StatusBadge status={msg.mqttStatus} transport="mqtt" />
+                                {msg.status && (
+                                  <StatusBadge
+                                    status={msg.status}
+                                    transport="device"
+                                    connectionType={connectionType}
+                                    error={msg.error}
+                                  />
+                                )}
+                              </>
+                            ) : msg.status ? (
+                              <StatusBadge
+                                status={msg.status}
+                                transport={isMqttOnly ? 'mqtt' : 'device'}
+                                connectionType={connectionType}
+                                error={msg.error}
+                              />
+                            ) : null}
+                          </div>
                         )}
                       </div>
 
-                      {/* Quoted reply preview */}
-                      {msg.replyId &&
-                        !msg.emoji &&
-                        messageByReplyKey.has(msg.replyId) &&
-                        (() => {
-                          const orig = messageByReplyKey.get(msg.replyId)!;
-                          const quoteSnippet =
-                            orig.payload.length > 80
-                              ? orig.payload.slice(0, 80) + '…'
-                              : orig.payload;
-                          const quotedLabel =
-                            nodeDisplayName(nodes.get(orig.sender_id), protocol) ||
-                            orig.sender_name;
-                          return (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                scrollToQuotedParent(msg.replyId!);
-                              }}
-                              className="bg-secondary-dark/50 hover:bg-secondary-dark/80 mb-1.5 flex w-full gap-1.5 rounded-lg border border-gray-600/50 px-2 py-1.5 text-left transition-colors"
-                              aria-label={`Jump to quoted message from ${quotedLabel}`}
-                            >
-                              <div className="min-h-[2rem] w-0.5 shrink-0 self-stretch rounded-full bg-gray-500" />
-                              <div className="min-w-0 flex-1">
-                                <span className="block text-[10px] font-semibold text-gray-400">
-                                  {quotedLabel}
-                                </span>
-                                <span className="block truncate text-[11px] text-gray-500">
-                                  {quoteSnippet}
-                                </span>
-                              </div>
-                            </button>
-                          );
-                        })()}
-
-                      {/* Message text with optional search highlight */}
-                      <p className="text-sm leading-relaxed break-words whitespace-pre-wrap text-gray-200">
-                        <ChatPayloadText text={msg.payload} query={searchQuery} />
-                      </p>
-
-                      {/* Transport indicator for incoming messages (MeshCore is RF-first; hide redundant RF-only badge) */}
-                      {!isOwn &&
-                        msg.receivedVia &&
-                        (protocol !== 'meshcore' ||
-                          msg.receivedVia === 'mqtt' ||
-                          msg.receivedVia === 'both') && (
-                          <div className="mt-0.5 flex items-center justify-end">
-                            <TransportBadge via={msg.receivedVia} />
-                          </div>
-                        )}
-
-                      {/* Delivery status for own messages */}
-                      {isOwn && (msg.status || msg.mqttStatus) && (
-                        <div className="mt-0.5 flex items-center justify-end gap-1">
-                          {isOwn && msg.status === 'failed' && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onResend(msg);
-                              }}
-                              className="text-gray-500 transition-colors hover:text-gray-300"
-                              title="Resend message"
-                            >
-                              <svg
-                                className="h-3.5 w-3.5"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth={2}
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                                />
-                              </svg>
-                            </button>
-                          )}
-                          {msg.mqttStatus ? (
-                            <>
-                              <StatusBadge status={msg.mqttStatus} transport="mqtt" />
-                              {msg.status && (
-                                <StatusBadge
-                                  status={msg.status}
-                                  transport="device"
-                                  connectionType={connectionType}
-                                  error={msg.error}
-                                />
-                              )}
-                            </>
-                          ) : msg.status ? (
-                            <StatusBadge
-                              status={msg.status}
-                              transport={isMqttOnly ? 'mqtt' : 'device'}
-                              connectionType={connectionType}
-                              error={msg.error}
-                            />
-                          ) : null}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Inline reaction trigger — visible on hover or focus-within */}
-                    {isConnected && (
-                      <div className="flex shrink-0 gap-0.5 opacity-0 transition-all group-focus-within/msg:opacity-100 group-hover/msg:opacity-100">
-                        <button
-                          onClick={() => {
-                            setReplyTo(msg);
-                            inputRef.current?.focus();
-                          }}
-                          className="rounded p-1 text-xs text-gray-600 hover:text-blue-400"
-                          aria-label="Reply to message"
-                          title="Reply"
-                        >
-                          <svg
-                            className="h-3.5 w-3.5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={2}
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"
-                            />
-                          </svg>
-                        </button>
-                        {/* React */}
-                        <button
-                          onClick={() => {
-                            setPickerOpenFor(showPicker ? null : (msg.packetId ?? msg.timestamp));
-                          }}
-                          className="rounded p-1 text-xs text-gray-600 hover:text-gray-300"
-                          aria-label="Add reaction"
-                          title="React"
-                        >
-                          <svg
-                            className="h-3.5 w-3.5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={2}
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                            />
-                          </svg>
-                        </button>
-                        {/* Quick DM */}
-                        {!isOwn && (
+                      {/* Inline reaction trigger — visible on hover or focus-within */}
+                      {isConnected && (
+                        <div className="flex shrink-0 gap-0.5 opacity-0 transition-all group-focus-within/msg:opacity-100 group-hover/msg:opacity-100">
                           <button
                             onClick={() => {
-                              openDmTo(msg.sender_id);
+                              setReplyTo(msg);
+                              inputRef.current?.focus();
                             }}
-                            className="rounded p-1 text-xs text-gray-600 hover:text-purple-400"
-                            title={`Direct message ${msg.sender_name}`}
+                            className="rounded p-1 text-xs text-gray-600 hover:text-blue-400"
+                            aria-label="Reply to message"
+                            title="Reply"
                           >
                             <svg
                               className="h-3.5 w-3.5"
@@ -1205,102 +1289,157 @@ function ChatPanel({
                               <path
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
-                                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                                d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"
                               />
                             </svg>
                           </button>
-                        )}
+                          {/* React */}
+                          <button
+                            onClick={() => {
+                              setPickerOpenFor(showPicker ? null : (msg.packetId ?? msg.timestamp));
+                            }}
+                            className="rounded p-1 text-xs text-gray-600 hover:text-gray-300"
+                            aria-label="Add reaction"
+                            title="React"
+                          >
+                            <svg
+                              className="h-3.5 w-3.5"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                              />
+                            </svg>
+                          </button>
+                          {/* Quick DM */}
+                          {!isOwn && (
+                            <button
+                              onClick={() => {
+                                openDmTo(msg.sender_id);
+                              }}
+                              className="rounded p-1 text-xs text-gray-600 hover:text-purple-400"
+                              title={`Direct message ${msg.sender_name}`}
+                            >
+                              <svg
+                                className="h-3.5 w-3.5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={2}
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                                />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Emoji picker */}
+                    {showPicker && (
+                      <div
+                        className={`bg-secondary-dark flex flex-col gap-0.5 rounded-xl border border-gray-600 px-2 py-1.5 shadow-lg ${
+                          pickerOpensAbove ? 'order-first mb-1' : 'mt-1'
+                        } ${isOwn ? 'self-end' : 'self-start'}`}
+                      >
+                        <div className="flex gap-1">
+                          {REACTION_EMOJIS.slice(0, 6).map((re) => (
+                            <button
+                              key={re.code}
+                              onClick={() =>
+                                handleReact(re.code, msg.packetId ?? msg.timestamp, msg.channel)
+                              }
+                              className="px-0.5 text-lg transition-transform hover:scale-125"
+                              title={re.name}
+                            >
+                              {re.label}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="flex justify-center gap-1">
+                          {REACTION_EMOJIS.slice(6).map((re) => (
+                            <button
+                              key={re.code}
+                              onClick={() =>
+                                handleReact(re.code, msg.packetId ?? msg.timestamp, msg.channel)
+                              }
+                              className="px-0.5 text-lg transition-transform hover:scale-125"
+                              title={re.name}
+                            >
+                              {re.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Reaction badges */}
+                    {reactionRows.length > 0 && (
+                      <div
+                        className={`mt-0.5 flex max-w-full flex-row flex-wrap gap-1 ${
+                          isOwn ? 'justify-end' : 'justify-start'
+                        }`}
+                      >
+                        {reactionRows.map((r, rIdx) => {
+                          const hideReactorLabel = !isOwn && r.sender_id === myNodeNum;
+                          const reactorLabel =
+                            nodeDisplayName(nodes.get(r.sender_id), protocol) || r.sender_name;
+                          const emojiChar = emojiDisplayChar(r.emoji);
+                          const reactionName = emojiDisplayLabel(r.emoji);
+                          const titleText = hideReactorLabel
+                            ? `${reactionName} (you)`
+                            : `${reactorLabel}: ${reactionName}`;
+                          const ariaLabel = hideReactorLabel
+                            ? `Your reaction: ${reactionName}`
+                            : `${reactorLabel} reacted with ${reactionName}`;
+                          return (
+                            <span
+                              key={
+                                r.id != null ? `r-${r.id}` : `r-${r.sender_id}-${r.emoji}-${rIdx}`
+                              }
+                              className="bg-secondary-dark/80 inline-flex max-w-[min(100%,14rem)] cursor-default items-center gap-1 rounded-full border border-gray-600/50 px-1.5 py-0.5 text-xs"
+                              title={titleText}
+                              aria-label={ariaLabel}
+                            >
+                              {!hideReactorLabel && (
+                                <span className="max-w-[5.5rem] truncate text-[10px] text-gray-400">
+                                  {reactorLabel}
+                                </span>
+                              )}
+                              <span className="shrink-0">{emojiChar}</span>
+                            </span>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
-
-                  {/* Emoji picker */}
-                  {showPicker && (
-                    <div
-                      className={`bg-secondary-dark flex flex-col gap-0.5 rounded-xl border border-gray-600 px-2 py-1.5 shadow-lg ${
-                        pickerOpensAbove ? 'order-first mb-1' : 'mt-1'
-                      } ${isOwn ? 'self-end' : 'self-start'}`}
-                    >
-                      <div className="flex gap-1">
-                        {REACTION_EMOJIS.slice(0, 6).map((re) => (
-                          <button
-                            key={re.code}
-                            onClick={() =>
-                              handleReact(re.code, msg.packetId ?? msg.timestamp, msg.channel)
-                            }
-                            className="px-0.5 text-lg transition-transform hover:scale-125"
-                            title={re.name}
-                          >
-                            {re.label}
-                          </button>
-                        ))}
-                      </div>
-                      <div className="flex justify-center gap-1">
-                        {REACTION_EMOJIS.slice(6).map((re) => (
-                          <button
-                            key={re.code}
-                            onClick={() =>
-                              handleReact(re.code, msg.packetId ?? msg.timestamp, msg.channel)
-                            }
-                            className="px-0.5 text-lg transition-transform hover:scale-125"
-                            title={re.name}
-                          >
-                            {re.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Reaction badges */}
-                  {reactionRows.length > 0 && (
-                    <div
-                      className={`mt-0.5 flex max-w-full flex-row flex-wrap gap-1 ${
-                        isOwn ? 'justify-end' : 'justify-start'
-                      }`}
-                    >
-                      {reactionRows.map((r, rIdx) => {
-                        const hideReactorLabel = !isOwn && r.sender_id === myNodeNum;
-                        const reactorLabel =
-                          nodeDisplayName(nodes.get(r.sender_id), protocol) || r.sender_name;
-                        const emojiChar = emojiDisplayChar(r.emoji);
-                        const reactionName = emojiDisplayLabel(r.emoji);
-                        const titleText = hideReactorLabel
-                          ? `${reactionName} (you)`
-                          : `${reactorLabel}: ${reactionName}`;
-                        const ariaLabel = hideReactorLabel
-                          ? `Your reaction: ${reactionName}`
-                          : `${reactorLabel} reacted with ${reactionName}`;
-                        return (
-                          <span
-                            key={r.id != null ? `r-${r.id}` : `r-${r.sender_id}-${r.emoji}-${rIdx}`}
-                            className="bg-secondary-dark/80 inline-flex max-w-[min(100%,14rem)] cursor-default items-center gap-1 rounded-full border border-gray-600/50 px-1.5 py-0.5 text-xs"
-                            title={titleText}
-                            aria-label={ariaLabel}
-                          >
-                            {!hideReactorLabel && (
-                              <span className="max-w-[5.5rem] truncate text-[10px] text-gray-400">
-                                {reactorLabel}
-                              </span>
-                            )}
-                            <span className="shrink-0">{emojiChar}</span>
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
-              </div>
-            );
-          })
-        )}
-        <div ref={messagesEndRef} />
+              );
+            })
+          )}
+          <div ref={messagesEndRef} />
+        </div>
 
         {/* Scroll to unread / bottom button */}
         {showScrollButton && (
           <button
-            onClick={scrollToUnreadOrBottom}
-            className="bg-secondary-dark sticky bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-gray-600 px-3 py-1.5 text-xs font-medium text-gray-300 shadow-lg transition-all hover:bg-gray-600"
+            onClick={() => {
+              if (unreadDividerRef.current) {
+                scrollToUnreadOrBottom();
+              } else {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+              }
+            }}
+            className="bg-secondary-dark absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-gray-600 px-3 py-1.5 text-xs font-medium text-gray-300 shadow-lg transition-all hover:bg-gray-600"
           >
             <svg
               className="h-3.5 w-3.5"
@@ -1311,7 +1450,7 @@ function ChatPanel({
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
             </svg>
-            Jump to Unread
+            {unreadDividerRef.current ? 'Jump to Unread' : 'Jump to Latest'}
           </button>
         )}
       </div>
@@ -1395,7 +1534,7 @@ function ChatPanel({
       )}
 
       {/* Input area — textarea so Chromium applies spellcheck (single-line inputs often skip it) */}
-      <div className="mt-2 flex gap-2">
+      <div className="mt-1 flex min-w-0 gap-2">
         <textarea
           ref={inputRef}
           rows={1}

@@ -137,6 +137,47 @@ export const CONTACT_TYPE_LABELS: Record<number, string> = {
   4: 'Sensor',
 };
 
+const DEVICE_QUERY_MODEL_KEYS = [
+  'manufacturerModel',
+  'manufacturer_model',
+  'model',
+  'deviceModel',
+  'device_model',
+  'board',
+  'boardName',
+  'board_name',
+] as const;
+
+function meshcoreStringFromDeviceQueryField(value: unknown): string | undefined {
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return undefined;
+}
+
+/**
+ * Reads manufacturer/board model from meshcore.js `deviceQuery()` payloads.
+ * Different firmware or transport layers may use different property names or nest
+ * fields under `data` / `payload`.
+ */
+export function meshcoreManufacturerModelFromDeviceQuery(
+  info: unknown,
+  depth = 0,
+): string | undefined {
+  if (info === null || info === undefined || typeof info !== 'object') return undefined;
+  if (depth > 2) return undefined;
+  const r = info as Record<string, unknown>;
+  for (const k of DEVICE_QUERY_MODEL_KEYS) {
+    const s = meshcoreStringFromDeviceQueryField(r[k]);
+    if (s) return s;
+  }
+  for (const nest of ['data', 'payload', 'result'] as const) {
+    const inner = r[nest];
+    const found = meshcoreManufacturerModelFromDeviceQuery(inner, depth + 1);
+    if (found) return found;
+  }
+  return undefined;
+}
+
 /** Reverse of {@link CONTACT_TYPE_LABELS} for persisting merged UI `hw_model` to DB `contact_type`. */
 export function meshcoreContactTypeFromHwModel(hwModel: string): number | undefined {
   for (const [typeNum, label] of Object.entries(CONTACT_TYPE_LABELS)) {
@@ -149,8 +190,10 @@ export function meshcoreContactTypeFromHwModel(hwModel: string): number | undefi
  * Map measured cell voltage to an approximate 0–100% for UI (e.g. node list bar).
  * Uses a simple 1S LiPo-style linear range (3.5 V empty → 4.2 V full); not accurate for all chemistries or loads.
  */
-export function meshcoreMilliVoltsToApproximateBatteryPercent(milliVolts: number): number {
-  if (!Number.isFinite(milliVolts) || milliVolts <= 0) return 0;
+export function meshcoreMilliVoltsToApproximateBatteryPercent(
+  milliVolts: number,
+): number | undefined {
+  if (!Number.isFinite(milliVolts) || milliVolts <= 0) return undefined;
   const v = milliVolts / 1000;
   const emptyV = 3.5;
   const fullV = 4.2;

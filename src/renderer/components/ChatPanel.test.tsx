@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
 
 import type { MeshNode } from '../lib/types';
-import ChatPanel from './ChatPanel';
+import ChatPanel, { getDistFromChatBottom } from './ChatPanel';
 import { ToastProvider } from './Toast';
 
 describe('ChatPanel accessibility', () => {
@@ -481,6 +481,70 @@ describe('ChatPanel accessibility', () => {
     expect(screen.queryByRole('button', { name: 'Alice' })).not.toBeInTheDocument();
   });
 
+  it('shows Jump to Latest when content overflows without manual scroll event', async () => {
+    const baseTs = Date.now() - 50_000;
+    const longMessages = Array.from({ length: 30 }, (_, idx) => ({
+      sender_id: idx % 2 === 0 ? 2 : 1,
+      sender_name: idx % 2 === 0 ? 'Alice' : 'Me',
+      payload: `message ${idx} `.repeat(20),
+      channel: 0,
+      timestamp: baseTs + idx * 1000,
+      status: 'acked' as const,
+    }));
+
+    const { container } = render(
+      <ToastProvider>
+        <ChatPanel {...defaultProps} isConnected myNodeNum={1} messages={longMessages} />
+      </ToastProvider>,
+    );
+
+    const scrollContainer = container.querySelector('div.overflow-y-auto')!;
+    Object.defineProperty(scrollContainer, 'scrollHeight', { value: 2000, configurable: true });
+    Object.defineProperty(scrollContainer, 'clientHeight', { value: 400, configurable: true });
+    Object.defineProperty(scrollContainer, 'scrollTop', {
+      value: 0,
+      writable: true,
+      configurable: true,
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Jump to Latest' })).toBeInTheDocument();
+    });
+  });
+
+  it('shows Jump to Latest when slightly scrolled from bottom', async () => {
+    const baseTs = Date.now() - 50_000;
+    const longMessages = Array.from({ length: 30 }, (_, idx) => ({
+      sender_id: idx % 2 === 0 ? 2 : 1,
+      sender_name: idx % 2 === 0 ? 'Alice' : 'Me',
+      payload: `message ${idx} `.repeat(20),
+      channel: 0,
+      timestamp: baseTs + idx * 1000,
+      status: 'acked' as const,
+    }));
+
+    const { container } = render(
+      <ToastProvider>
+        <ChatPanel {...defaultProps} isConnected myNodeNum={1} messages={longMessages} />
+      </ToastProvider>,
+    );
+
+    const scrollContainer = container.querySelector('div.overflow-y-auto')!;
+    Object.defineProperty(scrollContainer, 'scrollHeight', { value: 2000, configurable: true });
+    Object.defineProperty(scrollContainer, 'clientHeight', { value: 400, configurable: true });
+    // distFromBottom = 300 → showScrollButton on (>200), label should be "Jump to Latest" (no divider)
+    Object.defineProperty(scrollContainer, 'scrollTop', {
+      value: 1300,
+      writable: true,
+      configurable: true,
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Jump to Latest' })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('button', { name: 'Jump to Unread' })).not.toBeInTheDocument();
+  });
+
   it('shows role="alert" when onSend rejects', async () => {
     const user = userEvent.setup();
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -502,6 +566,81 @@ describe('ChatPanel accessibility', () => {
       expect.any(Error),
     );
     consoleErrorSpy.mockRestore();
+  });
+});
+
+describe('getDistFromChatBottom', () => {
+  it('uses inner scroller when it overflows', () => {
+    const inner = document.createElement('div');
+    Object.defineProperty(inner, 'scrollHeight', { value: 500, configurable: true });
+    Object.defineProperty(inner, 'clientHeight', { value: 100, configurable: true });
+    inner.scrollTop = 50;
+    expect(getDistFromChatBottom(inner, null, null)).toBe(350);
+  });
+
+  it('uses max of inner and sentinel when inner is at bottom but end is below outer root', () => {
+    const inner = document.createElement('div');
+    Object.defineProperty(inner, 'scrollHeight', { value: 500, configurable: true });
+    Object.defineProperty(inner, 'clientHeight', { value: 100, configurable: true });
+    inner.scrollTop = 400;
+
+    const root = document.createElement('div');
+    const end = document.createElement('div');
+    vi.spyOn(root, 'getBoundingClientRect').mockReturnValue({
+      top: 0,
+      left: 0,
+      right: 800,
+      bottom: 600,
+      width: 800,
+      height: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(end, 'getBoundingClientRect').mockReturnValue({
+      top: 100,
+      left: 0,
+      right: 400,
+      bottom: 680,
+      width: 400,
+      height: 580,
+      x: 0,
+      y: 100,
+      toJSON: () => ({}),
+    });
+    expect(getDistFromChatBottom(inner, end, root)).toBe(80);
+  });
+
+  it('uses message end vs outer root when inner does not overflow', () => {
+    const inner = document.createElement('div');
+    Object.defineProperty(inner, 'scrollHeight', { value: 400, configurable: true });
+    Object.defineProperty(inner, 'clientHeight', { value: 400, configurable: true });
+
+    const root = document.createElement('div');
+    const end = document.createElement('div');
+    vi.spyOn(root, 'getBoundingClientRect').mockReturnValue({
+      top: 0,
+      left: 0,
+      right: 800,
+      bottom: 600,
+      width: 800,
+      height: 600,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(end, 'getBoundingClientRect').mockReturnValue({
+      top: 100,
+      left: 0,
+      right: 400,
+      bottom: 750,
+      width: 400,
+      height: 650,
+      x: 0,
+      y: 100,
+      toJSON: () => ({}),
+    });
+    expect(getDistFromChatBottom(inner, end, root)).toBe(150);
   });
 });
 
@@ -653,6 +792,33 @@ describe('ChatPanel StatusBadge', () => {
     expect(
       screen.getByRole('button', { name: /Jump to quoted message from Alice/i }),
     ).toBeInTheDocument();
+  });
+
+  it('renders quoted preview from stored replyPreview fields when parent is not in messages', () => {
+    render(
+      <ToastProvider>
+        <ChatPanel
+          {...baseProps}
+          messages={[
+            {
+              sender_id: 3,
+              sender_name: 'Bob',
+              payload: 'reply text',
+              channel: 0,
+              timestamp: Date.now(),
+              replyId: 424242,
+              replyPreviewText: 'Saved parent snippet',
+              replyPreviewSender: 'Alice',
+              status: 'acked',
+            },
+          ]}
+        />
+      </ToastProvider>,
+    );
+    expect(
+      screen.getByRole('button', { name: /Jump to quoted message from Alice/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Saved parent snippet')).toBeInTheDocument();
   });
 
   it('shows tooltip on hover and does not use a native title attribute', async () => {

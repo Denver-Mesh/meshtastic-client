@@ -12,6 +12,7 @@ const DEFAULT_TAB_NAMES = [
   'TAK',
   'App',
   'Diagnostics',
+  'Stats',
   'Sniffer',
 ];
 
@@ -40,7 +41,7 @@ export default function KeyboardShortcutsModal({ onClose, tabNames }: KeyboardSh
 
   const shortcuts = useMemo(() => {
     const currentNames = tabNames ?? DEFAULT_TAB_NAMES;
-    const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'A', 'S'];
+    const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'A', 'D', 'S'];
     const tabShortcuts = DEFAULT_TAB_NAMES.map((name, i) => {
       const currentTabIndex = currentNames.indexOf(name);
       const currentTabAtPosition = currentNames[i];
@@ -165,9 +166,9 @@ export default function KeyboardShortcutsModal({ onClose, tabNames }: KeyboardSh
             </tbody>
           </table>
           <p className="text-muted mt-3 text-xs leading-relaxed">
-            Cmd/Ctrl+0, A, and S switch to the App, Diagnostics, and Packet Sniffer tabs by name
-            when those tabs are visible (not by fixed slot, so shortcuts stay correct when some tabs
-            are hidden).
+            Cmd/Ctrl+0, A, D, and S switch to the App, Diagnostics, Stats, and Packet Sniffer tabs
+            by name when those tabs are visible (not by fixed slot, so shortcuts stay correct when
+            some tabs are hidden).
           </p>
         </div>
       </div>

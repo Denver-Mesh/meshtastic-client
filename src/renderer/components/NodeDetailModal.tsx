@@ -7,6 +7,7 @@ import type {
 } from '../hooks/useMeshCore';
 import { useMeshcoreRepeaterRemoteAuth } from '../hooks/useMeshcoreRepeaterRemoteAuth';
 import { formatCoordPair } from '../lib/coordUtils';
+import { meshtasticHwModelDisplay } from '../lib/hardwareModels';
 import {
   MESHCORE_CHAT_STUB_ID_MAX,
   MESHCORE_CHAT_STUB_ID_MIN,
@@ -20,6 +21,8 @@ import { useCoordFormatStore } from '../stores/coordFormatStore';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
 import NodeInfoBody, { formatSecondsAgo } from './NodeInfoBody';
 import SnrIndicator from './SnrIndicator';
+
+const TRACE_ROUTE_UI_TIMEOUT_MS = 120_000;
 
 interface NodeDetailModalProps {
   /** Optional: enables originator list for Mesh Congestion (RF duplicate-prone by node). */
@@ -58,6 +61,8 @@ interface NodeDetailModalProps {
   onShareContact?: (nodeId: number) => Promise<boolean>;
   /** Local stats for MeshCore connected node (Type 1 & 2) */
   meshcoreLocalStats?: MeshCoreLocalStats | null;
+  /** MeshCore: local radio manufacturer/model from `deviceQuery` (our node only in body). */
+  meshcoreManufacturerModel?: string;
 }
 
 export default function NodeDetailModal({
@@ -90,6 +95,7 @@ export default function NodeDetailModal({
   onExportContact,
   onShareContact,
   meshcoreLocalStats,
+  meshcoreManufacturerModel,
 }: NodeDetailModalProps) {
   const { ensureConfigured, RemoteAuthModal } = useMeshcoreRepeaterRemoteAuth();
   const coordinateFormat = useCoordFormatStore((s) => s.coordinateFormat);
@@ -175,16 +181,6 @@ export default function NodeDetailModal({
     };
   }, [positionRequestedAt]);
 
-  // Clear trace route pending when result arrives
-  useEffect(() => {
-    if (traceRouteHops) setTraceRoutePending(false);
-  }, [traceRouteHops]);
-
-  // Clear trace route pending when MeshCore result arrives
-  useEffect(() => {
-    if (meshcoreTraceResult) setTraceRoutePending(false);
-  }, [meshcoreTraceResult]);
-
   // Auto-show repeater stats when they arrive
   useEffect(() => {
     if (meshcoreRepeaterStatus) {
@@ -258,10 +254,13 @@ export default function NodeDetailModal({
   // Align with MESHCORE_TRACE_PING_TOTAL_TIMEOUT_MS (queue + tracePath in useMeshCore)
   useEffect(() => {
     if (!traceRoutePending) return;
-    const timer = setTimeout(() => {
-      setTraceRoutePending(false);
-      setActionStatus('Trace route timed out');
-    }, MESHCORE_TRACE_PING_TOTAL_TIMEOUT_MS);
+    const timer = setTimeout(
+      () => {
+        setTraceRoutePending(false);
+        setActionStatus('Trace route timed out');
+      },
+      Math.max(MESHCORE_TRACE_PING_TOTAL_TIMEOUT_MS, TRACE_ROUTE_UI_TIMEOUT_MS),
+    );
     return () => {
       clearTimeout(timer);
     };
@@ -269,16 +268,23 @@ export default function NodeDetailModal({
 
   if (!node) return null;
 
-  const headerHopsDisplay =
-    protocol === 'meshcore' && meshcoreTraceResult != null
-      ? meshcoreTracePathLenToHops(meshcoreTraceResult.pathLen)
-      : node.hops_away;
-
   const hexId = `!${node.node_id.toString(16)}`;
   // Check if this appears to be a node with incomplete data (empty names and no role)
   const isIncomplete = !node.short_name && !node.long_name && node.role === undefined;
   const displayName = node.short_name || node.long_name || hexId;
   const isOurNode = node.node_id === homeNode?.node_id;
+
+  const headerHardwareSubtitle =
+    protocol === 'meshtastic'
+      ? meshtasticHwModelDisplay(node.hw_model)
+      : protocol === 'meshcore' && isOurNode && meshcoreManufacturerModel
+        ? meshcoreManufacturerModel
+        : node.hw_model?.trim() || null;
+
+  const headerHopsDisplay =
+    protocol === 'meshcore' && meshcoreTraceResult != null
+      ? meshcoreTracePathLenToHops(meshcoreTraceResult.pathLen)
+      : node.hops_away;
 
   const handleRequestPosition = async () => {
     setPositionRequestedAt(Date.now());
@@ -352,8 +358,8 @@ export default function NodeDetailModal({
                     {headerHopsDisplay} hop{headerHopsDisplay !== 1 ? 's' : ''}
                   </span>
                 )}
-                {node.hw_model && node.hw_model !== '0' && (
-                  <span className="text-muted text-xs">{node.hw_model}</span>
+                {headerHardwareSubtitle != null && (
+                  <span className="text-muted text-xs">{headerHardwareSubtitle}</span>
                 )}
                 {/* MeshCore contact status badges */}
                 {protocol === 'meshcore' && contactPubkey && (
@@ -453,6 +459,7 @@ export default function NodeDetailModal({
               nodes={nodes}
               useFahrenheit={useFahrenheit}
               protocol={protocol}
+              meshcoreManufacturerModel={meshcoreManufacturerModel}
             />
 
             {protocol === 'meshcore' &&
@@ -969,7 +976,7 @@ export default function NodeDetailModal({
               )}
               <button
                 onClick={handleTraceRoute}
-                disabled={!isConnected || traceRoutePending}
+                disabled={!isConnected}
                 className="bg-secondary-dark min-w-[8rem] flex-1 rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 🛤 {traceRoutePending ? 'Tracing...' : 'Trace Route'}

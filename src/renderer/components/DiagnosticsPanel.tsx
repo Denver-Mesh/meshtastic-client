@@ -16,9 +16,10 @@ import {
 } from '../lib/diagnostics/RemediationEngine';
 import { diagnoseConnectedNode, hasLocalStatsData } from '../lib/diagnostics/RFDiagnosticEngine';
 import type { OurPosition } from '../lib/gpsSource';
+import { startNetworkDiscovery } from '../lib/networkDiscovery';
 import type { ProtocolCapabilities } from '../lib/radio/BaseRadioProvider';
 import { MS_PER_DAY, MS_PER_HOUR, MS_PER_MINUTE } from '../lib/timeConstants';
-import type { DiagnosticRow, MeshNode } from '../lib/types';
+import type { DiagnosticRow, MeshNode, MeshProtocol } from '../lib/types';
 import { routingRowToNodeAnomaly } from '../lib/types';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
 import MeshCongestionAttributionBlock from './MeshCongestionAttributionBlock';
@@ -44,6 +45,8 @@ interface Props {
   onNodeClick?: (node: MeshNode) => void;
   /** Protocol capabilities — controls which sections are shown (MQTT controls hidden for MeshCore). */
   capabilities?: ProtocolCapabilities;
+  /** Active radio protocol — auto-traceroute preference is stored per protocol. */
+  protocol: MeshProtocol;
 }
 
 function AlertTriangleIcon({ className }: { className?: string }) {
@@ -101,6 +104,7 @@ export default function DiagnosticsPanel({
   ourPosition,
   onNodeClick,
   capabilities,
+  protocol,
 }: Props) {
   const showMqttControls = capabilities?.hasMqttHybrid !== false;
   const diagnosticRows = useDiagnosticsStore((s) => s.diagnosticRows);
@@ -117,6 +121,13 @@ export default function DiagnosticsPanel({
   const congestionHalosEnabled = useDiagnosticsStore((s) => s.congestionHalosEnabled);
   const setCongestionHalosEnabled = useDiagnosticsStore((s) => s.setCongestionHalosEnabled);
   const anomalyHalosEnabled = useDiagnosticsStore((s) => s.anomalyHalosEnabled);
+  const autoTracerouteEnabledMeshtastic = useDiagnosticsStore(
+    (s) => s.autoTracerouteEnabledMeshtastic,
+  );
+  const autoTracerouteEnabledMeshcore = useDiagnosticsStore((s) => s.autoTracerouteEnabledMeshcore);
+  const setAutoTracerouteEnabled = useDiagnosticsStore((s) => s.setAutoTracerouteEnabled);
+  const autoTracerouteEnabled =
+    protocol === 'meshcore' ? autoTracerouteEnabledMeshcore : autoTracerouteEnabledMeshtastic;
   const setAnomalyHalosEnabled = useDiagnosticsStore((s) => s.setAnomalyHalosEnabled);
   const ignoreMqttEnabled = useDiagnosticsStore((s) => s.ignoreMqttEnabled);
   const setIgnoreMqttEnabled = useDiagnosticsStore((s) => s.setIgnoreMqttEnabled);
@@ -129,23 +140,34 @@ export default function DiagnosticsPanel({
   const getForeignLoraDetectionsList = useDiagnosticsStore((s) => s.getForeignLoraDetectionsList);
 
   const [search, setSearch] = useState('');
-  const [tracePending, setTracePending] = useState<number | null>(null);
+  const [tracePendingNodes, setTracePendingNodes] = useState<Set<number>>(() => new Set());
   const [traceFailed, setTraceFailed] = useState<Set<number>>(new Set());
   const traceStartTimes = useRef<Map<number, number>>(new Map());
   const traceTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
 
-  // Detect when a trace result arrives for the pending node
+  // Clear per-node pending when a result arrives for that node (concurrent traces supported)
   useEffect(() => {
-    if (tracePending === null) return;
-    const result = traceRouteResults.get(tracePending);
-    const startTime = traceStartTimes.current.get(tracePending);
-    if (result && startTime !== undefined && result.timestamp >= startTime) {
-      const timer = traceTimers.current.get(tracePending);
-      if (timer) clearTimeout(timer);
-      traceTimers.current.delete(tracePending);
-      setTracePending(null);
+    if (tracePendingNodes.size === 0) return;
+    const done: number[] = [];
+    for (const nodeId of tracePendingNodes) {
+      const result = traceRouteResults.get(nodeId);
+      const startTime = traceStartTimes.current.get(nodeId);
+      if (result && startTime !== undefined && result.timestamp >= startTime) {
+        done.push(nodeId);
+      }
     }
-  }, [traceRouteResults, tracePending]);
+    if (done.length === 0) return;
+    for (const nodeId of done) {
+      const timer = traceTimers.current.get(nodeId);
+      if (timer) clearTimeout(timer);
+      traceTimers.current.delete(nodeId);
+    }
+    setTracePendingNodes((prev) => {
+      const n = new Set(prev);
+      for (const nodeId of done) n.delete(nodeId);
+      return n;
+    });
+  }, [traceRouteResults, tracePendingNodes]);
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -154,6 +176,42 @@ export default function DiagnosticsPanel({
       for (const timer of timers.values()) clearTimeout(timer);
     };
   }, []);
+
+  const [lastDiscoveryTs, setLastDiscoveryTs] = useState<number | null>(null);
+  const stopDiscoveryRef = useRef<(() => void) | null>(null);
+  /** Avoid restarting discovery on every `nodes` Map identity change (telemetry updates). */
+  const nodesRef = useRef(nodes);
+  const myNodeNumRef = useRef(myNodeNum);
+  const onTraceRouteRef = useRef(onTraceRoute);
+  nodesRef.current = nodes;
+  myNodeNumRef.current = myNodeNum;
+  onTraceRouteRef.current = onTraceRoute;
+
+  useEffect(() => {
+    if (!autoTracerouteEnabled || !isConnected) {
+      stopDiscoveryRef.current?.();
+      stopDiscoveryRef.current = null;
+      return;
+    }
+    const trace = onTraceRouteRef.current;
+    if (!trace) {
+      stopDiscoveryRef.current?.();
+      stopDiscoveryRef.current = null;
+      return;
+    }
+    const stop = startNetworkDiscovery(
+      async (nodeId) => {
+        await trace(nodeId);
+        setLastDiscoveryTs(Date.now());
+      },
+      () => [...nodesRef.current.keys()].filter((id) => id !== myNodeNumRef.current),
+    );
+    stopDiscoveryRef.current = stop;
+    return () => {
+      stop();
+      stopDiscoveryRef.current = null;
+    };
+  }, [autoTracerouteEnabled, isConnected]);
 
   /**
    * Match Node List Ch.Util / Air Tx columns: count nodes where at least one is non-null
@@ -311,11 +369,15 @@ export default function DiagnosticsPanel({
       s.delete(nodeId);
       return s;
     });
-    setTracePending(nodeId);
+    setTracePendingNodes((prev) => new Set(prev).add(nodeId));
     traceStartTimes.current.set(nodeId, Date.now());
 
     const timer = setTimeout(() => {
-      setTracePending((prev) => (prev === nodeId ? null : prev));
+      setTracePendingNodes((prev) => {
+        const n = new Set(prev);
+        n.delete(nodeId);
+        return n;
+      });
       setTraceFailed((prev) => new Set([...prev, nodeId]));
       traceTimers.current.delete(nodeId);
     }, TRACE_TIMEOUT_MS);
@@ -328,7 +390,11 @@ export default function DiagnosticsPanel({
       console.warn('[DiagnosticsPanel] trace route failed', e);
       clearTimeout(timer);
       traceTimers.current.delete(nodeId);
-      setTracePending(null);
+      setTracePendingNodes((prev) => {
+        const n = new Set(prev);
+        n.delete(nodeId);
+        return n;
+      });
       setTraceFailed((prev) => new Set([...prev, nodeId]));
     }
   };
@@ -430,7 +496,7 @@ export default function DiagnosticsPanel({
       const colorClass = isError ? 'text-red-400' : isInfo ? 'text-blue-400' : 'text-orange-400';
       const hexId = `!${anomaly.nodeId.toString(16)}`;
       const displayName = node?.long_name || node?.short_name || hexId;
-      const isPending = tracePending === anomaly.nodeId;
+      const isPending = tracePendingNodes.has(anomaly.nodeId);
       const isFailed = traceFailed.has(anomaly.nodeId);
       const traceResult = traceRouteResults.get(anomaly.nodeId);
       const startTime = traceStartTimes.current.get(anomaly.nodeId);
@@ -555,7 +621,7 @@ export default function DiagnosticsPanel({
               ) : (
                 <button
                   onClick={() => handleTraceRoute(anomaly.nodeId)}
-                  disabled={!isConnected || tracePending !== null}
+                  disabled={!isConnected || tracePendingNodes.has(anomaly.nodeId)}
                   title={isFailed ? 'Trace route timed out — click to retry' : undefined}
                   className={`rounded px-2.5 py-1 text-xs whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                     isFailed
@@ -597,7 +663,7 @@ export default function DiagnosticsPanel({
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="w-full space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-semibold text-gray-200">Network Diagnostics</h2>
         <a
@@ -821,6 +887,24 @@ export default function DiagnosticsPanel({
               </span>
             </div>
           )}
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="autoTraceroute"
+              checked={autoTracerouteEnabled}
+              onChange={(e) => {
+                setAutoTracerouteEnabled(protocol, e.target.checked);
+              }}
+              className="accent-brand-green"
+            />
+            <label htmlFor="autoTraceroute" className="cursor-pointer text-sm text-gray-300">
+              Auto-traceroute
+            </label>
+            <span className="text-muted text-xs">
+              Probe all nodes every 30 min
+              {lastDiscoveryTs !== null && <> · last: {formatTime(lastDiscoveryTs)}</>}
+            </span>
+          </div>
           <div className="flex flex-col gap-1.5">
             <div className="text-sm text-gray-300">Environment Profile</div>
             <div className="flex w-fit overflow-hidden rounded-lg border border-gray-600/50">

@@ -175,23 +175,6 @@ export default function NodeListPanel({
       setSortAsc(false);
     }
   }, [mode, sortField]);
-  const [showScrollTop, setShowScrollTop] = useState(false);
-
-  useEffect(() => {
-    const main = document.querySelector('main');
-    if (!main) return;
-    const handler = () => {
-      setShowScrollTop(main.scrollTop > 200);
-    };
-    main.addEventListener('scroll', handler);
-    return () => {
-      main.removeEventListener('scroll', handler);
-    };
-  }, []);
-
-  const scrollToTop = () =>
-    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
-
   const handleRefreshContacts = async () => {
     if (!onRefreshContacts) return;
     setRefreshLoading(true);
@@ -594,7 +577,7 @@ export default function NodeListPanel({
         </span>
       </div>
 
-      <div className="min-w-0 flex-1 overflow-auto rounded-lg border border-gray-700">
+      <div className="min-h-0 min-w-0 flex-1 overflow-x-auto rounded-lg border border-gray-700">
         <table
           style={{ minWidth: mode === 'meshcore' ? '1000px' : '1600px' }}
           className="text-sm whitespace-nowrap"
@@ -1208,15 +1191,6 @@ export default function NodeListPanel({
           </tbody>
         </table>
       </div>
-      {showScrollTop && (
-        <button
-          onClick={scrollToTop}
-          className="bg-brand-green text-deep-black hover:bg-bright-green fixed right-6 bottom-6 z-50 rounded-full px-3 py-2 text-xs font-bold shadow-lg transition-colors"
-          title="Back to top"
-        >
-          ↑ Top
-        </button>
-      )}
     </div>
   );
 }

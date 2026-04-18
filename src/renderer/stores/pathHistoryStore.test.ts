@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { PathRecord } from '../lib/pathHistoryTypes';
-import { computePathHash, computeScore, usePathHistoryStore } from './pathHistoryStore';
+import {
+  computePathHash,
+  computeScore,
+  getWeightedPaths,
+  usePathHistoryStore,
+} from './pathHistoryStore';
 
 // Silence fire-and-forget DB calls in all tests
 beforeEach(() => {
@@ -119,6 +124,30 @@ describe('computeScore', () => {
     const { total } = computeScore(record, 150, 5);
     expect(total).toBeGreaterThanOrEqual(0);
     expect(total).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('getWeightedPaths', () => {
+  it('returns highest finite positive route weight per node', () => {
+    const records = new Map<number, PathRecord[]>([
+      [
+        10,
+        [
+          makeRecord({ nodeId: 10, pathHash: 'a1', pathBytes: [1], routeWeight: 0.4 }),
+          makeRecord({ nodeId: 10, pathHash: 'a2', pathBytes: [2], routeWeight: 1.4 }),
+        ],
+      ],
+      [
+        11,
+        [
+          makeRecord({ nodeId: 11, pathHash: 'b1', pathBytes: [3], routeWeight: Number.NaN }),
+          makeRecord({ nodeId: 11, pathHash: 'b2', pathBytes: [4], routeWeight: 0 }),
+          makeRecord({ nodeId: 11, pathHash: 'b3', pathBytes: [5], routeWeight: -1 }),
+        ],
+      ],
+    ]);
+
+    expect(getWeightedPaths(records)).toEqual([{ nodeId: 10, routeWeight: 1.4, pathBytes: [2] }]);
   });
 });
 

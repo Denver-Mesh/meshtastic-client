@@ -13,6 +13,7 @@ import {
   meshcoreDeriveChannelKeyHexFromName,
   meshcoreGetRepeaterSessionPassword,
   meshcoreIsRepeaterRemoteAuthTouched,
+  meshcoreManufacturerModelFromDeviceQuery,
   meshcoreMilliVoltsToApproximateBatteryPercent,
   meshcoreMinimalNodeFromAdvertEvent,
   meshcoreSelfInfoBwToDisplayKhz,
@@ -140,10 +141,10 @@ describe('meshcoreMilliVoltsToApproximateBatteryPercent', () => {
     expect(meshcoreMilliVoltsToApproximateBatteryPercent(4300)).toBe(100);
   });
 
-  it('returns 0 for non-finite or non-positive input', () => {
-    expect(meshcoreMilliVoltsToApproximateBatteryPercent(NaN)).toBe(0);
-    expect(meshcoreMilliVoltsToApproximateBatteryPercent(0)).toBe(0);
-    expect(meshcoreMilliVoltsToApproximateBatteryPercent(-100)).toBe(0);
+  it('returns undefined for non-finite or non-positive input', () => {
+    expect(meshcoreMilliVoltsToApproximateBatteryPercent(NaN)).toBe(undefined);
+    expect(meshcoreMilliVoltsToApproximateBatteryPercent(0)).toBe(undefined);
+    expect(meshcoreMilliVoltsToApproximateBatteryPercent(-100)).toBe(undefined);
   });
 });
 
@@ -285,6 +286,37 @@ describe('mergeHwModelOnContactUpdate', () => {
 
   it('uses incoming hw_model when existing is Chat', () => {
     expect(mergeHwModelOnContactUpdate('Chat', 'Repeater')).toBe('Repeater');
+  });
+});
+
+describe('meshcoreManufacturerModelFromDeviceQuery', () => {
+  it('reads manufacturerModel and snake_case aliases', () => {
+    expect(meshcoreManufacturerModelFromDeviceQuery({ manufacturerModel: '  XIAO  ' })).toBe(
+      'XIAO',
+    );
+    expect(meshcoreManufacturerModelFromDeviceQuery({ manufacturer_model: 'nRF52' })).toBe('nRF52');
+  });
+
+  it('reads nested data / payload', () => {
+    expect(
+      meshcoreManufacturerModelFromDeviceQuery({
+        data: { model: 'Heltec' },
+      }),
+    ).toBe('Heltec');
+    expect(
+      meshcoreManufacturerModelFromDeviceQuery({
+        payload: { manufacturerModel: 'Lilygo' },
+      }),
+    ).toBe('Lilygo');
+  });
+
+  it('coerces numeric model fields', () => {
+    expect(meshcoreManufacturerModelFromDeviceQuery({ model: 42 })).toBe('42');
+  });
+
+  it('returns undefined when absent', () => {
+    expect(meshcoreManufacturerModelFromDeviceQuery(null)).toBeUndefined();
+    expect(meshcoreManufacturerModelFromDeviceQuery({ firmwareVer: 1 })).toBeUndefined();
   });
 });
 

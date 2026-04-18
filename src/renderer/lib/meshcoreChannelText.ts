@@ -1,4 +1,5 @@
 import { normalizeReactionEmoji } from './reactions';
+import { findParentMessageForReply, truncateReplyPreviewText } from './replyPreview';
 import type { ChatMessage } from './types';
 
 export interface MeshcoreNormalizedText {
@@ -187,14 +188,21 @@ export function buildMeshcoreChannelIncomingMessage(
     });
     if (parentKey != null) {
       const body = normalized.payload.trim();
+      const parent = findParentMessageForReply(messages, parentKey);
+      const previewFields = parent
+        ? {
+            replyPreviewText: truncateReplyPreviewText(parent.payload),
+            replyPreviewSender: parent.sender_name,
+          }
+        : undefined;
       if (meshcorePayloadIsTapbackEmojiOnly(body)) {
         const emoji = normalizeReactionEmoji(undefined, body);
         if (emoji != null) {
-          return { ...base, payload: body, emoji, replyId: parentKey };
+          return { ...base, payload: body, emoji, replyId: parentKey, ...previewFields };
         }
       }
       if (body.length > 0) {
-        return { ...base, payload: body, replyId: parentKey };
+        return { ...base, payload: body, replyId: parentKey, ...previewFields };
       }
     }
     return { ...base, payload: fallbackPayload };
@@ -251,14 +259,21 @@ export function buildMeshcoreDmIncomingMessage(
     });
     if (parentKey != null) {
       const body = parsed.payload.trim();
+      const parent = findParentMessageForReply(messages, parentKey);
+      const previewFields = parent
+        ? {
+            replyPreviewText: truncateReplyPreviewText(parent.payload),
+            replyPreviewSender: parent.sender_name,
+          }
+        : undefined;
       if (meshcorePayloadIsTapbackEmojiOnly(body)) {
         const emoji = normalizeReactionEmoji(undefined, body);
         if (emoji != null) {
-          return { ...base, payload: body, emoji, replyId: parentKey };
+          return { ...base, payload: body, emoji, replyId: parentKey, ...previewFields };
         }
       }
       if (body.length > 0) {
-        return { ...base, payload: body, replyId: parentKey };
+        return { ...base, payload: body, replyId: parentKey, ...previewFields };
       }
     }
   }

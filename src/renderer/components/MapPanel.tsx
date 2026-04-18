@@ -21,11 +21,13 @@ import type { OurPosition } from '../lib/gpsSource';
 import { NODE_BADGE_PATHS } from '../lib/nodeIcons';
 import { getNodeStatus, haversineDistanceKm } from '../lib/nodeStatus';
 import { useRadioProvider } from '../lib/radio/providerFactory';
+import { routeWeightToColor, routeWeightToStroke } from '../lib/routeWeightUtils';
 import type { MeshNode, MeshProtocol, MeshWaypoint, NodeAnomaly } from '../lib/types';
 import { routingRowToNodeAnomaly } from '../lib/types';
 import { useCoordFormatStore } from '../stores/coordFormatStore';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
 import { useMapViewportStore } from '../stores/mapViewportStore';
+import { getWeightedPaths, usePathHistoryStore } from '../stores/pathHistoryStore';
 import { usePositionHistoryStore } from '../stores/positionHistoryStore';
 import NodeInfoBody from './NodeInfoBody';
 import { useToast } from './Toast';
@@ -496,7 +498,7 @@ function LocateMeControl({
               height="16"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="currentColor"
+              stroke="#374151"
               strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -559,8 +561,94 @@ export default function MapPanel({
 
   const coordinateFormat = useCoordFormatStore((s) => s.coordinateFormat);
   const positionHistory = usePositionHistoryStore((s) => s.history);
+  const pathRecords = usePathHistoryStore((s) => s.records);
+  const loadPathHistoryForNode = usePathHistoryStore((s) => s.loadForNode);
   const showPaths = usePositionHistoryStore((s) => s.showPaths);
   const loadHistoryFromDb = usePositionHistoryStore((s) => s.loadHistoryFromDb);
+
+  const [showRouteWeights, setShowRouteWeights] = useState(false);
+  const routeWeightLoadedNodeIdsRef = useRef<Set<number>>(new Set());
+  const routeWeightsSupported = protocol === 'meshcore';
+
+  const routeWeightPolylines = useMemo(() => {
+    if (!routeWeightsSupported || !showRouteWeights) return null;
+    const paths = getWeightedPaths(pathRecords);
+
+    const homeNodeForRoute = myNodeNum ? nodes.get(myNodeNum) : undefined;
+    const hasHomeGps =
+      homeNodeForRoute?.latitude != null &&
+      homeNodeForRoute?.longitude != null &&
+      (Math.abs(homeNodeForRoute.latitude) > 0.0001 ||
+        Math.abs(homeNodeForRoute.longitude) > 0.0001);
+    const fromPos: [number, number] | null = hasHomeGps
+      ? [homeNodeForRoute.latitude!, homeNodeForRoute.longitude!]
+      : ourPosition
+        ? [ourPosition.lat, ourPosition.lon]
+        : null;
+
+    if (!fromPos) {
+      return null;
+    }
+
+    const validPaths = paths.flatMap((p) => {
+      const toNode = nodes.get(p.nodeId);
+      if (!toNode?.latitude || !toNode?.longitude) return [];
+      return [{ ...p, fromPos, toPos: [toNode.latitude, toNode.longitude] as [number, number] }];
+    });
+
+    if (validPaths.length > 0) {
+      const maxWeight = Math.max(...validPaths.map((p) => p.routeWeight), 1);
+      if (!Number.isFinite(maxWeight) || maxWeight <= 0) {
+        return null;
+      }
+
+      return validPaths.map((p) => (
+        <Polyline
+          key={`rw-${p.nodeId}`}
+          positions={[p.fromPos, p.toPos] as [[number, number], [number, number]]}
+          pathOptions={{
+            color: routeWeightToColor(p.routeWeight, maxWeight),
+            weight: routeWeightToStroke(p.routeWeight, maxWeight),
+            opacity: 0.7,
+          }}
+        />
+      ));
+    }
+
+    // No path-history rows: MeshCore often reports outPathLen=0 on contacts, so store stays empty.
+    // Fallback: thickness from hops_away (fewer hops → thicker line), same color scale.
+    const fallbackPeers = Array.from(nodes.values()).filter((n) => {
+      if (myNodeNum && n.node_id === myNodeNum) return false;
+      if (n.latitude == null || n.longitude == null) return false;
+      if (!(Math.abs(n.latitude) > 0.0001 || Math.abs(n.longitude) > 0.0001)) return false;
+      return n.hops_away != null && Number.isFinite(n.hops_away) && n.hops_away >= 0;
+    });
+    if (fallbackPeers.length === 0) {
+      return null;
+    }
+
+    const weights = fallbackPeers.map((n) => {
+      const h = Math.min(7, Math.max(0, n.hops_away ?? 0));
+      return 8 - h;
+    });
+    const maxWeight = Math.max(...weights, 1);
+
+    return fallbackPeers.map((n, i) => {
+      const w = weights[i];
+      const toPos: [number, number] = [n.latitude!, n.longitude!];
+      return (
+        <Polyline
+          key={`rw-hops-${n.node_id}`}
+          positions={[fromPos, toPos] as [[number, number], [number, number]]}
+          pathOptions={{
+            color: routeWeightToColor(w, maxWeight),
+            weight: routeWeightToStroke(w, maxWeight),
+            opacity: 0.7,
+          }}
+        />
+      );
+    });
+  }, [routeWeightsSupported, showRouteWeights, pathRecords, myNodeNum, nodes, ourPosition]);
 
   useEffect(() => {
     ensureMapStyles();
@@ -568,6 +656,21 @@ export default function MapPanel({
       console.warn('[MapPanel] loadHistoryFromDb failed:', String(e));
     });
   }, [loadHistoryFromDb]);
+
+  useEffect(() => {
+    if (!routeWeightsSupported || !showRouteWeights) return;
+    const nodeIdsToLoad = Array.from(nodes.keys()).filter(
+      (nodeId) => !routeWeightLoadedNodeIdsRef.current.has(nodeId),
+    );
+    if (nodeIdsToLoad.length === 0) return;
+
+    nodeIdsToLoad.forEach((nodeId) => {
+      routeWeightLoadedNodeIdsRef.current.add(nodeId);
+      void loadPathHistoryForNode(nodeId).catch((e: unknown) => {
+        console.warn('[MapPanel] load path history for node failed:', String(e));
+      });
+    });
+  }, [routeWeightsSupported, showRouteWeights, nodes, loadPathHistoryForNode, pathRecords.size]);
 
   const nodesWithPosition = useMemo(() => {
     const homeNode = myNodeNum ? nodes.get(myNodeNum) : undefined;
@@ -756,13 +859,31 @@ export default function MapPanel({
     }
     return counts;
   }, [nodesToRender, nodeStaleThresholdMs, nodeOfflineThresholdMs]);
+
   return (
     <div
-      className="relative h-full min-h-[500px] overflow-hidden rounded-lg border border-gray-700"
+      className="relative h-full min-h-[500px] overflow-hidden rounded-lg border border-gray-700/50"
       aria-label="Network map showing node positions"
     >
       {/* Controls overlay — top right */}
       <div className="absolute top-3 right-3 z-[1000] flex items-center gap-2">
+        {routeWeightsSupported && (
+          <button
+            type="button"
+            onClick={() => {
+              setShowRouteWeights((v) => !v);
+            }}
+            className={`bg-deep-black/80 rounded-lg border px-3 py-1.5 text-xs backdrop-blur-sm transition-colors ${
+              showRouteWeights
+                ? 'border-brand-green text-brand-green'
+                : 'border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200'
+            }`}
+            title="Toggle route weight lines"
+            aria-label="Toggle route weight lines"
+          >
+            Route weights
+          </button>
+        )}
         <div className="bg-deep-black/80 flex items-center gap-3 rounded-lg border border-gray-700 px-3 py-1.5 text-xs backdrop-blur-sm">
           <span className="flex items-center gap-1">
             <span className="bg-brand-green inline-block h-2 w-2 rounded-full" />
@@ -779,7 +900,7 @@ export default function MapPanel({
         </div>
       </div>
 
-      <MapContainer center={mapCenter} zoom={mapZoom} className="h-full w-full">
+      <MapContainer center={mapCenter} zoom={mapZoom} className="absolute inset-0">
         <DiagnosticPanes />
         <ViewportSaver hasAnyPositions={positions.length > 0 || !!ourPosition} />
         <MapFitter
@@ -795,6 +916,7 @@ export default function MapPanel({
         {movingNodePaths.map(({ nodeId, positions: pathPositions, pathOptions }) => (
           <Polyline key={`path-${nodeId}`} positions={pathPositions} pathOptions={pathOptions} />
         ))}
+        {routeWeightPolylines}
         {nodesWithStatusAndHaloOffsetForRender.map(({ node, anomaly, haloCenterOffset }) => (
           <MapMarker
             key={node.node_id}

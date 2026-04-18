@@ -10,8 +10,8 @@ import {
 
 import ErrorBoundary from './components/ErrorBoundary';
 import { HelpTooltip } from './components/HelpTooltip';
+import Sidebar from './components/Sidebar';
 import { LinkIcon } from './components/SignalBars';
-import Tabs from './components/Tabs';
 import { ToastProvider, useToast } from './components/Toast';
 import UpdateStatusIndicator from './components/UpdateStatusIndicator';
 import { useContactGroups } from './hooks/useContactGroups';
@@ -30,6 +30,7 @@ import {
   DiagnosticsPanel,
   MapPanel,
   ModulePanel,
+  PacketDistributionPanel,
   RadioPanel,
   RawPacketLogPanel,
   RepeatersPanel,
@@ -85,6 +86,7 @@ const TAB_CAPABILITY_REQUIREMENTS: (keyof ProtocolCapabilities | undefined)[] = 
   'hasTakPanel', // TAK
   undefined, // App
   undefined, // Diagnostics
+  'hasRawPacketLog', // Distribution
   'hasRawPacketLog', // Sniffer (keyboard help: Packet Sniffer)
 ];
 
@@ -115,6 +117,7 @@ const TAB_NAMES = [
   'TAK',
   'App',
   'Diagnostics',
+  'Stats',
   'Sniffer',
 ];
 
@@ -235,6 +238,16 @@ function MqttGlobeIcon({ status }: { status: MQTTStatus }) {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState(0);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    return localStorage.getItem('mesh-client:sidebarCollapsed') === 'true';
+  });
+  const handleSidebarToggle = useCallback(() => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem('mesh-client:sidebarCollapsed', String(next));
+      return next;
+    });
+  }, []);
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -259,6 +272,10 @@ export default function App() {
   const prevMeshcoreMsgCountRef = useRef(0);
   const isMeshtasticInitialRef = useRef(true);
   const isMeshcoreInitialRef = useRef(true);
+  const mainViewportRef = useRef<HTMLDivElement>(null);
+  const activePanelIndexRef = useRef(0);
+  const scrollToTopChatRef = useRef<(() => void) | null>(null);
+  const [showMainScrollTop, setShowMainScrollTop] = useState(false);
   const [updateState, setUpdateState] = useState<UpdateState>({ phase: 'idle' });
   const [firmwareCheckState, setFirmwareCheckState] = useState<FirmwareCheckResult>({
     phase: 'idle',
@@ -351,6 +368,8 @@ export default function App() {
       : meshtasticDevice;
   const activeTabRef = useRef(activeTab);
   const protocolRef = useRef(protocol);
+  const lastMeshtasticTab = useRef(0);
+  const lastMeshcoreTab = useRef(0);
   const meshtasticMsgsRef = useRef(meshtasticDevice.messages);
   const meshcoreMsgsRef = useRef(meshcoreDevice.messages);
   const meshtasticMyNodeNumRef = useRef(meshtasticDevice.state.myNodeNum);
@@ -361,6 +380,8 @@ export default function App() {
   meshcoreMsgsRef.current = meshcoreDevice.messages;
   meshtasticMyNodeNumRef.current = meshtasticDevice.state.myNodeNum;
   meshcoreSelfIdRef.current = meshcoreDevice.selfNodeId;
+  lastMeshtasticTab.current = protocol === 'meshtastic' ? activeTab : lastMeshtasticTab.current;
+  lastMeshcoreTab.current = protocol === 'meshcore' ? activeTab : lastMeshcoreTab.current;
   const nodesForUi = protocol === 'meshcore' ? meshcoreDevice.nodes : meshtasticDevice.nodes;
   const rawPacketGetNodeLabel = useCallback(
     (id: number) => nodeLabelForRawPacket(nodesForUi.get(id), id, protocol),
@@ -411,24 +432,70 @@ export default function App() {
   }, [protocol, capabilities]);
 
   const activePanelIndex = tabIndexToPanelIndex[activeTab] ?? 0;
+  activePanelIndexRef.current = activePanelIndex;
 
   // Reset activeTab if it's out of bounds (e.g., switching to meshcore while on Security tab)
   useEffect(() => {
     if (activeTab >= displayTabNames.length) {
-      setActiveTab(0);
+      const savedTab =
+        protocol === 'meshcore' ? lastMeshcoreTab.current : lastMeshtasticTab.current;
+      setActiveTab(savedTab < displayTabNames.length ? savedTab : 0);
     }
-  }, [activeTab, displayTabNames.length]);
+  }, [activeTab, displayTabNames.length, protocol]);
+
+  // Reset scroll position when switching tabs
+  useEffect(() => {
+    if (mainViewportRef.current) {
+      mainViewportRef.current.scrollTop = 0;
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    const viewport = mainViewportRef.current;
+    if (!viewport) return;
+    const handleMainScroll = () => {
+      if (activePanelIndexRef.current === 1) {
+        setShowMainScrollTop(false);
+      } else {
+        setShowMainScrollTop(viewport.scrollTop > 200);
+      }
+    };
+    handleMainScroll();
+    viewport.addEventListener('scroll', handleMainScroll);
+    return () => {
+      viewport.removeEventListener('scroll', handleMainScroll);
+    };
+  }, []);
+
+  const scrollMainToTop = useCallback(() => {
+    if (activePanelIndex === 1 && scrollToTopChatRef.current) {
+      scrollToTopChatRef.current();
+    } else {
+      mainViewportRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [activePanelIndex]);
 
   const handleProtocolChange = useCallback(
-    (p: MeshProtocol) => {
-      if (p === protocol) return;
-      // Keep diagnostics scoped to the active protocol.
+    (newProtocol: MeshProtocol) => {
+      if (newProtocol === protocol) return;
+
+      const savedTab =
+        newProtocol === 'meshcore' ? lastMeshcoreTab.current : lastMeshtasticTab.current;
+      const targetTab = savedTab < displayTabNames.length ? savedTab : 0;
+
+      if (newProtocol === 'meshtastic') {
+        lastMeshcoreTab.current = activeTab;
+        setActiveTab(targetTab);
+      } else {
+        lastMeshtasticTab.current = activeTab;
+        setActiveTab(targetTab);
+      }
+
       useDiagnosticsStore.getState().clearDiagnostics();
-      localStorage.setItem(MESH_PROTOCOL_STORAGE_KEY, p);
-      setProtocol(p);
-      // Dual-mode: both devices stay connected — no disconnect on switch.
+      localStorage.setItem(MESH_PROTOCOL_STORAGE_KEY, newProtocol);
+      setProtocol(newProtocol);
     },
-    [protocol],
+    [protocol, activeTab, displayTabNames.length],
   );
 
   const runReanalysis = useDiagnosticsStore((s) => s.runReanalysis);
@@ -812,6 +879,12 @@ export default function App() {
           e.preventDefault();
           setActiveTab(targetIndex);
         }
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
+        const targetIndex = displayTabNames.indexOf('Stats');
+        if (targetIndex >= 0 && targetIndex <= maxTab) {
+          e.preventDefault();
+          setActiveTab(targetIndex);
+        }
       } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
         const targetIndex = displayTabNames.indexOf('Sniffer');
         if (targetIndex >= 0 && targetIndex <= maxTab) {
@@ -981,10 +1054,10 @@ export default function App() {
         protocol={protocol}
         onResult={handleFirmwareResult}
       />
-      <div className="flex h-screen flex-col">
-        {/* Header */}
+      <div className="flex h-screen w-screen min-w-0 flex-col overflow-hidden bg-slate-950">
+        {/* Header - full width; sidebar + main start below */}
         <header
-          className={`bg-deep-black relative flex flex-row items-center gap-2 border-b px-4 py-2 xl:grid xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:items-center xl:gap-0 ${
+          className={`bg-deep-black relative flex w-full items-center border-b py-2 pr-4 ${
             isConfigured
               ? protocol === 'meshcore'
                 ? 'border-cyan-500/20'
@@ -992,14 +1065,112 @@ export default function App() {
               : 'border-gray-700'
           }`}
         >
-          <div className="flex min-w-0 items-center gap-3 xl:justify-self-start">
-            <h1 className="text-bright-green min-w-0 truncate text-lg font-bold tracking-wide">
-              Colorado Mesh
-            </h1>
-            <span className="text-muted shrink-0 text-xs">Mesh Client</span>
+          {/* Sidebar-area branding — top-left cell, matches sidebar width */}
+          <div
+            aria-hidden="true"
+            className={`bg-deep-black -my-2 flex shrink-0 items-center justify-center self-stretch border-r border-slate-800 transition-[width] duration-300 select-none ${
+              sidebarCollapsed ? 'w-16' : 'w-48'
+            }`}
+          >
+            <div
+              className={`cm-watermark ${sidebarCollapsed ? 'cm-watermark-collapsed' : 'cm-watermark-expanded'}`}
+            >
+              <svg
+                className="cm-watermark-mark"
+                viewBox="0 0 1024 1024"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                aria-hidden="true"
+              >
+                <defs>
+                  <linearGradient
+                    id="cmWmMtnGrad"
+                    x1="0"
+                    y1="0"
+                    x2="1"
+                    y2="0"
+                    gradientUnits="userSpaceOnUse"
+                    gradientTransform="matrix(510.141384,0,0,227.403089,280.365777,471.821953)"
+                  >
+                    <stop offset="0" stopColor="#83ff80" />
+                    <stop offset="1" stopColor="#101928" />
+                  </linearGradient>
+                  <linearGradient
+                    id="cmWmArcAlpha"
+                    x1="0"
+                    y1="0.5"
+                    x2="1"
+                    y2="0.5"
+                    gradientUnits="objectBoundingBox"
+                  >
+                    <stop offset="0" stopColor="#fff" stopOpacity="0" />
+                    <stop offset="0.5" stopColor="#fff" stopOpacity="0.28" />
+                    <stop offset="1" stopColor="#fff" stopOpacity="0" />
+                  </linearGradient>
+                  <mask
+                    id="cmWmArcMask"
+                    maskUnits="objectBoundingBox"
+                    maskContentUnits="objectBoundingBox"
+                    x="0"
+                    y="0"
+                    width="1"
+                    height="1"
+                  >
+                    <rect x="0" y="0" width="1" height="1" fill="url(#cmWmArcAlpha)" />
+                  </mask>
+                </defs>
+                <g className="cm-watermark-arches">
+                  <g transform="matrix(1.482714,0,0,2.228662,-282.713188,-686.490072)">
+                    <path
+                      d="M248,604C296.733,449.457 436.333,440.225 508.333,440.225"
+                      fill="none"
+                      className="cm-watermark-brand-stroke"
+                      strokeWidth="14"
+                      strokeLinecap="round"
+                      vectorEffect="nonScalingStroke"
+                      mask="url(#cmWmArcMask)"
+                    />
+                  </g>
+                  <g transform="matrix(-1.482714,0,0,2.124862,1291.713188,-642.794439)">
+                    <path
+                      d="M248,604C296.733,449.457 436.333,440.225 508.333,440.225"
+                      fill="none"
+                      className="cm-watermark-brand-stroke"
+                      strokeWidth="14"
+                      strokeLinecap="round"
+                      vectorEffect="nonScalingStroke"
+                      mask="url(#cmWmArcMask)"
+                    />
+                  </g>
+                </g>
+                <g transform="matrix(1.550828,0,0,1.550828,-296.433233,-165.128779)">
+                  <path
+                    d="M790.245,583.702C790.333,584.309 790.42,584.916 790.507,585.523C788.044,584.513 733.186,553.111 681.69,519.21C640.083,491.819 640.501,491.448 600.434,461.629C596.33,458.575 606.541,489.356 604.241,496.419C601.789,503.946 564.411,456.477 544.209,439.898C540.087,436.514 522.666,450.746 522.214,451.051C503.617,463.621 500.856,442.079 492.1,427.753C485.685,417.259 482.119,427.358 340.171,535.067C300.15,565.436 261.15,599.171 290.779,571.715C325.553,539.491 434.357,430.948 458.868,407.89C503.865,365.56 507.371,354.727 520.344,358.977C527.829,361.43 715.775,533.16 790.245,583.702Z"
+                    fill="url(#cmWmMtnGrad)"
+                    fillRule="evenodd"
+                  />
+                </g>
+                <g transform="matrix(0.451809,0,0,0.451809,273.173684,146.688318)">
+                  <circle cx="512" cy="332" r="38" className="cm-watermark-sun" />
+                </g>
+                <g transform="matrix(0.523438,0,0,0.523438,236.5,122.907726)">
+                  <circle
+                    cx="512"
+                    cy="332"
+                    r="64"
+                    fill="none"
+                    className="cm-watermark-brand-stroke"
+                    strokeWidth="12"
+                    vectorEffect="nonScalingStroke"
+                  />
+                </g>
+              </svg>
+              <span className="cm-watermark-text" aria-hidden={sidebarCollapsed}>
+                Colorado Mesh
+              </span>
+            </div>
           </div>
-
-          <div className="flex min-w-0 flex-1 justify-center xl:flex-none xl:justify-self-center">
+          <div className="flex min-w-0 flex-1 justify-start pl-8">
             {/* Protocol context switcher — centered in the gap (narrow) or viewport (xl+ grid) */}
             <div
               role="group"
@@ -1019,7 +1190,7 @@ export default function App() {
                     : 'text-gray-400 hover:bg-gray-800 hover:text-gray-300'
                 }`}
               >
-                (M) Meshtastic
+                Meshtastic
                 {meshtasticUnread > 0 && protocol !== 'meshtastic' && (
                   <span className="bg-brand-green/30 text-brand-green ml-1.5 inline-flex h-4 min-w-[1.1rem] animate-pulse items-center justify-center rounded-full px-0.5 text-[10px] font-bold">
                     {meshtasticUnread > 99 ? '99+' : meshtasticUnread}
@@ -1040,7 +1211,7 @@ export default function App() {
                     : 'text-gray-400 hover:bg-gray-800 hover:text-gray-300'
                 }`}
               >
-                (MC) MeshCore
+                MeshCore
                 {meshcoreUnread > 0 && protocol !== 'meshcore' && (
                   <span className="ml-1.5 inline-flex h-4 min-w-[1.1rem] animate-pulse items-center justify-center rounded-full bg-cyan-600/30 px-0.5 text-[10px] font-bold text-cyan-400">
                     {meshcoreUnread > 99 ? '99+' : meshcoreUnread}
@@ -1050,7 +1221,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex min-w-0 shrink-0 items-center justify-end gap-2 xl:justify-self-end">
+          <div className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-2">
             {capabilities.hasTakPanel && (
               <div className="mr-3 flex items-center gap-1.5 border-r border-gray-700 pr-3">
                 <TakStatusIcon running={takStatus.running} />
@@ -1159,565 +1330,647 @@ export default function App() {
           </div>
         )}
 
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            {/* Tabs */}
-            <nav aria-label="Application panels">
-              <Tabs
-                tabs={displayTabNames}
-                active={activeTab}
-                onChange={setActiveTab}
-                chatUnread={protocol === 'meshtastic' ? meshtasticUnread : meshcoreUnread}
-              />
-            </nav>
+        <div className="flex min-h-0 min-w-0 flex-1">
+          {/* Sidebar - collapsible width on left */}
+          <div
+            className={`flex h-full min-h-0 shrink-0 flex-col border-r border-slate-800 transition-[width] duration-300 ${
+              sidebarCollapsed ? 'w-16' : 'w-48'
+            }`}
+          >
+            <Sidebar
+              tabs={displayTabNames}
+              active={activeTab}
+              onChange={setActiveTab}
+              chatUnread={protocol === 'meshtastic' ? meshtasticUnread : meshcoreUnread}
+              collapsed={sidebarCollapsed}
+              onToggle={handleSidebarToggle}
+            />
+          </div>
 
-            {/* Content */}
-            <div role="main" className="min-h-0 flex-1 overflow-auto p-4">
-              <ErrorBoundary>
-                <div
-                  id="panel-0"
-                  role="tabpanel"
-                  aria-labelledby="tab-0"
-                  hidden={activePanelIndex !== 0}
-                >
-                  {/* Both panels are always mounted so each protocol auto-connects at startup */}
-                  <Suspense fallback={<PanelSkeleton />}>
-                    <div hidden={protocol !== 'meshtastic'}>
-                      <ConnectionPanel
-                        state={meshtasticDevice.state}
-                        onConnect={meshtasticDevice.connect}
-                        onAutoConnect={meshtasticDevice.connectAutomatic}
-                        onDisconnect={meshtasticDevice.disconnect}
-                        mqttStatus={meshtasticDevice.mqttStatus}
-                        myNodeLabel={
-                          meshtasticDevice.state.myNodeNum > 0
-                            ? meshtasticDevice.getPickerStyleNodeLabel(
-                                meshtasticDevice.state.myNodeNum,
-                              )
-                            : undefined
-                        }
-                        protocol="meshtastic"
-                        onProtocolChange={handleProtocolChange}
-                        firmwareCheckState={
-                          protocol === 'meshtastic' ? firmwareCheckState : undefined
-                        }
-                        onOpenFirmwareReleases={
-                          protocol === 'meshtastic'
-                            ? () => {
-                                void window.electronAPI.update.openReleases(
-                                  firmwareCheckState.releaseUrl ?? MESHTASTIC_FIRMWARE_RELEASES_URL,
-                                );
-                              }
-                            : undefined
-                        }
-                      />
-                    </div>
-                    <div hidden={protocol !== 'meshcore'}>
-                      <ConnectionPanel
-                        state={meshcoreDevice.state}
-                        onConnect={(type, addr, blePeripheralId) =>
-                          meshcoreDevice.connect(
-                            type === 'http' ? 'tcp' : type,
-                            addr,
-                            blePeripheralId,
-                          )
-                        }
-                        onAutoConnect={
-                          meshcoreDevice.connectAutomatic as unknown as typeof meshtasticDevice.connectAutomatic
-                        }
-                        onDisconnect={meshcoreDevice.disconnect}
-                        mqttStatus={meshcoreDevice.mqttStatus}
-                        myNodeLabel={
-                          meshcoreDevice.state.myNodeNum > 0
-                            ? meshcoreDevice.getPickerStyleNodeLabel(meshcoreDevice.state.myNodeNum)
-                            : undefined
-                        }
-                        protocol="meshcore"
-                        onProtocolChange={handleProtocolChange}
-                        firmwareCheckState={
-                          protocol === 'meshcore' ? firmwareCheckState : undefined
-                        }
-                        onOpenFirmwareReleases={
-                          protocol === 'meshcore'
-                            ? () => {
-                                void window.electronAPI.update.openReleases(
-                                  firmwareCheckState.releaseUrl ?? MESHCORE_FIRMWARE_RELEASES_URL,
-                                );
-                              }
-                            : undefined
-                        }
-                      />
-                    </div>
-                  </Suspense>
-                </div>
-                {(activePanelIndex === 1 || hasVisitedChatTabRef.current) && (
-                  <div
-                    id="panel-1"
-                    role="tabpanel"
-                    aria-labelledby="tab-1"
-                    hidden={activePanelIndex !== 1}
-                  >
-                    <Suspense fallback={<PanelSkeleton />}>
-                      <ChatPanel
-                        key={protocol}
-                        messages={chatMessagesForPanel}
-                        channels={chatChannelsForPanel}
-                        myNodeNum={device.selfNodeId}
-                        onSend={device.sendMessage}
-                        onReact={device.sendReaction}
-                        onResend={handleResend}
-                        onNodeClick={setSelectedNodeId}
-                        isConnected={isOperational || device.mqttStatus === 'connected'}
-                        isMqttOnly={!isOperational && device.mqttStatus === 'connected'}
-                        connectionType={device.state.connectionType}
-                        nodes={chatNodesForPanel}
-                        initialDmTarget={pendingDmTarget}
-                        onDmTargetConsumed={handleDmTargetConsumed}
-                        isActive={activePanelIndex === 1}
-                        onGlobalSearch={handleOpenGlobalSearch}
-                        protocol={protocol}
-                      />
-                    </Suspense>
-                  </div>
-                )}
-                <div
-                  id="panel-2"
-                  role="tabpanel"
-                  aria-labelledby="tab-2"
-                  hidden={activePanelIndex !== 2}
-                >
-                  {activePanelIndex === 2 ? (
-                    <Suspense fallback={<PanelSkeleton />}>
-                      <NodeListPanel
-                        nodes={nodesForUi}
-                        myNodeNum={device.selfNodeId}
-                        onNodeClick={(node) => {
-                          setSelectedNodeId(node.node_id);
-                        }}
-                        mqttConnected={device.mqttStatus === 'connected'}
-                        locationFilter={locationFilter}
-                        onToggleFavorite={device.setNodeFavorited}
-                        mode={protocol}
-                        groups={contactGroups.groups}
-                        selectedGroupId={contactGroups.selectedGroupId}
-                        onGroupChange={contactGroups.setSelectedGroupId}
-                        onManageGroups={
-                          capabilities.hasUserManagedContactGroups
-                            ? () => {
-                                setShowGroupsModal(true);
-                              }
-                            : undefined
-                        }
-                        groupMemberIds={contactGroups.groupMemberIds}
-                        contactGroupsEnabled={capabilities.hasUserManagedContactGroups}
-                        onImportContacts={
-                          protocol === 'meshcore' ? meshcoreDevice.importContacts : undefined
-                        }
-                        meshcoreShowRefreshControl={
-                          protocol === 'meshcore' ? meshcoreContactsShowRefreshControl : false
-                        }
-                        onRefreshContacts={
-                          protocol === 'meshcore' ? meshcoreDevice.refreshContacts : undefined
-                        }
-                        meshcoreShowPublicKeys={
-                          protocol === 'meshcore' ? meshcoreContactsShowPublicKeys : false
-                        }
-                        meshcorePublicKeyHexByNodeId={
-                          protocol === 'meshcore' ? meshcorePublicKeyHexByNodeId : undefined
-                        }
-                      />
-                    </Suspense>
-                  ) : null}
-                </div>
-                <div
-                  id="panel-3"
-                  role="tabpanel"
-                  aria-labelledby="tab-3"
-                  hidden={activePanelIndex !== 3}
-                  className="h-full"
-                >
-                  {activePanelIndex === 3 ? (
-                    <ErrorBoundary>
+          {/* Main column: viewport + footer */}
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            {/* Main Viewport - scrollable panel area */}
+            <div role="main" className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+              {/* Scroll container - no padding so scrollbars pin to viewport edges */}
+              <div ref={mainViewportRef} className="h-full w-full overflow-auto bg-slate-950">
+                {/* Content wrapper - padding lives here, not on the scroll container */}
+                <div className="h-full min-h-full min-w-0 px-8 pt-8 pb-8">
+                  <ErrorBoundary>
+                    <div
+                      id="panel-0"
+                      role="tabpanel"
+                      aria-labelledby="tab-0"
+                      hidden={activePanelIndex !== 0}
+                      className="w-full min-w-0"
+                    >
+                      {/* Both panels are always mounted so each protocol auto-connects at startup */}
                       <Suspense fallback={<PanelSkeleton />}>
-                        <MapPanel
-                          nodes={nodesForUi}
-                          myNodeNum={device.selfNodeId}
-                          locationFilter={locationFilter}
-                          ourPosition={device.ourPosition}
-                          onLocateMe={() =>
-                            device
-                              .refreshOurPosition()
-                              .then((p) => (p ? { lat: p.lat, lon: p.lon } : null))
-                          }
-                          waypoints={device.waypoints}
-                          onSendWaypoint={device.sendWaypoint}
-                          onDeleteWaypoint={device.deleteWaypoint}
-                          protocol={protocol}
-                        />
-                      </Suspense>
-                    </ErrorBoundary>
-                  ) : null}
-                </div>
-                <div
-                  id="panel-4"
-                  role="tabpanel"
-                  aria-labelledby="tab-4"
-                  hidden={activePanelIndex !== 4}
-                >
-                  {activePanelIndex === 4 ? (
-                    <ErrorBoundary>
-                      <Suspense fallback={<PanelSkeleton />}>
-                        <RadioPanel
-                          onSetConfig={device.setConfig}
-                          onCommit={device.commitConfig}
-                          onSetChannel={device.setDeviceChannel}
-                          onClearChannel={device.clearChannel}
-                          channelConfigs={device.channelConfigs}
-                          isConnected={isOperational}
-                          telemetryDeviceUpdateInterval={device.telemetryDeviceUpdateInterval}
-                          onReboot={
-                            protocol === 'meshcore' ? () => meshcoreDevice.reboot() : device.reboot
-                          }
-                          onShutdown={device.shutdown}
-                          onFactoryReset={device.factoryReset}
-                          onResetNodeDb={device.resetNodeDb}
-                          ourPosition={device.ourPosition}
-                          onSendPositionToDevice={device.sendPositionToDevice}
-                          deviceOwner={device.deviceOwner}
-                          onSetOwner={
-                            protocol === 'meshcore'
-                              ? async (owner) => meshcoreDevice.setOwner(owner)
-                              : device.setOwner
-                          }
-                          onRebootOta={device.rebootOta}
-                          onEnterDfu={device.enterDfuMode}
-                          onFactoryResetConfig={device.factoryResetConfig}
-                          capabilities={capabilities}
-                          meshcoreChannels={
-                            protocol === 'meshcore' ? meshcoreDevice.channels : undefined
-                          }
-                          onMeshcoreSetChannel={
-                            protocol === 'meshcore'
-                              ? async (idx, name, secret) =>
-                                  meshcoreDevice.setMeshcoreChannel(idx, name, secret)
-                              : undefined
-                          }
-                          onMeshcoreDeleteChannel={
-                            protocol === 'meshcore'
-                              ? async (idx) => meshcoreDevice.deleteMeshcoreChannel(idx)
-                              : undefined
-                          }
-                          onApplyLoraParams={
-                            protocol === 'meshcore'
-                              ? async (p) => meshcoreDevice.setRadioParams(p)
-                              : undefined
-                          }
-                          loraConfig={
-                            protocol === 'meshcore' && meshcoreDevice.selfInfo
-                              ? {
-                                  freq: meshcoreDevice.selfInfo.radioFreq,
-                                  bw: meshcoreDevice.selfInfo.radioBw,
-                                  sf: meshcoreDevice.selfInfo.radioSf,
-                                  cr: meshcoreDevice.selfInfo.radioCr,
-                                  txPower: meshcoreDevice.selfInfo.txPower,
-                                }
-                              : undefined
-                          }
-                          meshcoreSelfInfo={
-                            protocol === 'meshcore' ? meshcoreDevice.selfInfo : undefined
-                          }
-                          meshcoreContactsForTelemetry={
-                            protocol === 'meshcore'
-                              ? meshcoreDevice.meshcoreContactsForTelemetry
-                              : undefined
-                          }
-                          onApplyMeshcoreTelemetryPrivacy={
-                            protocol === 'meshcore'
-                              ? meshcoreDevice.applyMeshcoreTelemetryPrivacyPolicy
-                              : undefined
-                          }
-                          meshcoreAutoadd={
-                            protocol === 'meshcore' ? meshcoreDevice.meshcoreAutoadd : undefined
-                          }
-                          onApplyMeshcoreContactAutoAdd={
-                            protocol === 'meshcore'
-                              ? meshcoreDevice.applyMeshcoreContactAutoAdd
-                              : undefined
-                          }
-                          onRefreshMeshcoreAutoaddFromDevice={
-                            protocol === 'meshcore'
-                              ? meshcoreDevice.refreshMeshcoreAutoaddFromDevice
-                              : undefined
-                          }
-                          meshcoreContactsShowPublicKeys={
-                            protocol === 'meshcore' ? meshcoreContactsShowPublicKeys : undefined
-                          }
-                          onMeshcoreContactsShowPublicKeysChange={
-                            protocol === 'meshcore'
-                              ? onMeshcoreContactsShowPublicKeysChange
-                              : undefined
-                          }
-                          meshcoreContactsShowRefreshControl={
-                            protocol === 'meshcore' ? meshcoreContactsShowRefreshControl : undefined
-                          }
-                          onMeshcoreContactsShowRefreshControlChange={
-                            protocol === 'meshcore'
-                              ? onMeshcoreContactsShowRefreshControlChange
-                              : undefined
-                          }
-                          onClearAllMeshcoreContacts={
-                            protocol === 'meshcore'
-                              ? meshcoreDevice.clearAllMeshcoreContacts
-                              : undefined
-                          }
-                          onSendAdvert={
-                            protocol === 'meshcore' ? meshcoreDevice.sendAdvert : undefined
-                          }
-                          onSyncClock={
-                            protocol === 'meshcore' ? meshcoreDevice.syncClock : undefined
-                          }
-                        />
-                      </Suspense>
-                    </ErrorBoundary>
-                  ) : null}
-                </div>
-                <div
-                  id="panel-5"
-                  role="tabpanel"
-                  aria-labelledby="tab-5"
-                  hidden={activePanelIndex !== 5}
-                >
-                  {activePanelIndex === 5 && protocol === 'meshcore' ? (
-                    <ErrorBoundary>
-                      <Suspense fallback={<PanelSkeleton />}>
-                        <RepeatersPanel
-                          nodes={meshcoreDevice.nodes}
-                          meshcoreNodeStatus={meshcoreDevice.meshcoreNodeStatus}
-                          meshcoreStatusErrors={meshcoreDevice.meshcoreStatusErrors}
-                          meshcoreTraceResults={meshcoreDevice.meshcoreTraceResults}
-                          meshcorePingErrors={meshcoreDevice.meshcorePingErrors}
-                          onRequestRepeaterStatus={meshcoreDevice.requestRepeaterStatus}
-                          onPing={meshcoreDevice.traceRoute}
-                          onDeleteRepeater={meshcoreDevice.deleteNode}
-                          isConnected={isOperational}
-                          onRequestNeighbors={meshcoreDevice.requestNeighbors}
-                          meshcoreNeighbors={meshcoreDevice.meshcoreNeighbors}
-                          meshcoreNeighborErrors={meshcoreDevice.meshcoreNeighborErrors}
-                          onRequestTelemetry={meshcoreDevice.requestTelemetry}
-                          meshcoreTelemetry={meshcoreDevice.meshcoreNodeTelemetry}
-                          meshcoreTelemetryErrors={meshcoreDevice.meshcoreTelemetryErrors}
-                          onSelectRepeater={(node) => {
-                            setSelectedNodeId(node.node_id);
-                          }}
-                          onSendCliCommand={meshcoreDevice.sendRepeaterCliCommand}
-                          meshcoreCliHistories={meshcoreDevice.meshcoreCliHistories}
-                          meshcoreCliErrors={meshcoreDevice.meshcoreCliErrors}
-                          onClearCliHistory={meshcoreDevice.clearCliHistory}
-                        />
-                      </Suspense>
-                    </ErrorBoundary>
-                  ) : null}
-                  {activePanelIndex === 5 && protocol !== 'meshcore' ? (
-                    <ErrorBoundary>
-                      <Suspense fallback={<PanelSkeleton />}>
-                        <ModulePanel
-                          moduleConfigs={device.moduleConfigs}
-                          onSetModuleConfig={device.setModuleConfig}
-                          onSetCannedMessages={device.setCannedMessages}
-                          onSetRingtone={device.setRingtone}
-                          ringtone={device.ringtone}
-                          onCommit={device.commitConfig}
-                          isConnected={isOperational}
-                          storeForwardMessages={device.storeForwardMessages}
-                          rangeTestPackets={device.rangeTestPackets}
-                          serialMessages={device.serialMessages}
-                          remoteHardwareMessages={device.remoteHardwareMessages}
-                          ipTunnelMessages={device.ipTunnelMessages}
-                        />
-                      </Suspense>
-                    </ErrorBoundary>
-                  ) : null}
-                </div>
-                <div
-                  id="panel-6"
-                  role="tabpanel"
-                  aria-labelledby="tab-6"
-                  hidden={activePanelIndex !== 6}
-                >
-                  {activePanelIndex === 6 ? (
-                    <ErrorBoundary>
-                      <Suspense fallback={<PanelSkeleton />}>
-                        <TelemetryPanel
-                          telemetry={device.telemetry}
-                          signalTelemetry={device.signalTelemetry}
-                          environmentTelemetry={device.environmentTelemetry}
-                          useFahrenheit={useFahrenheit}
-                          onToggleFahrenheit={toggleFahrenheit}
-                          onRefresh={device.requestRefresh}
-                          isConnected={isOperational}
-                          capabilities={capabilities}
-                          meshcorePacketStats={
-                            protocol === 'meshcore' ? meshcoreDevice.meshcoreLocalStats : null
-                          }
-                        />
-                      </Suspense>
-                    </ErrorBoundary>
-                  ) : null}
-                </div>
-                <div
-                  id="panel-7"
-                  role="tabpanel"
-                  aria-labelledby="tab-7"
-                  hidden={activePanelIndex !== 7}
-                >
-                  {activePanelIndex === 7 ? (
-                    <ErrorBoundary>
-                      <Suspense fallback={<PanelSkeleton />}>
-                        <SecurityPanel
-                          onSetConfig={device.setConfig}
-                          onCommit={device.commitConfig}
-                          isConnected={isOperational}
-                          securityConfig={device.securityConfig}
-                          protocol={protocol}
-                          onSignData={protocol === 'meshcore' ? meshcoreDevice.signData : undefined}
-                          onExportPrivateKey={
-                            protocol === 'meshcore' ? meshcoreDevice.exportPrivateKey : undefined
-                          }
-                          onImportPrivateKey={
-                            protocol === 'meshcore' ? meshcoreDevice.importPrivateKey : undefined
-                          }
-                        />
-                      </Suspense>
-                    </ErrorBoundary>
-                  ) : null}
-                </div>
-                <div
-                  id="panel-8"
-                  role="tabpanel"
-                  aria-labelledby="tab-8"
-                  hidden={activePanelIndex !== 8}
-                >
-                  {activePanelIndex === 8 ? (
-                    <ErrorBoundary>
-                      <Suspense fallback={<PanelSkeleton />}>
-                        <TakServerPanel
-                          atakMessages={device.atakMessages}
-                          capabilities={capabilities}
-                        />
-                      </Suspense>
-                    </ErrorBoundary>
-                  ) : null}
-                </div>
-                <div
-                  id="panel-9"
-                  role="tabpanel"
-                  aria-labelledby="tab-9"
-                  hidden={activePanelIndex !== 9}
-                >
-                  {activePanelIndex === 9 ? (
-                    <ErrorBoundary>
-                      <Suspense fallback={<PanelSkeleton />}>
-                        <AppPanel
-                          protocol={protocol}
-                          logPanelVisible={logPanelVisible}
-                          onLogPanelVisibleChange={(visible) => {
-                            setLogPanelVisible(visible);
-                            try {
-                              localStorage.setItem(
-                                LOG_PANEL_VISIBLE_KEY,
-                                visible ? 'true' : 'false',
-                              );
-                            } catch (e) {
-                              console.debug('[App] persist logPanelVisible', e);
+                        <div hidden={protocol !== 'meshtastic'}>
+                          <ConnectionPanel
+                            state={meshtasticDevice.state}
+                            onConnect={meshtasticDevice.connect}
+                            onAutoConnect={meshtasticDevice.connectAutomatic}
+                            onDisconnect={meshtasticDevice.disconnect}
+                            mqttStatus={meshtasticDevice.mqttStatus}
+                            myNodeLabel={
+                              meshtasticDevice.state.myNodeNum > 0
+                                ? meshtasticDevice.getPickerStyleNodeLabel(
+                                    meshtasticDevice.state.myNodeNum,
+                                  )
+                                : undefined
                             }
-                          }}
-                          nodes={nodesForUi}
-                          messageCount={device.messages.length}
-                          channels={device.channels}
-                          myNodeNum={device.state.myNodeNum}
-                          onLocationFilterChange={handleLocationFilterChange}
-                          ourPosition={device.ourPosition}
-                          onRefreshGps={device.refreshOurPosition}
-                          gpsLoading={device.gpsLoading}
-                          onGpsIntervalChange={device.updateGpsInterval}
-                          onNodesPruned={device.refreshNodesFromDb}
-                          onMessagesPruned={device.refreshMessagesFromDb}
-                          onClearMeshcoreRepeaters={
-                            protocol === 'meshcore' ? meshcoreDevice.clearAllRepeaters : undefined
-                          }
-                          onAutoFloodAdvertIntervalChange={setAutoFloodAdvertIntervalHours}
-                        />
-                      </Suspense>
-                    </ErrorBoundary>
-                  ) : null}
-                </div>
-                <div
-                  id="panel-10"
-                  role="tabpanel"
-                  aria-labelledby="tab-10"
-                  hidden={activePanelIndex !== 10}
-                >
-                  {activePanelIndex === 10 ? (
-                    <ErrorBoundary>
-                      <Suspense fallback={<PanelSkeleton />}>
-                        <DiagnosticsPanel
-                          nodes={nodesForUi}
-                          myNodeNum={device.selfNodeId}
-                          onTraceRoute={device.traceRoute}
-                          isConnected={isOperational}
-                          traceRouteResults={device.traceRouteResults}
-                          getFullNodeLabel={device.getFullNodeLabel}
-                          ourPosition={device.ourPosition}
-                          onNodeClick={(node) => {
-                            setSelectedNodeId(node.node_id);
-                          }}
-                          capabilities={capabilities}
-                        />
-                      </Suspense>
-                    </ErrorBoundary>
-                  ) : null}
-                </div>
-                <div
-                  id="panel-11"
-                  role="tabpanel"
-                  aria-labelledby="tab-11"
-                  hidden={activePanelIndex !== 11}
-                >
-                  {activePanelIndex === 11 && capabilities.hasRawPacketLog ? (
-                    <ErrorBoundary>
-                      <Suspense fallback={<PanelSkeleton />}>
-                        {protocol === 'meshcore' ? (
-                          <RawPacketLogPanel
-                            variant="meshcore"
-                            packets={meshcoreDevice.rawPackets}
-                            onClear={meshcoreDevice.clearRawPackets}
-                            getNodeLabel={rawPacketGetNodeLabel}
-                            onNodeClick={setSelectedNodeId}
+                            protocol="meshtastic"
+                            onProtocolChange={handleProtocolChange}
+                            firmwareCheckState={
+                              protocol === 'meshtastic' ? firmwareCheckState : undefined
+                            }
+                            onOpenFirmwareReleases={
+                              protocol === 'meshtastic'
+                                ? () => {
+                                    void window.electronAPI.update.openReleases(
+                                      firmwareCheckState.releaseUrl ??
+                                        MESHTASTIC_FIRMWARE_RELEASES_URL,
+                                    );
+                                  }
+                                : undefined
+                            }
                           />
-                        ) : (
-                          <RawPacketLogPanel
-                            variant="meshtastic"
-                            packets={meshtasticDevice.rawPackets}
-                            onClear={meshtasticDevice.clearRawPackets}
-                            getNodeLabel={rawPacketGetNodeLabel}
-                            onNodeClick={setSelectedNodeId}
+                        </div>
+                        <div hidden={protocol !== 'meshcore'}>
+                          <ConnectionPanel
+                            state={meshcoreDevice.state}
+                            onConnect={(type, addr, blePeripheralId) =>
+                              meshcoreDevice.connect(
+                                type === 'http' ? 'tcp' : type,
+                                addr,
+                                blePeripheralId,
+                              )
+                            }
+                            onAutoConnect={
+                              meshcoreDevice.connectAutomatic as unknown as typeof meshtasticDevice.connectAutomatic
+                            }
+                            onDisconnect={meshcoreDevice.disconnect}
+                            mqttStatus={meshcoreDevice.mqttStatus}
+                            myNodeLabel={
+                              meshcoreDevice.state.myNodeNum > 0
+                                ? meshcoreDevice.getPickerStyleNodeLabel(
+                                    meshcoreDevice.state.myNodeNum,
+                                  )
+                                : undefined
+                            }
+                            protocol="meshcore"
+                            onProtocolChange={handleProtocolChange}
+                            firmwareCheckState={
+                              protocol === 'meshcore' ? firmwareCheckState : undefined
+                            }
+                            onOpenFirmwareReleases={
+                              protocol === 'meshcore'
+                                ? () => {
+                                    void window.electronAPI.update.openReleases(
+                                      firmwareCheckState.releaseUrl ??
+                                        MESHCORE_FIRMWARE_RELEASES_URL,
+                                    );
+                                  }
+                                : undefined
+                            }
                           />
-                        )}
+                        </div>
                       </Suspense>
-                    </ErrorBoundary>
-                  ) : null}
+                    </div>
+                    {(activePanelIndex === 1 || hasVisitedChatTabRef.current) && (
+                      <div
+                        id="panel-1"
+                        role="tabpanel"
+                        aria-labelledby="tab-1"
+                        hidden={activePanelIndex !== 1}
+                        className="h-full w-full min-w-0"
+                      >
+                        <Suspense fallback={<PanelSkeleton />}>
+                          <ChatPanel
+                            key={protocol}
+                            messages={chatMessagesForPanel}
+                            channels={chatChannelsForPanel}
+                            myNodeNum={device.selfNodeId}
+                            onSend={device.sendMessage}
+                            onReact={device.sendReaction}
+                            onResend={handleResend}
+                            onNodeClick={setSelectedNodeId}
+                            isConnected={isOperational || device.mqttStatus === 'connected'}
+                            isMqttOnly={!isOperational && device.mqttStatus === 'connected'}
+                            connectionType={device.state.connectionType}
+                            nodes={chatNodesForPanel}
+                            initialDmTarget={pendingDmTarget}
+                            onDmTargetConsumed={handleDmTargetConsumed}
+                            isActive={activePanelIndex === 1}
+                            onGlobalSearch={handleOpenGlobalSearch}
+                            protocol={protocol}
+                            scrollToTopRef={scrollToTopChatRef}
+                            outerScrollMetricsRootRef={mainViewportRef}
+                          />
+                        </Suspense>
+                      </div>
+                    )}
+                    <div
+                      id="panel-2"
+                      role="tabpanel"
+                      aria-labelledby="tab-2"
+                      hidden={activePanelIndex !== 2}
+                      className="w-full min-w-0"
+                    >
+                      {activePanelIndex === 2 ? (
+                        <Suspense fallback={<PanelSkeleton />}>
+                          <NodeListPanel
+                            nodes={nodesForUi}
+                            myNodeNum={device.selfNodeId}
+                            onNodeClick={(node) => {
+                              setSelectedNodeId(node.node_id);
+                            }}
+                            mqttConnected={device.mqttStatus === 'connected'}
+                            locationFilter={locationFilter}
+                            onToggleFavorite={device.setNodeFavorited}
+                            mode={protocol}
+                            groups={contactGroups.groups}
+                            selectedGroupId={contactGroups.selectedGroupId}
+                            onGroupChange={contactGroups.setSelectedGroupId}
+                            onManageGroups={
+                              capabilities.hasUserManagedContactGroups
+                                ? () => {
+                                    setShowGroupsModal(true);
+                                  }
+                                : undefined
+                            }
+                            groupMemberIds={contactGroups.groupMemberIds}
+                            contactGroupsEnabled={capabilities.hasUserManagedContactGroups}
+                            onImportContacts={
+                              protocol === 'meshcore' ? meshcoreDevice.importContacts : undefined
+                            }
+                            meshcoreShowRefreshControl={
+                              protocol === 'meshcore' ? meshcoreContactsShowRefreshControl : false
+                            }
+                            onRefreshContacts={
+                              protocol === 'meshcore' ? meshcoreDevice.refreshContacts : undefined
+                            }
+                            meshcoreShowPublicKeys={
+                              protocol === 'meshcore' ? meshcoreContactsShowPublicKeys : false
+                            }
+                            meshcorePublicKeyHexByNodeId={
+                              protocol === 'meshcore' ? meshcorePublicKeyHexByNodeId : undefined
+                            }
+                          />
+                        </Suspense>
+                      ) : null}
+                    </div>
+                    <div
+                      id="panel-3"
+                      role="tabpanel"
+                      aria-labelledby="tab-3"
+                      hidden={activePanelIndex !== 3}
+                      className="h-full w-full min-w-0"
+                    >
+                      {activePanelIndex === 3 ? (
+                        <ErrorBoundary>
+                          <Suspense fallback={<PanelSkeleton />}>
+                            <MapPanel
+                              nodes={nodesForUi}
+                              myNodeNum={device.selfNodeId}
+                              locationFilter={locationFilter}
+                              ourPosition={device.ourPosition}
+                              onLocateMe={() =>
+                                device
+                                  .refreshOurPosition()
+                                  .then((p) => (p ? { lat: p.lat, lon: p.lon } : null))
+                              }
+                              waypoints={device.waypoints}
+                              onSendWaypoint={device.sendWaypoint}
+                              onDeleteWaypoint={device.deleteWaypoint}
+                              protocol={protocol}
+                            />
+                          </Suspense>
+                        </ErrorBoundary>
+                      ) : null}
+                    </div>
+                    <div
+                      id="panel-4"
+                      role="tabpanel"
+                      aria-labelledby="tab-4"
+                      hidden={activePanelIndex !== 4}
+                      className="w-full min-w-0"
+                    >
+                      {activePanelIndex === 4 ? (
+                        <ErrorBoundary>
+                          <Suspense fallback={<PanelSkeleton />}>
+                            <RadioPanel
+                              onSetConfig={device.setConfig}
+                              onCommit={device.commitConfig}
+                              onSetChannel={device.setDeviceChannel}
+                              onClearChannel={device.clearChannel}
+                              channelConfigs={device.channelConfigs}
+                              isConnected={isOperational}
+                              telemetryDeviceUpdateInterval={device.telemetryDeviceUpdateInterval}
+                              onReboot={
+                                protocol === 'meshcore'
+                                  ? () => meshcoreDevice.reboot()
+                                  : device.reboot
+                              }
+                              onShutdown={device.shutdown}
+                              onFactoryReset={device.factoryReset}
+                              onResetNodeDb={device.resetNodeDb}
+                              ourPosition={device.ourPosition}
+                              onSendPositionToDevice={device.sendPositionToDevice}
+                              deviceOwner={device.deviceOwner}
+                              onSetOwner={
+                                protocol === 'meshcore'
+                                  ? async (owner) => meshcoreDevice.setOwner(owner)
+                                  : device.setOwner
+                              }
+                              onRebootOta={device.rebootOta}
+                              onEnterDfu={device.enterDfuMode}
+                              onFactoryResetConfig={device.factoryResetConfig}
+                              capabilities={capabilities}
+                              meshcoreChannels={
+                                protocol === 'meshcore' ? meshcoreDevice.channels : undefined
+                              }
+                              onMeshcoreSetChannel={
+                                protocol === 'meshcore'
+                                  ? async (idx, name, secret) =>
+                                      meshcoreDevice.setMeshcoreChannel(idx, name, secret)
+                                  : undefined
+                              }
+                              onMeshcoreDeleteChannel={
+                                protocol === 'meshcore'
+                                  ? async (idx) => meshcoreDevice.deleteMeshcoreChannel(idx)
+                                  : undefined
+                              }
+                              onApplyLoraParams={
+                                protocol === 'meshcore'
+                                  ? async (p) => meshcoreDevice.setRadioParams(p)
+                                  : undefined
+                              }
+                              loraConfig={
+                                protocol === 'meshcore' && meshcoreDevice.selfInfo
+                                  ? {
+                                      freq: meshcoreDevice.selfInfo.radioFreq,
+                                      bw: meshcoreDevice.selfInfo.radioBw,
+                                      sf: meshcoreDevice.selfInfo.radioSf,
+                                      cr: meshcoreDevice.selfInfo.radioCr,
+                                      txPower: meshcoreDevice.selfInfo.txPower,
+                                    }
+                                  : undefined
+                              }
+                              meshcoreSelfInfo={
+                                protocol === 'meshcore' ? meshcoreDevice.selfInfo : undefined
+                              }
+                              meshcoreContactsForTelemetry={
+                                protocol === 'meshcore'
+                                  ? meshcoreDevice.meshcoreContactsForTelemetry
+                                  : undefined
+                              }
+                              onApplyMeshcoreTelemetryPrivacy={
+                                protocol === 'meshcore'
+                                  ? meshcoreDevice.applyMeshcoreTelemetryPrivacyPolicy
+                                  : undefined
+                              }
+                              meshcoreAutoadd={
+                                protocol === 'meshcore' ? meshcoreDevice.meshcoreAutoadd : undefined
+                              }
+                              onApplyMeshcoreContactAutoAdd={
+                                protocol === 'meshcore'
+                                  ? meshcoreDevice.applyMeshcoreContactAutoAdd
+                                  : undefined
+                              }
+                              onRefreshMeshcoreAutoaddFromDevice={
+                                protocol === 'meshcore'
+                                  ? meshcoreDevice.refreshMeshcoreAutoaddFromDevice
+                                  : undefined
+                              }
+                              meshcoreContactsShowPublicKeys={
+                                protocol === 'meshcore' ? meshcoreContactsShowPublicKeys : undefined
+                              }
+                              onMeshcoreContactsShowPublicKeysChange={
+                                protocol === 'meshcore'
+                                  ? onMeshcoreContactsShowPublicKeysChange
+                                  : undefined
+                              }
+                              meshcoreContactsShowRefreshControl={
+                                protocol === 'meshcore'
+                                  ? meshcoreContactsShowRefreshControl
+                                  : undefined
+                              }
+                              onMeshcoreContactsShowRefreshControlChange={
+                                protocol === 'meshcore'
+                                  ? onMeshcoreContactsShowRefreshControlChange
+                                  : undefined
+                              }
+                              onClearAllMeshcoreContacts={
+                                protocol === 'meshcore'
+                                  ? meshcoreDevice.clearAllMeshcoreContacts
+                                  : undefined
+                              }
+                              onSendAdvert={
+                                protocol === 'meshcore' ? meshcoreDevice.sendAdvert : undefined
+                              }
+                              onSyncClock={
+                                protocol === 'meshcore' ? meshcoreDevice.syncClock : undefined
+                              }
+                            />
+                          </Suspense>
+                        </ErrorBoundary>
+                      ) : null}
+                    </div>
+                    <div
+                      id="panel-5"
+                      role="tabpanel"
+                      aria-labelledby="tab-5"
+                      hidden={activePanelIndex !== 5}
+                      className="w-full min-w-0"
+                    >
+                      {activePanelIndex === 5 && protocol === 'meshcore' ? (
+                        <ErrorBoundary>
+                          <Suspense fallback={<PanelSkeleton />}>
+                            <RepeatersPanel
+                              nodes={meshcoreDevice.nodes}
+                              meshcoreNodeStatus={meshcoreDevice.meshcoreNodeStatus}
+                              meshcoreStatusErrors={meshcoreDevice.meshcoreStatusErrors}
+                              meshcoreTraceResults={meshcoreDevice.meshcoreTraceResults}
+                              meshcorePingErrors={meshcoreDevice.meshcorePingErrors}
+                              onRequestRepeaterStatus={meshcoreDevice.requestRepeaterStatus}
+                              onPing={meshcoreDevice.traceRoute}
+                              onDeleteRepeater={meshcoreDevice.deleteNode}
+                              isConnected={isOperational}
+                              onRequestNeighbors={meshcoreDevice.requestNeighbors}
+                              meshcoreNeighbors={meshcoreDevice.meshcoreNeighbors}
+                              meshcoreNeighborErrors={meshcoreDevice.meshcoreNeighborErrors}
+                              onRequestTelemetry={meshcoreDevice.requestTelemetry}
+                              meshcoreTelemetry={meshcoreDevice.meshcoreNodeTelemetry}
+                              meshcoreTelemetryErrors={meshcoreDevice.meshcoreTelemetryErrors}
+                              onSelectRepeater={(node) => {
+                                setSelectedNodeId(node.node_id);
+                              }}
+                              onSendCliCommand={meshcoreDevice.sendRepeaterCliCommand}
+                              meshcoreCliHistories={meshcoreDevice.meshcoreCliHistories}
+                              meshcoreCliErrors={meshcoreDevice.meshcoreCliErrors}
+                              onClearCliHistory={meshcoreDevice.clearCliHistory}
+                            />
+                          </Suspense>
+                        </ErrorBoundary>
+                      ) : null}
+                      {activePanelIndex === 5 && protocol !== 'meshcore' ? (
+                        <ErrorBoundary>
+                          <Suspense fallback={<PanelSkeleton />}>
+                            <ModulePanel
+                              moduleConfigs={device.moduleConfigs}
+                              onSetModuleConfig={device.setModuleConfig}
+                              onSetCannedMessages={device.setCannedMessages}
+                              onSetRingtone={device.setRingtone}
+                              ringtone={device.ringtone}
+                              onCommit={device.commitConfig}
+                              isConnected={isOperational}
+                              storeForwardMessages={device.storeForwardMessages}
+                              rangeTestPackets={device.rangeTestPackets}
+                              serialMessages={device.serialMessages}
+                              remoteHardwareMessages={device.remoteHardwareMessages}
+                              ipTunnelMessages={device.ipTunnelMessages}
+                            />
+                          </Suspense>
+                        </ErrorBoundary>
+                      ) : null}
+                    </div>
+                    <div
+                      id="panel-6"
+                      role="tabpanel"
+                      aria-labelledby="tab-6"
+                      hidden={activePanelIndex !== 6}
+                      className="w-full min-w-0"
+                    >
+                      {activePanelIndex === 6 ? (
+                        <ErrorBoundary>
+                          <Suspense fallback={<PanelSkeleton />}>
+                            <TelemetryPanel
+                              telemetry={device.telemetry}
+                              signalTelemetry={device.signalTelemetry}
+                              environmentTelemetry={device.environmentTelemetry}
+                              useFahrenheit={useFahrenheit}
+                              onToggleFahrenheit={toggleFahrenheit}
+                              onRefresh={device.requestRefresh}
+                              isConnected={isOperational}
+                              capabilities={capabilities}
+                              meshcorePacketStats={
+                                protocol === 'meshcore' ? meshcoreDevice.meshcoreLocalStats : null
+                              }
+                            />
+                          </Suspense>
+                        </ErrorBoundary>
+                      ) : null}
+                    </div>
+                    <div
+                      id="panel-7"
+                      role="tabpanel"
+                      aria-labelledby="tab-7"
+                      hidden={activePanelIndex !== 7}
+                      className="w-full min-w-0"
+                    >
+                      {activePanelIndex === 7 ? (
+                        <ErrorBoundary>
+                          <Suspense fallback={<PanelSkeleton />}>
+                            <SecurityPanel
+                              onSetConfig={device.setConfig}
+                              onCommit={device.commitConfig}
+                              isConnected={isOperational}
+                              securityConfig={device.securityConfig}
+                              protocol={protocol}
+                              onSignData={
+                                protocol === 'meshcore' ? meshcoreDevice.signData : undefined
+                              }
+                              onExportPrivateKey={
+                                protocol === 'meshcore'
+                                  ? meshcoreDevice.exportPrivateKey
+                                  : undefined
+                              }
+                              onImportPrivateKey={
+                                protocol === 'meshcore'
+                                  ? meshcoreDevice.importPrivateKey
+                                  : undefined
+                              }
+                            />
+                          </Suspense>
+                        </ErrorBoundary>
+                      ) : null}
+                    </div>
+                    <div
+                      id="panel-8"
+                      role="tabpanel"
+                      aria-labelledby="tab-8"
+                      hidden={activePanelIndex !== 8}
+                      className="w-full min-w-0"
+                    >
+                      {activePanelIndex === 8 ? (
+                        <ErrorBoundary>
+                          <Suspense fallback={<PanelSkeleton />}>
+                            <TakServerPanel
+                              atakMessages={device.atakMessages}
+                              capabilities={capabilities}
+                            />
+                          </Suspense>
+                        </ErrorBoundary>
+                      ) : null}
+                    </div>
+                    <div
+                      id="panel-9"
+                      role="tabpanel"
+                      aria-labelledby="tab-9"
+                      hidden={activePanelIndex !== 9}
+                      className="w-full min-w-0"
+                    >
+                      {activePanelIndex === 9 ? (
+                        <ErrorBoundary>
+                          <Suspense fallback={<PanelSkeleton />}>
+                            <AppPanel
+                              protocol={protocol}
+                              logPanelVisible={logPanelVisible}
+                              onLogPanelVisibleChange={(visible) => {
+                                setLogPanelVisible(visible);
+                                try {
+                                  localStorage.setItem(
+                                    LOG_PANEL_VISIBLE_KEY,
+                                    visible ? 'true' : 'false',
+                                  );
+                                } catch (e) {
+                                  console.debug('[App] persist logPanelVisible', e);
+                                }
+                              }}
+                              nodes={nodesForUi}
+                              messageCount={device.messages.length}
+                              channels={device.channels}
+                              myNodeNum={device.state.myNodeNum}
+                              onLocationFilterChange={handleLocationFilterChange}
+                              ourPosition={device.ourPosition}
+                              onRefreshGps={device.refreshOurPosition}
+                              gpsLoading={device.gpsLoading}
+                              onGpsIntervalChange={device.updateGpsInterval}
+                              onNodesPruned={device.refreshNodesFromDb}
+                              onMessagesPruned={device.refreshMessagesFromDb}
+                              onClearMeshcoreRepeaters={
+                                protocol === 'meshcore'
+                                  ? meshcoreDevice.clearAllRepeaters
+                                  : undefined
+                              }
+                              onAutoFloodAdvertIntervalChange={setAutoFloodAdvertIntervalHours}
+                            />
+                          </Suspense>
+                        </ErrorBoundary>
+                      ) : null}
+                    </div>
+                    <div
+                      id="panel-10"
+                      role="tabpanel"
+                      aria-labelledby="tab-10"
+                      hidden={activePanelIndex !== 10}
+                      className="w-full min-w-0"
+                    >
+                      {activePanelIndex === 10 ? (
+                        <ErrorBoundary>
+                          <Suspense fallback={<PanelSkeleton />}>
+                            <DiagnosticsPanel
+                              nodes={nodesForUi}
+                              myNodeNum={device.selfNodeId}
+                              onTraceRoute={device.traceRoute}
+                              isConnected={isOperational}
+                              traceRouteResults={device.traceRouteResults}
+                              getFullNodeLabel={device.getFullNodeLabel}
+                              ourPosition={device.ourPosition}
+                              onNodeClick={(node) => {
+                                setSelectedNodeId(node.node_id);
+                              }}
+                              capabilities={capabilities}
+                              protocol={protocol}
+                            />
+                          </Suspense>
+                        </ErrorBoundary>
+                      ) : null}
+                    </div>
+                    <div
+                      id="panel-11"
+                      role="tabpanel"
+                      aria-labelledby="tab-11"
+                      hidden={activePanelIndex !== 11}
+                      className="w-full min-w-0"
+                    >
+                      {activePanelIndex === 11 && capabilities.hasRawPacketLog ? (
+                        <ErrorBoundary>
+                          <Suspense fallback={<PanelSkeleton />}>
+                            {protocol === 'meshcore' ? (
+                              <PacketDistributionPanel
+                                variant="meshcore"
+                                packets={meshcoreDevice.rawPackets}
+                                getNodeLabel={rawPacketGetNodeLabel}
+                              />
+                            ) : (
+                              <PacketDistributionPanel
+                                variant="meshtastic"
+                                packets={meshtasticDevice.rawPackets}
+                                getNodeLabel={rawPacketGetNodeLabel}
+                              />
+                            )}
+                          </Suspense>
+                        </ErrorBoundary>
+                      ) : null}
+                    </div>
+                    <div
+                      id="panel-12"
+                      role="tabpanel"
+                      aria-labelledby="tab-12"
+                      hidden={activePanelIndex !== 12}
+                      className="w-full min-w-0"
+                    >
+                      {activePanelIndex === 12 && capabilities.hasRawPacketLog ? (
+                        <ErrorBoundary>
+                          <Suspense fallback={<PanelSkeleton />}>
+                            {protocol === 'meshcore' ? (
+                              <RawPacketLogPanel
+                                variant="meshcore"
+                                packets={meshcoreDevice.rawPackets}
+                                onClear={meshcoreDevice.clearRawPackets}
+                                getNodeLabel={rawPacketGetNodeLabel}
+                                onNodeClick={setSelectedNodeId}
+                              />
+                            ) : (
+                              <RawPacketLogPanel
+                                variant="meshtastic"
+                                packets={meshtasticDevice.rawPackets}
+                                onClear={meshtasticDevice.clearRawPackets}
+                                getNodeLabel={rawPacketGetNodeLabel}
+                                onNodeClick={setSelectedNodeId}
+                              />
+                            )}
+                          </Suspense>
+                        </ErrorBoundary>
+                      ) : null}
+                    </div>
+                  </ErrorBoundary>
                 </div>
-              </ErrorBoundary>
+              </div>
             </div>
 
-            {/* Footer — same centering idea as header: 1fr | auto | 1fr so middle stays true center */}
-            <footer className="bg-deep-black text-muted grid shrink-0 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-4 border-t border-gray-700 px-4 py-1.5 text-[11px]">
+            {showMainScrollTop && activePanelIndex !== 1 && (
+              <button
+                type="button"
+                onClick={scrollMainToTop}
+                className="bg-brand-green text-deep-black hover:bg-bright-green fixed right-6 bottom-12 z-50 rounded-full px-3 py-2 text-xs font-bold shadow-lg transition-colors"
+                title="Back to top"
+                aria-label="Back to top"
+              >
+                ↑ Top
+              </button>
+            )}
+
+            {/* Footer - fixed height at bottom of Content Wrapper */}
+            <footer className="text-muted flex h-8 shrink-0 items-center justify-between border-t border-slate-800 bg-slate-900 px-4 text-[10px]">
               <span className="min-w-0">
                 A Project by{' '}
                 <a
                   href="https://coloradomesh.org/"
                   title="Colorado Mesh"
-                  className="text-bright-green underline hover:opacity-80"
+                  className="text-slate-400 underline decoration-slate-600/80 underline-offset-2 transition-colors hover:text-slate-300"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -1727,7 +1980,7 @@ export default function App() {
                 <a
                   href="https://discord.com/invite/McChKR5NpS"
                   title="Colorado Mesh Discord"
-                  className="text-bright-green underline hover:opacity-80"
+                  className="text-slate-400 underline decoration-slate-600/80 underline-offset-2 transition-colors hover:text-slate-300"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -1737,7 +1990,7 @@ export default function App() {
                 <a
                   href="https://github.com/Colorado-Mesh/mesh-client"
                   title="Colorado Mesh on GitHub"
-                  className="text-bright-green underline hover:opacity-80"
+                  className="text-slate-400 underline decoration-slate-600/80 underline-offset-2 transition-colors hover:text-slate-300"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -1753,14 +2006,14 @@ export default function App() {
                 aria-label="Keyboard shortcuts (?)"
                 aria-haspopup="dialog"
                 title="Keyboard shortcuts (?)"
-                className="inline-flex shrink-0 items-center gap-1 justify-self-center rounded-full border border-gray-600 px-3 py-0.5 font-mono text-xs text-gray-400 transition-colors hover:bg-gray-800 hover:text-gray-300"
+                className="inline-flex shrink-0 items-center gap-1 justify-self-center rounded-full border border-slate-700 px-3 py-0.5 font-mono text-[10px] text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-300"
               >
                 Shortcuts
                 <span className="font-mono text-[10px] text-gray-400" aria-hidden="true">
                   ?
                 </span>
               </button>
-              <span className="inline-flex flex-wrap items-center justify-end gap-2 justify-self-end text-right whitespace-nowrap tabular-nums">
+              <span className="inline-flex flex-wrap items-center justify-end gap-2 justify-self-end text-right font-mono text-[10px] whitespace-nowrap tabular-nums">
                 <span>
                   {nodesForUi.size} {nodeCountLabel} | {device.messages.length} messages
                 </span>
@@ -1780,177 +2033,180 @@ export default function App() {
             </footer>
           </div>
         </div>
-
-        {logPanelVisible && (
-          <Suspense fallback={<DialogLazyFallback />}>
-            <LogPanel
-              protocol={protocol}
-              deviceLogs={
-                protocol === 'meshcore'
-                  ? meshcoreDevice.deviceLogs
-                  : meshtasticDevice.deviceLogs.map((d) => ({
-                      ts: d.time,
-                      level:
-                        d.level >= 40
-                          ? 'error'
-                          : d.level >= 30
-                            ? 'warn'
-                            : d.level >= 10
-                              ? 'log'
-                              : d.level > 0
-                                ? 'debug'
-                                : 'log',
-                      source: d.source,
-                      message: d.message,
-                    }))
-              }
-              variant="overlay"
-              onClose={() => {
-                setLogPanelVisible(false);
-                try {
-                  localStorage.setItem(LOG_PANEL_VISIBLE_KEY, 'false');
-                } catch (e) {
-                  console.debug('[App] persist logPanelVisible', e);
-                }
-              }}
-            />
-          </Suspense>
-        )}
-
-        {/* Keyboard Shortcuts Modal */}
-        {showShortcuts && (
-          <Suspense fallback={<DialogLazyFallback />}>
-            <KeyboardShortcutsModal
-              onClose={() => {
-                setShowShortcuts(false);
-              }}
-              tabNames={displayTabNames}
-            />
-          </Suspense>
-        )}
-
-        {/* Cross-channel Search Modal */}
-        {searchModalOpen && (
-          <Suspense fallback={<DialogLazyFallback />}>
-            <SearchModal
-              isOpen={searchModalOpen}
-              onClose={() => {
-                setSearchModalOpen(false);
-              }}
-              protocol={protocol}
-              nodes={nodesForUi}
-              channels={chatChannels}
-              onNavigateToChannel={() => {
-                setActiveTab(1);
-              }}
-            />
-          </Suspense>
-        )}
-
-        {/* Contact Groups Modal */}
-        {showGroupsModal && capabilities.hasUserManagedContactGroups && (
-          <Suspense fallback={<DialogLazyFallback />}>
-            <ContactGroupsModal
-              groups={contactGroups.groups}
-              contacts={protocol === 'meshcore' ? meshcoreDevice.nodes : meshtasticDevice.nodes}
-              selfNodeId={
-                protocol === 'meshcore' ? meshcoreDevice.selfNodeId : meshtasticDevice.selfNodeId
-              }
-              protocol={protocol}
-              onClose={() => {
-                setShowGroupsModal(false);
-              }}
-              onCreate={contactGroups.createGroup}
-              onRename={contactGroups.updateGroup}
-              onDelete={contactGroups.deleteGroup}
-              onAddMember={contactGroups.addMember}
-              onRemoveMember={contactGroups.removeMember}
-              onLoadMembers={contactGroups.loadMembers}
-              memberIds={contactGroups.groupMemberIds}
-            />
-          </Suspense>
-        )}
-
-        {/* Node Detail Modal — rendered outside main for proper z-indexing */}
-        {selectedNodeId !== null && (
-          <Suspense fallback={<DialogLazyFallback />}>
-            <NodeDetailModal
-              nodes={nodesForUi}
-              node={selectedNode}
-              onClose={() => {
-                setSelectedNodeId(null);
-              }}
-              onRequestPosition={device.requestPosition}
-              onTraceRoute={protocol === 'meshcore' ? meshcoreDevice.traceRoute : device.traceRoute}
-              traceRouteHops={traceRouteHops}
-              onDeleteNode={async (nodeNum) => {
-                await device.deleteNode(nodeNum);
-                setSelectedNodeId(null);
-              }}
-              onMessageNode={
-                selectedNode?.node_id !== device.state.myNodeNum ? handleMessageNode : undefined
-              }
-              onToggleFavorite={device.setNodeFavorited}
-              isConnected={isOperational}
-              homeNode={nodesForUi.get(device.state.myNodeNum) ?? null}
-              neighborInfo={device.neighborInfo}
-              useFahrenheit={useFahrenheit}
-              protocol={protocol}
-              meshcoreTraceResult={
-                protocol === 'meshcore' && selectedNode
-                  ? meshcoreDevice.meshcoreTraceResults.get(selectedNode.node_id)
-                  : undefined
-              }
-              meshcorePingError={
-                protocol === 'meshcore' && selectedNode
-                  ? meshcoreDevice.meshcorePingErrors.get(selectedNode.node_id)
-                  : undefined
-              }
-              meshcoreRepeaterStatus={
-                protocol === 'meshcore' && selectedNode
-                  ? meshcoreDevice.meshcoreNodeStatus.get(selectedNode.node_id)
-                  : undefined
-              }
-              onRequestRepeaterStatus={
-                protocol === 'meshcore' ? meshcoreDevice.requestRepeaterStatus : undefined
-              }
-              meshcoreNodeTelemetry={
-                protocol === 'meshcore' && selectedNode
-                  ? meshcoreDevice.meshcoreNodeTelemetry.get(selectedNode.node_id)
-                  : undefined
-              }
-              onRequestTelemetry={
-                protocol === 'meshcore' ? meshcoreDevice.requestTelemetry : undefined
-              }
-              meshcoreNeighbors={
-                protocol === 'meshcore' && selectedNode
-                  ? meshcoreDevice.meshcoreNeighbors.get(selectedNode.node_id)
-                  : undefined
-              }
-              onRequestNeighbors={
-                protocol === 'meshcore' ? meshcoreDevice.requestNeighbors : undefined
-              }
-              meshcoreNeighborError={
-                protocol === 'meshcore' && selectedNode
-                  ? meshcoreDevice.meshcoreNeighborErrors.get(selectedNode.node_id)
-                  : undefined
-              }
-              paxCounterData={protocol === 'meshtastic' ? device.paxCounterData : undefined}
-              detectionSensorEvents={
-                protocol === 'meshtastic' ? device.detectionSensorEvents : undefined
-              }
-              mapReports={protocol === 'meshtastic' ? device.mapReports : undefined}
-              onExportContact={protocol === 'meshcore' ? meshcoreDevice.exportContact : undefined}
-              onShareContact={protocol === 'meshcore' ? meshcoreDevice.shareContact : undefined}
-              meshcoreLocalStats={
-                protocol === 'meshcore' && selectedNode?.node_id === meshcoreDevice.state.myNodeNum
-                  ? meshcoreDevice.meshcoreLocalStats
-                  : null
-              }
-            />
-          </Suspense>
-        )}
       </div>
+
+      {logPanelVisible && (
+        <Suspense fallback={<DialogLazyFallback />}>
+          <LogPanel
+            protocol={protocol}
+            deviceLogs={
+              protocol === 'meshcore'
+                ? meshcoreDevice.deviceLogs
+                : meshtasticDevice.deviceLogs.map((d) => ({
+                    ts: d.time,
+                    level:
+                      d.level >= 40
+                        ? 'error'
+                        : d.level >= 30
+                          ? 'warn'
+                          : d.level >= 10
+                            ? 'log'
+                            : d.level > 0
+                              ? 'debug'
+                              : 'log',
+                    source: d.source,
+                    message: d.message,
+                  }))
+            }
+            variant="overlay"
+            onClose={() => {
+              setLogPanelVisible(false);
+              try {
+                localStorage.setItem(LOG_PANEL_VISIBLE_KEY, 'false');
+              } catch (e) {
+                console.debug('[App] persist logPanelVisible', e);
+              }
+            }}
+          />
+        </Suspense>
+      )}
+
+      {/* Keyboard Shortcuts Modal */}
+      {showShortcuts && (
+        <Suspense fallback={<DialogLazyFallback />}>
+          <KeyboardShortcutsModal
+            onClose={() => {
+              setShowShortcuts(false);
+            }}
+            tabNames={displayTabNames}
+          />
+        </Suspense>
+      )}
+
+      {/* Cross-channel Search Modal */}
+      {searchModalOpen && (
+        <Suspense fallback={<DialogLazyFallback />}>
+          <SearchModal
+            isOpen={searchModalOpen}
+            onClose={() => {
+              setSearchModalOpen(false);
+            }}
+            protocol={protocol}
+            nodes={nodesForUi}
+            channels={chatChannels}
+            onNavigateToChannel={() => {
+              setActiveTab(1);
+            }}
+          />
+        </Suspense>
+      )}
+
+      {/* Contact Groups Modal */}
+      {showGroupsModal && capabilities.hasUserManagedContactGroups && (
+        <Suspense fallback={<DialogLazyFallback />}>
+          <ContactGroupsModal
+            groups={contactGroups.groups}
+            contacts={protocol === 'meshcore' ? meshcoreDevice.nodes : meshtasticDevice.nodes}
+            selfNodeId={
+              protocol === 'meshcore' ? meshcoreDevice.selfNodeId : meshtasticDevice.selfNodeId
+            }
+            protocol={protocol}
+            onClose={() => {
+              setShowGroupsModal(false);
+            }}
+            onCreate={contactGroups.createGroup}
+            onRename={contactGroups.updateGroup}
+            onDelete={contactGroups.deleteGroup}
+            onAddMember={contactGroups.addMember}
+            onRemoveMember={contactGroups.removeMember}
+            onLoadMembers={contactGroups.loadMembers}
+            memberIds={contactGroups.groupMemberIds}
+          />
+        </Suspense>
+      )}
+
+      {/* Node Detail Modal — rendered outside main for proper z-indexing */}
+      {selectedNodeId !== null && (
+        <Suspense fallback={<DialogLazyFallback />}>
+          <NodeDetailModal
+            nodes={nodesForUi}
+            node={selectedNode}
+            onClose={() => {
+              setSelectedNodeId(null);
+            }}
+            onRequestPosition={device.requestPosition}
+            onTraceRoute={protocol === 'meshcore' ? meshcoreDevice.traceRoute : device.traceRoute}
+            traceRouteHops={traceRouteHops}
+            onDeleteNode={async (nodeNum) => {
+              await device.deleteNode(nodeNum);
+              setSelectedNodeId(null);
+            }}
+            onMessageNode={
+              selectedNode?.node_id !== device.state.myNodeNum ? handleMessageNode : undefined
+            }
+            onToggleFavorite={device.setNodeFavorited}
+            isConnected={isOperational}
+            homeNode={nodesForUi.get(device.state.myNodeNum) ?? null}
+            neighborInfo={device.neighborInfo}
+            useFahrenheit={useFahrenheit}
+            protocol={protocol}
+            meshcoreTraceResult={
+              protocol === 'meshcore' && selectedNode
+                ? meshcoreDevice.meshcoreTraceResults.get(selectedNode.node_id)
+                : undefined
+            }
+            meshcorePingError={
+              protocol === 'meshcore' && selectedNode
+                ? meshcoreDevice.meshcorePingErrors.get(selectedNode.node_id)
+                : undefined
+            }
+            meshcoreRepeaterStatus={
+              protocol === 'meshcore' && selectedNode
+                ? meshcoreDevice.meshcoreNodeStatus.get(selectedNode.node_id)
+                : undefined
+            }
+            onRequestRepeaterStatus={
+              protocol === 'meshcore' ? meshcoreDevice.requestRepeaterStatus : undefined
+            }
+            meshcoreNodeTelemetry={
+              protocol === 'meshcore' && selectedNode
+                ? meshcoreDevice.meshcoreNodeTelemetry.get(selectedNode.node_id)
+                : undefined
+            }
+            onRequestTelemetry={
+              protocol === 'meshcore' ? meshcoreDevice.requestTelemetry : undefined
+            }
+            meshcoreNeighbors={
+              protocol === 'meshcore' && selectedNode
+                ? meshcoreDevice.meshcoreNeighbors.get(selectedNode.node_id)
+                : undefined
+            }
+            onRequestNeighbors={
+              protocol === 'meshcore' ? meshcoreDevice.requestNeighbors : undefined
+            }
+            meshcoreNeighborError={
+              protocol === 'meshcore' && selectedNode
+                ? meshcoreDevice.meshcoreNeighborErrors.get(selectedNode.node_id)
+                : undefined
+            }
+            paxCounterData={protocol === 'meshtastic' ? device.paxCounterData : undefined}
+            detectionSensorEvents={
+              protocol === 'meshtastic' ? device.detectionSensorEvents : undefined
+            }
+            mapReports={protocol === 'meshtastic' ? device.mapReports : undefined}
+            onExportContact={protocol === 'meshcore' ? meshcoreDevice.exportContact : undefined}
+            onShareContact={protocol === 'meshcore' ? meshcoreDevice.shareContact : undefined}
+            meshcoreLocalStats={
+              protocol === 'meshcore' && selectedNode?.node_id === meshcoreDevice.state.myNodeNum
+                ? meshcoreDevice.meshcoreLocalStats
+                : null
+            }
+            meshcoreManufacturerModel={
+              protocol === 'meshcore' ? meshcoreDevice.state.manufacturerModel : undefined
+            }
+          />
+        </Suspense>
+      )}
     </ToastProvider>
   );
 }

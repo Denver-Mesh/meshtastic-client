@@ -1920,6 +1920,17 @@ mqttManager.on('nodeUpdate', (n) => {
   else console.debug('[main] mqtt:node-update dropped (mainWindow not ready)');
   takServerManager?.onNodeUpdate(n);
 });
+mqttManager.on(
+  'traceRouteReply',
+  (p: { meshFrom: number; route: number[]; routeBack: number[] }) => {
+    if (mainWindow)
+      mainWindow.webContents.send('mqtt:trace-route-reply', {
+        ...p,
+        protocol: 'meshtastic' as const,
+      });
+    else console.debug('[main] mqtt:trace-route-reply dropped (mainWindow not ready)');
+  },
+);
 mqttManager.on('message', (m) => {
   if (mainWindow) mainWindow.webContents.send('mqtt:message', m);
   else console.debug('[main] mqtt:message dropped (mainWindow not ready)');
@@ -2343,8 +2354,8 @@ ipcMain.handle('db:saveMessage', (_event, message) => {
     validateSaveMessage(message);
     const db = getDatabase();
     const stmt = db.prepareOnce(`
-      INSERT OR IGNORE INTO messages (sender_id, sender_name, payload, channel, timestamp, packet_id, status, error, emoji, reply_id, to_node, mqtt_status, received_via)
-      VALUES (@sender_id, @sender_name, @payload, @channel, @timestamp, @packet_id, @status, @error, @emoji, @reply_id, @to_node, @mqtt_status, @received_via)
+      INSERT OR IGNORE INTO messages (sender_id, sender_name, payload, channel, timestamp, packet_id, status, error, emoji, reply_id, to_node, mqtt_status, received_via, reply_preview_text, reply_preview_sender)
+      VALUES (@sender_id, @sender_name, @payload, @channel, @timestamp, @packet_id, @status, @error, @emoji, @reply_id, @to_node, @mqtt_status, @received_via, @reply_preview_text, @reply_preview_sender)
     `);
     const validReceivedVia = ['rf', 'mqtt', 'both'];
     return stmt.run({
@@ -2364,6 +2375,8 @@ ipcMain.handle('db:saveMessage', (_event, message) => {
         message.receivedVia != null && validReceivedVia.includes(message.receivedVia)
           ? message.receivedVia
           : null,
+      reply_preview_text: message.replyPreviewText ?? null,
+      reply_preview_sender: message.replyPreviewSender ?? null,
     });
   } catch (err) {
     console.error(
@@ -2380,7 +2393,8 @@ ipcMain.handle('db:getMessages', (_event, channel?: number, limit = 200) => {
     const db = getDatabase();
     const columns = `id, sender_id, sender_name, payload, channel, timestamp,
          packet_id AS packetId, status, error, emoji, reply_id AS replyId, to_node,
-         mqtt_status AS mqttStatus, received_via AS receivedVia`;
+         mqtt_status AS mqttStatus, received_via AS receivedVia,
+         reply_preview_text AS replyPreviewText, reply_preview_sender AS replyPreviewSender`;
     let rows: any[];
     if (channel != null) {
       const ch = safeNonNegativeInt(channel);
@@ -2414,10 +2428,10 @@ ipcMain.handle('db:saveNode', (_event, node) => {
     validateSaveNode(node);
     const db = getDatabase();
     const stmt = db.prepareOnce(`
-      INSERT INTO nodes (node_id, long_name, short_name, hw_model, snr, rssi, battery, last_heard, latitude, longitude, role, hops_away, via_mqtt, voltage, channel_utilization, air_util_tx, altitude, favorited, source, num_packets_rx_bad, num_rx_dupe, num_packets_rx, num_packets_tx)
+      INSERT INTO nodes (node_id, long_name, short_name, hw_model, snr, rssi, battery, last_heard, latitude, longitude, role, hops_away, via_mqtt, voltage, channel_utilization, air_util_tx, altitude, favorited, source, num_packets_rx_bad, num_rx_dupe, num_packets_rx, num_packets_tx, hops, path)
       VALUES (@node_id, @long_name, @short_name, @hw_model, @snr, @rssi, @battery, @last_heard, @latitude, @longitude, @role, @hops_away, @via_mqtt, @voltage, @channel_utilization, @air_util_tx, @altitude,
         COALESCE((SELECT favorited FROM nodes WHERE node_id = @node_id), 0),
-        @source, @num_packets_rx_bad, @num_rx_dupe, @num_packets_rx, @num_packets_tx)
+        @source, @num_packets_rx_bad, @num_rx_dupe, @num_packets_rx, @num_packets_tx, @hops, @path)
       ON CONFLICT(node_id) DO UPDATE SET
         long_name = COALESCE(NULLIF(excluded.long_name, ''), nodes.long_name),
         short_name = COALESCE(NULLIF(excluded.short_name, ''), nodes.short_name),
@@ -2439,7 +2453,9 @@ ipcMain.handle('db:saveNode', (_event, node) => {
         num_packets_rx_bad = COALESCE(excluded.num_packets_rx_bad, num_packets_rx_bad),
         num_rx_dupe = COALESCE(excluded.num_rx_dupe, num_rx_dupe),
         num_packets_rx = COALESCE(excluded.num_packets_rx, num_packets_rx),
-        num_packets_tx = COALESCE(excluded.num_packets_tx, num_packets_tx)
+        num_packets_tx = COALESCE(excluded.num_packets_tx, num_packets_tx),
+        hops = COALESCE(excluded.hops, nodes.hops),
+        path = COALESCE(excluded.path, nodes.path)
     `);
     return stmt.run({
       role: null,
@@ -2456,6 +2472,8 @@ ipcMain.handle('db:saveNode', (_event, node) => {
       num_packets_tx: null,
       ...node,
       via_mqtt: node.via_mqtt != null ? (node.via_mqtt ? 1 : 0) : null,
+      hops: node.hops ?? null,
+      path: node.path != null ? JSON.stringify(node.path) : null,
     });
   } catch (err) {
     console.error(
@@ -3107,11 +3125,15 @@ ipcMain.handle('db:saveMeshcoreMessage', (_event, message) => {
         : null;
     const rxFp =
       typeof m.rx_packet_fingerprint === 'string' ? m.rx_packet_fingerprint.toUpperCase() : null;
+    const replyPreviewText =
+      typeof m.reply_preview_text === 'string' ? m.reply_preview_text.slice(0, 50) : null;
+    const replyPreviewSender =
+      typeof m.reply_preview_sender === 'string' ? m.reply_preview_sender.slice(0, 64) : null;
     return db
       .prepareOnce(
         'INSERT OR IGNORE INTO meshcore_messages ' +
-          '(sender_id, sender_name, payload, channel_idx, timestamp, status, packet_id, emoji, reply_id, to_node, received_via, rx_packet_fingerprint) ' +
-          'VALUES (@sender_id, @sender_name, @payload, @channel_idx, @timestamp, @status, @packet_id, @emoji, @reply_id, @to_node, @received_via, @rx_packet_fingerprint)',
+          '(sender_id, sender_name, payload, channel_idx, timestamp, status, packet_id, emoji, reply_id, to_node, received_via, rx_packet_fingerprint, reply_preview_text, reply_preview_sender) ' +
+          'VALUES (@sender_id, @sender_name, @payload, @channel_idx, @timestamp, @status, @packet_id, @emoji, @reply_id, @to_node, @received_via, @rx_packet_fingerprint, @reply_preview_text, @reply_preview_sender)',
       )
       .run({
         sender_id: m.sender_id != null ? Number(m.sender_id) : null,
@@ -3126,6 +3148,8 @@ ipcMain.handle('db:saveMeshcoreMessage', (_event, message) => {
         to_node: m.to_node != null ? Number(m.to_node) : null,
         received_via,
         rx_packet_fingerprint: rxFp,
+        reply_preview_text: replyPreviewText,
+        reply_preview_sender: replyPreviewSender,
       });
   } catch (err) {
     console.error(
@@ -3647,7 +3671,14 @@ ipcMain.handle('db:updateMeshcoreContactType', (_e, nodeId: number, contactType:
 
 ipcMain.handle(
   'db:updateMeshcoreContactLastRf',
-  (_e, nodeId: number, lastSnr: number, lastRssi: number) => {
+  (
+    _e,
+    nodeId: number,
+    lastSnr: number,
+    lastRssi: number,
+    hops?: number | null,
+    timestamp?: number | null,
+  ) => {
     try {
       const safeNodeId = safeNonNegativeInt(nodeId);
       if (typeof lastSnr !== 'number' || !Number.isFinite(lastSnr)) {
@@ -3657,8 +3688,23 @@ ipcMain.handle(
         throw new Error('db:updateMeshcoreContactLastRf: lastRssi must be a finite number');
       }
       getDatabase()
-        .prepareOnce('UPDATE meshcore_contacts SET last_snr = ?, last_rssi = ? WHERE node_id = ?')
-        .run(lastSnr, lastRssi, safeNodeId);
+        .prepareOnce(
+          'UPDATE meshcore_contacts SET ' +
+            'last_snr = ?, ' +
+            'last_rssi = ?, ' +
+            'hops_away = COALESCE(?, hops_away), ' +
+            'last_advert = CASE WHEN ? IS NOT NULL AND ? > COALESCE(last_advert, 0) THEN ? ELSE last_advert END ' +
+            'WHERE node_id = ?',
+        )
+        .run(
+          lastSnr,
+          lastRssi,
+          hops ?? null,
+          timestamp ?? null,
+          timestamp ?? null,
+          timestamp ?? null,
+          safeNodeId,
+        );
     } catch (err) {
       console.error(
         '[IPC] db:updateMeshcoreContactLastRf error:',
@@ -3902,8 +3948,6 @@ ipcMain.handle('db:deleteAllMeshcorePathHistory', () => {
 // ─── MeshCore TCP bridge ───────────────────────────────────────────
 let meshcoreTcpSocket: net.Socket | null = null;
 
-const MAX_TCP_HOST_LENGTH = 253;
-
 ipcMain.handle('meshcore:tcp-connect', (_event, host: string, port: number) => {
   return new Promise<void>((resolve, reject) => {
     let settled = false;
@@ -3912,8 +3956,11 @@ ipcMain.handle('meshcore:tcp-connect', (_event, host: string, port: number) => {
       reject(new Error('Invalid port'));
       return;
     }
-    if (typeof host !== 'string' || host.length === 0 || host.length > MAX_TCP_HOST_LENGTH) {
-      reject(new Error('Invalid host'));
+    try {
+      validateHttpHost(host);
+    } catch (err) {
+      // catch-no-log-ok validation error forwarded to promise reject
+      reject(err instanceof Error ? err : new Error(String(err)));
       return;
     }
     if (meshcoreTcpSocket) {

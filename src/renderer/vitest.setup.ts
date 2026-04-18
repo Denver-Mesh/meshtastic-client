@@ -127,6 +127,7 @@ const electronAPIMock = {
     onWarning: vi.fn().mockReturnValue(() => {}),
     onNodeUpdate: vi.fn().mockReturnValue(() => {}),
     onMessage: vi.fn().mockReturnValue(() => {}),
+    onTraceRouteReply: vi.fn().mockReturnValue(() => {}),
     onClientId: vi.fn().mockReturnValue(() => {}),
     getClientId: vi.fn().mockResolvedValue(''),
     getCachedNodes: vi.fn().mockResolvedValue([]),

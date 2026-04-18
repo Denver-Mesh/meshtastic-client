@@ -178,6 +178,8 @@ export interface ElectronAPI {
       to_node?: number | null;
       received_via?: string | null;
       rx_packet_fingerprint?: string | null;
+      reply_preview_text?: string | null;
+      reply_preview_sender?: string | null;
     }) => Promise<unknown>;
     saveMeshcoreContact: (contact: {
       node_id: number;
@@ -212,7 +214,9 @@ export interface ElectronAPI {
       nodeId: number,
       lastSnr: number,
       lastRssi: number,
-    ) => Promise<unknown>;
+      hops?: number | null,
+      timestamp?: number | null,
+    ) => Promise<void>;
     updateMeshcoreMessageStatus: (packetId: number, status: string) => Promise<unknown>;
     deleteMeshcoreContact: (nodeId: number) => Promise<unknown>;
     clearMeshcoreMessages: () => Promise<unknown>;
@@ -349,6 +353,14 @@ export interface ElectronAPI {
       ) => void,
     ) => () => void;
     onMessage: (cb: (msg: unknown) => void) => () => void;
+    onTraceRouteReply: (
+      cb: (payload: {
+        meshFrom: number;
+        route: number[];
+        routeBack: number[];
+        protocol: 'meshtastic';
+      }) => void,
+    ) => () => void;
     onClientId: (
       cb: (payload: { clientId: string; protocol: 'meshtastic' | 'meshcore' }) => void,
     ) => () => void;

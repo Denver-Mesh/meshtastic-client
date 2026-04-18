@@ -425,7 +425,7 @@ export default function ModulePanel({
   };
 
   return (
-    <div className="mx-auto max-w-5xl space-y-4">
+    <div className="w-full space-y-4">
       <h2 className="text-xl font-semibold text-gray-200">Module Configuration</h2>
 
       {!isConnected && (

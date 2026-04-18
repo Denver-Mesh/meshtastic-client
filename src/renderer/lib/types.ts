@@ -144,6 +144,10 @@ export interface MeshNode {
   env_wind_direction?: number;
   // Neighbor info from MQTT (session-only)
   neighbors?: MeshNeighbor[];
+  // PaxCounter from MQTT (combined wifi + ble count)
+  pax_count?: number;
+  // Detection sensor text alert from MQTT
+  detection_text?: string;
 }
 
 export interface MeshCoreLocalStats {
@@ -248,6 +252,10 @@ export interface ChatMessage {
   meshcoreDedupeKey?: string;
   /** CRC-32 RF packet fingerprint (8 hex), when persisted from capture metadata */
   rxPacketFingerprintHex?: string;
+  /** Truncated text of the replied-to message (max 50 chars; persisted for reload) */
+  replyPreviewText?: string;
+  /** Sender name of the replied-to message */
+  replyPreviewSender?: string;
 }
 
 export interface TelemetryPoint {
@@ -283,6 +291,8 @@ export interface DeviceState {
   reconnectAttempt?: number;
   lastDataReceived?: number;
   firmwareVersion?: string;
+  /** MeshCore: manufacturer/model string from local `deviceQuery` (connected radio only). */
+  manufacturerModel?: string;
   /** 0–100 from device metrics; omit until first reading */
   batteryPercent?: number;
   batteryCharging?: boolean;
@@ -385,6 +395,8 @@ declare global {
           to_node?: number | null;
           received_via?: string | null;
           rx_packet_fingerprint?: string | null;
+          reply_preview_text?: string | null;
+          reply_preview_sender?: string | null;
         }) => Promise<unknown>;
         updateMeshcoreContactRfTransport: (
           nodeId: number,
@@ -419,6 +431,8 @@ declare global {
           nodeId: number,
           lastSnr: number,
           lastRssi: number,
+          hops?: number | null,
+          timestamp?: number | null,
         ) => Promise<unknown>;
         getMeshcoreMessages: (channelIdx?: number, limit?: number) => Promise<unknown[]>;
         searchMessages: (query: string, limit?: number) => Promise<unknown[]>;
@@ -566,6 +580,14 @@ declare global {
           ) => void,
         ) => () => void;
         onMessage: (cb: (msg: Omit<ChatMessage, 'id'>) => void) => () => void;
+        onTraceRouteReply: (
+          cb: (payload: {
+            meshFrom: number;
+            route: number[];
+            routeBack: number[];
+            protocol: 'meshtastic';
+          }) => void,
+        ) => () => void;
         onClientId: (
           cb: (payload: { clientId: string; protocol: 'meshtastic' | 'meshcore' }) => void,
         ) => () => void;

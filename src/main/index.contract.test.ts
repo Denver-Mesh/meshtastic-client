@@ -49,7 +49,10 @@ describe('MQTT forwarder dropped-event logs (source contract)', () => {
 describe('MeshCore DB IPC (source contract)', () => {
   it('registers updateMeshcoreContactLastRf for repeater Status persistence', () => {
     expect(INDEX_SOURCE).toContain("'db:updateMeshcoreContactLastRf'");
-    expect(INDEX_SOURCE).toContain('UPDATE meshcore_contacts SET last_snr = ?, last_rssi = ?');
+    expect(INDEX_SOURCE).toContain('last_snr = ?,');
+    expect(INDEX_SOURCE).toContain('last_rssi = ?,');
+    expect(INDEX_SOURCE).toContain('hops_away = COALESCE(?, hops_away),');
+    expect(INDEX_SOURCE).toContain('last_advert = CASE WHEN ? IS NOT NULL');
   });
 
   it('saveMeshcoreContact uses UPSERT that preserves favorited on conflict', () => {

@@ -1,12 +1,7 @@
-import { create, toBinary } from '@bufbuild/protobuf';
+import { create, fromBinary, toBinary } from '@bufbuild/protobuf';
 import type { MeshDevice } from '@meshtastic/core';
 import { Admin, Channel as ProtobufChannel, Mesh, Portnums } from '@meshtastic/protobufs';
 import { useCallback, useEffect, useRef, useState } from 'react';
-
-type ChannelType = Parameters<MeshDevice['setChannel']>[0];
-type PositionType = Parameters<MeshDevice['setPosition']>[0];
-type UserType = Parameters<MeshDevice['setOwner']>[0];
-type WaypointType = Parameters<MeshDevice['sendWaypoint']>[0];
 
 import {
   meshtasticShortNameAfterClearingDefault,
@@ -23,6 +18,11 @@ import { validateCoords } from '../lib/coordUtils';
 import { containsMeshCorePattern, extractRssiSnr } from '../lib/foreignLoraDetection';
 import type { OurPosition } from '../lib/gpsSource';
 import { resolveOurPosition } from '../lib/gpsSource';
+import { meshtasticHwModelName } from '../lib/hardwareModels';
+import {
+  mergeMeshtasticTraceRouteIntoResultsMap,
+  meshtasticTraceRouteLookupKeys,
+} from '../lib/meshtasticTraceRouteLookupKeys';
 import { parseStoredJson } from '../lib/parseStoredJson';
 import { MESHTASTIC_CAPABILITIES } from '../lib/radio/BaseRadioProvider';
 import {
@@ -30,6 +30,7 @@ import {
   type MeshtasticRawPacketEntry,
 } from '../lib/rawPacketLogConstants';
 import { normalizeReactionEmoji } from '../lib/reactions';
+import { enrichMeshtasticReplyPreviews } from '../lib/replyPreview';
 import { LAST_SERIAL_PORT_KEY } from '../lib/serialPortSignature';
 import { getStoredMeshProtocol } from '../lib/storedMeshProtocol';
 import { TransportManager } from '../lib/transport/TransportManager';
@@ -49,6 +50,11 @@ import type {
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
 import { usePositionHistoryStore } from '../stores/positionHistoryStore';
 
+type ChannelType = Parameters<MeshDevice['setChannel']>[0];
+type PositionType = Parameters<MeshDevice['setPosition']>[0];
+type UserType = Parameters<MeshDevice['setOwner']>[0];
+type WaypointType = Parameters<MeshDevice['sendWaypoint']>[0];
+
 function getMessageLoadLimit(): number {
   const s = parseStoredJson<{
     messageLimitEnabled?: boolean;
@@ -63,6 +69,11 @@ const MAX_TELEMETRY_POINTS = 50;
 const POLL_INTERVAL_MS = 30_000; // 30 seconds (BLE/serial)
 const HTTP_POLL_INTERVAL_MS = 60_000; // 60 seconds for WiFi — less contention with user sends
 const BROADCAST_ADDR = 0xffffffff;
+
+/** Portnums.TRACEROUTE_APP — use Number() so protobuf enums compare reliably */
+function isMeshtasticTraceroutePortnum(portnum: unknown): boolean {
+  return Number(portnum) === Portnums.PortNum.TRACEROUTE_APP;
+}
 
 // ─── Connection watchdog thresholds (per transport) ────────────────
 const BLE_STALE_THRESHOLD_MS = 90_000; // 90s — show warning
@@ -189,6 +200,10 @@ export function useDevice() {
     isLicensed: boolean;
   } | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const messagesRef = useRef<ChatMessage[]>([]);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
   const [nodes, setNodes] = useState<Map<number, MeshNode>>(new Map());
   const [telemetry, setTelemetry] = useState<TelemetryPoint[]>([]);
   const [signalTelemetry, setSignalTelemetry] = useState<TelemetryPoint[]>([]);
@@ -196,6 +211,9 @@ export function useDevice() {
   const [traceRouteResults, setTraceRouteResults] = useState<
     Map<number, { route: number[]; from: number; timestamp: number }>
   >(new Map());
+  const pendingTraceRequestsRef = useRef<Map<number, number>>(new Map());
+  /** Outbound trace packet id (`traceRoute()` return) → user-requested destination node */
+  const pendingTracePacketIdToTargetRef = useRef<Map<number, number>>(new Map());
   const [channels, setChannels] = useState<{ index: number; name: string }[]>([
     { index: 0, name: 'Primary' },
   ]);
@@ -524,9 +542,15 @@ export function useDevice() {
         const nodeMap = new Map<number, MeshNode>();
         for (const n of savedNodes) {
           const long_name = n.long_name ?? '';
+          const rawHw = n.hw_model;
+          const hw_model =
+            typeof rawHw === 'string' && /^\d+$/.test(rawHw.trim())
+              ? meshtasticHwModelName(parseInt(rawHw, 10))
+              : (rawHw ?? '');
           nodeMap.set(n.node_id, {
             ...n,
             long_name,
+            hw_model,
             short_name: meshtasticShortNameAfterClearingDefault(
               long_name,
               n.short_name ?? '',
@@ -793,23 +817,48 @@ export function useDevice() {
 
       // Deduplicate by content too (same sender + timestamp)
       const mqttMsg = { ...msg, receivedVia: 'mqtt' as const };
+      const mqttWithPreviews = enrichMeshtasticReplyPreviews(
+        mqttMsg,
+        messagesRef.current,
+        getNodeName,
+      );
       setMessages((prev) => {
         const isDup = prev.some(
           (m) =>
-            m.sender_id === mqttMsg.sender_id &&
-            m.timestamp === mqttMsg.timestamp &&
-            m.payload === mqttMsg.payload,
+            m.sender_id === mqttWithPreviews.sender_id &&
+            m.timestamp === mqttWithPreviews.timestamp &&
+            m.payload === mqttWithPreviews.payload,
         );
         if (isDup) return prev;
-        return [...prev, mqttMsg];
+        return [...prev, mqttWithPreviews];
       });
-      void window.electronAPI.db.saveMessage(mqttMsg);
+      void window.electronAPI.db.saveMessage(mqttWithPreviews);
+    });
+
+    const unsubTraceRouteMqtt = window.electronAPI.mqtt.onTraceRouteReply((payload) => {
+      if (payload.protocol !== 'meshtastic') return;
+      if (getStoredMeshProtocol() !== 'meshtastic') return;
+      const rd = {
+        route: payload.route as readonly number[],
+        routeBack: payload.routeBack as readonly number[],
+      };
+      setTraceRouteResults((prev) =>
+        mergeMeshtasticTraceRouteIntoResultsMap(
+          prev,
+          payload.meshFrom,
+          rd,
+          undefined,
+          undefined,
+          undefined,
+        ),
+      );
     });
 
     return () => {
       unsubStatus();
       unsubNode();
       unsubMsg();
+      unsubTraceRouteMqtt();
       if (mqttPresenceInitTimerRef.current) {
         clearTimeout(mqttPresenceInitTimerRef.current);
         mqttPresenceInitTimerRef.current = null;
@@ -819,7 +868,7 @@ export function useDevice() {
         mqttPresenceIntervalRef.current = null;
       }
     };
-  }, [updateNodes, isDuplicate, startGpsInterval, ensureNodeExists]);
+  }, [updateNodes, isDuplicate, startGpsInterval, ensureNodeExists, getNodeName]);
 
   // Cleanup on unmount — stop all intervals and subscriptions
   useEffect(() => {
@@ -1013,7 +1062,7 @@ export function useDevice() {
           ? (normalizeReactionEmoji(wireEmoji, payloadText) ?? wireEmoji ?? undefined)
           : undefined;
 
-        const msg: ChatMessage = {
+        const msgBase: ChatMessage = {
           sender_id: meshPacket.from,
           sender_name: getNodeName(meshPacket.from),
           payload: payloadText,
@@ -1025,6 +1074,7 @@ export function useDevice() {
           replyId,
           to: meshPacket.to && meshPacket.to !== BROADCAST_ADDR ? meshPacket.to : undefined,
         };
+        const msg = enrichMeshtasticReplyPreviews(msgBase, messagesRef.current, getNodeName);
 
         // Packet ID dedup: skip if already seen (e.g. via MQTT) so same message is not shown twice
         if (!isEcho && !msg.emoji && msg.packetId && isDuplicate(msg.packetId)) {
@@ -1135,7 +1185,8 @@ export function useDevice() {
             node_id: packet.from,
             long_name,
             short_name,
-            hw_model: String(user.hwModel ?? existing.hw_model),
+            hw_model:
+              user.hwModel != null ? meshtasticHwModelName(user.hwModel) : existing.hw_model,
             role: user.role ?? existing.role,
             // User packets are often replayed from the device DB at connect; do not
             // bump last_hear to now or offline nodes appear freshly heard.
@@ -1235,7 +1286,10 @@ export function useDevice() {
             node_id: nodeNum,
             long_name,
             short_name,
-            hw_model: String(info.user?.hwModel ?? existing.hw_model),
+            hw_model:
+              info.user?.hwModel != null
+                ? meshtasticHwModelName(info.user.hwModel)
+                : existing.hw_model,
             snr: info.snr ?? existing.snr,
             battery: info.deviceMetrics?.batteryLevel ?? existing.battery,
             last_heard: lastHeardMs,
@@ -1591,7 +1645,6 @@ export function useDevice() {
           hopStart?: number;
           viaMqtt?: boolean;
         };
-
         if (getStoredMeshProtocol() === 'meshtastic' && mp.from) {
           try {
             const raw = toBinary(Mesh.MeshPacketSchema, packet as never);
@@ -1723,19 +1776,115 @@ export function useDevice() {
       });
       unsubscribesRef.current.push(unsubConfig);
 
-      // ─── Trace route responses ──────────────────────────────────
-      const unsubTrace = device.events.onTraceRoutePacket.subscribe((packet) => {
-        setTraceRouteResults((prev) => {
-          const updated = new Map(prev);
-          updated.set(packet.from, {
-            route: (packet.data as { route: number[] }).route ?? [],
-            from: packet.from,
-            timestamp: Date.now(),
-          });
-          return updated;
+      // ─── Trace route responses (concurrent in-flight: pending per node + outbound packet id map)
+      //     onMeshPacket reads Data; onTraceRoutePacket fallback (@meshtastic/core)
+      const applyMeshtasticTracerouteReply = (
+        meshFrom: number,
+        rd: { route: readonly number[]; routeBack: readonly number[] },
+        dataLayerDest: number | undefined,
+        correlationIds?: {
+          replyId?: number;
+          requestId?: number;
+        },
+        dataLayerSource?: number,
+      ) => {
+        const baseLookupKeys = meshtasticTraceRouteLookupKeys({
+          from: meshFrom,
+          data: { route: rd.route, routeBack: rd.routeBack },
+          dataLayerDest,
+          dataLayerSource,
         });
+        let correlatedDest: number | undefined;
+        if (correlationIds) {
+          const tryIds: number[] = [];
+          const r = correlationIds.replyId;
+          const q = correlationIds.requestId;
+          if (typeof r === 'number' && Number.isFinite(r) && r >>> 0 !== 0) {
+            tryIds.push(r >>> 0);
+          }
+          if (typeof q === 'number' && Number.isFinite(q) && q >>> 0 !== 0) {
+            tryIds.push(q >>> 0);
+          }
+          for (const id of tryIds) {
+            const mapped = pendingTracePacketIdToTargetRef.current.get(id);
+            if (mapped !== undefined) {
+              correlatedDest = mapped >>> 0;
+              pendingTracePacketIdToTargetRef.current.delete(id);
+              break;
+            }
+          }
+        }
+        const correlatedAdditionalKeys =
+          correlatedDest !== undefined ? [correlatedDest] : ([] as number[]);
+        const lookupKeys = [...new Set([...baseLookupKeys, ...correlatedAdditionalKeys])];
+        const mergeAdditionalKeys = correlatedAdditionalKeys;
+        for (const key of lookupKeys) {
+          pendingTraceRequestsRef.current.delete(key);
+        }
+        const cutoff = Date.now() - 2 * 60_000;
+        for (const [target, startedAt] of pendingTraceRequestsRef.current) {
+          if (startedAt < cutoff) pendingTraceRequestsRef.current.delete(target);
+        }
+        for (const [packetId, dest] of [...pendingTracePacketIdToTargetRef.current.entries()]) {
+          if (!pendingTraceRequestsRef.current.has(dest)) {
+            pendingTracePacketIdToTargetRef.current.delete(packetId);
+          }
+        }
+        setTraceRouteResults((prev) =>
+          mergeMeshtasticTraceRouteIntoResultsMap(
+            prev,
+            meshFrom,
+            rd,
+            dataLayerDest,
+            mergeAdditionalKeys,
+            dataLayerSource,
+          ),
+        );
+      };
+
+      const unsubTraceMesh = device.events.onMeshPacket.subscribe((meshPacket) => {
+        if (meshPacket.payloadVariant.case !== 'decoded') return;
+        const dataPacket = meshPacket.payloadVariant.value;
+        if (!isMeshtasticTraceroutePortnum(dataPacket.portnum)) return;
+        try {
+          const rd = fromBinary(Mesh.RouteDiscoverySchema, dataPacket.payload) as unknown as {
+            route: readonly number[];
+            routeBack: readonly number[];
+          };
+          const rawDest = (dataPacket as { dest?: number }).dest;
+          const dataLayerDest =
+            typeof rawDest === 'number' && Number.isFinite(rawDest) ? rawDest : undefined;
+          const rawSource = (dataPacket as { source?: number }).source;
+          const dataLayerSource =
+            typeof rawSource === 'number' && Number.isFinite(rawSource) ? rawSource : undefined;
+          const dp = dataPacket as { requestId?: number; replyId?: number };
+          const rawReply = dp.replyId;
+          const rawReq = dp.requestId;
+          applyMeshtasticTracerouteReply(
+            meshPacket.from,
+            rd,
+            dataLayerDest,
+            {
+              replyId:
+                typeof rawReply === 'number' && Number.isFinite(rawReply) ? rawReply : undefined,
+              requestId: typeof rawReq === 'number' && Number.isFinite(rawReq) ? rawReq : undefined,
+            },
+            dataLayerSource,
+          );
+        } catch {
+          // catch-no-log-ok RouteDiscovery decode failed (non-traceroute payload on port)
+        }
       });
-      unsubscribesRef.current.push(unsubTrace);
+      unsubscribesRef.current.push(unsubTraceMesh);
+
+      const unsubTraceLegacy = device.events.onTraceRoutePacket.subscribe((packet) => {
+        const rd = packet.data as unknown as {
+          route: readonly number[];
+          routeBack: readonly number[];
+        };
+        applyMeshtasticTracerouteReply(packet.from, rd, undefined, undefined, undefined);
+      });
+      unsubscribesRef.current.push(unsubTraceLegacy);
 
       // ─── Queue status ──────────────────────────────────────────
       const unsubQueue = device.events.onQueueStatus.subscribe((qs) => {
@@ -2448,18 +2597,22 @@ export function useDevice() {
         ? hasMqtt // MQTT-only: always uplink when connected
         : !!(chCfg?.uplinkEnabled && hasMqtt && myNodeNumRef.current);
 
-      const msg: ChatMessage = {
-        sender_id: from,
-        sender_name: getNodeName(from),
-        payload: text,
-        channel,
-        timestamp: Date.now(),
-        packetId: tempId,
-        status: deviceRef.current ? ('sending' as const) : undefined,
-        mqttStatus: shouldUplink ? ('sending' as const) : undefined,
-        to: destination,
-        replyId,
-      };
+      const msg: ChatMessage = enrichMeshtasticReplyPreviews(
+        {
+          sender_id: from,
+          sender_name: getNodeName(from),
+          payload: text,
+          channel,
+          timestamp: Date.now(),
+          packetId: tempId,
+          status: deviceRef.current ? ('sending' as const) : undefined,
+          mqttStatus: shouldUplink ? ('sending' as const) : undefined,
+          to: destination,
+          replyId,
+        },
+        messagesRef.current,
+        getNodeName,
+      );
       setMessages((prev) => [...prev, msg]);
       void window.electronAPI.db.saveMessage(msg);
 
@@ -2633,7 +2786,9 @@ export function useDevice() {
 
   const traceRoute = useCallback(async (nodeNum: number) => {
     if (!deviceRef.current) return;
-    await deviceRef.current.traceRoute(nodeNum);
+    pendingTraceRequestsRef.current.set(nodeNum, Date.now());
+    const packetId = await deviceRef.current.traceRoute(nodeNum);
+    pendingTracePacketIdToTargetRef.current.set(packetId >>> 0, nodeNum);
   }, []);
 
   const deleteNode = useCallback(
@@ -2658,9 +2813,15 @@ export function useDevice() {
         const nodeMap = new Map<number, MeshNode>();
         for (const n of savedNodes) {
           const long_name = n.long_name ?? '';
+          const rawHw = n.hw_model;
+          const hw_model =
+            typeof rawHw === 'string' && /^\d+$/.test(rawHw.trim())
+              ? meshtasticHwModelName(parseInt(rawHw, 10))
+              : (rawHw ?? '');
           nodeMap.set(n.node_id, {
             ...n,
             long_name,
+            hw_model,
             short_name: meshtasticShortNameAfterClearingDefault(
               long_name,
               n.short_name ?? '',

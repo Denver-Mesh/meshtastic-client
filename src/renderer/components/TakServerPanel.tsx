@@ -94,7 +94,7 @@ export default function TakServerPanel({ atakMessages, capabilities }: Props) {
   const statusLabel = status.running ? 'Running' : 'Stopped';
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 p-4">
+    <div className="w-full space-y-6 p-4">
       <h2 className="text-xl font-semibold text-gray-200">TAK Server</h2>
       <p className="text-sm text-gray-400">
         Built-in TAK server for ATAK / WinTAK / iTAK compatibility. Broadcasts mesh node positions

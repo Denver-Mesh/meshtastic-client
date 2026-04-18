@@ -52,4 +52,54 @@ describe('parseChatMentionSegments', () => {
       { kind: 'text', text: ' x' },
     ]);
   });
+
+  describe('URL detection', () => {
+    it('detects a standalone https URL', () => {
+      expect(parseChatMentionSegments('https://example.com')).toEqual([
+        { kind: 'url', url: 'https://example.com' },
+      ]);
+    });
+
+    it('detects a standalone http URL', () => {
+      expect(parseChatMentionSegments('http://example.com')).toEqual([
+        { kind: 'url', url: 'http://example.com' },
+      ]);
+    });
+
+    it('extracts URL surrounded by text', () => {
+      expect(parseChatMentionSegments('check https://example.com out')).toEqual([
+        { kind: 'text', text: 'check ' },
+        { kind: 'url', url: 'https://example.com' },
+        { kind: 'text', text: ' out' },
+      ]);
+    });
+
+    it('strips trailing punctuation from URL', () => {
+      expect(parseChatMentionSegments('see https://example.com.')).toEqual([
+        { kind: 'text', text: 'see ' },
+        { kind: 'url', url: 'https://example.com' },
+        { kind: 'text', text: '.' },
+      ]);
+    });
+
+    it('preserves URL query params and paths', () => {
+      expect(parseChatMentionSegments('https://example.com/path?a=1&b=2')).toEqual([
+        { kind: 'url', url: 'https://example.com/path?a=1&b=2' },
+      ]);
+    });
+
+    it('handles URL adjacent to mention', () => {
+      expect(parseChatMentionSegments('@[Bob] https://example.com')).toEqual([
+        { kind: 'mention', label: 'Bob' },
+        { kind: 'text', text: ' ' },
+        { kind: 'url', url: 'https://example.com' },
+      ]);
+    });
+
+    it('does not detect non-http protocols as URLs', () => {
+      expect(parseChatMentionSegments('ftp://example.com')).toEqual([
+        { kind: 'text', text: 'ftp://example.com' },
+      ]);
+    });
+  });
 });

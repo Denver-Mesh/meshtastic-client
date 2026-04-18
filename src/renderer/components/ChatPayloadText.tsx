@@ -31,7 +31,8 @@ export interface ChatPayloadTextProps {
 
 /**
  * Renders chat body text with Meshtastic/MeshCore `@[Display Name]` tokens shown as
- * compact inline labels (brackets hidden) and optional search highlighting.
+ * compact inline labels (brackets hidden), http/https URLs as clickable links that
+ * open in the system browser, and optional search highlighting.
  */
 export function ChatPayloadText({ text, query }: ChatPayloadTextProps) {
   const segments = parseChatMentionSegments(text);
@@ -47,6 +48,17 @@ export function ChatPayloadText({ text, query }: ChatPayloadTextProps) {
           >
             @{highlightCaseInsensitive(seg.label, query)}
           </span>
+        ) : seg.kind === 'url' ? (
+          <a
+            key={`u-${i}`}
+            href={seg.url}
+            target="_blank"
+            rel="noreferrer"
+            className="break-all text-cyan-400 underline hover:text-cyan-300"
+            title={seg.url}
+          >
+            {highlightCaseInsensitive(seg.url, query)}
+          </a>
         ) : (
           <span key={`t-${i}`} className="whitespace-pre-wrap">
             {highlightCaseInsensitive(seg.text, query)}

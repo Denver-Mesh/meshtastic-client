@@ -1,4 +1,4 @@
-interface TabsProps {
+interface SidebarProps {
   tabs: string[];
   active: number;
   onChange: (index: number) => void;
@@ -6,6 +6,8 @@ interface TabsProps {
   chatUnread?: number;
   /** Set of tab indices that are disabled (greyed out, non-clickable) */
   disabledTabs?: Set<number>;
+  collapsed: boolean;
+  onToggle: () => void;
 }
 
 /** Small inline SVG icon for each tab */
@@ -256,53 +258,94 @@ function TabIcon({ name }: { name: string }) {
   }
 }
 
-export default function Tabs({ tabs, active, onChange, chatUnread = 0, disabledTabs }: TabsProps) {
+export default function Sidebar({
+  tabs,
+  active,
+  onChange,
+  chatUnread = 0,
+  disabledTabs,
+  collapsed,
+  onToggle,
+}: SidebarProps) {
   const safeActive = tabs.length === 0 ? 0 : Math.max(0, Math.min(active, tabs.length - 1));
 
   return (
-    <div
-      role="tablist"
-      aria-label="Application panels"
-      className="bg-deep-black flex gap-1 border-b border-gray-700 px-2"
-    >
-      {tabs.map((name, i) => {
-        const showChatBadge = name === 'Chat' && chatUnread > 0;
-        const isDisabled = disabledTabs?.has(i) ?? false;
-        const tabAriaLabel = showChatBadge
-          ? `${name} ${chatUnread > 99 ? '99+' : chatUnread}`
-          : name;
-        return (
-          <button
-            key={`${i}-${name}`}
-            type="button"
-            role="tab"
-            aria-label={tabAriaLabel}
-            aria-selected={safeActive === i}
-            aria-controls={`panel-${i}`}
-            id={`tab-${i}`}
-            disabled={isDisabled}
-            onClick={() => {
-              if (!isDisabled) onChange(i);
-            }}
-            title={isDisabled ? 'Not available in MeshCore mode' : undefined}
-            className={`relative flex items-center gap-1.5 rounded-t-md px-3 py-2.5 text-sm font-medium transition-colors ${
-              isDisabled
-                ? 'cursor-not-allowed text-gray-600 opacity-50'
-                : safeActive === i
-                  ? 'text-bright-green border-bright-green border-b-2 bg-gray-900'
-                  : 'text-muted hover:bg-secondary-dark hover:text-gray-200'
-            }`}
-          >
-            <TabIcon name={name} />
-            {name}
-            {showChatBadge && (
-              <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                {chatUnread > 99 ? '99+' : chatUnread}
+    <div className="bg-deep-black relative flex h-full w-full shrink-0 flex-col overflow-hidden">
+      {/* Nav items */}
+      <div
+        role="tablist"
+        aria-label="Application panels"
+        aria-orientation="vertical"
+        className="relative z-10 flex flex-1 flex-col gap-0.5 overflow-x-hidden overflow-y-auto py-2"
+      >
+        {tabs.map((name, i) => {
+          const isActive = safeActive === i;
+          const isDisabled = disabledTabs?.has(i) ?? false;
+          const showChatBadge = name === 'Chat' && chatUnread > 0;
+          const tabAriaLabel = showChatBadge
+            ? `${name} ${chatUnread > 99 ? '99+' : chatUnread} unread`
+            : name;
+
+          return (
+            <button
+              key={`${i}-${name}`}
+              type="button"
+              role="tab"
+              id={`tab-${i}`}
+              aria-label={tabAriaLabel}
+              aria-selected={isActive}
+              aria-controls={`panel-${i}`}
+              disabled={isDisabled}
+              onClick={() => {
+                if (!isDisabled) onChange(i);
+              }}
+              title={isDisabled ? 'Not available in this mode' : collapsed ? name : undefined}
+              className={`relative mx-1 flex items-center gap-3 rounded-sm border-l-2 py-2.5 pr-3 pl-[14px] text-sm font-medium transition-colors ${
+                isDisabled
+                  ? 'cursor-not-allowed border-transparent text-gray-600 opacity-40'
+                  : isActive
+                    ? 'border-bright-green text-bright-green bg-gray-800'
+                    : 'text-muted hover:bg-secondary-dark border-transparent hover:text-gray-200'
+              }`}
+            >
+              {/* Icon wrapper — relative so badge can anchor to it */}
+              <span className="relative shrink-0">
+                <TabIcon name={name} />
+                {showChatBadge && (
+                  <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                    {chatUnread > 99 ? '99+' : chatUnread}
+                  </span>
+                )}
               </span>
-            )}
-          </button>
-        );
-      })}
+              {!collapsed && <span className="truncate">{name}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Collapse toggle */}
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        aria-expanded={!collapsed}
+        className="text-muted hover:bg-secondary-dark relative z-10 flex h-9 shrink-0 items-center justify-center border-t border-slate-800 transition-colors hover:text-gray-200"
+      >
+        <svg
+          aria-hidden="true"
+          className="h-4 w-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          {collapsed ? (
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+          ) : (
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          )}
+        </svg>
+      </button>
     </div>
   );
 }

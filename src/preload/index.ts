@@ -148,8 +148,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ),
     updateMeshcoreContactType: (nodeId: number, contactType: number) =>
       ipcRenderer.invoke('db:updateMeshcoreContactType', nodeId, contactType),
-    updateMeshcoreContactLastRf: (nodeId: number, lastSnr: number, lastRssi: number) =>
-      ipcRenderer.invoke('db:updateMeshcoreContactLastRf', nodeId, lastSnr, lastRssi),
+    updateMeshcoreContactLastRf: (
+      nodeId: number,
+      lastSnr: number,
+      lastRssi: number,
+      hops?: number | null,
+      timestamp?: number | null,
+    ) =>
+      ipcRenderer.invoke(
+        'db:updateMeshcoreContactLastRf',
+        nodeId,
+        lastSnr,
+        lastRssi,
+        hops,
+        timestamp,
+      ),
     updateMeshcoreMessageStatus: (packetId: number, status: string) =>
       ipcRenderer.invoke('db:updateMeshcoreMessageStatus', packetId, status),
     deleteMeshcoreContact: (nodeId: number) =>
@@ -315,6 +328,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
       };
       ipcRenderer.on('mqtt:message', handler);
       return () => ipcRenderer.off('mqtt:message', handler);
+    },
+    onTraceRouteReply: (
+      cb: (payload: {
+        meshFrom: number;
+        route: number[];
+        routeBack: number[];
+        protocol: 'meshtastic';
+      }) => void,
+    ) => {
+      const handler = (_: unknown, p: unknown) => {
+        cb(
+          p as {
+            meshFrom: number;
+            route: number[];
+            routeBack: number[];
+            protocol: 'meshtastic';
+          },
+        );
+      };
+      ipcRenderer.on('mqtt:trace-route-reply', handler);
+      return () => ipcRenderer.off('mqtt:trace-route-reply', handler);
     },
     onClientId: (
       cb: (payload: { clientId: string; protocol: 'meshtastic' | 'meshcore' }) => void,
