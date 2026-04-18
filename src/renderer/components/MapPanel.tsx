@@ -426,48 +426,34 @@ function ViewportSaver({ hasAnyPositions }: { hasAnyPositions: boolean }) {
   return null;
 }
 
-function RouteWeightPolylines({
-  showRouteWeights,
-  myNodeNum,
-  nodes,
-}: {
-  showRouteWeights: boolean;
-  myNodeNum: number;
-  nodes: Map<number, MeshNode>;
-}) {
-  const pathRecords = usePathHistoryStore((s) => s.records);
-  const weightedRouteLines = useMemo(() => {
-    if (!showRouteWeights) return [];
-    const paths = getWeightedPaths(pathRecords);
-    const fromNode = myNodeNum ? nodes.get(myNodeNum) : undefined;
-    if (!fromNode?.latitude || !fromNode?.longitude) return [];
-    const fromPos: [number, number] = [fromNode.latitude, fromNode.longitude];
+const routeWeightPolylines = useMemo(() => {
+  if (!showRouteWeights) return null;
+  const paths = getWeightedPaths(pathRecords);
+  const fromNode = myNodeNum ? nodes.get(myNodeNum) : undefined;
+  if (!fromNode?.latitude || !fromNode?.longitude) return null;
+  const fromPos: [number, number] = [fromNode.latitude, fromNode.longitude];
 
-    const validPaths = paths.flatMap((p) => {
-      const toNode = nodes.get(p.nodeId);
-      if (!toNode?.latitude || !toNode?.longitude) return [];
-      return [{ ...p, fromPos, toPos: [toNode.latitude, toNode.longitude] as [number, number] }];
-    });
-    if (validPaths.length === 0) return [];
-    const maxWeight = Math.max(...validPaths.map((p) => p.routeWeight), 1);
-    if (!Number.isFinite(maxWeight) || maxWeight <= 0) return [];
+  const validPaths = paths.flatMap((p) => {
+    const toNode = nodes.get(p.nodeId);
+    if (!toNode?.latitude || !toNode?.longitude) return [];
+    return [{ ...p, fromPos, toPos: [toNode.latitude, toNode.longitude] as [number, number] }];
+  });
+  if (validPaths.length === 0) return null;
+  const maxWeight = Math.max(...validPaths.map((p) => p.routeWeight), 1);
+  if (!Number.isFinite(maxWeight) || maxWeight <= 0) return null;
 
-    return validPaths.map((p) => ({
-      key: `rw-${p.nodeId}`,
-      positions: [p.fromPos, p.toPos] as [[number, number], [number, number]],
-      color: routeWeightToColor(p.routeWeight, maxWeight),
-      weight: routeWeightToStroke(p.routeWeight, maxWeight),
-    }));
-  }, [showRouteWeights, pathRecords, myNodeNum, nodes]);
-
-  return (
-    <>
-      {weightedRouteLines.map(({ key, positions, color, weight }) => (
-        <Polyline key={key} positions={positions} pathOptions={{ color, weight, opacity: 0.7 }} />
-      ))}
-    </>
-  );
-}
+  return validPaths.map((p) => (
+    <Polyline
+      key={`rw-${p.nodeId}`}
+      positions={[p.fromPos, p.toPos] as [[number, number], [number, number]]}
+      pathOptions={{
+        color: routeWeightToColor(p.routeWeight, maxWeight),
+        weight: routeWeightToStroke(p.routeWeight, maxWeight),
+        opacity: 0.7,
+      }}
+    />
+  ));
+}, [showRouteWeights, pathRecords, myNodeNum, nodes]);
 
 // ─── LocateMeControl ──────────────────────────────────────────────────────────
 
@@ -604,6 +590,7 @@ export default function MapPanel({
 
   const coordinateFormat = useCoordFormatStore((s) => s.coordinateFormat);
   const positionHistory = usePositionHistoryStore((s) => s.history);
+  const pathRecords = usePathHistoryStore((s) => s.records);
   const showPaths = usePositionHistoryStore((s) => s.showPaths);
   const loadHistoryFromDb = usePositionHistoryStore((s) => s.loadHistoryFromDb);
 
@@ -855,11 +842,7 @@ export default function MapPanel({
         {movingNodePaths.map(({ nodeId, positions: pathPositions, pathOptions }) => (
           <Polyline key={`path-${nodeId}`} positions={pathPositions} pathOptions={pathOptions} />
         ))}
-        <RouteWeightPolylines
-          showRouteWeights={showRouteWeights}
-          myNodeNum={myNodeNum}
-          nodes={nodes}
-        />
+        {routeWeightPolylines}
         {nodesWithStatusAndHaloOffsetForRender.map(({ node, anomaly, haloCenterOffset }) => (
           <MapMarker
             key={node.node_id}
