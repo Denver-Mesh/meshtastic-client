@@ -1597,6 +1597,20 @@ export function useMeshCore() {
           node.node_id,
           contact.outPath?.slice(0, contactPathLen + 1) ?? new Uint8Array(0),
         );
+        const contactPathBytes =
+          contact.outPath && contactPathLen > 0
+            ? Array.from(contact.outPath.slice(0, contactPathLen + 1))
+            : [];
+        if (contactPathBytes.length > 0) {
+          const pathHash = computePathHash(contactPathBytes);
+          const existing = usePathHistoryStore.getState().records.get(node.node_id) ?? [];
+          if (!existing.some((r) => r.pathHash === pathHash)) {
+            const hops = node.hops_away ?? Math.max(0, contactPathBytes.length - 1);
+            usePathHistoryStore
+              .getState()
+              .recordPathUpdated(node.node_id, contactPathBytes, hops, false);
+          }
+        }
         const prefix = Array.from(contact.publicKey.slice(0, 6))
           .map((b) => b.toString(16).padStart(2, '0'))
           .join('');
@@ -3941,6 +3955,21 @@ export function useMeshCore() {
         const selfNodeId = myNodeNumRef.current;
         const nowSec = Math.floor(Date.now() / 1000);
         setOurPosition({ lat, lon, source: 'static' });
+        try {
+          const existing =
+            parseStoredJson<Record<string, unknown>>(
+              localStorage.getItem('mesh-client:gpsSettings'),
+              'useMeshCore sendPositionToDeviceMeshCore persist static',
+            ) ?? {};
+          const refreshInterval =
+            typeof existing.refreshInterval === 'number' ? existing.refreshInterval : 0;
+          localStorage.setItem(
+            'mesh-client:gpsSettings',
+            JSON.stringify({ ...existing, staticLat: lat, staticLon: lon, refreshInterval }),
+          );
+        } catch {
+          // catch-no-log-ok localStorage quota or private mode
+        }
         if (selfNodeId > 0) {
           setNodes((prev) => {
             const next = new Map(prev);
@@ -5278,13 +5307,21 @@ export function useMeshCore() {
     } catch {
       // catch-no-log-ok localStorage read for GPS settings — ignore parse errors
     }
-    const pos = await resolveOurPosition(myNode?.latitude, myNode?.longitude, staticLat, staticLon);
+    // Match useDevice: when a static override exists, do not let device coords win over it.
+    const devLat = staticLat != null ? undefined : myNode?.latitude;
+    const devLon = staticLon != null ? undefined : myNode?.longitude;
+    const pos = await resolveOurPosition(devLat, devLon, staticLat, staticLon);
     setOurPosition(pos);
     if (getStoredMeshProtocol() === 'meshcore') {
       useDiagnosticsStore.getState().setOurPositionSource(pos?.source ?? null);
     }
     return pos;
   }, []);
+
+  // Same as useDevice: resolve map/static GPS on startup so MapPanel receives ourPosition.
+  useEffect(() => {
+    void refreshOurPositionNoop();
+  }, [refreshOurPositionNoop]);
 
   const getNodes = useCallback(() => nodes, [nodes]);
   const getFullNodeLabel = useCallback(
