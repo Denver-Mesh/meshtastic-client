@@ -12,6 +12,10 @@ describe('routeWeightToStroke', () => {
   it('maps midpoint correctly', () => {
     expect(routeWeightToStroke(5, 10)).toBe(4.5);
   });
+  it('falls back to minimum when maxWeight is invalid', () => {
+    expect(routeWeightToStroke(5, 0)).toBe(1);
+    expect(routeWeightToStroke(5, Number.NaN)).toBe(1);
+  });
 });
 
 describe('routeWeightToColor', () => {
@@ -20,5 +24,9 @@ describe('routeWeightToColor', () => {
   });
   it('returns brand green at max weight', () => {
     expect(routeWeightToColor(10, 10)).toBe('rgb(34,197,94)');
+  });
+  it('returns gray when values are invalid', () => {
+    expect(routeWeightToColor(10, 0)).toBe('rgb(107,114,128)');
+    expect(routeWeightToColor(Number.NaN, 10)).toBe('rgb(107,114,128)');
   });
 });

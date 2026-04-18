@@ -78,7 +78,7 @@ function touchLRU(lruOrder: number[], nodeId: number): number[] {
 
 /**
  * Returns the highest-weighted path record for each contact in the store.
- * Only includes entries where routeWeight > 0.
+ * Only includes entries where routeWeight is finite and > 0.
  */
 export function getWeightedPaths(
   records: Map<number, PathRecord[]>,
@@ -87,6 +87,7 @@ export function getWeightedPaths(
   for (const [nodeId, pathList] of records) {
     let best: PathRecord | null = null;
     for (const r of pathList) {
+      if (!Number.isFinite(r.routeWeight)) continue;
       if (r.routeWeight <= 0) continue;
       if (!best || r.routeWeight > best.routeWeight) best = r;
     }

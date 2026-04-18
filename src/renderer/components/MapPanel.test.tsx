@@ -1,11 +1,16 @@
-import { render } from '@testing-library/react';
+import { act, render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
 
+import type { PathRecord } from '../lib/pathHistoryTypes';
+import { usePathHistoryStore } from '../stores/pathHistoryStore';
 import MapPanel from './MapPanel';
 
-const { leafletIconMock } = vi.hoisted(() => ({
+const { leafletIconMock, mapContainerMock } = vi.hoisted(() => ({
   leafletIconMock: vi.fn().mockReturnValue({}),
+  mapContainerMock: vi.fn(({ children }: { children: React.ReactNode }) => (
+    <div data-testid="map-container">{children}</div>
+  )),
 }));
 
 vi.mock('../stores/diagnosticsStore', () => ({
@@ -38,9 +43,7 @@ const mockMapInstance = {
 };
 
 vi.mock('react-leaflet', () => ({
-  MapContainer: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="map-container">{children}</div>
-  ),
+  MapContainer: mapContainerMock,
   TileLayer: () => null,
   Marker: () => null,
   Popup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -156,5 +159,76 @@ describe('MapPanel accessibility', () => {
     // (third-party DOM with potentially non-standard attributes)
     const results = await axe(container);
     expect(results).toHaveNoViolations();
+  });
+
+  it('does not re-render MapContainer when path history updates', () => {
+    mapContainerMock.mockClear();
+    usePathHistoryStore.setState({ records: new Map(), lruOrder: [] });
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    const nodes = new Map([
+      [
+        2,
+        {
+          node_id: 2,
+          long_name: 'User Node',
+          short_name: 'USER',
+          hw_model: 'T-Echo',
+          snr: 0,
+          battery: 0,
+          last_heard: nowSec,
+          latitude: 40.186,
+          longitude: -105.074,
+        },
+      ],
+      [
+        3,
+        {
+          node_id: 3,
+          long_name: 'Peer Node',
+          short_name: 'PEER',
+          hw_model: 'T-Echo',
+          snr: 0,
+          battery: 0,
+          last_heard: nowSec,
+          latitude: 40.19,
+          longitude: -105.08,
+        },
+      ],
+    ]);
+
+    render(
+      <MapPanel
+        nodes={nodes}
+        myNodeNum={2}
+        locationFilter={defaultFilter}
+        ourPosition={null}
+        onLocateMe={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+
+    const initialMapContainerRenders = mapContainerMock.mock.calls.length;
+    expect(initialMapContainerRenders).toBe(1);
+
+    const pathRecord: PathRecord = {
+      nodeId: 3,
+      pathHash: '00ff',
+      hopCount: 1,
+      pathBytes: [0x00, 0xff],
+      wasFloodDiscovery: false,
+      successCount: 0,
+      failureCount: 0,
+      tripTimeMs: 0,
+      routeWeight: 1.2,
+      lastSuccessTs: null,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    act(() => {
+      usePathHistoryStore.setState({ records: new Map([[3, [pathRecord]]]), lruOrder: [3] });
+    });
+
+    expect(mapContainerMock.mock.calls.length).toBe(initialMapContainerRenders);
   });
 });
