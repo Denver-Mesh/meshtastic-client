@@ -426,35 +426,6 @@ function ViewportSaver({ hasAnyPositions }: { hasAnyPositions: boolean }) {
   return null;
 }
 
-const routeWeightPolylines = useMemo(() => {
-  if (!showRouteWeights) return null;
-  const paths = getWeightedPaths(pathRecords);
-  const fromNode = myNodeNum ? nodes.get(myNodeNum) : undefined;
-  if (!fromNode?.latitude || !fromNode?.longitude) return null;
-  const fromPos: [number, number] = [fromNode.latitude, fromNode.longitude];
-
-  const validPaths = paths.flatMap((p) => {
-    const toNode = nodes.get(p.nodeId);
-    if (!toNode?.latitude || !toNode?.longitude) return [];
-    return [{ ...p, fromPos, toPos: [toNode.latitude, toNode.longitude] as [number, number] }];
-  });
-  if (validPaths.length === 0) return null;
-  const maxWeight = Math.max(...validPaths.map((p) => p.routeWeight), 1);
-  if (!Number.isFinite(maxWeight) || maxWeight <= 0) return null;
-
-  return validPaths.map((p) => (
-    <Polyline
-      key={`rw-${p.nodeId}`}
-      positions={[p.fromPos, p.toPos] as [[number, number], [number, number]]}
-      pathOptions={{
-        color: routeWeightToColor(p.routeWeight, maxWeight),
-        weight: routeWeightToStroke(p.routeWeight, maxWeight),
-        opacity: 0.7,
-      }}
-    />
-  ));
-}, [showRouteWeights, pathRecords, myNodeNum, nodes]);
-
 // ─── LocateMeControl ──────────────────────────────────────────────────────────
 
 function LocateMeControl({
@@ -595,6 +566,35 @@ export default function MapPanel({
   const loadHistoryFromDb = usePositionHistoryStore((s) => s.loadHistoryFromDb);
 
   const [showRouteWeights, setShowRouteWeights] = useState(false);
+
+  const routeWeightPolylines = useMemo(() => {
+    if (!showRouteWeights) return null;
+    const paths = getWeightedPaths(pathRecords);
+    const fromNode = myNodeNum ? nodes.get(myNodeNum) : undefined;
+    if (!fromNode?.latitude || !fromNode?.longitude) return null;
+    const fromPos: [number, number] = [fromNode.latitude, fromNode.longitude];
+
+    const validPaths = paths.flatMap((p) => {
+      const toNode = nodes.get(p.nodeId);
+      if (!toNode?.latitude || !toNode?.longitude) return [];
+      return [{ ...p, fromPos, toPos: [toNode.latitude, toNode.longitude] as [number, number] }];
+    });
+    if (validPaths.length === 0) return null;
+    const maxWeight = Math.max(...validPaths.map((p) => p.routeWeight), 1);
+    if (!Number.isFinite(maxWeight) || maxWeight <= 0) return null;
+
+    return validPaths.map((p) => (
+      <Polyline
+        key={`rw-${p.nodeId}`}
+        positions={[p.fromPos, p.toPos] as [[number, number], [number, number]]}
+        pathOptions={{
+          color: routeWeightToColor(p.routeWeight, maxWeight),
+          weight: routeWeightToStroke(p.routeWeight, maxWeight),
+          opacity: 0.7,
+        }}
+      />
+    ));
+  }, [showRouteWeights, pathRecords, myNodeNum, nodes]);
 
   useEffect(() => {
     ensureMapStyles();
