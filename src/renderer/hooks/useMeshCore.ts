@@ -2549,13 +2549,44 @@ export function useMeshCore() {
           // Update hops_away on known MeshCore nodes from RF packet hop count.
           // Only use fromNodeId resolved by MeshCore parsing (before the Meshtastic fallback).
           if (fromNodeId !== null && fromNodeId !== myNodeNumRef.current) {
+            const nowSec = Math.floor(now / 1000);
             setNodes((prev) => {
               const existing = prev.get(fromNodeId!);
-              if (!existing || existing.hops_away === hopCount) return prev;
-              const updated = { ...existing, hops_away: hopCount };
+              if (!existing) return prev;
+              const updated: MeshNode = {
+                ...existing,
+                hops_away: hopCount,
+                snr: snr,
+                rssi: rssi,
+                last_heard: Math.max(existing.last_heard ?? 0, nowSec),
+              };
+
+              // Optimization: skip identical updates
+              if (
+                existing.hops_away === hopCount &&
+                existing.snr === snr &&
+                existing.rssi === rssi &&
+                existing.last_heard === updated.last_heard
+              ) {
+                return prev;
+              }
+
               const next = new Map(prev);
               next.set(fromNodeId!, updated);
+
               void window.electronAPI.db.saveNode(updated);
+              void window.electronAPI.db
+                .updateMeshcoreContactLastRf(fromNodeId!, snr, rssi, hopCount, nowSec)
+                .catch((e: unknown) => {
+                  console.warn('[useMeshCore] updateMeshcoreContactLastRf error', e);
+                });
+              void useDiagnosticsStore
+                .getState()
+                .saveMeshcoreHopHistory(fromNodeId!, now, hopCount, snr, rssi)
+                .catch((e: unknown) => {
+                  console.warn('[useMeshCore] saveMeshcoreHopHistory error', e);
+                });
+
               return next;
             });
           }

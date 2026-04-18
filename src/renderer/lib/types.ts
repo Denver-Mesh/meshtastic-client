@@ -429,6 +429,8 @@ declare global {
           nodeId: number,
           lastSnr: number,
           lastRssi: number,
+          hops?: number | null,
+          timestamp?: number | null,
         ) => Promise<unknown>;
         getMeshcoreMessages: (channelIdx?: number, limit?: number) => Promise<unknown[]>;
         searchMessages: (query: string, limit?: number) => Promise<unknown[]>;

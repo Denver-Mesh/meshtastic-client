@@ -349,6 +349,7 @@ interface DiagnosticsState {
   /** Save MeshCore hop count to database (MeshCore only) */
   saveMeshcoreHopHistory(
     nodeId: number,
+    timestamp: number,
     hops: number | null,
     snr: number | null,
     rssi: number | null,
@@ -491,6 +492,7 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
 
   async saveMeshcoreHopHistory(
     nodeId: number,
+    timestamp: number,
     hops: number | null,
     snr: number | null,
     rssi: number | null,
@@ -505,7 +507,6 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
       ) => Promise<boolean>;
     } | null;
     if (!dbApi) return;
-    const timestamp = Date.now();
     try {
       await dbApi.saveMeshcoreHopHistory?.(nodeId, timestamp, hops, snr, rssi);
       set((state) => {

@@ -3660,7 +3660,14 @@ ipcMain.handle('db:updateMeshcoreContactType', (_e, nodeId: number, contactType:
 
 ipcMain.handle(
   'db:updateMeshcoreContactLastRf',
-  (_e, nodeId: number, lastSnr: number, lastRssi: number) => {
+  (
+    _e,
+    nodeId: number,
+    lastSnr: number,
+    lastRssi: number,
+    hops?: number | null,
+    timestamp?: number | null,
+  ) => {
     try {
       const safeNodeId = safeNonNegativeInt(nodeId);
       if (typeof lastSnr !== 'number' || !Number.isFinite(lastSnr)) {
@@ -3670,8 +3677,23 @@ ipcMain.handle(
         throw new Error('db:updateMeshcoreContactLastRf: lastRssi must be a finite number');
       }
       getDatabase()
-        .prepareOnce('UPDATE meshcore_contacts SET last_snr = ?, last_rssi = ? WHERE node_id = ?')
-        .run(lastSnr, lastRssi, safeNodeId);
+        .prepareOnce(
+          'UPDATE meshcore_contacts SET ' +
+            'last_snr = ?, ' +
+            'last_rssi = ?, ' +
+            'hops_away = COALESCE(?, hops_away), ' +
+            'last_advert = CASE WHEN ? IS NOT NULL AND ? > COALESCE(last_advert, 0) THEN ? ELSE last_advert END ' +
+            'WHERE node_id = ?',
+        )
+        .run(
+          lastSnr,
+          lastRssi,
+          hops ?? null,
+          timestamp ?? null,
+          timestamp ?? null,
+          timestamp ?? null,
+          safeNodeId,
+        );
     } catch (err) {
       console.error(
         '[IPC] db:updateMeshcoreContactLastRf error:',

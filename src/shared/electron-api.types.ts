@@ -214,7 +214,9 @@ export interface ElectronAPI {
       nodeId: number,
       lastSnr: number,
       lastRssi: number,
-    ) => Promise<unknown>;
+      hops?: number | null,
+      timestamp?: number | null,
+    ) => Promise<void>;
     updateMeshcoreMessageStatus: (packetId: number, status: string) => Promise<unknown>;
     deleteMeshcoreContact: (nodeId: number) => Promise<unknown>;
     clearMeshcoreMessages: () => Promise<unknown>;
