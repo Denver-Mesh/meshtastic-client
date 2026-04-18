@@ -115,7 +115,7 @@
     "eslint-plugin-no-secrets": "^2.3.3",
     "eslint-plugin-prettier": "^5.5.5",
     "eslint-plugin-react": "^7.37.5",
-    "eslint-plugin-react-hooks": "^6.1.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-security": "^4.0.0",
     "eslint-plugin-simple-import-sort": "^13.0.0",
     "eslint-plugin-vitest": "^0.5.4",

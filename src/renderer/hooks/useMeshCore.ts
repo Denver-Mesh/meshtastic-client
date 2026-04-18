@@ -1445,13 +1445,15 @@ export function useMeshCore() {
     if (myId <= 0 || mV == null || !Number.isFinite(mV)) return;
     const voltage = mV / 1000;
     const battery = meshcoreMilliVoltsToApproximateBatteryPercent(mV) ?? 0;
-    setNodes((prev) => {
-      const existing = prev.get(myId);
-      if (!existing) return prev;
-      if (existing.voltage === voltage && existing.battery === battery) return prev;
-      const next = new Map(prev);
-      next.set(myId, { ...existing, voltage, battery });
-      return next;
+    queueMicrotask(() => {
+      setNodes((prev) => {
+        const existing = prev.get(myId);
+        if (!existing) return prev;
+        if (existing.voltage === voltage && existing.battery === battery) return prev;
+        const next = new Map(prev);
+        next.set(myId, { ...existing, voltage, battery });
+        return next;
+      });
     });
   }, [state.myNodeNum, selfInfo?.batteryMilliVolts]);
 
@@ -1460,17 +1462,21 @@ export function useMeshCore() {
   useEffect(() => {
     const mV = selfInfo?.batteryMilliVolts;
     if (mV == null || !Number.isFinite(mV)) {
-      setState((prev) => {
-        if (prev.batteryPercent === undefined && prev.batteryCharging === undefined) return prev;
-        return { ...prev, batteryPercent: undefined, batteryCharging: undefined };
+      queueMicrotask(() => {
+        setState((prev) => {
+          if (prev.batteryPercent === undefined && prev.batteryCharging === undefined) return prev;
+          return { ...prev, batteryPercent: undefined, batteryCharging: undefined };
+        });
       });
       return;
     }
     const pct = meshcoreMilliVoltsToApproximateBatteryPercent(mV);
     const charging = meshcoreConnectionImpliesUsbPower(state.connectionType);
-    setState((prev) => {
-      if (prev.batteryPercent === pct && prev.batteryCharging === charging) return prev;
-      return { ...prev, batteryPercent: pct, batteryCharging: charging };
+    queueMicrotask(() => {
+      setState((prev) => {
+        if (prev.batteryPercent === pct && prev.batteryCharging === charging) return prev;
+        return { ...prev, batteryPercent: pct, batteryCharging: charging };
+      });
     });
   }, [selfInfo?.batteryMilliVolts, state.connectionType]);
 
