@@ -378,7 +378,7 @@ export default function Sidebar({
         role="tablist"
         aria-label="Application panels"
         aria-orientation="vertical"
-        className="relative z-10 flex flex-1 flex-col gap-0.5 overflow-x-hidden overflow-y-auto py-2"
+        className="relative z-10 flex flex-1 flex-col gap-0.5 overflow-x-hidden overflow-y-auto pt-8 pb-2"
       >
         {tabs.map((name, i) => {
           const isActive = safeActive === i;
