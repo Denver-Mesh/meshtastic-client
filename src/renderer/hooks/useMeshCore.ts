@@ -4102,7 +4102,49 @@ export function useMeshCore() {
         if (!conn) {
           throw new Error('Not connected to device');
         }
-        const storedPath = outPathMapRef.current.get(nodeId);
+        const hopsAway = nodesRef.current.get(nodeId)?.hops_away;
+        let storedPath = outPathMapRef.current.get(nodeId);
+        /** `outPathLen` from the matching radio contact when we consult `getContacts` (may diverge from UI `hops_away`). */
+        let radioContactPathLen: number | null = null;
+        /** Multi-hop trace needs the radio’s route bytes; the single-byte pubkey fallback only works for direct peers. */
+        if ((!storedPath || storedPath.length === 0) && (hopsAway == null || hopsAway >= 1)) {
+          try {
+            const contactsRaw = await conn.getContacts();
+            const contacts = contactsRaw.map(meshcoreContactRawFromDevice);
+            for (const contact of contacts) {
+              if (pubkeyToNodeId(contact.publicKey) !== nodeId) continue;
+              const contactPathLen = contact.outPathLen ?? 0;
+              if (typeof contact.outPathLen === 'number' && Number.isFinite(contact.outPathLen)) {
+                radioContactPathLen = contact.outPathLen;
+              }
+              const slice =
+                contact.outPath && contactPathLen >= 0
+                  ? contact.outPath.slice(0, contactPathLen + 1)
+                  : new Uint8Array(0);
+              if (slice.length > 0) {
+                outPathMapRef.current.set(nodeId, slice);
+                storedPath = slice;
+              }
+              break;
+            }
+          } catch (e: unknown) {
+            console.warn('[useMeshCore] traceRoute getContacts refresh failed', e);
+          }
+        }
+        const pathTooShort = !storedPath || storedPath.length <= 1;
+        const uiSaysMultiHop = (hopsAway ?? 0) >= 1;
+        const radioSaysMultiHop = radioContactPathLen != null && radioContactPathLen >= 1;
+        if (pathTooShort && (uiSaysMultiHop || radioSaysMultiHop)) {
+          setMeshcorePingErrors((prev) => {
+            const next = new Map(prev);
+            next.set(
+              nodeId,
+              'No route from radio yet — multi-hop trace needs a synced path. Wait for contact updates or reconnect.',
+            );
+            return next;
+          });
+          return;
+        }
         let outPath =
           storedPath && storedPath.length > 0 ? storedPath : new Uint8Array([pubKey[0]]);
         if (outPath.length === 1 && outPath[0] === 0 && pubKey[0] !== 0) {

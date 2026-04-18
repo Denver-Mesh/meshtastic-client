@@ -140,23 +140,34 @@ export default function DiagnosticsPanel({
   const getForeignLoraDetectionsList = useDiagnosticsStore((s) => s.getForeignLoraDetectionsList);
 
   const [search, setSearch] = useState('');
-  const [tracePending, setTracePending] = useState<number | null>(null);
+  const [tracePendingNodes, setTracePendingNodes] = useState<Set<number>>(() => new Set());
   const [traceFailed, setTraceFailed] = useState<Set<number>>(new Set());
   const traceStartTimes = useRef<Map<number, number>>(new Map());
   const traceTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
 
-  // Detect when a trace result arrives for the pending node
+  // Clear per-node pending when a result arrives for that node (concurrent traces supported)
   useEffect(() => {
-    if (tracePending === null) return;
-    const result = traceRouteResults.get(tracePending);
-    const startTime = traceStartTimes.current.get(tracePending);
-    if (result && startTime !== undefined && result.timestamp >= startTime) {
-      const timer = traceTimers.current.get(tracePending);
-      if (timer) clearTimeout(timer);
-      traceTimers.current.delete(tracePending);
-      setTracePending(null);
+    if (tracePendingNodes.size === 0) return;
+    const done: number[] = [];
+    for (const nodeId of tracePendingNodes) {
+      const result = traceRouteResults.get(nodeId);
+      const startTime = traceStartTimes.current.get(nodeId);
+      if (result && startTime !== undefined && result.timestamp >= startTime) {
+        done.push(nodeId);
+      }
     }
-  }, [traceRouteResults, tracePending]);
+    if (done.length === 0) return;
+    for (const nodeId of done) {
+      const timer = traceTimers.current.get(nodeId);
+      if (timer) clearTimeout(timer);
+      traceTimers.current.delete(nodeId);
+    }
+    setTracePendingNodes((prev) => {
+      const n = new Set(prev);
+      for (const nodeId of done) n.delete(nodeId);
+      return n;
+    });
+  }, [traceRouteResults, tracePendingNodes]);
 
   // Cleanup timers on unmount
   useEffect(() => {
@@ -358,11 +369,15 @@ export default function DiagnosticsPanel({
       s.delete(nodeId);
       return s;
     });
-    setTracePending(nodeId);
+    setTracePendingNodes((prev) => new Set(prev).add(nodeId));
     traceStartTimes.current.set(nodeId, Date.now());
 
     const timer = setTimeout(() => {
-      setTracePending((prev) => (prev === nodeId ? null : prev));
+      setTracePendingNodes((prev) => {
+        const n = new Set(prev);
+        n.delete(nodeId);
+        return n;
+      });
       setTraceFailed((prev) => new Set([...prev, nodeId]));
       traceTimers.current.delete(nodeId);
     }, TRACE_TIMEOUT_MS);
@@ -375,7 +390,11 @@ export default function DiagnosticsPanel({
       console.warn('[DiagnosticsPanel] trace route failed', e);
       clearTimeout(timer);
       traceTimers.current.delete(nodeId);
-      setTracePending(null);
+      setTracePendingNodes((prev) => {
+        const n = new Set(prev);
+        n.delete(nodeId);
+        return n;
+      });
       setTraceFailed((prev) => new Set([...prev, nodeId]));
     }
   };
@@ -477,7 +496,7 @@ export default function DiagnosticsPanel({
       const colorClass = isError ? 'text-red-400' : isInfo ? 'text-blue-400' : 'text-orange-400';
       const hexId = `!${anomaly.nodeId.toString(16)}`;
       const displayName = node?.long_name || node?.short_name || hexId;
-      const isPending = tracePending === anomaly.nodeId;
+      const isPending = tracePendingNodes.has(anomaly.nodeId);
       const isFailed = traceFailed.has(anomaly.nodeId);
       const traceResult = traceRouteResults.get(anomaly.nodeId);
       const startTime = traceStartTimes.current.get(anomaly.nodeId);
@@ -602,7 +621,7 @@ export default function DiagnosticsPanel({
               ) : (
                 <button
                   onClick={() => handleTraceRoute(anomaly.nodeId)}
-                  disabled={!isConnected || tracePending !== null}
+                  disabled={!isConnected || tracePendingNodes.has(anomaly.nodeId)}
                   title={isFailed ? 'Trace route timed out — click to retry' : undefined}
                   className={`rounded px-2.5 py-1 text-xs whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                     isFailed

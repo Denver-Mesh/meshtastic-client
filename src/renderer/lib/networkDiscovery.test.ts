@@ -20,32 +20,30 @@ describe('startNetworkDiscovery', () => {
       },
       () => [1, 2, 3],
       60_000,
-      0, // no inter-node delay in tests
     );
 
     // Flush the immediate sweep (no timers involved when interNodeDelayMs=0)
     await vi.advanceTimersByTimeAsync(0);
     stop();
 
-    expect(traced).toEqual([1, 2, 3]);
+    expect([...traced].sort((a, b) => a - b)).toEqual([1, 2, 3]);
   });
 
   it('does not trace after stop() is called', async () => {
     const traced: number[] = [];
     const stop = startNetworkDiscovery(
-      (id) => {
+      async (id) => {
+        await Promise.resolve();
         traced.push(id);
-        return Promise.resolve();
       },
       () => [10, 20],
       60_000,
-      0,
     );
 
     stop();
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(traced.length).toBeLessThanOrEqual(1);
+    expect(traced).toEqual([]);
   });
 
   it('schedules a second sweep after the interval', async () => {
@@ -57,7 +55,6 @@ describe('startNetworkDiscovery', () => {
       },
       () => [5],
       10_000,
-      0,
     );
 
     // First sweep (immediate)
@@ -80,7 +77,6 @@ describe('startNetworkDiscovery', () => {
       },
       () => [7],
       5_000,
-      0,
     );
 
     await vi.advanceTimersByTimeAsync(0);
@@ -104,13 +100,12 @@ describe('startNetworkDiscovery', () => {
       },
       () => [1, 2, 3],
       60_000,
-      0,
     );
 
     await vi.advanceTimersByTimeAsync(0);
     stop();
 
-    expect(traced).toEqual([1, 3]);
+    expect([...traced].sort((a, b) => a - b)).toEqual([1, 3]);
     expect(warnSpy).toHaveBeenCalledWith(
       '[networkDiscovery] traceroute failed for node',
       2,

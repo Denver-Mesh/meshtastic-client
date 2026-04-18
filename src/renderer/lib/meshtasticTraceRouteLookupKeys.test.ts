@@ -36,6 +36,16 @@ describe('meshtasticTraceRouteLookupKeys', () => {
     });
     expect(keys).toEqual([1]);
   });
+
+  it('includes Data.source when set', () => {
+    const keys = meshtasticTraceRouteLookupKeys({
+      from: 0x100,
+      data: { route: [], routeBack: [] },
+      dataLayerSource: 0xfeedbeef,
+    });
+    expect(keys).toContain(0x100);
+    expect(keys).toContain(0xfeedbeef);
+  });
 });
 
 describe('mergeMeshtasticTraceRouteIntoResultsMap', () => {
@@ -52,5 +62,19 @@ describe('mergeMeshtasticTraceRouteIntoResultsMap', () => {
     );
     expect(next.get(0x300)).toBeDefined();
     expect(next.get(0x200)).toBeDefined();
+  });
+
+  it('stores under additional lookup keys when hop-based keys miss the traced node', () => {
+    const prev = new Map<number, { route: number[]; from: number; timestamp: number }>();
+    const tracedNode = 0xdeadbeef;
+    const next = mergeMeshtasticTraceRouteIntoResultsMap(
+      prev,
+      0x100,
+      { route: [0x200], routeBack: [] },
+      undefined,
+      [tracedNode],
+    );
+    expect(next.get(tracedNode)).toBeDefined();
+    expect(next.get(tracedNode)?.route).toEqual([0x200]);
   });
 });

@@ -212,6 +212,8 @@ export function useDevice() {
     Map<number, { route: number[]; from: number; timestamp: number }>
   >(new Map());
   const pendingTraceRequestsRef = useRef<Map<number, number>>(new Map());
+  /** Outbound trace packet id (`traceRoute()` return) → user-requested destination node */
+  const pendingTracePacketIdToTargetRef = useRef<Map<number, number>>(new Map());
   const [channels, setChannels] = useState<{ index: number; name: string }[]>([
     { index: 0, name: 'Primary' },
   ]);
@@ -841,7 +843,14 @@ export function useDevice() {
         routeBack: payload.routeBack as readonly number[],
       };
       setTraceRouteResults((prev) =>
-        mergeMeshtasticTraceRouteIntoResultsMap(prev, payload.meshFrom, rd, undefined),
+        mergeMeshtasticTraceRouteIntoResultsMap(
+          prev,
+          payload.meshFrom,
+          rd,
+          undefined,
+          undefined,
+          undefined,
+        ),
       );
     });
 
@@ -1767,17 +1776,48 @@ export function useDevice() {
       });
       unsubscribesRef.current.push(unsubConfig);
 
-      // ─── Trace route responses: onMeshPacket reads Data.dest; onTraceRoutePacket fallback (@meshtastic/core)
+      // ─── Trace route responses (concurrent in-flight: pending per node + outbound packet id map)
+      //     onMeshPacket reads Data; onTraceRoutePacket fallback (@meshtastic/core)
       const applyMeshtasticTracerouteReply = (
         meshFrom: number,
         rd: { route: readonly number[]; routeBack: readonly number[] },
         dataLayerDest: number | undefined,
+        correlationIds?: {
+          replyId?: number;
+          requestId?: number;
+        },
+        dataLayerSource?: number,
       ) => {
-        const lookupKeys = meshtasticTraceRouteLookupKeys({
+        const baseLookupKeys = meshtasticTraceRouteLookupKeys({
           from: meshFrom,
           data: { route: rd.route, routeBack: rd.routeBack },
           dataLayerDest,
+          dataLayerSource,
         });
+        let correlatedDest: number | undefined;
+        if (correlationIds) {
+          const tryIds: number[] = [];
+          const r = correlationIds.replyId;
+          const q = correlationIds.requestId;
+          if (typeof r === 'number' && Number.isFinite(r) && r >>> 0 !== 0) {
+            tryIds.push(r >>> 0);
+          }
+          if (typeof q === 'number' && Number.isFinite(q) && q >>> 0 !== 0) {
+            tryIds.push(q >>> 0);
+          }
+          for (const id of tryIds) {
+            const mapped = pendingTracePacketIdToTargetRef.current.get(id);
+            if (mapped !== undefined) {
+              correlatedDest = mapped >>> 0;
+              pendingTracePacketIdToTargetRef.current.delete(id);
+              break;
+            }
+          }
+        }
+        const correlatedAdditionalKeys =
+          correlatedDest !== undefined ? [correlatedDest] : ([] as number[]);
+        const lookupKeys = [...new Set([...baseLookupKeys, ...correlatedAdditionalKeys])];
+        const mergeAdditionalKeys = correlatedAdditionalKeys;
         for (const key of lookupKeys) {
           pendingTraceRequestsRef.current.delete(key);
         }
@@ -1785,8 +1825,20 @@ export function useDevice() {
         for (const [target, startedAt] of pendingTraceRequestsRef.current) {
           if (startedAt < cutoff) pendingTraceRequestsRef.current.delete(target);
         }
+        for (const [packetId, dest] of [...pendingTracePacketIdToTargetRef.current.entries()]) {
+          if (!pendingTraceRequestsRef.current.has(dest)) {
+            pendingTracePacketIdToTargetRef.current.delete(packetId);
+          }
+        }
         setTraceRouteResults((prev) =>
-          mergeMeshtasticTraceRouteIntoResultsMap(prev, meshFrom, rd, dataLayerDest),
+          mergeMeshtasticTraceRouteIntoResultsMap(
+            prev,
+            meshFrom,
+            rd,
+            dataLayerDest,
+            mergeAdditionalKeys,
+            dataLayerSource,
+          ),
         );
       };
 
@@ -1802,7 +1854,23 @@ export function useDevice() {
           const rawDest = (dataPacket as { dest?: number }).dest;
           const dataLayerDest =
             typeof rawDest === 'number' && Number.isFinite(rawDest) ? rawDest : undefined;
-          applyMeshtasticTracerouteReply(meshPacket.from, rd, dataLayerDest);
+          const rawSource = (dataPacket as { source?: number }).source;
+          const dataLayerSource =
+            typeof rawSource === 'number' && Number.isFinite(rawSource) ? rawSource : undefined;
+          const dp = dataPacket as { requestId?: number; replyId?: number };
+          const rawReply = dp.replyId;
+          const rawReq = dp.requestId;
+          applyMeshtasticTracerouteReply(
+            meshPacket.from,
+            rd,
+            dataLayerDest,
+            {
+              replyId:
+                typeof rawReply === 'number' && Number.isFinite(rawReply) ? rawReply : undefined,
+              requestId: typeof rawReq === 'number' && Number.isFinite(rawReq) ? rawReq : undefined,
+            },
+            dataLayerSource,
+          );
         } catch {
           // catch-no-log-ok RouteDiscovery decode failed (non-traceroute payload on port)
         }
@@ -1814,7 +1882,7 @@ export function useDevice() {
           route: readonly number[];
           routeBack: readonly number[];
         };
-        applyMeshtasticTracerouteReply(packet.from, rd, undefined);
+        applyMeshtasticTracerouteReply(packet.from, rd, undefined, undefined, undefined);
       });
       unsubscribesRef.current.push(unsubTraceLegacy);
 
@@ -2719,7 +2787,8 @@ export function useDevice() {
   const traceRoute = useCallback(async (nodeNum: number) => {
     if (!deviceRef.current) return;
     pendingTraceRequestsRef.current.set(nodeNum, Date.now());
-    await deviceRef.current.traceRoute(nodeNum);
+    const packetId = await deviceRef.current.traceRoute(nodeNum);
+    pendingTracePacketIdToTargetRef.current.set(packetId >>> 0, nodeNum);
   }, []);
 
   const deleteNode = useCallback(

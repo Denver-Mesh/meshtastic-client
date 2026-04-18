@@ -11,6 +11,10 @@ export function mergeMeshtasticTraceRouteIntoResultsMap(
   meshFrom: number,
   rd: { route: readonly number[]; routeBack: readonly number[] },
   dataLayerDest: number | undefined,
+  /** e.g. traced node from `Data.request_id` ↔ outbound packet id correlation */
+  additionalLookupKeys?: readonly number[],
+  /** From `meshtastic.Data.source` — often set on multihop routing replies */
+  dataLayerSource?: number,
 ): Map<number, MeshtasticTraceRouteEntry> {
   const route = rd.route != null ? [...rd.route] : [];
   const entry: MeshtasticTraceRouteEntry = {
@@ -18,11 +22,15 @@ export function mergeMeshtasticTraceRouteIntoResultsMap(
     from: meshFrom,
     timestamp: Date.now(),
   };
-  const lookupKeys = meshtasticTraceRouteLookupKeys({
+  const baseKeys = meshtasticTraceRouteLookupKeys({
     from: meshFrom,
     data: { route: rd.route, routeBack: rd.routeBack },
     dataLayerDest,
+    dataLayerSource,
   });
+  const lookupKeys = [
+    ...new Set([...baseKeys, ...(additionalLookupKeys ?? []).map((k) => k >>> 0)]),
+  ];
   const next = new Map(prev);
   for (const k of lookupKeys) {
     next.set(k, entry);
@@ -41,6 +49,8 @@ export function meshtasticTraceRouteLookupKeys(packet: {
   data: { route?: readonly number[]; routeBack?: readonly number[] };
   /** From `meshtastic.Data.dest` on the decoded wrapper (not inside RouteDiscovery payload). */
   dataLayerDest?: number;
+  /** From `meshtastic.Data.source` — original sender on some multihop packets */
+  dataLayerSource?: number;
 }): number[] {
   const route = packet.data.route ?? [];
   const routeBack = packet.data.routeBack ?? [];
@@ -52,6 +62,11 @@ export function meshtasticTraceRouteLookupKeys(packet: {
   const d = packet.dataLayerDest;
   if (d !== undefined) {
     const u = d >>> 0;
+    if (u !== 0 && u !== 0xffffffff) keys.add(u);
+  }
+  const s = packet.dataLayerSource;
+  if (s !== undefined) {
+    const u = s >>> 0;
     if (u !== 0 && u !== 0xffffffff) keys.add(u);
   }
   return [...keys];

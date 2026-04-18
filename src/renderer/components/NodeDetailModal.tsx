@@ -181,20 +181,6 @@ export default function NodeDetailModal({
     };
   }, [positionRequestedAt]);
 
-  // Clear trace route pending when result arrives
-  useEffect(() => {
-    if (!traceRouteHops) return;
-    setTraceRoutePending(false);
-    setActionStatus((prev) => (prev === 'Trace route timed out' ? 'Trace route received' : prev));
-  }, [traceRouteHops]);
-
-  // Clear trace route pending when MeshCore result arrives
-  useEffect(() => {
-    if (!meshcoreTraceResult) return;
-    setTraceRoutePending(false);
-    setActionStatus((prev) => (prev === 'Trace route timed out' ? 'Trace route received' : prev));
-  }, [meshcoreTraceResult]);
-
   // Auto-show repeater stats when they arrive
   useEffect(() => {
     if (meshcoreRepeaterStatus) {
@@ -990,7 +976,7 @@ export default function NodeDetailModal({
               )}
               <button
                 onClick={handleTraceRoute}
-                disabled={!isConnected || traceRoutePending}
+                disabled={!isConnected}
                 className="bg-secondary-dark min-w-[8rem] flex-1 rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 🛤 {traceRoutePending ? 'Tracing...' : 'Trace Route'}
