@@ -374,14 +374,6 @@ export default function App() {
   const meshcoreMsgsRef = useRef(meshcoreDevice.messages);
   const meshtasticMyNodeNumRef = useRef(meshtasticDevice.state.myNodeNum);
   const meshcoreSelfIdRef = useRef(meshcoreDevice.selfNodeId);
-  activeTabRef.current = activeTab;
-  protocolRef.current = protocol;
-  meshtasticMsgsRef.current = meshtasticDevice.messages;
-  meshcoreMsgsRef.current = meshcoreDevice.messages;
-  meshtasticMyNodeNumRef.current = meshtasticDevice.state.myNodeNum;
-  meshcoreSelfIdRef.current = meshcoreDevice.selfNodeId;
-  lastMeshtasticTab.current = protocol === 'meshtastic' ? activeTab : lastMeshtasticTab.current;
-  lastMeshcoreTab.current = protocol === 'meshcore' ? activeTab : lastMeshcoreTab.current;
   const nodesForUi = protocol === 'meshcore' ? meshcoreDevice.nodes : meshtasticDevice.nodes;
   const rawPacketGetNodeLabel = useCallback(
     (id: number) => nodeLabelForRawPacket(nodesForUi.get(id), id, protocol),
@@ -432,7 +424,26 @@ export default function App() {
   }, [protocol, capabilities]);
 
   const activePanelIndex = tabIndexToPanelIndex[activeTab] ?? 0;
-  activePanelIndexRef.current = activePanelIndex;
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+    protocolRef.current = protocol;
+    meshtasticMsgsRef.current = meshtasticDevice.messages;
+    meshcoreMsgsRef.current = meshcoreDevice.messages;
+    meshtasticMyNodeNumRef.current = meshtasticDevice.state.myNodeNum;
+    meshcoreSelfIdRef.current = meshcoreDevice.selfNodeId;
+    lastMeshtasticTab.current = protocol === 'meshtastic' ? activeTab : lastMeshtasticTab.current;
+    lastMeshcoreTab.current = protocol === 'meshcore' ? activeTab : lastMeshcoreTab.current;
+    activePanelIndexRef.current = activePanelIndex;
+  }, [
+    activeTab,
+    activePanelIndex,
+    protocol,
+    meshtasticDevice.messages,
+    meshtasticDevice.state.myNodeNum,
+    meshcoreDevice.messages,
+    meshcoreDevice.selfNodeId,
+  ]);
 
   // Reset activeTab if it's out of bounds (e.g., switching to meshcore while on Security tab)
   useEffect(() => {
@@ -516,7 +527,9 @@ export default function App() {
 
   useEffect(() => {
     if (device.state.status === 'disconnected') {
-      setTelemetryNoticeDismissed(false);
+      queueMicrotask(() => {
+        setTelemetryNoticeDismissed(false);
+      });
     }
   }, [device.state.status]);
 
@@ -561,29 +574,34 @@ export default function App() {
       .map((ch) => ({ index: ch.index, name: ch.name }));
   }, [protocol, device.channels]);
 
-  const chatPanelFreezeRef = useRef<{
+  const [chatTabVisited, setChatTabVisited] = useState(false);
+  const [chatPanelFreeze, setChatPanelFreeze] = useState<{
     messages: typeof device.messages;
     channels: typeof chatChannels;
     nodes: typeof nodesForUi;
   } | null>(null);
-  const hasVisitedChatTabRef = useRef(false);
 
   useEffect(() => {
-    hasVisitedChatTabRef.current = false;
-    chatPanelFreezeRef.current = null;
+    queueMicrotask(() => {
+      setChatTabVisited(false);
+      setChatPanelFreeze(null);
+    });
   }, [protocol]);
 
-  if (activePanelIndex === 1) {
-    hasVisitedChatTabRef.current = true;
-    chatPanelFreezeRef.current = {
-      messages: device.messages,
-      channels: chatChannels,
-      nodes: nodesForUi,
-    };
-  }
+  useEffect(() => {
+    if (activePanelIndex !== 1) return;
+    queueMicrotask(() => {
+      setChatTabVisited(true);
+      setChatPanelFreeze({
+        messages: device.messages,
+        channels: chatChannels,
+        nodes: nodesForUi,
+      });
+    });
+  }, [activePanelIndex, device.messages, chatChannels, nodesForUi, device]);
 
-  const isChatPanelFrozen = hasVisitedChatTabRef.current && activePanelIndex !== 1;
-  const freeze = chatPanelFreezeRef.current;
+  const isChatPanelFrozen = chatTabVisited && activePanelIndex !== 1;
+  const freeze = chatPanelFreeze;
   const chatMessagesForPanel = isChatPanelFrozen && freeze ? freeze.messages : device.messages;
   const chatNodesForPanel = isChatPanelFrozen && freeze ? freeze.nodes : nodesForUi;
   const chatChannelsForPanel = isChatPanelFrozen && freeze ? freeze.channels : chatChannels;
@@ -919,7 +937,11 @@ export default function App() {
       const realNew = newMsgs.filter(
         (m) => m.sender_id !== meshtasticMyNodeNumRef.current && !m.emoji && !m.isHistory,
       );
-      if (realNew.length > 0) setMeshtasticUnread((prev) => prev + realNew.length);
+      if (realNew.length > 0) {
+        queueMicrotask(() => {
+          setMeshtasticUnread((prev) => prev + realNew.length);
+        });
+      }
     }
     prevMeshtasticMsgCountRef.current = count;
   }, [meshtasticDevice.messages.length]);
@@ -938,7 +960,11 @@ export default function App() {
       const realNew = newMsgs.filter(
         (m) => m.sender_id !== meshcoreSelfIdRef.current && !m.emoji && !m.isHistory,
       );
-      if (realNew.length > 0) setMeshcoreUnread((prev) => prev + realNew.length);
+      if (realNew.length > 0) {
+        queueMicrotask(() => {
+          setMeshcoreUnread((prev) => prev + realNew.length);
+        });
+      }
     }
     prevMeshcoreMsgCountRef.current = count;
   }, [meshcoreDevice.messages.length]);
@@ -946,8 +972,10 @@ export default function App() {
   // ─── Clear active protocol's unread when Chat tab becomes active ──
   useEffect(() => {
     if (activeTab === 1) {
-      if (protocol === 'meshtastic') setMeshtasticUnread(0);
-      else setMeshcoreUnread(0);
+      queueMicrotask(() => {
+        if (protocol === 'meshtastic') setMeshtasticUnread(0);
+        else setMeshcoreUnread(0);
+      });
     }
   }, [activeTab, protocol]);
 
@@ -1437,7 +1465,7 @@ export default function App() {
                         </div>
                       </Suspense>
                     </div>
-                    {(activePanelIndex === 1 || hasVisitedChatTabRef.current) && (
+                    {(activePanelIndex === 1 || chatTabVisited) && (
                       <div
                         id="panel-1"
                         role="tabpanel"

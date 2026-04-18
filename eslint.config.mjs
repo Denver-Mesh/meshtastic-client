@@ -133,15 +133,17 @@ export default tseslint.config(
       'no-redeclare': 'off',
     },
   },
-  // Renderer: React (jsx-runtime) + React Hooks + jsxA11y
+  // Renderer: React (jsx-runtime) + eslint-plugin-react-hooks flat recommended + jsxA11y
   {
     files: ['src/renderer/**/*.{ts,tsx}'],
     plugins: {
-      react,
+      ...react.configs.flat['jsx-runtime'].plugins,
       ...jsxA11y.flatConfigs.recommended.plugins,
-      'react-hooks': reactHooks,
+      ...reactHooks.configs.flat.recommended.plugins,
     },
     languageOptions: {
+      ...react.configs.flat['jsx-runtime'].languageOptions,
+      ...jsxA11y.flatConfigs.recommended.languageOptions,
       parserOptions: {
         ...jsxA11y.flatConfigs.recommended.languageOptions.parserOptions,
         project: ['./tsconfig.json', './tsconfig.main.json'],
@@ -154,8 +156,14 @@ export default tseslint.config(
     rules: {
       ...react.configs.flat['jsx-runtime'].rules,
       ...jsxA11y.flatConfigs.recommended.rules,
-      ...reactHooks.configs.recommended.rules,
+      ...reactHooks.configs.flat.recommended.rules,
       'react-hooks/exhaustive-deps': 'error',
+      // Strictness from eslint-plugin-react-hooks v7 flat preset: keep as warn until each
+      // callsite matches App.tsx-style fixes (effects for ref mirrors, queueMicrotask for
+      // setState-in-effect, purity for impure render helpers).
+      'react-hooks/refs': 'warn',
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/purity': 'warn',
     },
   },
   // Security plugin: Node.js security patterns
@@ -212,6 +220,14 @@ export default tseslint.config(
       'electron/no-deprecated-props': 'error',
       'electron/no-deprecated-arguments': 'off',
       'electron/default-value-changed': 'warn',
+    },
+  },
+  // Last: strictTypeChecked enables preserve-caught-error; ESLint may surface it under both names.
+  {
+    files: ['**/*.{ts,tsx,mts,cts}'],
+    rules: {
+      'preserve-caught-error': 'off',
+      '@typescript-eslint/preserve-caught-error': 'off',
     },
   },
 );
