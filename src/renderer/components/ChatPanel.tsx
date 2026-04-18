@@ -535,6 +535,13 @@ function ChatPanel({
     }
   }, [updateScrollButtonVisibility, viewKey]);
 
+  // Initialize scroll button visibility on mount — critical for async message loading (e.g., meshcore SQLite load)
+  useLayoutEffect(() => {
+    requestAnimationFrame(() => {
+      updateScrollButtonVisibility();
+    });
+  }, [updateScrollButtonVisibility]);
+
   // Auto-scroll on new messages (only if near bottom)
   useEffect(() => {
     const el = scrollContainerRef.current;
