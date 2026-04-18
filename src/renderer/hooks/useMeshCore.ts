@@ -1157,6 +1157,17 @@ export function useMeshCore() {
       256,
     );
     setQueueStatus({ free: 256 - queueLenCapped, maxlen: 256, res: 0 });
+    const now = Date.now();
+    setSelfInfo((prev) => (prev ? { ...prev, batteryMilliVolts: core.batteryMilliVolts } : prev));
+    console.debug('[useMeshCore] batteryMilliVolts from getStatsCore:', core.batteryMilliVolts);
+
+    if (core.batteryMilliVolts > 0) {
+      const batteryLevel = meshcoreMilliVoltsToApproximateBatteryPercent(core.batteryMilliVolts);
+      const voltage = core.batteryMilliVolts / 1000;
+      setTelemetry((prev) =>
+        [...prev, { timestamp: now, voltage, batteryLevel }].slice(-MAX_TELEMETRY_POINTS),
+      );
+    }
 
     let radioStats: Awaited<ReturnType<MeshCoreConnection['getStatsRadio']>>;
     let packetStats: Awaited<ReturnType<MeshCoreConnection['getStatsPackets']>>;
@@ -1178,7 +1189,6 @@ export function useMeshCore() {
     const radio = radioStats.data;
     const packet = packetStats.data;
 
-    const now = Date.now();
     let channelUtilization: number | undefined;
     let airUtilTx: number | undefined;
 
@@ -1193,17 +1203,6 @@ export function useMeshCore() {
 
     prevTxAirSecsRef.current = radio.txAirSecs;
     prevStatsTimestampRef.current = now;
-
-    setSelfInfo((prev) => (prev ? { ...prev, batteryMilliVolts: core.batteryMilliVolts } : prev));
-    console.debug('[useMeshCore] batteryMilliVolts from getStatsCore:', core.batteryMilliVolts);
-
-    if (core.batteryMilliVolts > 0) {
-      const batteryLevel = meshcoreMilliVoltsToApproximateBatteryPercent(core.batteryMilliVolts);
-      const voltage = core.batteryMilliVolts / 1000;
-      setTelemetry((prev) =>
-        [...prev, { timestamp: now, voltage, batteryLevel }].slice(-MAX_TELEMETRY_POINTS),
-      );
-    }
 
     const localStats: MeshCoreLocalStats = {
       batteryMilliVolts: core.batteryMilliVolts,
