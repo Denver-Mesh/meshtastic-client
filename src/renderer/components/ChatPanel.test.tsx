@@ -509,11 +509,13 @@ describe('ChatPanel accessibility', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Jump to Unread' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Latest' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Scroll to last read position' }),
+      ).toBeInTheDocument();
     });
   });
 
-  it('shows Latest (not Jump to Unread) when slightly scrolled from bottom', async () => {
+  it('shows Last Read (not Jump to Unread) when slightly scrolled from bottom', async () => {
     const baseTs = Date.now() - 50_000;
     const longMessages = Array.from({ length: 30 }, (_, idx) => ({
       sender_id: idx % 2 === 0 ? 2 : 1,
@@ -541,7 +543,9 @@ describe('ChatPanel accessibility', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Latest' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Scroll to last read position' }),
+      ).toBeInTheDocument();
     });
     expect(screen.queryByRole('button', { name: 'Jump to Unread' })).not.toBeInTheDocument();
   });

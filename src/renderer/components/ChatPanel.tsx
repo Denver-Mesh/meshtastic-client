@@ -665,9 +665,31 @@ function ChatPanel({
     }
   }, []);
 
-  const scrollToLatest = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, []);
+  const scrollToLastRead = useCallback(() => {
+    if (unreadDividerRef.current) {
+      unreadDividerRef.current.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      return;
+    }
+    const lastRead = persistedLastRead[viewKey] ?? 0;
+    if (!lastRead) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      return;
+    }
+    let target: Element | null = null;
+    for (let i = filteredMessages.length - 1; i >= 0; i--) {
+      if (filteredMessages[i].timestamp <= lastRead) {
+        const key = filteredMessages[i].packetId ?? filteredMessages[i].timestamp;
+        target =
+          scrollContainerRef.current?.querySelector(`[data-chat-message-key="${key}"]`) ?? null;
+        break;
+      }
+    }
+    if (target) {
+      (target as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [unreadDividerRef, persistedLastRead, viewKey, filteredMessages, scrollContainerRef]);
 
   const scrollToQuotedParent = useCallback((replyKey: number) => {
     const root = scrollContainerRef.current;
@@ -1458,12 +1480,12 @@ function ChatPanel({
         {showScrollToLatest && (
           <button
             type="button"
-            onClick={scrollToLatest}
+            onClick={scrollToLastRead}
             className="bg-brand-green text-deep-black hover:bg-bright-green absolute right-1 bottom-3 z-30 w-fit rounded-full px-3 py-2 text-xs font-bold shadow-lg transition-colors"
-            title="Latest"
-            aria-label="Latest"
+            title="Scroll to last read position"
+            aria-label="Scroll to last read position"
           >
-            Latest
+            Last Read
           </button>
         )}
       </div>
