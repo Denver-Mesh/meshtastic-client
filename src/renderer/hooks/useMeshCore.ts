@@ -1193,6 +1193,12 @@ export function useMeshCore() {
 
     setSelfInfo((prev) => (prev ? { ...prev, batteryMilliVolts: core.batteryMilliVolts } : prev));
 
+    const batteryLevel = meshcoreMilliVoltsToApproximateBatteryPercent(core.batteryMilliVolts);
+    const voltage = core.batteryMilliVolts / 1000;
+    setTelemetry((prev) =>
+      [...prev, { timestamp: now, voltage, batteryLevel }].slice(-MAX_TELEMETRY_POINTS),
+    );
+
     const localStats: MeshCoreLocalStats = {
       batteryMilliVolts: core.batteryMilliVolts,
       uptimeSecs: core.uptimeSecs,
@@ -1419,14 +1425,6 @@ export function useMeshCore() {
       cancelled = true;
     };
   }, []);
-
-  // Record a battery telemetry point whenever selfInfo battery data arrives/changes
-  useEffect(() => {
-    if (selfInfo?.batteryMilliVolts == null) return;
-    const voltage = selfInfo.batteryMilliVolts / 1000;
-    const point: TelemetryPoint = { timestamp: Date.now(), voltage };
-    setTelemetry((prev) => [...prev, point].slice(-MAX_TELEMETRY_POINTS));
-  }, [selfInfo?.batteryMilliVolts]);
 
   // Mirror self radio battery into the home MeshNode (node list + node detail); refreshContacts rebuilds from selfInfo
   useEffect(() => {
