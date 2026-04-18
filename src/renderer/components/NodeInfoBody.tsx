@@ -18,6 +18,7 @@ import {
   type RFDiagnosis,
 } from '../lib/diagnostics/RFDiagnosticEngine';
 import { snrMeaningfulForNodeDiagnostics } from '../lib/diagnostics/snrMeaningfulForNodeDiagnostics';
+import { meshtasticHwModelDisplay } from '../lib/hardwareModels';
 import { meshcoreTracePathLenToHops } from '../lib/meshcoreUtils';
 import { normalizeLastHeardMs } from '../lib/nodeStatus';
 import { RoleDisplay } from '../lib/roleInfo';
@@ -150,6 +151,8 @@ export interface NodeInfoBodyProps {
   useFahrenheit?: boolean;
   /** MeshCore uses contact/advert type (`hw_model`) instead of Meshtastic role; omit short name row. */
   protocol?: MeshProtocol;
+  /** MeshCore: local radio model from `deviceQuery` (shown only for our node). */
+  meshcoreManufacturerModel?: string;
 }
 
 const SEVERITY_STYLES: Record<RFDiagnosis['severity'], string> = {
@@ -169,6 +172,7 @@ export default function NodeInfoBody({
   nodes,
   useFahrenheit = false,
   protocol = 'meshtastic',
+  meshcoreManufacturerModel,
 }: NodeInfoBodyProps) {
   const coordinateFormat = useCoordFormatStore((s) => s.coordinateFormat);
   const diagnosticRows = useDiagnosticsStore((s) => s.diagnosticRows);
@@ -275,22 +279,30 @@ export default function NodeInfoBody({
       )}
 
       {protocol === 'meshcore' ? (
-        <InfoRow label="Type" value={node.hw_model || '---'} />
+        <>
+          <InfoRow label="Type" value={node.hw_model || '---'} />
+          {isOurNode && meshcoreManufacturerModel ? (
+            <InfoRow label="Radio model" value={meshcoreManufacturerModel} />
+          ) : null}
+        </>
       ) : (
-        <div className="flex items-center justify-between border-b border-gray-700/50 py-2">
-          <span className="text-muted text-sm">Role</span>
-          <div className="flex items-center gap-2">
-            <RoleDisplay role={node.role} />
-            {!node.short_name && !node.long_name && node.role === undefined && (
-              <span
-                className="text-[10px] text-gray-500"
-                title="Waiting for complete NodeInfo packet"
-              >
-                (pending)
-              </span>
-            )}
+        <>
+          <div className="flex items-center justify-between border-b border-gray-700/50 py-2">
+            <span className="text-muted text-sm">Role</span>
+            <div className="flex items-center gap-2">
+              <RoleDisplay role={node.role} />
+              {!node.short_name && !node.long_name && node.role === undefined && (
+                <span
+                  className="text-[10px] text-gray-500"
+                  title="Waiting for complete NodeInfo packet"
+                >
+                  (pending)
+                </span>
+              )}
+            </div>
           </div>
-        </div>
+          <InfoRow label="Hardware" value={meshtasticHwModelDisplay(node.hw_model) ?? '—'} />
+        </>
       )}
 
       {/* SNR: direct 0-hop RF or our node; otherwise Last-Hop SNR when multi-hop RF context */}

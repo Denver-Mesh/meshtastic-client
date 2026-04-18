@@ -291,6 +291,8 @@ export interface DeviceState {
   reconnectAttempt?: number;
   lastDataReceived?: number;
   firmwareVersion?: string;
+  /** MeshCore: manufacturer/model string from local `deviceQuery` (connected radio only). */
+  manufacturerModel?: string;
   /** 0–100 from device metrics; omit until first reading */
   batteryPercent?: number;
   batteryCharging?: boolean;
@@ -578,6 +580,14 @@ declare global {
           ) => void,
         ) => () => void;
         onMessage: (cb: (msg: Omit<ChatMessage, 'id'>) => void) => () => void;
+        onTraceRouteReply: (
+          cb: (payload: {
+            meshFrom: number;
+            route: number[];
+            routeBack: number[];
+            protocol: 'meshtastic';
+          }) => void,
+        ) => () => void;
         onClientId: (
           cb: (payload: { clientId: string; protocol: 'meshtastic' | 'meshcore' }) => void,
         ) => () => void;

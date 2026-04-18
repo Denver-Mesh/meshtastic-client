@@ -143,3 +143,27 @@ export function meshtasticHwModelName(hwModel: number | string): string {
   if (isNaN(id)) return `Unknown (${hwModel})`;
   return MESHTASTIC_HW_MODEL_NAMES[id] ?? `Unknown (${id})`;
 }
+
+/** Known UI labels from {@link MESHTASTIC_HW_MODEL_NAMES} (for idempotent display). */
+const MESHTASTIC_HW_MODEL_BRAND_LABELS = new Set(Object.values(MESHTASTIC_HW_MODEL_NAMES));
+
+/**
+ * Formats stored `hw_model` for UI: numeric / digit-only strings map through
+ * {@link meshtasticHwModelName}; already-branded labels pass through; legacy
+ * non-numeric strings (e.g. MQTT short codes) pass through unchanged.
+ * Returns `null` when empty so callers can show "—".
+ */
+export function meshtasticHwModelDisplay(
+  stored: string | number | null | undefined,
+): string | null {
+  if (stored === null || stored === undefined) return null;
+  const raw = typeof stored === 'number' ? String(stored) : stored.trim();
+  if (raw === '') return null;
+  if (/^\d+$/.test(raw)) {
+    return meshtasticHwModelName(raw);
+  }
+  if (MESHTASTIC_HW_MODEL_BRAND_LABELS.has(raw)) {
+    return raw;
+  }
+  return raw;
+}

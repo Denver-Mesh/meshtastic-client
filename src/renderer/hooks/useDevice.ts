@@ -540,9 +540,15 @@ export function useDevice() {
         const nodeMap = new Map<number, MeshNode>();
         for (const n of savedNodes) {
           const long_name = n.long_name ?? '';
+          const rawHw = n.hw_model;
+          const hw_model =
+            typeof rawHw === 'string' && /^\d+$/.test(rawHw.trim())
+              ? meshtasticHwModelName(parseInt(rawHw, 10))
+              : (rawHw ?? '');
           nodeMap.set(n.node_id, {
             ...n,
             long_name,
+            hw_model,
             short_name: meshtasticShortNameAfterClearingDefault(
               long_name,
               n.short_name ?? '',
@@ -2738,9 +2744,15 @@ export function useDevice() {
         const nodeMap = new Map<number, MeshNode>();
         for (const n of savedNodes) {
           const long_name = n.long_name ?? '';
+          const rawHw = n.hw_model;
+          const hw_model =
+            typeof rawHw === 'string' && /^\d+$/.test(rawHw.trim())
+              ? meshtasticHwModelName(parseInt(rawHw, 10))
+              : (rawHw ?? '');
           nodeMap.set(n.node_id, {
             ...n,
             long_name,
+            hw_model,
             short_name: meshtasticShortNameAfterClearingDefault(
               long_name,
               n.short_name ?? '',

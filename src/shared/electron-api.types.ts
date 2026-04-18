@@ -353,6 +353,14 @@ export interface ElectronAPI {
       ) => void,
     ) => () => void;
     onMessage: (cb: (msg: unknown) => void) => () => void;
+    onTraceRouteReply: (
+      cb: (payload: {
+        meshFrom: number;
+        route: number[];
+        routeBack: number[];
+        protocol: 'meshtastic';
+      }) => void,
+    ) => () => void;
     onClientId: (
       cb: (payload: { clientId: string; protocol: 'meshtastic' | 'meshcore' }) => void,
     ) => () => void;

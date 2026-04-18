@@ -2847,9 +2847,17 @@ export function useMeshCore() {
 
       try {
         const deviceInfo = await conn.deviceQuery(0);
-        if (deviceInfo?.firmware_build_date) {
-          setState((prev) => ({ ...prev, firmwareVersion: deviceInfo.firmware_build_date }));
-        }
+        setState((prev) => {
+          const next = { ...prev };
+          if (deviceInfo?.firmware_build_date) {
+            next.firmwareVersion = deviceInfo.firmware_build_date;
+          }
+          const mm = deviceInfo?.manufacturerModel;
+          if (typeof mm === 'string' && mm.trim()) {
+            next.manufacturerModel = mm.trim();
+          }
+          return next;
+        });
       } catch (e) {
         console.debug('[useMeshCore] deviceQuery failed (firmware version unavailable):', e);
       }

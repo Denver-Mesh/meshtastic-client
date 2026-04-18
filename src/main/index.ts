@@ -1920,6 +1920,17 @@ mqttManager.on('nodeUpdate', (n) => {
   else console.debug('[main] mqtt:node-update dropped (mainWindow not ready)');
   takServerManager?.onNodeUpdate(n);
 });
+mqttManager.on(
+  'traceRouteReply',
+  (p: { meshFrom: number; route: number[]; routeBack: number[] }) => {
+    if (mainWindow)
+      mainWindow.webContents.send('mqtt:trace-route-reply', {
+        ...p,
+        protocol: 'meshtastic' as const,
+      });
+    else console.debug('[main] mqtt:trace-route-reply dropped (mainWindow not ready)');
+  },
+);
 mqttManager.on('message', (m) => {
   if (mainWindow) mainWindow.webContents.send('mqtt:message', m);
   else console.debug('[main] mqtt:message dropped (mainWindow not ready)');

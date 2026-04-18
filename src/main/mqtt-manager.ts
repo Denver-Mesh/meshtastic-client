@@ -20,7 +20,14 @@ import { meshtasticShortNameAfterClearingDefault } from '../shared/nodeNameUtils
 import { sanitizeLogMessage } from './log-service';
 
 const { ServiceEnvelopeSchema } = MqttProto;
-const { UserSchema, PositionSchema, DataSchema, MeshPacketSchema, RoutingSchema } = Mesh;
+const {
+  UserSchema,
+  PositionSchema,
+  DataSchema,
+  MeshPacketSchema,
+  RoutingSchema,
+  RouteDiscoverySchema,
+} = Mesh;
 const { PortNum } = Portnums;
 
 // Extended schema constants for additional portnum decoding
@@ -1206,6 +1213,27 @@ export class MQTTManager extends EventEmitter {
         this.emitMinimalNodeUpdate(nodeId, hopsAway);
       } catch {
         // catch-no-log-ok routing is optional info, failures are non-fatal
+        this.emitMinimalNodeUpdate(nodeId, hopsAway);
+      }
+    } else if (portnum === PortNum.TRACEROUTE_APP && payload) {
+      try {
+        const rd = fromBinary(RouteDiscoverySchema, payload) as {
+          route?: readonly number[];
+          routeBack?: readonly number[];
+        };
+        this.upsertNodeCache({ node_id: nodeId, last_heard: Date.now() });
+        this.emit('traceRouteReply', {
+          meshFrom: nodeId,
+          route: rd.route != null ? [...rd.route] : [],
+          routeBack: rd.routeBack != null ? [...rd.routeBack] : [],
+        });
+        this.emitMinimalNodeUpdate(nodeId, hopsAway);
+      } catch (e) {
+        console.warn(
+          '[Meshtastic MQTT] TRACEROUTE RouteDiscovery parse failed',
+          sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+        );
+        this.upsertNodeCache({ node_id: nodeId, last_heard: Date.now() });
         this.emitMinimalNodeUpdate(nodeId, hopsAway);
       }
     } else {

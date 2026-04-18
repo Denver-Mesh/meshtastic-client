@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { meshtasticHwModelName } from './hardwareModels';
+import { meshtasticHwModelDisplay, meshtasticHwModelName } from './hardwareModels';
 
 describe('meshtasticHwModelName', () => {
   it('maps known values by number', () => {
@@ -37,5 +37,33 @@ describe('meshtasticHwModelName', () => {
     for (const v of knownValues) {
       expect(meshtasticHwModelName(v)).not.toMatch(/^Unknown/);
     }
+  });
+});
+
+describe('meshtasticHwModelDisplay', () => {
+  it('returns null for empty input', () => {
+    expect(meshtasticHwModelDisplay(null)).toBeNull();
+    expect(meshtasticHwModelDisplay(undefined)).toBeNull();
+    expect(meshtasticHwModelDisplay('')).toBeNull();
+    expect(meshtasticHwModelDisplay('   ')).toBeNull();
+  });
+
+  it('maps digit-only strings like meshtasticHwModelName', () => {
+    expect(meshtasticHwModelDisplay('43')).toBe('Heltec V3');
+    expect(meshtasticHwModelDisplay('0')).toBe('Unset');
+    expect(meshtasticHwModelDisplay(43)).toBe('Heltec V3');
+  });
+
+  it('passes through already-branded labels', () => {
+    expect(meshtasticHwModelDisplay('Heltec V3')).toBe('Heltec V3');
+    expect(meshtasticHwModelDisplay('Unset')).toBe('Unset');
+  });
+
+  it('passes through legacy non-numeric codes', () => {
+    expect(meshtasticHwModelDisplay('TBEAM')).toBe('TBEAM');
+  });
+
+  it('passes through Unknown (n) from unmapped IDs', () => {
+    expect(meshtasticHwModelDisplay('Unknown (200)')).toBe('Unknown (200)');
   });
 });

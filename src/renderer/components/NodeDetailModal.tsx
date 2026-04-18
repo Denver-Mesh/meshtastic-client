@@ -7,6 +7,7 @@ import type {
 } from '../hooks/useMeshCore';
 import { useMeshcoreRepeaterRemoteAuth } from '../hooks/useMeshcoreRepeaterRemoteAuth';
 import { formatCoordPair } from '../lib/coordUtils';
+import { meshtasticHwModelDisplay } from '../lib/hardwareModels';
 import {
   MESHCORE_CHAT_STUB_ID_MAX,
   MESHCORE_CHAT_STUB_ID_MIN,
@@ -60,6 +61,8 @@ interface NodeDetailModalProps {
   onShareContact?: (nodeId: number) => Promise<boolean>;
   /** Local stats for MeshCore connected node (Type 1 & 2) */
   meshcoreLocalStats?: MeshCoreLocalStats | null;
+  /** MeshCore: local radio manufacturer/model from `deviceQuery` (our node only in body). */
+  meshcoreManufacturerModel?: string;
 }
 
 export default function NodeDetailModal({
@@ -92,6 +95,7 @@ export default function NodeDetailModal({
   onExportContact,
   onShareContact,
   meshcoreLocalStats,
+  meshcoreManufacturerModel,
 }: NodeDetailModalProps) {
   const { ensureConfigured, RemoteAuthModal } = useMeshcoreRepeaterRemoteAuth();
   const coordinateFormat = useCoordFormatStore((s) => s.coordinateFormat);
@@ -278,6 +282,11 @@ export default function NodeDetailModal({
 
   if (!node) return null;
 
+  const headerHardwareSubtitle =
+    protocol === 'meshtastic'
+      ? meshtasticHwModelDisplay(node.hw_model)
+      : node.hw_model?.trim() || null;
+
   const headerHopsDisplay =
     protocol === 'meshcore' && meshcoreTraceResult != null
       ? meshcoreTracePathLenToHops(meshcoreTraceResult.pathLen)
@@ -361,8 +370,8 @@ export default function NodeDetailModal({
                     {headerHopsDisplay} hop{headerHopsDisplay !== 1 ? 's' : ''}
                   </span>
                 )}
-                {node.hw_model && node.hw_model !== '0' && node.hw_model !== 'Unset' && (
-                  <span className="text-muted text-xs">{node.hw_model}</span>
+                {headerHardwareSubtitle != null && (
+                  <span className="text-muted text-xs">{headerHardwareSubtitle}</span>
                 )}
                 {/* MeshCore contact status badges */}
                 {protocol === 'meshcore' && contactPubkey && (
@@ -462,6 +471,7 @@ export default function NodeDetailModal({
               nodes={nodes}
               useFahrenheit={useFahrenheit}
               protocol={protocol}
+              meshcoreManufacturerModel={meshcoreManufacturerModel}
             />
 
             {protocol === 'meshcore' &&

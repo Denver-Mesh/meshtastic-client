@@ -2201,6 +2201,9 @@ export default function App() {
                 ? meshcoreDevice.meshcoreLocalStats
                 : null
             }
+            meshcoreManufacturerModel={
+              protocol === 'meshcore' ? meshcoreDevice.state.manufacturerModel : undefined
+            }
           />
         </Suspense>
       )}
