@@ -1057,7 +1057,7 @@ export default function App() {
       <div className="flex h-screen w-screen min-w-0 flex-col overflow-hidden bg-slate-950">
         {/* Header - full width; sidebar + main start below */}
         <header
-          className={`bg-deep-black relative flex w-full items-center gap-3 border-b px-4 py-2 ${
+          className={`bg-deep-black relative flex w-full items-center border-b py-2 pr-4 ${
             isConfigured
               ? protocol === 'meshcore'
                 ? 'border-cyan-500/20'
@@ -1065,7 +1065,14 @@ export default function App() {
               : 'border-gray-700'
           }`}
         >
-          <div className="flex min-w-0 flex-1 justify-start">
+          {/* Sidebar-area spacer — mirrors sidebar width/bg/border so the header feels scoped to the main panel */}
+          <div
+            aria-hidden="true"
+            className={`bg-deep-black -my-2 shrink-0 self-stretch border-r border-slate-800 transition-[width] duration-300 ${
+              sidebarCollapsed ? 'w-16' : 'w-48'
+            }`}
+          />
+          <div className="flex min-w-0 flex-1 justify-start pl-8">
             {/* Protocol context switcher — centered in the gap (narrow) or viewport (xl+ grid) */}
             <div
               role="group"
