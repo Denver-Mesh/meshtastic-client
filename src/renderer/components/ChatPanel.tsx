@@ -792,57 +792,59 @@ function ChatPanel({
   );
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-full min-h-0 min-w-0 flex-col">
       {/* Row 1 — Channel selector + Search toggle */}
-      <div className={`mb-1 flex items-center gap-2 ${viewMode === 'dm' ? 'opacity-50' : ''}`}>
-        <span className="text-muted mr-1 text-[10px] font-medium tracking-wider uppercase">
-          Channels
-        </span>
-        <button
-          aria-label="All"
-          onClick={() => {
-            setChannel(-1);
-            setViewMode('channels');
-          }}
-          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-            viewMode === 'channels' && channel === -1
-              ? 'bg-readable-green text-white'
-              : 'bg-secondary-dark text-muted hover:text-gray-200'
-          }`}
-        >
-          All
-        </button>
-        {channels.map((ch) => {
-          const unread = unreadCounts.get(ch.index) ?? 0;
-          const channelUnreadSuffix =
-            unread > 0 && !(viewMode === 'channels' && channel === ch.index)
-              ? ` ${unread > 99 ? '99+' : unread}`
-              : '';
-          return (
-            <button
-              key={ch.index}
-              aria-label={`${ch.name}${channelUnreadSuffix}`}
-              onClick={() => {
-                setChannel(ch.index);
-                setViewMode('channels');
-              }}
-              className={`relative rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                viewMode === 'channels' && channel === ch.index
-                  ? 'bg-readable-green text-white'
-                  : 'bg-secondary-dark text-muted hover:text-gray-200'
-              }`}
-            >
-              {ch.name}
-              {unread > 0 && !(viewMode === 'channels' && channel === ch.index) && (
-                <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-                  {unread > 99 ? '99+' : unread}
-                </span>
-              )}
-            </button>
-          );
-        })}
-
-        <div className="flex-1" />
+      <div
+        className={`mb-1 flex min-w-0 items-center gap-2 ${viewMode === 'dm' ? 'opacity-50' : ''}`}
+      >
+        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
+          <span className="text-muted mr-1 shrink-0 text-[10px] font-medium tracking-wider uppercase">
+            Channels
+          </span>
+          <button
+            aria-label="All"
+            onClick={() => {
+              setChannel(-1);
+              setViewMode('channels');
+            }}
+            className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              viewMode === 'channels' && channel === -1
+                ? 'bg-readable-green text-white'
+                : 'bg-secondary-dark text-muted hover:text-gray-200'
+            }`}
+          >
+            All
+          </button>
+          {channels.map((ch) => {
+            const unread = unreadCounts.get(ch.index) ?? 0;
+            const channelUnreadSuffix =
+              unread > 0 && !(viewMode === 'channels' && channel === ch.index)
+                ? ` ${unread > 99 ? '99+' : unread}`
+                : '';
+            return (
+              <button
+                key={ch.index}
+                aria-label={`${ch.name}${channelUnreadSuffix}`}
+                onClick={() => {
+                  setChannel(ch.index);
+                  setViewMode('channels');
+                }}
+                className={`relative shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                  viewMode === 'channels' && channel === ch.index
+                    ? 'bg-readable-green text-white'
+                    : 'bg-secondary-dark text-muted hover:text-gray-200'
+                }`}
+              >
+                {ch.name}
+                {unread > 0 && !(viewMode === 'channels' && channel === ch.index) && (
+                  <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                    {unread > 99 ? '99+' : unread}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
 
         {/* Search toggle */}
         <button
@@ -851,7 +853,7 @@ function ChatPanel({
           }}
           aria-pressed={showSearch}
           aria-label="Search messages"
-          className={`rounded-lg p-1.5 transition-colors ${
+          className={`shrink-0 rounded-lg p-1.5 transition-colors ${
             showSearch ? 'bg-brand-green/20 text-bright-green' : 'text-muted hover:text-gray-300'
           }`}
           title="Search messages (Cmd+F)"
@@ -875,7 +877,7 @@ function ChatPanel({
           <button
             onClick={onGlobalSearch}
             aria-label="Search all channels"
-            className="text-muted rounded-lg p-1.5 transition-colors hover:text-gray-300"
+            className="text-muted shrink-0 rounded-lg p-1.5 transition-colors hover:text-gray-300"
             title="Search all channels (Cmd+Shift+F)"
           >
             <svg
@@ -899,9 +901,9 @@ function ChatPanel({
 
       {/* Row 2 — DM tabs */}
       <div
-        className={`mb-2 flex min-h-[28px] items-center gap-2 ${viewMode === 'channels' ? 'opacity-50' : ''}`}
+        className={`mb-2 flex min-h-[28px] min-w-0 items-center gap-2 overflow-x-auto ${viewMode === 'channels' ? 'opacity-50' : ''}`}
       >
-        <span className="text-muted mr-1 text-[10px] font-medium tracking-wider uppercase">
+        <span className="text-muted mr-1 shrink-0 text-[10px] font-medium tracking-wider uppercase">
           DMs
         </span>
         {visibleDmTabs.length === 0 ? (
@@ -914,7 +916,7 @@ function ChatPanel({
             return (
               <div
                 key={nodeNum}
-                className={`relative flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+                className={`relative flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
                   viewMode === 'dm' && activeDmNode === nodeNum
                     ? 'bg-purple-600 text-white'
                     : 'bg-secondary-dark text-muted hover:text-gray-200'
@@ -1458,7 +1460,7 @@ function ChatPanel({
       )}
 
       {/* Input area — textarea so Chromium applies spellcheck (single-line inputs often skip it) */}
-      <div className="mt-1 flex gap-2">
+      <div className="mt-1 flex min-w-0 gap-2">
         <textarea
           ref={inputRef}
           rows={1}
