@@ -4113,7 +4113,7 @@ export function useMeshCore() {
         /** `outPathLen` from the matching radio contact when we consult `getContacts` (may diverge from UI `hops_away`). */
         let radioContactPathLen: number | null = null;
         /** Multi-hop trace needs the radio’s route bytes; the single-byte pubkey fallback only works for direct peers. */
-        if ((!storedPath || storedPath.length === 0) && (hopsAway == null || hopsAway >= 1)) {
+        if ((!storedPath || storedPath.length <= 1) && (hopsAway == null || hopsAway >= 1)) {
           try {
             const contactsRaw = await conn.getContacts();
             const contacts = contactsRaw.map(meshcoreContactRawFromDevice);
