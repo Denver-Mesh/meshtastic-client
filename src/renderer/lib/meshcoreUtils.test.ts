@@ -9,9 +9,11 @@ import {
   meshcoreApplyRepeaterSessionAuthSkip,
   meshcoreClearRepeaterRemoteSessionAuth,
   meshcoreConnectionImpliesUsbPower,
+  meshcoreContactToMeshNode,
   meshcoreContactTypeFromHwModel,
   meshcoreDeriveChannelKeyHexFromName,
   meshcoreGetRepeaterSessionPassword,
+  meshcoreInferHopsFromOutPath,
   meshcoreIsRepeaterRemoteAuthTouched,
   meshcoreManufacturerModelFromDeviceQuery,
   meshcoreMilliVoltsToApproximateBatteryPercent,
@@ -260,6 +262,56 @@ describe('meshcoreTracePathLenToHops', () => {
     expect(meshcoreTracePathLenToHops(0)).toBe(0);
     expect(meshcoreTracePathLenToHops(-1)).toBe(0);
     expect(meshcoreTracePathLenToHops(Number.NaN)).toBe(0);
+  });
+});
+
+describe('meshcoreInferHopsFromOutPath', () => {
+  it('uses trace semantics for valid outPathLen', () => {
+    expect(meshcoreInferHopsFromOutPath({ outPathLen: 1 })).toBe(0);
+    expect(meshcoreInferHopsFromOutPath({ outPathLen: 3 })).toBe(2);
+  });
+
+  it('infers from path bytes when outPathLen is invalid but buffer encodes a multi-hop path', () => {
+    const outPath = new Uint8Array([1, 2, 3, 4]);
+    expect(meshcoreInferHopsFromOutPath({ outPathLen: -1, outPath })).toBe(3);
+  });
+
+  it('returns undefined when path does not imply multiple hops', () => {
+    expect(meshcoreInferHopsFromOutPath({ outPathLen: -1, outPath: new Uint8Array([9]) })).toBe(
+      undefined,
+    );
+  });
+});
+
+describe('meshcoreContactToMeshNode', () => {
+  const key32 = new Uint8Array(32);
+  for (let i = 0; i < 32; i++) key32[i] = (i * 11 + 3) & 0xff;
+
+  it('sets hops_away from inferred path length', () => {
+    const node = meshcoreContactToMeshNode({
+      publicKey: key32,
+      type: 1,
+      advName: 'A',
+      lastAdvert: 100,
+      advLat: 0,
+      advLon: 0,
+      outPathLen: 2,
+    });
+    expect(node.hops_away).toBe(1);
+  });
+
+  it('infers hops from outPath when outPathLen is unset', () => {
+    const node = meshcoreContactToMeshNode({
+      publicKey: key32,
+      type: 1,
+      advName: 'A',
+      lastAdvert: 100,
+      advLat: 0,
+      advLon: 0,
+      outPathLen: -1,
+      outPath: new Uint8Array([1, 2, 3]),
+    });
+    expect(node.hops_away).toBe(2);
   });
 });
 

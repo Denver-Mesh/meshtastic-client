@@ -229,6 +229,7 @@ interface MeshCoreContact {
   advLon: number;
   flags?: number;
   outPathLen?: number;
+  outPath?: Uint8Array;
 }
 
 export function meshcoreContactToMeshNode(contact: MeshCoreContact): MeshNode {
@@ -245,10 +246,7 @@ export function meshcoreContactToMeshNode(contact: MeshCoreContact): MeshNode {
     last_heard: contact.lastAdvert,
     latitude: lat,
     longitude: lon,
-    hops_away:
-      contact.outPathLen != null && contact.outPathLen >= 0 && contact.outPathLen <= 61
-        ? contact.outPathLen
-        : undefined,
+    hops_away: meshcoreInferHopsFromOutPath(contact),
   };
 }
 
@@ -292,6 +290,26 @@ export function meshcoreSliceContactOutPathForTrace(
     typeof outPathLen === 'number' && Number.isFinite(outPathLen) ? Math.trunc(outPathLen) : 0;
   const safe = n >= 0 && n <= MESHCORE_OUT_PATH_LEN_MAX ? n : 0;
   return outPath.slice(0, safe + 1);
+}
+
+/**
+ * Infer UI hop count from contact path length and/or outbound path bytes.
+ * Valid numeric `outPathLen` uses the same semantics as {@link meshcoreTracePathLenToHops}.
+ * When length is unset/invalid but `outPath` holds bytes, derives hops from the sliced path.
+ */
+export function meshcoreInferHopsFromOutPath(contact: {
+  outPathLen?: number;
+  outPath?: Uint8Array;
+}): number | undefined {
+  const len = contact.outPathLen;
+  if (len != null && Number.isFinite(len) && len >= 0 && len <= MESHCORE_OUT_PATH_LEN_MAX) {
+    return meshcoreTracePathLenToHops(len);
+  }
+  const sliced = meshcoreSliceContactOutPathForTrace(contact.outPath, contact.outPathLen);
+  if (sliced.length > 1) {
+    return Math.max(0, sliced.length - 1);
+  }
+  return undefined;
 }
 
 /** Result of mapping a heard RF advert (push 0x80) into UI + DB when the node is not yet a contact. */
