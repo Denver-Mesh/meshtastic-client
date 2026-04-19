@@ -2459,7 +2459,7 @@ ipcMain.handle('db:saveNode', (_event, node) => {
     `);
     return stmt.run({
       role: null,
-      hops_away: null,
+      hops_away: node.hops_away ?? null,
       rssi: null,
       voltage: null,
       channel_utilization: null,
@@ -2472,7 +2472,7 @@ ipcMain.handle('db:saveNode', (_event, node) => {
       num_packets_tx: null,
       ...node,
       via_mqtt: node.via_mqtt != null ? (node.via_mqtt ? 1 : 0) : null,
-      hops: node.hops ?? null,
+      hops: node.hops ?? node.hops_away ?? null,
       path: node.path != null ? JSON.stringify(node.path) : null,
     });
   } catch (err) {

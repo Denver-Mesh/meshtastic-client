@@ -12,6 +12,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { HelpTooltip } from './components/HelpTooltip';
 import Sidebar from './components/Sidebar';
 import { LinkIcon } from './components/SignalBars';
+import SignalPropagation from './components/SignalPropagation';
 import { ToastProvider, useToast } from './components/Toast';
 import UpdateStatusIndicator from './components/UpdateStatusIndicator';
 import { useContactGroups } from './hooks/useContactGroups';
@@ -236,6 +237,102 @@ function MqttGlobeIcon({ status }: { status: MQTTStatus }) {
   );
 }
 
+/** Header watermark graphic (collapsed sidebar shows mark; expanded hides via CSS). */
+function ColoradoMeshWatermarkMark() {
+  return (
+    <svg
+      className="cm-watermark-mark"
+      viewBox="0 0 1024 1024"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient
+          id="cmWmMtnGrad"
+          x1="0"
+          y1="0"
+          x2="1"
+          y2="0"
+          gradientUnits="userSpaceOnUse"
+          gradientTransform="matrix(510.141384,0,0,227.403089,280.365777,471.821953)"
+        >
+          <stop offset="0" stopColor="#83ff80" />
+          <stop offset="1" stopColor="#101928" />
+        </linearGradient>
+        <linearGradient
+          id="cmWmArcAlpha"
+          x1="0"
+          y1="0.5"
+          x2="1"
+          y2="0.5"
+          gradientUnits="objectBoundingBox"
+        >
+          <stop offset="0" stopColor="#fff" stopOpacity="0" />
+          <stop offset="0.5" stopColor="#fff" stopOpacity="0.28" />
+          <stop offset="1" stopColor="#fff" stopOpacity="0" />
+        </linearGradient>
+        <mask
+          id="cmWmArcMask"
+          maskUnits="objectBoundingBox"
+          maskContentUnits="objectBoundingBox"
+          x="0"
+          y="0"
+          width="1"
+          height="1"
+        >
+          <rect x="0" y="0" width="1" height="1" fill="url(#cmWmArcAlpha)" />
+        </mask>
+      </defs>
+      <g className="cm-watermark-arches">
+        <g transform="matrix(1.482714,0,0,2.228662,-282.713188,-686.490072)">
+          <path
+            d="M248,604C296.733,449.457 436.333,440.225 508.333,440.225"
+            fill="none"
+            className="cm-watermark-brand-stroke"
+            strokeWidth="14"
+            strokeLinecap="round"
+            vectorEffect="nonScalingStroke"
+            mask="url(#cmWmArcMask)"
+          />
+        </g>
+        <g transform="matrix(-1.482714,0,0,2.124862,1291.713188,-642.794439)">
+          <path
+            d="M248,604C296.733,449.457 436.333,440.225 508.333,440.225"
+            fill="none"
+            className="cm-watermark-brand-stroke"
+            strokeWidth="14"
+            strokeLinecap="round"
+            vectorEffect="nonScalingStroke"
+            mask="url(#cmWmArcMask)"
+          />
+        </g>
+      </g>
+      <g transform="matrix(1.550828,0,0,1.550828,-296.433233,-165.128779)">
+        <path
+          d="M790.245,583.702C790.333,584.309 790.42,584.916 790.507,585.523C788.044,584.513 733.186,553.111 681.69,519.21C640.083,491.819 640.501,491.448 600.434,461.629C596.33,458.575 606.541,489.356 604.241,496.419C601.789,503.946 564.411,456.477 544.209,439.898C540.087,436.514 522.666,450.746 522.214,451.051C503.617,463.621 500.856,442.079 492.1,427.753C485.685,417.259 482.119,427.358 340.171,535.067C300.15,565.436 261.15,599.171 290.779,571.715C325.553,539.491 434.357,430.948 458.868,407.89C503.865,365.56 507.371,354.727 520.344,358.977C527.829,361.43 715.775,533.16 790.245,583.702Z"
+          fill="url(#cmWmMtnGrad)"
+          fillRule="evenodd"
+        />
+      </g>
+      <g transform="matrix(0.451809,0,0,0.451809,273.173684,146.688318)">
+        <circle cx="512" cy="332" r="38" className="cm-watermark-sun" />
+      </g>
+      <g transform="matrix(0.523438,0,0,0.523438,236.5,122.907726)">
+        <circle
+          cx="512"
+          cy="332"
+          r="64"
+          fill="none"
+          className="cm-watermark-brand-stroke"
+          strokeWidth="12"
+          vectorEffect="nonScalingStroke"
+        />
+      </g>
+    </svg>
+  );
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
@@ -248,6 +345,59 @@ export default function App() {
       return next;
     });
   }, []);
+  const [signalPulseKey, setSignalPulseKey] = useState<number | null>(null);
+  const handleSignalPulseComplete = useCallback(() => {
+    setSignalPulseKey(null);
+  }, []);
+  const handleCollapsedWatermarkActivate = useCallback(() => {
+    setSignalPulseKey((prev) => prev ?? Date.now());
+  }, []);
+  const [meshTubeLit, setMeshTubeLit] = useState(false);
+  const [meshTubePhase, setMeshTubePhase] = useState<'idle' | 'flicker-on' | 'flicker-off'>('idle');
+  const meshTubePhaseRef = useRef(meshTubePhase);
+  const meshTubeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useLayoutEffect(() => {
+    meshTubePhaseRef.current = meshTubePhase;
+  }, [meshTubePhase]);
+
+  const handleMeshTubeToggle = useCallback(() => {
+    if (meshTubePhase !== 'idle') return;
+    if (!meshTubeLit) {
+      setMeshTubePhase('flicker-on');
+      meshTubeTimeoutRef.current = setTimeout(() => {
+        meshTubeTimeoutRef.current = null;
+        setMeshTubeLit(true);
+        setMeshTubePhase('idle');
+      }, 1500);
+    } else {
+      setMeshTubePhase('flicker-off');
+      meshTubeTimeoutRef.current = setTimeout(() => {
+        meshTubeTimeoutRef.current = null;
+        setMeshTubeLit(false);
+        setMeshTubePhase('idle');
+      }, 1500);
+    }
+  }, [meshTubeLit, meshTubePhase]);
+
+  useEffect(() => {
+    return () => {
+      if (meshTubeTimeoutRef.current) clearTimeout(meshTubeTimeoutRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!sidebarCollapsed) return;
+    if (meshTubeTimeoutRef.current) {
+      clearTimeout(meshTubeTimeoutRef.current);
+      meshTubeTimeoutRef.current = null;
+    }
+    const phase = meshTubePhaseRef.current;
+    if (phase === 'flicker-on') setMeshTubeLit(false);
+    if (phase === 'flicker-off') setMeshTubeLit(true);
+    setMeshTubePhase('idle');
+  }, [sidebarCollapsed]);
+
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -1094,6 +1244,9 @@ export default function App() {
         protocol={protocol}
         onResult={handleFirmwareResult}
       />
+      {signalPulseKey !== null && (
+        <SignalPropagation key={signalPulseKey} onComplete={handleSignalPulseComplete} />
+      )}
       <div className="flex h-screen w-screen min-w-0 flex-col overflow-hidden bg-slate-950">
         {/* Header - full width; sidebar + main start below */}
         <header
@@ -1107,108 +1260,47 @@ export default function App() {
         >
           {/* Sidebar-area branding — top-left cell, matches sidebar width */}
           <div
-            aria-hidden="true"
+            aria-hidden={false}
             className={`bg-deep-black -my-2 flex shrink-0 items-center justify-center self-stretch border-r border-slate-800 transition-[width] duration-300 select-none ${
               sidebarCollapsed ? 'w-16' : 'w-48'
             }`}
           >
-            <div
-              className={`cm-watermark ${sidebarCollapsed ? 'cm-watermark-collapsed' : 'cm-watermark-expanded'}`}
-            >
-              <svg
-                className="cm-watermark-mark"
-                viewBox="0 0 1024 1024"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                aria-hidden="true"
+            {sidebarCollapsed ? (
+              <div className="cm-watermark cm-watermark-collapsed">
+                <button
+                  type="button"
+                  className="m-0 inline-flex cursor-pointer appearance-none border-0 bg-transparent p-0"
+                  aria-label="Play mesh signal pulse animation"
+                  onClick={handleCollapsedWatermarkActivate}
+                >
+                  <ColoradoMeshWatermarkMark />
+                </button>
+                <span className="cm-watermark-text" aria-hidden>
+                  Colorado Mesh
+                </span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                aria-busy={meshTubePhase !== 'idle'}
+                aria-pressed={meshTubeLit}
+                aria-label={
+                  meshTubeLit ? 'Turn off Colorado Mesh sign' : 'Turn on Colorado Mesh sign'
+                }
+                className={[
+                  'cm-watermark cm-watermark-expanded cm-watermark-mesh-tube',
+                  meshTubePhase === 'flicker-on' && 'cm-watermark-mesh-tube--flicker-on',
+                  meshTubePhase === 'flicker-off' && 'cm-watermark-mesh-tube--flicker-off',
+                  meshTubeLit && meshTubePhase === 'idle' && 'cm-watermark-mesh-tube--lit',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                onClick={handleMeshTubeToggle}
               >
-                <defs>
-                  <linearGradient
-                    id="cmWmMtnGrad"
-                    x1="0"
-                    y1="0"
-                    x2="1"
-                    y2="0"
-                    gradientUnits="userSpaceOnUse"
-                    gradientTransform="matrix(510.141384,0,0,227.403089,280.365777,471.821953)"
-                  >
-                    <stop offset="0" stopColor="#83ff80" />
-                    <stop offset="1" stopColor="#101928" />
-                  </linearGradient>
-                  <linearGradient
-                    id="cmWmArcAlpha"
-                    x1="0"
-                    y1="0.5"
-                    x2="1"
-                    y2="0.5"
-                    gradientUnits="objectBoundingBox"
-                  >
-                    <stop offset="0" stopColor="#fff" stopOpacity="0" />
-                    <stop offset="0.5" stopColor="#fff" stopOpacity="0.28" />
-                    <stop offset="1" stopColor="#fff" stopOpacity="0" />
-                  </linearGradient>
-                  <mask
-                    id="cmWmArcMask"
-                    maskUnits="objectBoundingBox"
-                    maskContentUnits="objectBoundingBox"
-                    x="0"
-                    y="0"
-                    width="1"
-                    height="1"
-                  >
-                    <rect x="0" y="0" width="1" height="1" fill="url(#cmWmArcAlpha)" />
-                  </mask>
-                </defs>
-                <g className="cm-watermark-arches">
-                  <g transform="matrix(1.482714,0,0,2.228662,-282.713188,-686.490072)">
-                    <path
-                      d="M248,604C296.733,449.457 436.333,440.225 508.333,440.225"
-                      fill="none"
-                      className="cm-watermark-brand-stroke"
-                      strokeWidth="14"
-                      strokeLinecap="round"
-                      vectorEffect="nonScalingStroke"
-                      mask="url(#cmWmArcMask)"
-                    />
-                  </g>
-                  <g transform="matrix(-1.482714,0,0,2.124862,1291.713188,-642.794439)">
-                    <path
-                      d="M248,604C296.733,449.457 436.333,440.225 508.333,440.225"
-                      fill="none"
-                      className="cm-watermark-brand-stroke"
-                      strokeWidth="14"
-                      strokeLinecap="round"
-                      vectorEffect="nonScalingStroke"
-                      mask="url(#cmWmArcMask)"
-                    />
-                  </g>
-                </g>
-                <g transform="matrix(1.550828,0,0,1.550828,-296.433233,-165.128779)">
-                  <path
-                    d="M790.245,583.702C790.333,584.309 790.42,584.916 790.507,585.523C788.044,584.513 733.186,553.111 681.69,519.21C640.083,491.819 640.501,491.448 600.434,461.629C596.33,458.575 606.541,489.356 604.241,496.419C601.789,503.946 564.411,456.477 544.209,439.898C540.087,436.514 522.666,450.746 522.214,451.051C503.617,463.621 500.856,442.079 492.1,427.753C485.685,417.259 482.119,427.358 340.171,535.067C300.15,565.436 261.15,599.171 290.779,571.715C325.553,539.491 434.357,430.948 458.868,407.89C503.865,365.56 507.371,354.727 520.344,358.977C527.829,361.43 715.775,533.16 790.245,583.702Z"
-                    fill="url(#cmWmMtnGrad)"
-                    fillRule="evenodd"
-                  />
-                </g>
-                <g transform="matrix(0.451809,0,0,0.451809,273.173684,146.688318)">
-                  <circle cx="512" cy="332" r="38" className="cm-watermark-sun" />
-                </g>
-                <g transform="matrix(0.523438,0,0,0.523438,236.5,122.907726)">
-                  <circle
-                    cx="512"
-                    cy="332"
-                    r="64"
-                    fill="none"
-                    className="cm-watermark-brand-stroke"
-                    strokeWidth="12"
-                    vectorEffect="nonScalingStroke"
-                  />
-                </g>
-              </svg>
-              <span className="cm-watermark-text" aria-hidden={sidebarCollapsed}>
-                Colorado Mesh
-              </span>
-            </div>
+                <ColoradoMeshWatermarkMark />
+                <span className="cm-watermark-text">Colorado Mesh</span>
+              </button>
+            )}
           </div>
           <div className="flex min-w-0 flex-1 justify-start pl-8">
             {/* Protocol context switcher — centered in the gap (narrow) or viewport (xl+ grid) */}
