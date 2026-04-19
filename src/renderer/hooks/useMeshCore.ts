@@ -1429,6 +1429,7 @@ export function useMeshCore() {
           last_rssi: number | null;
           favorited: number;
           nickname: string | null;
+          hops_away: number | null;
         }[];
         const initial = new Map<number, MeshNode>();
         for (const row of dbContacts) {
@@ -1445,6 +1446,7 @@ export function useMeshCore() {
             latitude: row.adv_lat ?? null,
             longitude: row.adv_lon ?? null,
             favorited: row.favorited === 1,
+            hops_away: row.hops_away ?? undefined,
           };
           initial.set(row.node_id, node);
           if (row.nickname) nicknameMapRef.current.set(row.node_id, row.nickname);
