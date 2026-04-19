@@ -1466,8 +1466,25 @@ export function useMeshCore() {
           if (n.hops_away != null) {
             const existing = initial.get(n.node_id);
             if (existing && existing.hops_away === undefined) {
+              console.debug(
+                '[useMeshCore] mount: merge hops from nodes:',
+                n.node_id.toString(16).toUpperCase(),
+                'hops_away=',
+                n.hops_away,
+              );
               initial.set(n.node_id, { ...existing, hops_away: n.hops_away });
             }
+          }
+        }
+        // Log final hops_away values after merge
+        for (const [nodeId, node] of initial) {
+          if (node.hops_away !== undefined) {
+            console.debug(
+              '[useMeshCore] mount: final hops:',
+              nodeId.toString(16).toUpperCase(),
+              'hops_away=',
+              node.hops_away,
+            );
           }
         }
         const mapped = mapMeshcoreDbRowsToChatMessages(dbMsgs as MeshcoreMessageDbRow[]);
@@ -1681,11 +1698,18 @@ export function useMeshCore() {
         // Save with on_radio=1 when contacts came from radio
         const now = new Date().toISOString();
         const onRadio = opts?.contactsFromRadio ? 1 : 0;
-        void window.electronAPI.db
-          .saveMeshcoreContact(contactToDbRow(contact, undefined, onRadio, now))
-          .catch((e: unknown) => {
-            console.warn('[useMeshCore] saveMeshcoreContact error', e);
-          });
+        const dbRow = contactToDbRow(contact, undefined, onRadio, now);
+        console.debug(
+          '[useMeshCore] saveMeshcoreContact:',
+          node.node_id.toString(16).toUpperCase(),
+          'outPathLen=',
+          contact.outPathLen,
+          'hops_away=',
+          dbRow.hops_away,
+        );
+        void window.electronAPI.db.saveMeshcoreContact(dbRow).catch((e: unknown) => {
+          console.warn('[useMeshCore] saveMeshcoreContact error', e);
+        });
       }
 
       try {
@@ -1735,6 +1759,12 @@ export function useMeshCore() {
           const existing = nextNodes.get(row.node_id);
           if (!existing) continue;
           if (existing.hops_away === undefined && row.hops_away != null) {
+            console.debug(
+              '[useMeshCore] merge: db hops_away:',
+              row.node_id.toString(16).toUpperCase(),
+              'hops_away=',
+              row.hops_away,
+            );
             nextNodes.set(row.node_id, { ...existing, hops_away: row.hops_away });
           }
         }
@@ -4145,12 +4175,14 @@ export function useMeshCore() {
 
   /**
    * MeshCore: allow Ping/trace for direct peers (0 hops) immediately; multi-hop / unknown hops require
-   * PathUpdated (129) this session so the radio has cached a route.
+   * PathUpdated (129) this session so the radio has cached a route, OR path history from a previous session.
    */
   const meshcoreCanPingTrace = useCallback((nodeId: number) => {
     const hops = nodesRef.current.get(nodeId)?.hops_away;
     if (hops === 0) return true;
-    return meshcoreSessionPathUpdatedNodeIdsRef.current.has(nodeId);
+    if (meshcoreSessionPathUpdatedNodeIdsRef.current.has(nodeId)) return true;
+    const bestPath = usePathHistoryStore.getState().selectBestPath(nodeId);
+    return bestPath?.pathBytes != null && bestPath.pathBytes.length > 1;
   }, []);
 
   const traceRoute = useCallback(
