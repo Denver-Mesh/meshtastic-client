@@ -82,6 +82,7 @@ import {
   meshcoreIsChatStubNodeId,
   meshcoreIsSyntheticPlaceholderPubKeyHex,
   meshcoreManufacturerModelFromDeviceQuery,
+  meshcoreMergeContactHopsAwayFromPrevious,
   meshcoreMilliVoltsToApproximateBatteryPercent,
   meshcoreMinimalNodeFromAdvertEvent,
   meshcoreSliceContactOutPathForTrace,
@@ -1626,18 +1627,20 @@ export function useMeshCore() {
           contact.lastAdvert,
           prevSnap.get(base.node_id)?.last_heard,
         );
-        const node: MeshNode = { ...base, last_heard };
-        const prevNode = prevSnap.get(node.node_id);
+        const prevNode = prevSnap.get(base.node_id);
+        const slicedPath = meshcoreSliceContactOutPathForTrace(contact.outPath, contact.outPathLen);
+        const hopsAway = meshcoreMergeContactHopsAwayFromPrevious(
+          base.hops_away,
+          prevNode?.hops_away,
+          slicedPath.length,
+        );
+        const node: MeshNode = { ...base, last_heard, hops_away: hopsAway };
         const mergedHwModel = mergeHwModelOnContactUpdate(prevNode?.hw_model, node.hw_model);
         if (mergedHwModel !== node.hw_model) {
           node.hw_model = mergedHwModel;
         }
-        if (node.hops_away === undefined && prevNode?.hops_away !== undefined) {
-          node.hops_away = prevNode.hops_away;
-        }
         nextNodes.set(node.node_id, node);
         pubKeyMapRef.current.set(node.node_id, contact.publicKey);
-        const slicedPath = meshcoreSliceContactOutPathForTrace(contact.outPath, contact.outPathLen);
         outPathMapRef.current.set(node.node_id, slicedPath);
         const contactPathBytes = slicedPath.length > 0 ? Array.from(slicedPath) : [];
         if (contactPathBytes.length > 0) {

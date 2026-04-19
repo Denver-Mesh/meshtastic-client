@@ -16,6 +16,7 @@ import {
   meshcoreInferHopsFromOutPath,
   meshcoreIsRepeaterRemoteAuthTouched,
   meshcoreManufacturerModelFromDeviceQuery,
+  meshcoreMergeContactHopsAwayFromPrevious,
   meshcoreMilliVoltsToApproximateBatteryPercent,
   meshcoreMinimalNodeFromAdvertEvent,
   meshcoreSelfInfoBwToDisplayKhz,
@@ -275,6 +276,12 @@ describe('meshcoreInferHopsFromOutPath', () => {
     expect(meshcoreInferHopsFromOutPath({ outPathLen: 3 })).toBe(2);
   });
 
+  it('when outPathLen is 0 but buffer still encodes hops, infers from bytes', () => {
+    expect(
+      meshcoreInferHopsFromOutPath({ outPathLen: 0, outPath: new Uint8Array([1, 2, 3]) }),
+    ).toBe(2);
+  });
+
   it('infers from path bytes when outPathLen is invalid but buffer encodes a multi-hop path', () => {
     const outPath = new Uint8Array([1, 2, 3, 4]);
     expect(meshcoreInferHopsFromOutPath({ outPathLen: -1, outPath })).toBe(3);
@@ -284,6 +291,24 @@ describe('meshcoreInferHopsFromOutPath', () => {
     expect(meshcoreInferHopsFromOutPath({ outPathLen: -1, outPath: new Uint8Array([9]) })).toBe(
       undefined,
     );
+  });
+});
+
+describe('meshcoreMergeContactHopsAwayFromPrevious', () => {
+  it('preserves multi-hop when radio briefly reports 0 hops with empty path', () => {
+    expect(meshcoreMergeContactHopsAwayFromPrevious(0, 3, 1)).toBe(3);
+  });
+
+  it('preserves multi-hop when inferred hops are undefined', () => {
+    expect(meshcoreMergeContactHopsAwayFromPrevious(undefined, 2, 0)).toBe(2);
+  });
+
+  it('allows a better inferred hop count when path bytes support it', () => {
+    expect(meshcoreMergeContactHopsAwayFromPrevious(2, 3, 4)).toBe(2);
+  });
+
+  it('fills from previous when inferred is undefined and prev is direct', () => {
+    expect(meshcoreMergeContactHopsAwayFromPrevious(undefined, 0, 1)).toBe(0);
   });
 });
 

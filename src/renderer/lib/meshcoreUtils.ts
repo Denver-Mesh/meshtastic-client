@@ -308,14 +308,41 @@ export function meshcoreInferHopsFromOutPath(contact: {
   outPath?: Uint8Array;
 }): number | undefined {
   const len = contact.outPathLen;
+  const sliced = meshcoreSliceContactOutPathForTrace(contact.outPath, contact.outPathLen);
   if (len != null && Number.isFinite(len) && len >= 0 && len <= MESHCORE_OUT_PATH_LEN_MAX) {
+    // outPathLen 0 uses slice(0,1) in the trace helper — too short when the buffer still holds a
+    // full route; re-slice with "length unset" semantics (trim) for hop inference only.
+    if (len === 0) {
+      const trimmed = meshcoreSliceContactOutPathForTrace(contact.outPath, undefined);
+      if (trimmed.length > 1) {
+        return Math.max(0, trimmed.length - 1);
+      }
+    }
     return meshcoreTracePathLenToHops(len);
   }
-  const sliced = meshcoreSliceContactOutPathForTrace(contact.outPath, contact.outPathLen);
   if (sliced.length > 1) {
     return Math.max(0, sliced.length - 1);
   }
   return undefined;
+}
+
+/**
+ * When rebuilding the node map from `getContacts`, merge hop counts so a transient radio state
+ * (e.g. flood advert / trace priming reporting outPathLen 0 for everyone) does not clear the UI.
+ */
+export function meshcoreMergeContactHopsAwayFromPrevious(
+  inferred: number | undefined,
+  prev: number | undefined,
+  slicedPathByteLength: number,
+): number | undefined {
+  if (prev !== undefined && prev >= 1) {
+    if (inferred === undefined || (inferred === 0 && slicedPathByteLength <= 1)) {
+      return prev;
+    }
+  } else if (inferred === undefined && prev !== undefined) {
+    return prev;
+  }
+  return inferred;
 }
 
 /** Result of mapping a heard RF advert (push 0x80) into UI + DB when the node is not yet a contact. */
