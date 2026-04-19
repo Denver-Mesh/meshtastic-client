@@ -2459,7 +2459,7 @@ ipcMain.handle('db:saveNode', (_event, node) => {
     `);
     return stmt.run({
       role: null,
-      hops_away: null,
+      hops_away: node.hops_away ?? null,
       rssi: null,
       voltage: null,
       channel_utilization: null,
