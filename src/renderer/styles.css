@@ -133,3 +133,176 @@
   opacity: 1;
   transform: scale(1);
 }
+
+/* Expanded header: "Colorado Mesh" cold-cathode / gas-tube toggle (glow via filter drop-shadow only) */
+button.cm-watermark-mesh-tube {
+  box-sizing: border-box;
+  width: 100%;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  font: inherit;
+  margin: 0;
+  text-align: center;
+}
+
+.cm-watermark-mesh-tube .cm-watermark-text {
+  text-shadow: none;
+  transition:
+    color 220ms ease,
+    filter 220ms ease;
+}
+
+.cm-watermark-mesh-tube:not(.cm-watermark-mesh-tube--lit):not(
+    .cm-watermark-mesh-tube--flicker-on
+  ):not(.cm-watermark-mesh-tube--flicker-off)
+  .cm-watermark-text {
+  color: rgb(95 130 125 / 0.92);
+  filter: drop-shadow(0 0 1px rgb(60 100 110 / 0.12));
+}
+
+.cm-watermark-mesh-tube--lit {
+  border-color: rgb(100 190 210 / 0.42);
+  background: linear-gradient(135deg, rgb(12 38 52 / 0.55), rgb(22 58 78 / 0.38));
+  box-shadow:
+    inset 0 1px 0 rgb(180 230 255 / 0.07),
+    0 4px 14px rgb(2 6 23 / 0.2);
+  filter: drop-shadow(0 0 2px rgb(0 255 235 / 0.85)) drop-shadow(0 0 8px rgb(70 210 255 / 0.55))
+    drop-shadow(0 0 16px rgb(100 190 255 / 0.28));
+}
+
+.cm-watermark-mesh-tube--lit .cm-watermark-text {
+  color: rgb(215 255 252 / 0.98);
+}
+
+@keyframes cm-watermark-mesh-tube-flicker-on {
+  0% {
+    filter: drop-shadow(0 0 1px rgb(0 160 180 / 0.12));
+    border-color: rgb(148 163 184 / 0.2);
+  }
+  4% {
+    filter: drop-shadow(0 0 4px rgb(0 240 230 / 0.45));
+  }
+  7% {
+    filter: drop-shadow(0 0 1px rgb(0 80 100 / 0.08));
+  }
+  10% {
+    filter: drop-shadow(0 0 6px rgb(0 255 240 / 0.55));
+  }
+  14% {
+    filter: drop-shadow(0 0 2px rgb(0 120 150 / 0.15));
+  }
+  18% {
+    filter: drop-shadow(0 0 8px rgb(80 230 255 / 0.5));
+  }
+  22% {
+    filter: drop-shadow(0 0 1px rgb(0 60 90 / 0.1));
+  }
+  28% {
+    filter: drop-shadow(0 0 10px rgb(0 255 245 / 0.58));
+  }
+  34% {
+    filter: drop-shadow(0 0 3px rgb(0 140 170 / 0.22));
+  }
+  40% {
+    filter: drop-shadow(0 0 9px rgb(100 220 255 / 0.52));
+  }
+  48% {
+    filter: drop-shadow(0 0 2px rgb(0 100 130 / 0.14));
+  }
+  56% {
+    filter: drop-shadow(0 0 11px rgb(0 250 245 / 0.62));
+  }
+  64% {
+    filter: drop-shadow(0 0 5px rgb(60 200 230 / 0.38));
+  }
+  72% {
+    filter: drop-shadow(0 0 12px rgb(90 215 255 / 0.58));
+  }
+  82% {
+    filter: drop-shadow(0 0 6px rgb(0 200 225 / 0.42));
+  }
+  92% {
+    filter: drop-shadow(0 0 14px rgb(120 225 255 / 0.62));
+  }
+  100% {
+    filter: drop-shadow(0 0 2px rgb(0 255 235 / 0.85)) drop-shadow(0 0 8px rgb(70 210 255 / 0.55))
+      drop-shadow(0 0 16px rgb(100 190 255 / 0.28));
+    border-color: rgb(100 190 210 / 0.42);
+  }
+}
+
+@keyframes cm-watermark-mesh-tube-flicker-off {
+  0% {
+    filter: drop-shadow(0 0 2px rgb(0 255 235 / 0.85)) drop-shadow(0 0 8px rgb(70 210 255 / 0.55))
+      drop-shadow(0 0 16px rgb(100 190 255 / 0.28));
+    border-color: rgb(100 190 210 / 0.42);
+  }
+  8% {
+    filter: drop-shadow(0 0 12px rgb(100 220 255 / 0.55));
+  }
+  16% {
+    filter: drop-shadow(0 0 3px rgb(0 120 150 / 0.2));
+  }
+  24% {
+    filter: drop-shadow(0 0 10px rgb(0 245 240 / 0.5));
+  }
+  32% {
+    filter: drop-shadow(0 0 2px rgb(0 90 110 / 0.12));
+  }
+  42% {
+    filter: drop-shadow(0 0 9px rgb(80 210 255 / 0.45));
+  }
+  52% {
+    filter: drop-shadow(0 0 4px rgb(0 150 180 / 0.25));
+  }
+  62% {
+    filter: drop-shadow(0 0 6px rgb(0 220 230 / 0.38));
+  }
+  74% {
+    filter: drop-shadow(0 0 2px rgb(0 70 95 / 0.1));
+  }
+  86% {
+    filter: drop-shadow(0 0 5px rgb(0 200 215 / 0.28));
+  }
+  100% {
+    filter: drop-shadow(0 0 1px rgb(60 100 110 / 0.12));
+    border-color: rgb(148 163 184 / 0.13);
+  }
+}
+
+.cm-watermark-mesh-tube--flicker-on {
+  animation: cm-watermark-mesh-tube-flicker-on 1.5s ease-out forwards;
+}
+
+.cm-watermark-mesh-tube--flicker-on .cm-watermark-text {
+  color: rgb(200 250 248 / 0.95);
+  animation: cm-watermark-mesh-tube-text-flicker-on 1.5s ease-out forwards;
+}
+
+.cm-watermark-mesh-tube--flicker-off {
+  animation: cm-watermark-mesh-tube-flicker-off 1.5s ease-in forwards;
+}
+
+.cm-watermark-mesh-tube--flicker-off .cm-watermark-text {
+  color: rgb(95 130 125 / 0.92);
+  animation: cm-watermark-mesh-tube-text-flicker-off 1.5s ease-in forwards;
+}
+
+@keyframes cm-watermark-mesh-tube-text-flicker-on {
+  0% {
+    color: rgb(95 130 125 / 0.85);
+  }
+  100% {
+    color: rgb(215 255 252 / 0.98);
+  }
+}
+
+@keyframes cm-watermark-mesh-tube-text-flicker-off {
+  0% {
+    color: rgb(215 255 252 / 0.98);
+  }
+  100% {
+    color: rgb(95 130 125 / 0.92);
+  }
+}

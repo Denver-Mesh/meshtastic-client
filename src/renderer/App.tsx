@@ -352,6 +352,52 @@ export default function App() {
   const handleCollapsedWatermarkActivate = useCallback(() => {
     setSignalPulseKey((prev) => prev ?? Date.now());
   }, []);
+  const [meshTubeLit, setMeshTubeLit] = useState(false);
+  const [meshTubePhase, setMeshTubePhase] = useState<'idle' | 'flicker-on' | 'flicker-off'>('idle');
+  const meshTubePhaseRef = useRef(meshTubePhase);
+  const meshTubeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useLayoutEffect(() => {
+    meshTubePhaseRef.current = meshTubePhase;
+  }, [meshTubePhase]);
+
+  const handleMeshTubeToggle = useCallback(() => {
+    if (meshTubePhase !== 'idle') return;
+    if (!meshTubeLit) {
+      setMeshTubePhase('flicker-on');
+      meshTubeTimeoutRef.current = setTimeout(() => {
+        meshTubeTimeoutRef.current = null;
+        setMeshTubeLit(true);
+        setMeshTubePhase('idle');
+      }, 1500);
+    } else {
+      setMeshTubePhase('flicker-off');
+      meshTubeTimeoutRef.current = setTimeout(() => {
+        meshTubeTimeoutRef.current = null;
+        setMeshTubeLit(false);
+        setMeshTubePhase('idle');
+      }, 1500);
+    }
+  }, [meshTubeLit, meshTubePhase]);
+
+  useEffect(() => {
+    return () => {
+      if (meshTubeTimeoutRef.current) clearTimeout(meshTubeTimeoutRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!sidebarCollapsed) return;
+    if (meshTubeTimeoutRef.current) {
+      clearTimeout(meshTubeTimeoutRef.current);
+      meshTubeTimeoutRef.current = null;
+    }
+    const phase = meshTubePhaseRef.current;
+    if (phase === 'flicker-on') setMeshTubeLit(false);
+    if (phase === 'flicker-off') setMeshTubeLit(true);
+    setMeshTubePhase('idle');
+  }, [sidebarCollapsed]);
+
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
@@ -1214,15 +1260,13 @@ export default function App() {
         >
           {/* Sidebar-area branding — top-left cell, matches sidebar width */}
           <div
-            aria-hidden={sidebarCollapsed ? false : true}
+            aria-hidden={false}
             className={`bg-deep-black -my-2 flex shrink-0 items-center justify-center self-stretch border-r border-slate-800 transition-[width] duration-300 select-none ${
               sidebarCollapsed ? 'w-16' : 'w-48'
             }`}
           >
-            <div
-              className={`cm-watermark ${sidebarCollapsed ? 'cm-watermark-collapsed' : 'cm-watermark-expanded'}`}
-            >
-              {sidebarCollapsed ? (
+            {sidebarCollapsed ? (
+              <div className="cm-watermark cm-watermark-collapsed">
                 <button
                   type="button"
                   className="m-0 inline-flex cursor-pointer appearance-none border-0 bg-transparent p-0"
@@ -1231,13 +1275,32 @@ export default function App() {
                 >
                   <ColoradoMeshWatermarkMark />
                 </button>
-              ) : (
+                <span className="cm-watermark-text" aria-hidden>
+                  Colorado Mesh
+                </span>
+              </div>
+            ) : (
+              <button
+                type="button"
+                aria-busy={meshTubePhase !== 'idle'}
+                aria-pressed={meshTubeLit}
+                aria-label={
+                  meshTubeLit ? 'Turn off Colorado Mesh sign' : 'Turn on Colorado Mesh sign'
+                }
+                className={[
+                  'cm-watermark cm-watermark-expanded cm-watermark-mesh-tube',
+                  meshTubePhase === 'flicker-on' && 'cm-watermark-mesh-tube--flicker-on',
+                  meshTubePhase === 'flicker-off' && 'cm-watermark-mesh-tube--flicker-off',
+                  meshTubeLit && meshTubePhase === 'idle' && 'cm-watermark-mesh-tube--lit',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                onClick={handleMeshTubeToggle}
+              >
                 <ColoradoMeshWatermarkMark />
-              )}
-              <span className="cm-watermark-text" aria-hidden={sidebarCollapsed}>
-                Colorado Mesh
-              </span>
-            </div>
+                <span className="cm-watermark-text">Colorado Mesh</span>
+              </button>
+            )}
           </div>
           <div className="flex min-w-0 flex-1 justify-start pl-8">
             {/* Protocol context switcher — centered in the gap (narrow) or viewport (xl+ grid) */}
