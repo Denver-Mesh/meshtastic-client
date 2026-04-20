@@ -37,7 +37,8 @@ Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`).
 ## 7. Optimizations
 
 # Context Management Protocol
+
 - **Deterministic Prefix:** Do not include timestamps, dynamic session IDs, or fluctuating environment variables in the first 2,000 tokens of this prompt.
-- **Read/Glob Hygiene:** When reading files larger than 100 lines or performing wide directory globs, provide a concise summary of findings. 
+- **Read/Glob Hygiene:** When reading files larger than 100 lines or performing wide directory globs, provide a concise summary of findings.
 - **Cold Storage Transition:** After 10 turns, if a previously read file is not the current focus, refer to it only by summary or path; do not re-read or re-dump the content unless a specific logic change is required.
 - **TOIN Tagging:** Explicitly tag key architectural decisions with `#TOIN-KEY` to assist the retrieval engine in indexing compressed blocks.
