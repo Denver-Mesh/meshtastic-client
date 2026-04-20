@@ -1715,6 +1715,10 @@ export default function App() {
                             meshcorePublicKeyHexByNodeId={
                               protocol === 'meshcore' ? meshcorePublicKeyHexByNodeId : undefined
                             }
+                            onSendAdvert={
+                              protocol === 'meshcore' ? meshcoreDevice.sendAdvert : undefined
+                            }
+                            meshcoreRadioOperational={isOperational}
                           />
                         </Suspense>
                       ) : null}
