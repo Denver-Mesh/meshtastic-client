@@ -2480,7 +2480,6 @@ function FirmwareUpdateNotifier({
     const { status, firmwareVersion } = activeState;
     if (status !== 'configured' || !firmwareVersion) return;
 
-    toastShownRef.current = false;
     onResult({ phase: 'checking' });
     let cancelled = false;
 
@@ -2536,7 +2535,7 @@ function FirmwareUpdateNotifier({
       onResult({ phase: 'idle' });
       toastShownRef.current = false;
     }
-  }, [activeState.status, onResult]);
+  }, [activeState.status, onResult, toastShownRef]);
 
   return null;
 }
