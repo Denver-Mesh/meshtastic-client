@@ -21,15 +21,15 @@ const GATT_NOTIFICATION_TIMEOUT_MS = 20_000;
 /** Align with `noble-ble-manager.ts` — drain burst cap for Meshtastic fromRadio read pump. */
 const BLE_READ_PUMP_MAX_ITERATIONS = 512;
 
-/**
- * Wrap a Promise with a timeout that rejects if it doesn't complete within the specified time.
- * Unlike withTimeout, this doesn't require a label and wraps timeout errors with better context.
- */
 /** Web Bluetooth experimental API not in all TS DOM libs (descriptor discovery). */
 type BluetoothRemoteGATTCharacteristicWithDescriptors = BluetoothRemoteGATTCharacteristic & {
   getDescriptors(): Promise<{ uuid: string }[]>;
 };
 
+/**
+ * Wrap a Promise with a timeout that rejects if it doesn't complete within the specified time.
+ * Unlike withTimeout, this doesn't require a label and wraps timeout errors with better context.
+ */
 function withGattTimeout<T>(promise: Promise<T>, ms: number, context: string): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<never>((_, reject) => {
@@ -274,6 +274,10 @@ export class WebBluetoothManager {
     if (!this.device) {
       throw new Error('No device selected. Call requestDevice() first.');
     }
+    const gatt = this.device.gatt;
+    if (!gatt) {
+      throw new Error('Selected device does not expose a GATT server.');
+    }
 
     const isMeshcore = this.sessionId === 'meshcore';
     const serviceUuid = isMeshcore
@@ -282,11 +286,7 @@ export class WebBluetoothManager {
 
     // Wrap all GATT operations to classify errors for better user guidance
     try {
-      this.server = await withGattTimeout(
-        this.device.gatt!.connect(),
-        GATT_CONNECT_TIMEOUT_MS,
-        'GATT connect',
-      );
+      this.server = await withGattTimeout(gatt.connect(), GATT_CONNECT_TIMEOUT_MS, 'GATT connect');
     } catch (err) {
       const domErr = err as DOMException;
       const isPairing = isWebBluetoothPairingError(err);
@@ -404,8 +404,11 @@ export class WebBluetoothManager {
         // Do not subscribe there for the Meshtastic protobuf stream. When Linux exposes no CCCD on
         // canonical fromRadio (`2c55…`), fall back to GATT read pump like Noble does.
         const primary = this.fromRadioCharacteristic;
+        const notifyHandler = this.fromRadioNotifyHandler;
         if (primary?.properties.read) {
-          primary.removeEventListener('characteristicvaluechanged', this.fromRadioNotifyHandler);
+          if (notifyHandler) {
+            primary.removeEventListener('characteristicvaluechanged', notifyHandler);
+          }
           this.meshtasticFromRadioReadPump = true;
           console.debug(
             `[WebBluetooth:${this.sessionId}] fromRadio: notify unavailable (no CCCD); using read pump`,
