@@ -565,14 +565,19 @@ export default function App() {
   }, [protocol, meshcoreDevice.selfInfo, meshcoreDevice.meshcoreContactsForTelemetry]);
 
   const capabilities = useRadioProvider(protocol);
+  const meshtasticCapabilities = useRadioProvider('meshtastic');
+  const meshcoreCapabilities = useRadioProvider('meshcore');
 
-  const { displayTabNames, tabIndexToPanelIndex } = useMemo(() => {
+  const computeTabMappings = (
+    targetProtocol: MeshProtocol,
+    targetCapabilities: ProtocolCapabilities,
+  ) => {
     const filtered: { name: string; panelIndex: number }[] = [];
     TAB_NAMES.forEach((name, panelIndex) => {
       const requiredCap = TAB_CAPABILITY_REQUIREMENTS[panelIndex];
-      if (requiredCap === undefined || capabilities[requiredCap]) {
+      if (requiredCap === undefined || targetCapabilities[requiredCap]) {
         filtered.push({
-          name: panelIndex === 5 && protocol === 'meshcore' ? 'Repeaters' : name,
+          name: panelIndex === 5 && targetProtocol === 'meshcore' ? 'Repeaters' : name,
           panelIndex,
         });
       }
@@ -581,7 +586,20 @@ export default function App() {
       displayTabNames: filtered.map((t) => t.name),
       tabIndexToPanelIndex: filtered.map((t) => t.panelIndex),
     };
-  }, [protocol, capabilities]);
+  };
+
+  const meshtasticTabs = useMemo(
+    () => computeTabMappings('meshtastic', meshtasticCapabilities),
+    [meshtasticCapabilities],
+  );
+  const meshcoreTabs = useMemo(
+    () => computeTabMappings('meshcore', meshcoreCapabilities),
+    [meshcoreCapabilities],
+  );
+
+  const { displayTabNames, tabIndexToPanelIndex } = useMemo(() => {
+    return protocol === 'meshcore' ? meshcoreTabs : meshtasticTabs;
+  }, [protocol, meshtasticTabs, meshcoreTabs]);
 
   const activePanelIndex = tabIndexToPanelIndex[activeTab] ?? 0;
   const prevPanelIndexForChatFreezeRef = useRef(activePanelIndex);
@@ -616,21 +634,24 @@ export default function App() {
       const savedPanel =
         protocol === 'meshcore' ? lastMeshcorePanel.current : lastMeshtasticPanel.current;
       let next = 0;
+      const targetTabs = protocol === 'meshcore' ? meshcoreTabs : meshtasticTabs;
 
       if (savedPanel != null) {
-        const foundFilteredIndex = tabIndexToPanelIndex.findIndex((p) => p === savedPanel);
-        if (foundFilteredIndex !== -1 && foundFilteredIndex < displayTabNames.length) {
+        const foundFilteredIndex = targetTabs.tabIndexToPanelIndex.findIndex(
+          (p) => p === savedPanel,
+        );
+        if (foundFilteredIndex !== -1 && foundFilteredIndex < targetTabs.displayTabNames.length) {
           next = foundFilteredIndex;
         }
       } else {
         const savedTab =
           protocol === 'meshcore' ? lastMeshcoreTab.current : lastMeshtasticTab.current;
-        next = savedTab < displayTabNames.length ? savedTab : 0;
+        next = savedTab < targetTabs.displayTabNames.length ? savedTab : 0;
       }
 
       setActiveTab(next);
     }
-  }, [activeTab, displayTabNames.length, protocol, tabIndexToPanelIndex]);
+  }, [activeTab, displayTabNames.length, protocol, meshtasticTabs, meshcoreTabs]);
 
   // Reset scroll position when switching tabs
   useEffect(() => {
@@ -673,16 +694,18 @@ export default function App() {
       let targetTab = 0;
 
       if (savedPanel != null) {
-        const targetPanelIndexArr =
-          newProtocol === 'meshcore' ? tabIndexToPanelIndex : tabIndexToPanelIndex;
-        const foundFilteredIndex = targetPanelIndexArr.findIndex((p) => p === savedPanel);
-        if (foundFilteredIndex !== -1 && foundFilteredIndex < displayTabNames.length) {
+        const targetTabs = newProtocol === 'meshcore' ? meshcoreTabs : meshtasticTabs;
+        const foundFilteredIndex = targetTabs.tabIndexToPanelIndex.findIndex(
+          (p) => p === savedPanel,
+        );
+        if (foundFilteredIndex !== -1 && foundFilteredIndex < targetTabs.displayTabNames.length) {
           targetTab = foundFilteredIndex;
         }
       } else {
         const savedTab =
           newProtocol === 'meshcore' ? lastMeshcoreTab.current : lastMeshtasticTab.current;
-        targetTab = savedTab < displayTabNames.length ? savedTab : 0;
+        const targetTabs = newProtocol === 'meshcore' ? meshcoreTabs : meshtasticTabs;
+        targetTab = savedTab < targetTabs.displayTabNames.length ? savedTab : 0;
       }
 
       if (newProtocol === 'meshtastic') {
@@ -699,7 +722,7 @@ export default function App() {
       localStorage.setItem(MESH_PROTOCOL_STORAGE_KEY, newProtocol);
       setProtocol(newProtocol);
     },
-    [protocol, activeTab, activePanelIndex, displayTabNames.length, tabIndexToPanelIndex],
+    [protocol, activeTab, activePanelIndex, meshtasticTabs, meshcoreTabs],
   );
 
   const runReanalysis = useDiagnosticsStore((s) => s.runReanalysis);
