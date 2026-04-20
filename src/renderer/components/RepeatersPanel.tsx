@@ -595,6 +595,8 @@ export default function RepeatersPanel({
                             >
                               {meshcoreTracePathLenToHops(traceResult.pathLen)}
                             </button>
+                          ) : node.hops_away != null ? (
+                            <span className="text-gray-300">{node.hops_away}</span>
                           ) : (
                             <span className="text-gray-500">—</span>
                           )}
