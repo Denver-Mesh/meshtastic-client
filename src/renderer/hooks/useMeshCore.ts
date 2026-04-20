@@ -172,6 +172,7 @@ function contactToDbRow(
   nickname?: string | null,
   onRadio = 0,
   lastSyncedFromRadio?: string | null,
+  mergedHopsAway?: number,
 ) {
   return {
     node_id: pubkeyToNodeId(contact.publicKey),
@@ -185,7 +186,7 @@ function contactToDbRow(
     adv_lon: contact.advLon !== 0 ? contact.advLon / MESHCORE_COORD_SCALE : null,
     nickname: nickname ?? null,
     contact_flags: contact.flags & 0xff,
-    hops_away: meshcoreInferHopsFromOutPath(contact) ?? null,
+    hops_away: mergedHopsAway ?? meshcoreInferHopsFromOutPath(contact) ?? null,
     on_radio: onRadio ?? 0,
     last_synced_from_radio: lastSyncedFromRadio ?? null,
   };
@@ -1660,7 +1661,7 @@ export function useMeshCore() {
         // Save with on_radio=1 when contacts came from radio
         const now = new Date().toISOString();
         const onRadio = opts?.contactsFromRadio ? 1 : 0;
-        const dbRow = contactToDbRow(contact, undefined, onRadio, now);
+        const dbRow = contactToDbRow(contact, undefined, onRadio, now, hopsAway);
         void window.electronAPI.db.saveMeshcoreContact(dbRow).catch((e: unknown) => {
           console.warn('[useMeshCore] saveMeshcoreContact error', e);
         });
