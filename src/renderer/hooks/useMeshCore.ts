@@ -296,6 +296,23 @@ const MESHCORE_SEND_FLOOD_ADVERT_TIMEOUT_MS = 25_000;
 /** Max time to wait for PathUpdated (129) after a flood advert when priming trace route. */
 const MESHCORE_TRACE_PRIME_WAIT_MS = 12_000;
 
+/** Shown when multi-hop trace cannot run until the radio reports a route; UI auto-clears after {@link MESHCORE_PING_NO_ROUTE_ERROR_DISPLAY_MS}. */
+export const MESHCORE_PING_NO_ROUTE_ERROR_MSG =
+  'No route from radio yet — multi-hop trace needs a synced path. Wait for contact updates or reconnect.';
+export const MESHCORE_PING_NO_ROUTE_ERROR_DISPLAY_MS = 20_000;
+
+/** Clears {@link MESHCORE_PING_NO_ROUTE_ERROR_MSG} for `nodeId` if unchanged (traceRoute expiry). */
+export function meshcorePingNoRouteErrorExpiryUpdate(
+  prev: Map<number, string>,
+  nodeId: number,
+): Map<number, string> {
+  const next = new Map(prev);
+  if (next.get(nodeId) === MESHCORE_PING_NO_ROUTE_ERROR_MSG) {
+    next.delete(nodeId);
+  }
+  return next;
+}
+
 export function serializeErrorLike(value: unknown): string {
   if (value instanceof Error) return value.message;
   if (typeof value === 'string') return value;
@@ -1171,6 +1188,16 @@ export function useMeshCore() {
   const prevStatsTimestampRef = useRef<number | null>(null);
   /** Periodic poll for local radio stats (see MESHCORE_STATS_POLL_MS in stats effect). */
   const meshcoreStatsPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** Auto-expire {@link MESHCORE_PING_NO_ROUTE_ERROR_MSG} after {@link MESHCORE_PING_NO_ROUTE_ERROR_DISPLAY_MS}. */
+  const meshcorePingNoRouteExpiryTimersRef = useRef<Map<number, number>>(new Map());
+
+  const clearMeshcorePingNoRouteExpiryTimer = useCallback((nodeId: number) => {
+    const t = meshcorePingNoRouteExpiryTimersRef.current.get(nodeId);
+    if (t != null) {
+      clearTimeout(t);
+      meshcorePingNoRouteExpiryTimersRef.current.delete(nodeId);
+    }
+  }, []);
 
   /** Fetch and update local radio stats (core, radio, packet). Called by requestRefresh and on connect. */
   const fetchAndUpdateLocalStats = useCallback(async () => {
@@ -1318,6 +1345,7 @@ export function useMeshCore() {
 
   useEffect(() => {
     meshcoreHookMountedRef.current = true;
+    const pingNoRouteTimers = meshcorePingNoRouteExpiryTimersRef.current;
     return () => {
       meshcoreHookMountedRef.current = false;
       if (meshcoreWaitingMessagesPollRef.current) {
@@ -1328,6 +1356,10 @@ export function useMeshCore() {
         clearInterval(meshcoreStatsPollRef.current);
         meshcoreStatsPollRef.current = null;
       }
+      pingNoRouteTimers.forEach((timerId) => {
+        clearTimeout(timerId);
+      });
+      pingNoRouteTimers.clear();
     };
   }, []);
 
@@ -4048,6 +4080,7 @@ export function useMeshCore() {
     async (nodeId: number) => {
       const pubKey = pubKeyMapRef.current.get(nodeId);
       if (!pubKey) {
+        clearMeshcorePingNoRouteExpiryTimer(nodeId);
         setMeshcorePingErrors((prev) => {
           const next = new Map(prev);
           next.set(nodeId, 'Node not found (no encryption key)');
@@ -4056,6 +4089,7 @@ export function useMeshCore() {
         return;
       }
       if (!connRef.current) {
+        clearMeshcorePingNoRouteExpiryTimer(nodeId);
         setMeshcorePingErrors((prev) => {
           const next = new Map(prev);
           next.set(nodeId, 'Not connected to device');
@@ -4063,6 +4097,7 @@ export function useMeshCore() {
         });
         return;
       }
+      clearMeshcorePingNoRouteExpiryTimer(nodeId);
       setMeshcorePingErrors((prev) => {
         const next = new Map(prev);
         next.delete(nodeId);
@@ -4165,14 +4200,18 @@ export function useMeshCore() {
         const uiSaysMultiHop = (hopsAway ?? 0) >= 1;
         const radioSaysMultiHop = radioContactPathLen != null && radioContactPathLen >= 1;
         if (pathTooShort && (uiSaysMultiHop || radioSaysMultiHop)) {
+          clearMeshcorePingNoRouteExpiryTimer(nodeId);
           setMeshcorePingErrors((prev) => {
             const next = new Map(prev);
-            next.set(
-              nodeId,
-              'No route from radio yet — multi-hop trace needs a synced path. Wait for contact updates or reconnect.',
-            );
+            next.set(nodeId, MESHCORE_PING_NO_ROUTE_ERROR_MSG);
             return next;
           });
+          const tid = window.setTimeout(() => {
+            if (!meshcoreHookMountedRef.current) return;
+            setMeshcorePingErrors((prev) => meshcorePingNoRouteErrorExpiryUpdate(prev, nodeId));
+            meshcorePingNoRouteExpiryTimersRef.current.delete(nodeId);
+          }, MESHCORE_PING_NO_ROUTE_ERROR_DISPLAY_MS);
+          meshcorePingNoRouteExpiryTimersRef.current.set(nodeId, tid);
           return;
         }
         let outPath =
@@ -4239,6 +4278,7 @@ export function useMeshCore() {
           });
         useRepeaterSignalStore.getState().recordSignal(nodeId, result.lastSnr);
         bumpMeshcoreNodeLastHeardFromRpc(nodeId);
+        clearMeshcorePingNoRouteExpiryTimer(nodeId);
         setMeshcorePingErrors((prev) => {
           const next = new Map(prev);
           next.delete(nodeId);
@@ -4261,7 +4301,7 @@ export function useMeshCore() {
         console.warn('[useMeshCore] traceRoute error', e);
       }
     },
-    [bumpMeshcoreNodeLastHeardFromRpc],
+    [bumpMeshcoreNodeLastHeardFromRpc, clearMeshcorePingNoRouteExpiryTimer],
   );
 
   const requestRepeaterStatus = useCallback(
