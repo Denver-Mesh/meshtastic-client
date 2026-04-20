@@ -260,6 +260,27 @@ With **Wi‑Fi off** or **airplane mode** on, using a **packaged** build if poss
 
 **Fix**: Open the node detail modal for a Repeater node (shown as "Repeater" in the hardware model field).
 
+### MeshCore: Cannot connect via Bluetooth, USB, or HTTP
+
+**Bluetooth:**
+
+- The device must be **flashed as Companion Bluetooth** (the default BLE flashing mode).
+- The device must be **paired** with your computer before connecting:
+  - **Windows**: Pair first in **Settings → Bluetooth & devices → Add device**, then connect from the app.
+  - **Linux**: Use **`bluetoothctl pair <MAC>`** first, or let the app handle the pairing prompt. See [BLE known issues](#ble-known-issues) for detailed steps.
+- **Try in the official MeshCore app first** — if the device connects there, it will work in Mesh-Client.
+- If Bluetooth fails, try serial (USB) or HTTP as alternatives.
+
+**USB (Serial):**
+
+- The device must be **flashed as Companion USB** (not BLE-only firmware).
+- If the serial port is not detected, see [Serial port not detected](#serial-port-not-detected).
+
+**HTTP (WiFi):**
+
+- The device must be **flashed as Companion HTTP** (not BLE-only firmware).
+- If `meshtastic.local` is not resolved, see [HTTP / WiFi connection issues](#http--wifi-connection-issues).
+
 ### MeshCore: Trace Route or Ping trace times out
 
 **Cause**: Nodes you only **hear** on the mesh—but that do **not** have **your** node in **their** contact list—are sometimes called foreign or one-way contacts. MeshCore firmware may not answer **Trace Route** (node detail) or **Ping trace** (Repeaters panel) for those peers, so the app waits until the trace/ping timeout with no TraceData response. You may see **Trace route timed out** in the node detail modal or an error toast from **Ping trace**.

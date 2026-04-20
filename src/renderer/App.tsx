@@ -1072,7 +1072,10 @@ export default function App() {
   // ─── Auto-check for updates on startup ────
   useEffect(() => {
     const t = setTimeout(() => {
-      void window.electronAPI.update.check();
+      void window.electronAPI.update.check().catch((e: unknown) => {
+        console.warn('[App] update check failed', e);
+        setUpdateState((s) => ({ ...s, phase: 'error' }));
+      });
     }, 5000);
     return () => {
       clearTimeout(t);
@@ -1712,6 +1715,10 @@ export default function App() {
                             meshcorePublicKeyHexByNodeId={
                               protocol === 'meshcore' ? meshcorePublicKeyHexByNodeId : undefined
                             }
+                            onSendAdvert={
+                              protocol === 'meshcore' ? meshcoreDevice.sendAdvert : undefined
+                            }
+                            meshcoreRadioOperational={isOperational}
                           />
                         </Suspense>
                       ) : null}
@@ -2218,7 +2225,10 @@ export default function App() {
                   updateState={updateState}
                   onCheck={() => {
                     setUpdateState({ phase: 'idle' });
-                    void window.electronAPI.update.check();
+                    void window.electronAPI.update.check().catch((e: unknown) => {
+                      console.warn('[App] update check failed', e);
+                      setUpdateState((s) => ({ ...s, phase: 'error' }));
+                    });
                   }}
                   onDownload={() => window.electronAPI.update.download()}
                   onInstall={() => window.electronAPI.update.install()}

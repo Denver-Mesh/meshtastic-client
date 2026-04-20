@@ -134,6 +134,10 @@ interface Props {
   /** MeshCore: show Refresh button on Contacts tab (paired with onRefreshContacts) */
   meshcoreShowRefreshControl?: boolean;
   onRefreshContacts?: () => Promise<void>;
+  /** MeshCore: flood advert (same as Radio panel Device Actions). */
+  onSendAdvert?: () => Promise<void>;
+  /** When false, Flood Advert is disabled (radio not operational). Ignored if onSendAdvert is unset. */
+  meshcoreRadioOperational?: boolean;
   meshcoreShowPublicKeys?: boolean;
   meshcorePublicKeyHexByNodeId?: Map<number, string>;
 }
@@ -155,6 +159,8 @@ export default function NodeListPanel({
   contactGroupsEnabled = true,
   meshcoreShowRefreshControl = false,
   onRefreshContacts,
+  onSendAdvert,
+  meshcoreRadioOperational = true,
   meshcoreShowPublicKeys = false,
   meshcorePublicKeyHexByNodeId,
 }: Props) {
@@ -169,6 +175,7 @@ export default function NodeListPanel({
   const [searchQuery, setSearchQuery] = useState('');
   const [importLoading, setImportLoading] = useState(false);
   const [refreshLoading, setRefreshLoading] = useState(false);
+  const [advertLoading, setAdvertLoading] = useState(false);
 
   useEffect(() => {
     if (mode === 'meshcore' && MESHCORE_INAPPLICABLE_SORT_FIELDS.includes(sortField)) {
@@ -206,6 +213,20 @@ export default function NodeListPanel({
       addToast(`Import failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
     } finally {
       setImportLoading(false);
+    }
+  };
+
+  const handleSendAdvert = async () => {
+    if (!onSendAdvert) return;
+    setAdvertLoading(true);
+    try {
+      await onSendAdvert();
+      addToast('Flood advert sent', 'success');
+    } catch (e) {
+      console.warn('[NodeListPanel] sendAdvert failed:', e instanceof Error ? e.message : e);
+      addToast(`Advert failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
+    } finally {
+      setAdvertLoading(false);
     }
   };
 
@@ -444,6 +465,22 @@ export default function NodeListPanel({
                 <span className="inline-block h-3 w-3 animate-spin rounded-full border border-purple-400 border-t-transparent" />
               ) : null}
               Refresh
+            </button>
+          ) : null}
+          {mode === 'meshcore' && onSendAdvert ? (
+            <button
+              type="button"
+              onClick={() => {
+                void handleSendAdvert();
+              }}
+              disabled={!meshcoreRadioOperational || advertLoading}
+              aria-label="Send flood advert"
+              className="bg-brand-green/20 text-brand-green border-brand-green/30 hover:bg-brand-green/30 flex w-full items-center justify-center gap-2 rounded border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-40 min-[480px]:w-auto"
+            >
+              {advertLoading ? (
+                <span className="border-brand-green inline-block h-3 w-3 animate-spin rounded-full border border-t-transparent" />
+              ) : null}
+              Flood Advert
             </button>
           ) : null}
           {mode === 'meshcore' && onImportContacts ? (
