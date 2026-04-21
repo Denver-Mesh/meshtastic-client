@@ -169,14 +169,14 @@ export default function LogPanel({
         const recent = await window.electronAPI.log.getRecentLines();
         if (cancelled) return;
         if (recent.length > 0) {
-          setEntries(recent.slice(-MAX_LINES) as LogEntry[]);
+          setEntries(recent.slice(-MAX_LINES));
         }
       } catch (e) {
         console.debug('[LogPanel] getRecentLines IPC failed:', e);
       }
       if (cancelled) return;
       off = window.electronAPI.log.onLine((entry) => {
-        const e = entry as LogEntry;
+        const e = entry;
         setEntries((prev) => {
           const next = prev.length >= MAX_LINES ? prev.slice(-MAX_LINES + 1) : prev;
           return [...next, e];

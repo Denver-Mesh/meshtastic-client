@@ -175,9 +175,7 @@ function UnreadDivider() {
 }
 
 function withoutDmNode(source: Record<number, number>, nodeNum: number): Record<number, number> {
-  return Object.fromEntries(
-    Object.entries(source).filter(([key]) => Number(key) !== nodeNum),
-  ) as Record<number, number>;
+  return Object.fromEntries(Object.entries(source).filter(([key]) => Number(key) !== nodeNum));
 }
 
 /**

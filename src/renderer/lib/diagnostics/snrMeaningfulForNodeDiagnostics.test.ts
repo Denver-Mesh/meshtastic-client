@@ -15,7 +15,7 @@ function node(partial: Partial<MeshNode>): MeshNode {
     latitude: null,
     longitude: null,
     ...partial,
-  } as MeshNode;
+  };
 }
 
 describe('snrMeaningfulForNodeDiagnostics', () => {

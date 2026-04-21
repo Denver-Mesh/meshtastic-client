@@ -832,7 +832,7 @@ describe('ChatPanel StatusBadge', () => {
     );
     const badge = screen.getByText('USB no ACK').closest('.cursor-help')!;
     expect(badge.getAttribute('title')).toBeNull();
-    await user.hover(badge as HTMLElement);
+    await user.hover(badge);
     const tooltip = document.querySelector('.pointer-events-none');
     expect(tooltip?.textContent?.trim()).toBeTruthy();
   });

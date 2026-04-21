@@ -1048,7 +1048,7 @@ export function mergeDatabase(sourcePath: string) {
             );
             continue;
           }
-          if (!checkMessage.get(senderId as number, timestamp as number, payload)) {
+          if (!checkMessage.get(senderId, timestamp, payload)) {
             insertMessage.run(msg);
             messagesAdded++;
           }

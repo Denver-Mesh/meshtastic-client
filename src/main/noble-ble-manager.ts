@@ -210,7 +210,7 @@ export class NobleBleManager extends EventEmitter {
       const isNew = !this.knownPeripherals.has(id);
       this.knownPeripherals.set(id, peripheral);
       if (isNew) {
-        this.emit('deviceDiscovered', { deviceId: id, deviceName: name } as NobleBleDevice);
+        this.emit('deviceDiscovered', { deviceId: id, deviceName: name });
       }
     });
   }
@@ -445,7 +445,7 @@ export class NobleBleManager extends EventEmitter {
     for (const [id, peripheral] of stillConnected) {
       this.knownPeripherals.set(id, peripheral);
       const name: string = peripheral.advertisement?.localName || peripheral.address || id;
-      this.emit('deviceDiscovered', { deviceId: id, deviceName: name } as NobleBleDevice);
+      this.emit('deviceDiscovered', { deviceId: id, deviceName: name });
     }
     this.scanRequesters.add(sessionId);
     if (!this.adapterReady) {

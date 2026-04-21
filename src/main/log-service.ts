@@ -312,7 +312,7 @@ export function patchMainConsole(): void {
         original.debug('[log-service] patchStream write hook', e);
       }
       return origWrite.apply(this, args as Parameters<typeof origWrite>);
-    } as typeof stream.write;
+    };
   };
   patchStream(process.stdout, 'log', 'stdout');
   patchStream(process.stderr, 'warn', 'stderr');

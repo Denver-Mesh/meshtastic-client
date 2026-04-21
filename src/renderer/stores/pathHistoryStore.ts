@@ -299,9 +299,7 @@ export const usePathHistoryStore = create<PathHistoryState>((set, get) => ({
       const rows = await window.electronAPI.db.getMeshcorePathHistory(nodeId);
       if (!rows || rows.length === 0) return;
 
-      const parsed: PathRecord[] = rows.map((row) =>
-        pathHistoryWireRowToRecord(row as MeshcorePathHistoryWireRow),
-      );
+      const parsed: PathRecord[] = rows.map((row) => pathHistoryWireRowToRecord(row));
 
       const state = get();
       const newRecords = new Map(state.records);

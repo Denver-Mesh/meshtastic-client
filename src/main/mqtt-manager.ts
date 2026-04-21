@@ -1471,12 +1471,7 @@ export class MQTTManager extends EventEmitter {
       const raw = this.tryDecryptWithKey(encrypted, packetId, from, key);
       if (!raw) continue;
       try {
-        return fromBinary(DataSchema, raw) as {
-          portnum?: number;
-          payload?: Uint8Array;
-          emoji?: number;
-          replyId?: number;
-        };
+        return fromBinary(DataSchema, raw);
       } catch {
         // catch-no-log-ok wrong PSK produces garbage bytes that fail protobuf decode — try next key
       }

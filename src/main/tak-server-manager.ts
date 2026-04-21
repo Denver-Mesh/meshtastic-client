@@ -116,7 +116,7 @@ export class TakServerManager extends EventEmitter {
 
   onNodeUpdate(node: Partial<MeshNode> & { node_id: number }): void {
     const existing = this.nodeCache.get(node.node_id) ?? ({} as MeshNode);
-    const merged = { ...existing, ...node } as MeshNode;
+    const merged = { ...existing, ...node };
     this.nodeCache.set(node.node_id, merged);
     this.pruneNodeCache();
 
