@@ -10,3 +10,6 @@ node_modules
 # Logs & temp
 *.log
 tmp/
+
+# Files unsupported by prettier parser
+*.plist
