@@ -28,6 +28,13 @@
   "build": {
     "mac": {
       "identity": "-"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb",
+        "rpm"
+      ]
     }
   },
   "scripts": {
