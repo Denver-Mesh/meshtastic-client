@@ -156,7 +156,7 @@ export function runMeshcoreTracePathMultiplexed(
 ): Promise<MeshcoreTracePathResult> {
   return new Promise((resolve, reject) => {
     let tag = randomTraceTag();
-    const state = getMuxState(conn as object);
+    const state = getMuxState(conn);
     while (state.pendingByTag.has(tag)) {
       tag = randomTraceTag();
     }

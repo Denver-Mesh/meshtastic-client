@@ -253,7 +253,7 @@ describe('useMeshCore mount hydration', () => {
     vi.mocked(window.electronAPI.db.getMeshcoreMessages).mockResolvedValue([]);
     let meshcoreChatHandler: ((raw: unknown) => void) | undefined;
     vi.mocked(window.electronAPI.mqtt.onMeshcoreChat).mockImplementation((cb) => {
-      meshcoreChatHandler = cb as (raw: unknown) => void;
+      meshcoreChatHandler = cb;
       return () => {};
     });
 

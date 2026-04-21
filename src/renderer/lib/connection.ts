@@ -75,7 +75,7 @@ export async function createBleConnection(
           });
         }
         console.debug('[connection] createBleConnection: connected on Linux');
-        return new MeshDevice(transport as any);
+        return new MeshDevice(transport);
       } catch (err) {
         lastError = err;
         // Clean up transport on failure before retry
@@ -136,7 +136,7 @@ export async function createBleConnection(
       }
       console.debug('[connection] createBleConnection connected', peripheralId);
       console.debug('[connection] createBleConnection elapsedMs', Date.now() - connectStartedAt);
-      return new MeshDevice(transport as any);
+      return new MeshDevice(transport);
     } catch (err) {
       lastError = err;
       const message = err instanceof Error ? err.message : String(err);
@@ -251,7 +251,7 @@ export async function createConnection(
       logMeshtasticDeviceConnection(
         `transport=http stack=meshtastic host=${host} tls=${useTls} port=${useTls ? 443 : 80}`,
       );
-      return new MeshDevice(transport as any);
+      return new MeshDevice(transport);
     }
 
     default:
@@ -298,7 +298,7 @@ export async function reconnectSerial(lastPortId?: string | null): Promise<MeshD
     if (sig.usbProductId != null) parts.push(`usbProductId=${sig.usbProductId}`);
     logMeshtasticDeviceConnection(parts.join(' '));
   }
-  return new MeshDevice(transport as any);
+  return new MeshDevice(transport);
 }
 
 /**

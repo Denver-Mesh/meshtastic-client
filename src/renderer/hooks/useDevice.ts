@@ -2747,9 +2747,7 @@ export function useDevice() {
               status,
             );
           }
-          return prev.map((m) =>
-            m.packetId === tempId ? { ...m, mqttStatus: status as ChatMessage['mqttStatus'] } : m,
-          );
+          return prev.map((m) => (m.packetId === tempId ? { ...m, mqttStatus: status } : m));
         });
       }
     },

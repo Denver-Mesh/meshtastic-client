@@ -25,9 +25,9 @@ describe('HelpTooltip', () => {
     render(<HelpTooltip text="Helpful explanation" />);
     const trigger = document.querySelector('.cursor-help')!;
     expect(screen.queryByText('Helpful explanation')).not.toBeInTheDocument();
-    await user.hover(trigger as HTMLElement);
+    await user.hover(trigger);
     expect(screen.getByText('Helpful explanation')).toBeInTheDocument();
-    await user.unhover(trigger as HTMLElement);
+    await user.unhover(trigger);
     expect(screen.queryByText('Helpful explanation')).not.toBeInTheDocument();
   });
 

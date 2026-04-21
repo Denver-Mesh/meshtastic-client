@@ -366,7 +366,7 @@ class IpcTcpConnection {
         }
       }
 
-      const instance = new TcpOverIpc() as unknown as SerialConnectionInstance;
+      const instance = new TcpOverIpc();
       this.inner = instance;
 
       const offData = window.electronAPI.meshcore.tcp.onData((bytes) => {
@@ -414,7 +414,7 @@ class IpcNobleConnection {
   async connect() {
     const runConnect = async () => {
       const sessionId = this.sessionId;
-      class NobleOverIpc extends (MeshcoreConnectionBase as unknown as new () => NobleIpcMeshcoreConnectionInstance) {
+      class NobleOverIpc extends MeshcoreConnectionBase {
         constructor(private readonly session: NobleBleSessionId) {
           super();
         }
@@ -448,7 +448,7 @@ class IpcNobleConnection {
       disconnectAbortsHandshake.catch(() => {});
       const offData = window.electronAPI.onNobleBleFromRadio(({ sessionId: sid, bytes }) => {
         if (sid !== sessionId) return;
-        const frame = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes as ArrayBuffer);
+        const frame = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
         instance.onFrameReceived(frame);
       });
       const offDisc = window.electronAPI.onNobleBleDisconnected((sid) => {
@@ -2174,7 +2174,7 @@ export function useMeshCore() {
                 m.sender_id === selfId &&
                 m.to != null &&
                 (m.status === 'sending' || m.status === 'failed')
-                  ? { ...m, status: newStatus as typeof m.status }
+                  ? { ...m, status: newStatus }
                   : m,
               ),
             );
@@ -2206,7 +2206,7 @@ export function useMeshCore() {
         setMessages((prev) =>
           prev.map((m) =>
             m.packetId != null && meshcoreDmAckKeyU32(m.packetId) === canon
-              ? { ...m, status: newStatus as typeof m.status }
+              ? { ...m, status: newStatus }
               : m,
           ),
         );
@@ -4455,7 +4455,7 @@ export function useMeshCore() {
             typeof entry.value === 'object' &&
             entry.value !== null
           ) {
-            result.gps = entry.value as { latitude: number; longitude: number; altitude: number };
+            result.gps = entry.value;
           }
         }
         setMeshcoreNodeTelemetry((prev) => {
@@ -5178,7 +5178,7 @@ export function useMeshCore() {
         if (mm) {
           setState((prev) => ({ ...prev, manufacturerModel: mm }));
         }
-        return result as Record<string, unknown>;
+        return result;
       } catch (e: unknown) {
         console.warn('[useMeshCore] getDeviceInfo error', e);
         return null;
@@ -5553,7 +5553,7 @@ export function useMeshCore() {
       signalTelemetry,
       environmentTelemetry,
       channelConfigs: [] as unknown[],
-      moduleConfigs: {} as Record<string, unknown>,
+      moduleConfigs: {},
       deviceOwner: selfInfo ? { longName: selfInfo.name, shortName: '', isLicensed: false } : null,
       ourPosition,
       gpsLoading: false,

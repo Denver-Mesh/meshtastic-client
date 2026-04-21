@@ -19,6 +19,20 @@ STAGED_LIST=$(mktemp)
 trap 'rm -f "$STAGED_LIST"' EXIT
 git diff --cached --name-only --diff-filter=ACM > "$STAGED_LIST" || fail 'git diff --cached (staged file list)'
 
+# If dependency manifests changed, ensure local node_modules matches lockfile
+# so lint/typecheck run with the same toolchain CI/release will use.
+deps_changed=0
+if [ -s "$STAGED_LIST" ]; then
+  while IFS= read -r f || [ -n "$f" ]; do
+    case "$f" in
+      package.json | pnpm-lock.yaml) deps_changed=1 ;;
+    esac
+  done < "$STAGED_LIST"
+fi
+if [ "$deps_changed" -eq 1 ]; then
+  pnpm install --frozen-lockfile || fail 'pnpm install --frozen-lockfile'
+fi
+
 # Format and lint only staged files for intentionality and speed.
 # Skip entirely if no files staged (e.g., empty commit).
 if [ -s "$STAGED_LIST" ]; then
@@ -39,7 +53,10 @@ if [ -s "$STAGED_LIST" ]; then
   done < "$STAGED_LIST"
 
   if [ -s "$MARKDOWN_LIST" ]; then
-    markdownlint-cli2 "$(cat "$MARKDOWN_LIST")" || fail 'markdownlint-cli2'
+    while IFS= read -r f || [ -n "$f" ]; do
+      [ -n "$f" ] || continue
+      pnpm exec markdownlint-cli2 "$f" || fail 'markdownlint-cli2'
+    done < "$MARKDOWN_LIST"
   fi
 
   pnpm dedupe || fail 'pnpm dedupe'

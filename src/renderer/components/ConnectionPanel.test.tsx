@@ -61,14 +61,14 @@ describe('HelpTooltip in MQTT form', () => {
     const helpIcons = document.querySelectorAll('.cursor-help');
     expect(helpIcons.length).toBeGreaterThan(0);
     for (const icon of helpIcons) {
-      await user.hover(icon as HTMLElement);
+      await user.hover(icon);
       // After hover, a tooltip span should appear with non-empty text
       const tooltips = document.querySelectorAll('.pointer-events-none');
       const visibleTooltip = Array.from(tooltips).find(
         (el) => el.textContent && el.textContent.trim().length > 0,
       );
       expect(visibleTooltip).toBeTruthy();
-      await user.unhover(icon as HTMLElement);
+      await user.unhover(icon);
     }
   });
 

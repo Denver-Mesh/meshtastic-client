@@ -1605,9 +1605,7 @@ export default function App() {
                                 blePeripheralId,
                               )
                             }
-                            onAutoConnect={
-                              meshcoreDevice.connectAutomatic as unknown as typeof meshtasticDevice.connectAutomatic
-                            }
+                            onAutoConnect={meshcoreDevice.connectAutomatic}
                             onDisconnect={meshcoreDevice.disconnect}
                             mqttStatus={meshcoreDevice.mqttStatus}
                             myNodeLabel={

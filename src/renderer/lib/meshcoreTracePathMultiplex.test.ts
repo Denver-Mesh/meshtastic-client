@@ -189,7 +189,7 @@ describe('runMeshcoreTracePathMultiplexed', () => {
       Object.assign(Object.create(null) as object, {
         ...Object.fromEntries(vals.entries()),
         length: vals.length,
-      }) as ArrayLike<number>;
+      });
 
     emit(MC_PUSH_TRACE_DATA, {
       pathLen: 2,
