@@ -749,50 +749,78 @@ export class MQTTManager extends EventEmitter {
     }
 
     try {
-      const envelope = fromBinary(ServiceEnvelopeSchema, cleanBytes);
-      const packet = envelope.packet;
-      if (!packet?.from) {
-        console.debug(`[Meshtastic MQTT] ServiceEnvelope has no packet.from, topic=${topic}`); // log-filter-ok Meshtastic MQTT logs → App log panel
-        return;
-      }
-
-      const nodeId = packet.from;
-      const packetId = packet.id;
-
-      if (packetId && this.isDuplicate(packetId)) return;
-
-      const hopStart = packet.hopStart ?? 0;
-      const hopLimit = packet.hopLimit ?? 0;
-      const hopsAway = hopStart > 0 && hopLimit <= hopStart ? hopStart - hopLimit : undefined;
-
-      const payloadCase = packet.payloadVariant?.case;
-
-      if (payloadCase === 'decoded') {
-        const decoded = packet.payloadVariant.value as {
-          portnum?: number;
-          payload?: Uint8Array;
-        };
-        console.debug(
-          `[Meshtastic MQTT] Decoded payload: portnum=${decoded.portnum} nodeId=0x${nodeId.toString(16)}`,
-        ); // log-filter-ok Meshtastic MQTT logs → App log panel
-        this.handleDecoded(nodeId, packetId, decoded, hopsAway);
-      } else if (payloadCase === 'encrypted') {
-        const encrypted = packet.payloadVariant.value;
-        const decodedData = this.tryDecryptAllKeys(encrypted, packetId, nodeId);
-        if (decodedData) {
-          console.debug(
-            `[Meshtastic MQTT] Decryption succeeded: portnum=${decodedData.portnum} nodeId=0x${nodeId.toString(16)}`,
-          ); // log-filter-ok Meshtastic MQTT logs → App log panel
-          this.handleDecoded(nodeId, packetId, decodedData, hopsAway);
+      this.decodeAndHandleServiceEnvelope(cleanBytes, topic);
+    } catch (err) {
+      // Some MQTT brokers or clients append trailing null bytes which cause protobuf
+      // decoding to fail with "illegal tag: field no 0 wire type 0".
+      // If we see this, try trimming trailing nulls one by one and retry.
+      let msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('field no 0') && cleanBytes[cleanBytes.length - 1] === 0) {
+        let currentBytes = cleanBytes;
+        while (currentBytes.length > 0 && currentBytes[currentBytes.length - 1] === 0) {
+          currentBytes = currentBytes.subarray(0, currentBytes.length - 1);
+          try {
+            this.decodeAndHandleServiceEnvelope(currentBytes, topic);
+            return; // Success after trimming some null bytes
+          } catch (retryErr) {
+            // catch-no-log-ok If retry fails, fall through to original error logging
+            msg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+            if (!msg.includes('field no 0')) {
+              // If we got a different error (e.g. "Offset out of bounds"), we trimmed too much.
+              // Break and log the original error or the last retry error.
+              break;
+            }
+            // If still "field no 0", continue trimming
+          }
         }
       }
-    } catch (err) {
+
       // catch-no-log-ok decode failures are sampled via logSampledDebug (avoid duplicate console lines)
-      const msg = err instanceof Error ? err.message : String(err);
+      const finalMsg = err instanceof Error ? err.message : String(err);
       this.logSampledDebug(
         'service-envelope-decode-failed',
-        `[Meshtastic MQTT] ServiceEnvelope decode failed: ${sanitizeLogMessage(msg)} | Topic: ${sanitizeLogMessage(topic)}`,
+        `[Meshtastic MQTT] ServiceEnvelope decode failed: ${sanitizeLogMessage(finalMsg)} | Topic: ${sanitizeLogMessage(topic)}`,
       );
+    }
+  }
+
+  private decodeAndHandleServiceEnvelope(bytes: Uint8Array, topic: string): void {
+    const envelope = fromBinary(ServiceEnvelopeSchema, bytes);
+    const packet = envelope.packet;
+    if (!packet?.from) {
+      console.debug(`[Meshtastic MQTT] ServiceEnvelope has no packet.from, topic=${topic}`); // log-filter-ok Meshtastic MQTT logs → App log panel
+      return;
+    }
+
+    const nodeId = packet.from;
+    const packetId = packet.id;
+
+    if (packetId && this.isDuplicate(packetId)) return;
+
+    const hopStart = packet.hopStart ?? 0;
+    const hopLimit = packet.hopLimit ?? 0;
+    const hopsAway = hopStart > 0 && hopLimit <= hopStart ? hopStart - hopLimit : undefined;
+
+    const payloadCase = packet.payloadVariant?.case;
+
+    if (payloadCase === 'decoded') {
+      const decoded = packet.payloadVariant.value as {
+        portnum?: number;
+        payload?: Uint8Array;
+      };
+      console.debug(
+        `[Meshtastic MQTT] Decoded payload: portnum=${decoded.portnum} nodeId=0x${nodeId.toString(16)}`,
+      ); // log-filter-ok Meshtastic MQTT logs → App log panel
+      this.handleDecoded(nodeId, packetId, decoded, hopsAway);
+    } else if (payloadCase === 'encrypted') {
+      const encrypted = packet.payloadVariant.value;
+      const decodedData = this.tryDecryptAllKeys(encrypted, packetId, nodeId);
+      if (decodedData) {
+        console.debug(
+          `[Meshtastic MQTT] Decryption succeeded: portnum=${decodedData.portnum} nodeId=0x${nodeId.toString(16)}`,
+        ); // log-filter-ok Meshtastic MQTT logs → App log panel
+        this.handleDecoded(nodeId, packetId, decodedData, hopsAway);
+      }
     }
   }
 
@@ -917,15 +945,12 @@ export class MQTTManager extends EventEmitter {
     // (no "user" or "payload" wrapper) — some firmware versions omit the wrapper.
     const userData = user ?? payload ?? json;
 
-    const longName = (userData.longName ??
-      userData.long_name ??
-      userData.long_name ??
-      '') as string;
+    const longName = (userData.longName ?? userData.long_name ?? userData.longname ?? '') as string;
     const shortName = (userData.shortName ??
       userData.short_name ??
-      userData.short_name ??
+      userData.shortname ??
       '') as string;
-    const hwModelNum = userData.hwModel ?? userData.hw_model ?? userData.hwModel ?? 0;
+    const hwModelNum = userData.hwModel ?? userData.hw_model ?? userData.hardware ?? 0;
     const hwModel = typeof hwModelNum === 'number' ? hwModelNum : 0;
     const role = userData.role as number | undefined;
 
