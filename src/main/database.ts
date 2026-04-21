@@ -8,7 +8,7 @@ import { sanitizeLogMessage } from './log-service';
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-const CURRENT_SCHEMA_VERSION = 27;
+const BASE_SCHEMA_VERSION = 27;
 
 let db: NodeSqliteDB | null = null;
 
@@ -50,10 +50,9 @@ export function initDatabase(): void {
       const userVersion = db!.pragma('user_version', { simple: true }) as number;
       if (userVersion === 0) {
         createBaseTables();
-        db!.pragma(`user_version = ${CURRENT_SCHEMA_VERSION}`);
-      } else {
-        runMigrations();
+        db!.pragma(`user_version = ${BASE_SCHEMA_VERSION}`);
       }
+      runMigrations();
     });
     setup();
 

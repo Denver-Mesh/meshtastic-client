@@ -123,10 +123,10 @@ describe('meshcore_messages dedup index and fresh DB version', () => {
     expect(DB_SOURCE).toMatch(/meshcore_contacts.*contact_flags INTEGER DEFAULT 0/s);
   });
 
-  it('fresh DB init stamps user_version = CURRENT_SCHEMA_VERSION', () => {
-    expect(DB_SOURCE).toMatch(/const CURRENT_SCHEMA_VERSION = \d+/);
+  it('fresh DB init stamps user_version = BASE_SCHEMA_VERSION then runs migrations', () => {
+    expect(DB_SOURCE).toMatch(/const BASE_SCHEMA_VERSION = \d+/);
     expect(DB_SOURCE).toMatch(
-      /if \(userVersion === 0\) \{[\s\S]*?createBaseTables\(\)[\s\S]*?pragma\(`user_version = \$\{CURRENT_SCHEMA_VERSION\}`\)/,
+      /if \(userVersion === 0\) \{[\s\S]*?createBaseTables\(\)[\s\S]*?pragma\(`user_version = \$\{BASE_SCHEMA_VERSION\}`\)[\s\S]*?\}\s*runMigrations\(\)/,
     );
   });
 
