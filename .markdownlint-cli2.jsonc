@@ -1,3 +1,10 @@
 {
-  "ignores": ["node_modules/**", ".cursor/**", "site/**", "release/**"],
+  "ignores": [
+    "node_modules/**",
+    ".cursor/**",
+    "site/**",
+    "release/**",
+    "dist/**",
+    "out/**"
+  ],
 }
