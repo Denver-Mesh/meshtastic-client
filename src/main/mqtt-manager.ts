@@ -423,50 +423,7 @@ export class MQTTManager extends EventEmitter {
       : `${this.currentSettings.topicPrefix}/`;
     const publishTopic = `${prefix}2/e/${channelName}/${gatewayId}`;
     const publishPayload = Buffer.from(toBinary(ServiceEnvelopeSchema, envelope));
-    // #region agent log
-    fetch('http://127.0.0.1:7734/ingest/afc61236-b7e9-4068-81d9-23661201f65e', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '340742' },
-      body: JSON.stringify({
-        sessionId: '340742',
-        runId: 'post-fix-3',
-        hypothesisId: 'H15',
-        location: 'src/main/mqtt-manager.ts:publishEncryptedData',
-        message: 'publishing ServiceEnvelope to broker topic',
-        data: {
-          topic: publishTopic,
-          payloadBytes: publishPayload.length,
-          packetId,
-          from: fromId,
-          to: toId,
-          channel: channelId,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-    this.client.publish(publishTopic, publishPayload, (err?: Error) => {
-      // #region agent log
-      fetch('http://127.0.0.1:7734/ingest/afc61236-b7e9-4068-81d9-23661201f65e', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '340742' },
-        body: JSON.stringify({
-          sessionId: '340742',
-          runId: 'post-fix-3',
-          hypothesisId: err ? 'H16' : 'H15',
-          location: 'src/main/mqtt-manager.ts:publishEncryptedData',
-          message: err
-            ? 'mqtt client.publish callback error'
-            : 'mqtt client.publish callback success',
-          data: {
-            packetId,
-            error: err ? err.message : null,
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
-    });
+    this.client.publish(publishTopic, publishPayload);
     return packetId;
   }
 
@@ -491,75 +448,6 @@ export class MQTTManager extends EventEmitter {
       ...(emoji ? { emoji } : {}),
       ...(replyId ? { replyId } : {}),
     });
-    // #region agent log
-    if (emoji != null || replyId != null) {
-      try {
-        const encoded = toBinary(DataSchema, data);
-        const decoded = fromBinary(DataSchema, encoded) as {
-          emoji?: number;
-          replyId?: number;
-          payload?: Uint8Array;
-        };
-        fetch('http://127.0.0.1:7734/ingest/afc61236-b7e9-4068-81d9-23661201f65e', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '340742' },
-          body: JSON.stringify({
-            sessionId: '340742',
-            runId: 'post-fix-2',
-            hypothesisId: 'H13',
-            location: 'src/main/mqtt-manager.ts:publish',
-            message: 'reaction protobuf encode/decode values',
-            data: {
-              inputEmoji: emoji ?? null,
-              inputReplyId: replyId ?? null,
-              inputReplyIdGtInt32Max: replyId != null ? replyId > 0x7fffffff : false,
-              inputReplyIdSigned32:
-                replyId != null ? (replyId > 0x7fffffff ? replyId - 0x1_0000_000 : replyId) : null,
-              decodedEmoji: decoded.emoji ?? null,
-              decodedReplyId: decoded.replyId ?? null,
-              encodedLength: encoded.length,
-              payloadLength: decoded.payload?.length ?? 0,
-            },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-        fetch('http://127.0.0.1:7734/ingest/afc61236-b7e9-4068-81d9-23661201f65e', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '340742' },
-          body: JSON.stringify({
-            sessionId: '340742',
-            runId: 'post-fix-6',
-            hypothesisId: 'H22',
-            location: 'src/main/mqtt-manager.ts:publish',
-            message: 'reaction data payload wire bytes',
-            data: {
-              wireHex: Buffer.from(encoded).toString('hex'),
-              inputReplyId: replyId ?? null,
-            },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-      } catch (e: unknown) {
-        console.warn(
-          '[MQTT] reaction protobuf encode/decode threw',
-          sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
-        );
-        fetch('http://127.0.0.1:7734/ingest/afc61236-b7e9-4068-81d9-23661201f65e', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '340742' },
-          body: JSON.stringify({
-            sessionId: '340742',
-            runId: 'post-fix-2',
-            hypothesisId: 'H14',
-            location: 'src/main/mqtt-manager.ts:publish',
-            message: 'reaction protobuf encode/decode threw',
-            data: { error: e instanceof Error ? e.message : String(e) },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-      }
-    }
-    // #endregion
     return this.publishEncryptedData(
       fromId,
       destId,

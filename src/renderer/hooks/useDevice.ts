@@ -314,21 +314,6 @@ export function useDevice() {
         virtualId = getOrCreateVirtualNodeId();
       } while (conflictsWithKnownRfNode(virtualId));
       virtualNodeIdRef.current = virtualId;
-      // #region agent log
-      fetch('http://127.0.0.1:7734/ingest/afc61236-b7e9-4068-81d9-23661201f65e', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '340742' },
-        body: JSON.stringify({
-          sessionId: '340742',
-          runId: 'post-fix-12',
-          hypothesisId: 'H31',
-          location: 'src/renderer/hooks/useDevice.ts:ensureNonConflictingVirtualNodeId',
-          message: 'virtual node id regenerated to avoid RF collision',
-          data: { virtualId },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
     }
     return virtualId;
   }, []);
@@ -637,40 +622,10 @@ export function useDevice() {
       }
       if (s === 'connected' && !deviceRef.current) {
         rfHeardNodeIds.current.clear();
-        // #region agent log
-        fetch('http://127.0.0.1:7734/ingest/afc61236-b7e9-4068-81d9-23661201f65e', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '340742' },
-          body: JSON.stringify({
-            sessionId: '340742',
-            runId: 'post-fix-9',
-            hypothesisId: 'H27',
-            location: 'src/renderer/hooks/useDevice.ts:mqttStatusConnected',
-            message: 'cleared rf-heard node cache for mqtt-only mode',
-            data: { rfHeardNodeCount: rfHeardNodeIds.current.size },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-        // #endregion
         startGpsInterval();
         const virtualId = ensureNonConflictingVirtualNodeId();
         myNodeNumRef.current = virtualId;
         setState((prev) => ({ ...prev, myNodeNum: virtualId }));
-        // #region agent log
-        fetch('http://127.0.0.1:7734/ingest/afc61236-b7e9-4068-81d9-23661201f65e', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '340742' },
-          body: JSON.stringify({
-            sessionId: '340742',
-            runId: 'post-fix-4',
-            hypothesisId: 'H19',
-            location: 'src/renderer/hooks/useDevice.ts:mqttStatusConnected',
-            message: 'mqtt-only identity synchronized to virtual node id',
-            data: { virtualId, stateMyNodeNum: state.myNodeNum },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-        // #endregion
         updateNodes((prev) => {
           const updated = new Map(prev);
           const existing = updated.get(virtualId) ?? emptyNode(virtualId);
@@ -687,26 +642,6 @@ export function useDevice() {
           };
           updated.set(virtualId, virtualNode);
           void window.electronAPI.db.saveNode(virtualNode);
-          // #region agent log
-          fetch('http://127.0.0.1:7734/ingest/afc61236-b7e9-4068-81d9-23661201f65e', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '340742' },
-            body: JSON.stringify({
-              sessionId: '340742',
-              runId: 'post-fix-10',
-              hypothesisId: 'H29',
-              location: 'src/renderer/hooks/useDevice.ts:mqttStatusConnected',
-              message: 'persisted virtual mqtt node with mqtt source flags',
-              data: {
-                nodeId: virtualNode.node_id,
-                source: virtualNode.source ?? null,
-                heardViaMqttOnly: virtualNode.heard_via_mqtt_only ?? null,
-                heardViaMqtt: virtualNode.heard_via_mqtt ?? null,
-              },
-              timestamp: Date.now(),
-            }),
-          }).catch(() => {});
-          // #endregion
           return updated;
         });
         // Periodic NodeInfo broadcast so other nodes see this client (every 5 min)
@@ -719,21 +654,6 @@ export function useDevice() {
             }
             return;
           }
-          // #region agent log
-          fetch('http://127.0.0.1:7734/ingest/afc61236-b7e9-4068-81d9-23661201f65e', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '340742' },
-            body: JSON.stringify({
-              sessionId: '340742',
-              runId: 'post-fix-4',
-              hypothesisId: 'H20',
-              location: 'src/renderer/hooks/useDevice.ts:sendPresence',
-              message: 'publishing mqtt-only node info presence',
-              data: { from: virtualNodeIdRef.current },
-              timestamp: Date.now(),
-            }),
-          }).catch(() => {});
-          // #endregion
           window.electronAPI.mqtt
             .publishNodeInfo({
               from: virtualNodeIdRef.current,
@@ -853,28 +773,6 @@ export function useDevice() {
           node.short_name ?? '',
           node.node_id,
         );
-        if (isActiveVirtualIdentity) {
-          // #region agent log
-          fetch('http://127.0.0.1:7734/ingest/afc61236-b7e9-4068-81d9-23661201f65e', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '340742' },
-            body: JSON.stringify({
-              sessionId: '340742',
-              runId: 'post-fix-13',
-              hypothesisId: 'H32',
-              location: 'src/renderer/hooks/useDevice.ts:onMqttNodeUpdate',
-              message: 'forced virtual identity source to mqtt',
-              data: {
-                nodeId: node.node_id,
-                heardViaRF,
-                source: node.source ?? null,
-                heardViaMqttOnly: node.heard_via_mqtt_only ?? null,
-              },
-              timestamp: Date.now(),
-            }),
-          }).catch(() => {});
-          // #endregion
-        }
         updated.set(nodeUpdate.node_id, node);
         void window.electronAPI.db.saveNode(node);
         return updated;
@@ -1110,21 +1008,6 @@ export function useDevice() {
         // Always clean up on disconnect, even if we never reached configured
         if (status === 2) {
           rfHeardNodeIds.current.clear();
-          // #region agent log
-          fetch('http://127.0.0.1:7734/ingest/afc61236-b7e9-4068-81d9-23661201f65e', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '340742' },
-            body: JSON.stringify({
-              sessionId: '340742',
-              runId: 'post-fix-9',
-              hypothesisId: 'H28',
-              location: 'src/renderer/hooks/useDevice.ts:onDeviceStatus',
-              message: 'cleared rf-heard node cache on device disconnect',
-              data: { rfHeardNodeCount: rfHeardNodeIds.current.size },
-              timestamp: Date.now(),
-            }),
-          }).catch(() => {});
-          // #endregion
           clearConfigureTimeout();
           isConfiguringRef.current = false;
           stopWatchdog();
@@ -2767,52 +2650,9 @@ export function useDevice() {
           ? myNodeNumRef.current
           : virtualNodeIdRef.current;
       if (!deviceRef.current && myNodeNumRef.current !== from) {
-        const previousMyNodeNum = myNodeNumRef.current;
         myNodeNumRef.current = from;
         setState((prev) => ({ ...prev, myNodeNum: from }));
-        // #region agent log
-        fetch('http://127.0.0.1:7734/ingest/afc61236-b7e9-4068-81d9-23661201f65e', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '340742' },
-          body: JSON.stringify({
-            sessionId: '340742',
-            runId: 'post-fix-5',
-            hypothesisId: 'H21',
-            location: 'src/renderer/hooks/useDevice.ts:sendMessage',
-            message: 'mqtt-only sender id corrected before sendMessage',
-            data: { from, previousMyNodeNum },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-        // #endregion
       }
-      // #region agent log
-      fetch('http://127.0.0.1:7734/ingest/afc61236-b7e9-4068-81d9-23661201f65e', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '340742' },
-        body: JSON.stringify({
-          sessionId: '340742',
-          runId: 'post-fix-8',
-          hypothesisId: 'H26',
-          location: 'src/renderer/hooks/useDevice.ts:sendMessage',
-          message: 'sendMessage ownership context snapshot',
-          data: {
-            hasDevice: !!deviceRef.current,
-            hasMqtt,
-            from,
-            myNodeNumRef: myNodeNumRef.current,
-            stateMyNodeNum: state.myNodeNum,
-            computedSelfNodeId:
-              state.myNodeNum > 0
-                ? state.myNodeNum
-                : mqttStatusRef.current === 'connected'
-                  ? virtualNodeIdRef.current
-                  : 0,
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       const tempId = Math.floor(Math.random() * 0xffffffff);
 
       // Determine initial MQTT display state (TransportManager will confirm/update asynchronously)
@@ -2856,7 +2696,7 @@ export function useDevice() {
       });
       transportManagerRef.current.sendMessage(text, channel, destination, replyId, tempId, from);
     },
-    [getNodeName, isDuplicate, state.myNodeNum],
+    [getNodeName, isDuplicate],
   );
 
   const setConfig = useCallback(async (config: unknown) => {
@@ -3240,24 +3080,8 @@ export function useDevice() {
           ? myNodeNumRef.current
           : virtualNodeIdRef.current;
       if (!deviceRef.current && myNodeNumRef.current !== from) {
-        const previousMyNodeNum = myNodeNumRef.current;
         myNodeNumRef.current = from;
         setState((prev) => ({ ...prev, myNodeNum: from }));
-        // #region agent log
-        fetch('http://127.0.0.1:7734/ingest/afc61236-b7e9-4068-81d9-23661201f65e', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '340742' },
-          body: JSON.stringify({
-            sessionId: '340742',
-            runId: 'post-fix-5',
-            hypothesisId: 'H21',
-            location: 'src/renderer/hooks/useDevice.ts:sendReaction',
-            message: 'mqtt-only sender id corrected before sendReaction',
-            data: { from, previousMyNodeNum },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-        // #endregion
       }
       const repliedMsg =
         messagesRef.current.find((m) => m.packetId === replyId) ??
@@ -3265,61 +3089,12 @@ export function useDevice() {
         null;
       const replyTargetsMqttOnly = repliedMsg?.receivedVia === 'mqtt';
       if (hasMqtt && replyTargetsMqttOnly) {
-        // #region agent log
-        fetch('http://127.0.0.1:7734/ingest/afc61236-b7e9-4068-81d9-23661201f65e', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '340742' },
-          body: JSON.stringify({
-            sessionId: '340742',
-            runId: 'post-fix-8',
-            hypothesisId: 'H25',
-            location: 'src/renderer/hooks/useDevice.ts:sendReaction',
-            message: 'blocked tapback for mqtt-origin message',
-            data: {
-              hasDevice: !!deviceRef.current,
-              hasMqtt,
-              repliedMsgReceivedVia: repliedMsg?.receivedVia ?? null,
-              repliedMsgSenderId: repliedMsg?.sender_id ?? null,
-              replyId,
-              emoji,
-            },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-        // #endregion
         return Promise.reject(
           new Error(
             'Tapbacks to MQTT-origin messages are not currently supported. Send a normal reply instead.',
           ),
         );
       }
-      // #region agent log
-      fetch('http://127.0.0.1:7734/ingest/afc61236-b7e9-4068-81d9-23661201f65e', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '340742' },
-        body: JSON.stringify({
-          sessionId: '340742',
-          runId: 'pre-fix-2',
-          hypothesisId: 'H6',
-          location: 'src/renderer/hooks/useDevice.ts:sendReaction',
-          message: 'sendReaction invoked with reaction fields',
-          data: {
-            hasDevice: !!deviceRef.current,
-            hasMqtt,
-            myNodeNum: myNodeNumRef.current,
-            from,
-            emoji,
-            replyId,
-            channel,
-            repliedMsgFound: !!repliedMsg,
-            repliedMsgSenderId: repliedMsg?.sender_id ?? null,
-            repliedMsgTo: repliedMsg?.to ?? null,
-            repliedMsgChannel: repliedMsg?.channel ?? null,
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       const msg: ChatMessage = {
         sender_id: from,
         sender_name: getNodeName(from),
@@ -3342,82 +3117,14 @@ export function useDevice() {
 
       // Device transport
       if (deviceRef.current) {
-        // #region agent log
-        fetch('http://127.0.0.1:7734/ingest/afc61236-b7e9-4068-81d9-23661201f65e', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '340742' },
-          body: JSON.stringify({
-            sessionId: '340742',
-            runId: 'pre-fix-4',
-            hypothesisId: 'H10',
-            location: 'src/renderer/hooks/useDevice.ts:sendReactionDeviceSend',
-            message: 'attempting device sendText for reaction',
-            data: { channel, replyId, emoji },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-        // #endregion
         deviceRef.current
           .sendText('', 'broadcast', true, channel, replyId, emoji)
-          .then(() => {
-            // #region agent log
-            fetch('http://127.0.0.1:7734/ingest/afc61236-b7e9-4068-81d9-23661201f65e', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '340742' },
-              body: JSON.stringify({
-                sessionId: '340742',
-                runId: 'post-fix-1',
-                hypothesisId: 'H10',
-                location: 'src/renderer/hooks/useDevice.ts:sendReactionDeviceSend',
-                message: 'device sendText for reaction succeeded',
-                data: { channel, replyId, emoji },
-                timestamp: Date.now(),
-              }),
-            }).catch(() => {});
-            // #endregion
-          })
+          .then(() => {})
           .catch((e: unknown) => {
-            // #region agent log
-            fetch('http://127.0.0.1:7734/ingest/afc61236-b7e9-4068-81d9-23661201f65e', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '340742' },
-              body: JSON.stringify({
-                sessionId: '340742',
-                runId: 'post-fix-1',
-                hypothesisId: 'H11',
-                location: 'src/renderer/hooks/useDevice.ts:sendReactionDeviceSend',
-                message: 'device sendText for reaction failed',
-                data: {
-                  error: e instanceof Error ? e.message : String(e),
-                  channel,
-                  replyId,
-                  emoji,
-                },
-                timestamp: Date.now(),
-              }),
-            }).catch(() => {});
-            // #endregion
             console.warn('[useDevice] sendReaction device sendText failed', e);
           });
       }
 
-      if (hasMqtt) {
-        // #region agent log
-        fetch('http://127.0.0.1:7734/ingest/afc61236-b7e9-4068-81d9-23661201f65e', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '340742' },
-          body: JSON.stringify({
-            sessionId: '340742',
-            runId: 'post-fix-7',
-            hypothesisId: 'H24',
-            location: 'src/renderer/hooks/useDevice.ts:sendReaction',
-            message: 'skipping tapback MQTT publish path by design',
-            data: { hasDevice: !!deviceRef.current, hasMqtt, channel, replyId, emoji },
-            timestamp: Date.now(),
-          }),
-        }).catch(() => {});
-        // #endregion
-      }
       return Promise.resolve();
     },
     [getNodeName],

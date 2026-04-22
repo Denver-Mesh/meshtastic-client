@@ -524,6 +524,7 @@ export default function App() {
     protocol === 'meshcore'
       ? (meshcoreDevice as unknown as typeof meshtasticDevice)
       : meshtasticDevice;
+  const previousDeviceStatusRef = useRef(device.state.status);
   const activeTabRef = useRef(activeTab);
   const protocolRef = useRef(protocol);
   const lastMeshtasticTab = useRef(0);
@@ -742,12 +743,18 @@ export default function App() {
   ]);
 
   useEffect(() => {
-    if (device.state.status === 'disconnected') {
-      queueMicrotask(() => {
-        setTelemetryNoticeDismissed(false);
-      });
+    const previousDeviceStatus = previousDeviceStatusRef.current;
+
+    if (
+      device.state.status === 'disconnected' &&
+      previousDeviceStatus !== 'disconnected' &&
+      telemetryNoticeDismissed
+    ) {
+      setTelemetryNoticeDismissed(false);
     }
-  }, [device.state.status]);
+
+    previousDeviceStatusRef.current = device.state.status;
+  }, [device.state.status, telemetryNoticeDismissed]);
 
   const isConfigured = device.state.status === 'configured';
   const isOperational = isConfigured || device.state.status === 'stale';
@@ -1316,7 +1323,8 @@ export default function App() {
       )}
       <div className="flex h-screen w-screen min-w-0 flex-col overflow-hidden bg-slate-950">
         {/* Header - full width; sidebar + main start below */}
-        <header
+        <div
+          role="banner"
           className={`bg-deep-black relative flex w-full items-center border-b py-2 pr-4 ${
             isConfigured
               ? protocol === 'meshcore'
@@ -1325,6 +1333,7 @@ export default function App() {
               : 'border-gray-700'
           }`}
         >
+          <h1 className="sr-only">Mesh Client</h1>
           {/* Sidebar-area branding — top-left cell, matches sidebar width */}
           <div
             aria-hidden={false}
@@ -1496,7 +1505,7 @@ export default function App() {
               </HelpTooltip>
             )}
           </div>
-        </header>
+        </div>
 
         {/* Connection Status Banner */}
         <ConnectionBanner
@@ -1531,7 +1540,8 @@ export default function App() {
 
         <div className="flex min-h-0 min-w-0 flex-1">
           {/* Sidebar - collapsible width on left */}
-          <div
+          <nav
+            aria-label="Application panels"
             className={`flex h-full min-h-0 shrink-0 flex-col border-r border-slate-800 transition-[width] duration-300 ${
               sidebarCollapsed ? 'w-16' : 'w-48'
             }`}
@@ -1544,12 +1554,12 @@ export default function App() {
               collapsed={sidebarCollapsed}
               onToggle={handleSidebarToggle}
             />
-          </div>
+          </nav>
 
           {/* Main column: viewport + footer */}
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             {/* Main Viewport - scrollable panel area */}
-            <div role="main" className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
               {/* Scroll container - no padding so scrollbars pin to viewport edges */}
               <div ref={mainViewportRef} className="h-full w-full overflow-auto bg-slate-950">
                 {/* Content wrapper - padding lives here, not on the scroll container */}
@@ -2249,7 +2259,7 @@ export default function App() {
                 />
               </span>
             </footer>
-          </div>
+          </main>
         </div>
       </div>
 

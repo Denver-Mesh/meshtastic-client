@@ -323,6 +323,29 @@ function safeMeshcoreChannelIndex(value: unknown): number {
   return Math.trunc(n);
 }
 
+/** Validate IPC sender origin to prevent untrusted renderers from invoking privileged handlers. */
+function validateIpcSender(event: Electron.IpcMainInvokeEvent): boolean {
+  const frame = event.senderFrame;
+  if (!frame) return false;
+  try {
+    const url = new URL(frame.url);
+    const isDev = !app.isPackaged;
+    if (isDev) {
+      return (
+        url.protocol === 'file:' ||
+        url.protocol === 'mesh-client:' ||
+        (url.protocol === 'http:' &&
+          (url.hostname === 'localhost' || url.hostname === '127.0.0.1')) ||
+        url.protocol === 'https:'
+      );
+    }
+    return url.protocol === 'file:' || url.protocol === 'mesh-client:';
+  } catch {
+    // catch-no-log-ok invalid URL in frame is expected; treat as untrusted
+    return false;
+  }
+}
+
 function validateSaveMessage(message: unknown): asserts message is Record<string, unknown> & {
   sender_id: number;
   sender_name: string;
@@ -910,6 +933,7 @@ function createWindow() {
       webviewTag: false,
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
       // Inline misspelling marks and context-menu suggestions (all platforms). macOS app menu
       // stays minimal (no role-based Edit menu) to reduce WeakPtr menu-bridge noise.
       spellcheck: true,
@@ -2298,7 +2322,10 @@ ipcMain.handle('app:setLoginItem', (_event, openAtLogin: unknown) => {
   app.setLoginItemSettings({ openAtLogin });
 });
 
-ipcMain.handle('app:quit', async () => {
+ipcMain.handle('app:quit', async (event) => {
+  if (!validateIpcSender(event)) {
+    throw new Error('IPC sender validation failed');
+  }
   isQuitting = true;
   isConnected = false;
   try {
@@ -2427,38 +2454,6 @@ ipcMain.handle('db:getMessages', (_event, channel?: number, limit = 200) => {
 ipcMain.handle('db:saveNode', (_event, node) => {
   try {
     validateSaveNode(node);
-    // #region agent log
-    fetch('http://127.0.0.1:7734/ingest/afc61236-b7e9-4068-81d9-23661201f65e', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '340742' },
-      body: JSON.stringify({
-        sessionId: '340742',
-        runId: 'post-fix-11',
-        hypothesisId: 'H30',
-        location: 'src/main/index.ts:db:saveNode',
-        message: 'db saveNode received source flags',
-        data: {
-          nodeId:
-            typeof node === 'object' && node != null
-              ? (node as { node_id?: unknown }).node_id
-              : null,
-          source:
-            typeof node === 'object' && node != null
-              ? ((node as { source?: unknown }).source ?? null)
-              : null,
-          heardViaMqtt:
-            typeof node === 'object' && node != null
-              ? ((node as { heard_via_mqtt?: unknown }).heard_via_mqtt ?? null)
-              : null,
-          heardViaMqttOnly:
-            typeof node === 'object' && node != null
-              ? ((node as { heard_via_mqtt_only?: unknown }).heard_via_mqtt_only ?? null)
-              : null,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
     const db = getDatabase();
     const stmt = db.prepareOnce(`
       INSERT INTO nodes (node_id, long_name, short_name, hw_model, snr, rssi, battery, last_heard, latitude, longitude, role, hops_away, via_mqtt, voltage, channel_utilization, air_util_tx, altitude, favorited, source, num_packets_rx_bad, num_rx_dupe, num_packets_rx, num_packets_tx, hops, path)
@@ -2585,7 +2580,10 @@ ipcMain.handle('db:getNodes', () => {
   }
 });
 
-ipcMain.handle('db:clearMessages', () => {
+ipcMain.handle('db:clearMessages', (event) => {
+  if (!validateIpcSender(event)) {
+    throw new Error('IPC sender validation failed');
+  }
   try {
     const db = getDatabase();
     const result = db.prepareOnce('DELETE FROM messages').run();
@@ -2600,7 +2598,10 @@ ipcMain.handle('db:clearMessages', () => {
   }
 });
 
-ipcMain.handle('db:clearNodes', () => {
+ipcMain.handle('db:clearNodes', (event) => {
+  if (!validateIpcSender(event)) {
+    throw new Error('IPC sender validation failed');
+  }
   try {
     const db = getDatabase();
     const result = db.prepareOnce('DELETE FROM nodes').run();
@@ -2632,7 +2633,10 @@ ipcMain.handle('db:clearNodePositions', () => {
   }
 });
 
-ipcMain.handle('db:deleteNode', (_event, nodeId: number) => {
+ipcMain.handle('db:deleteNode', (event, nodeId: number) => {
+  if (!validateIpcSender(event)) {
+    throw new Error('IPC sender validation failed');
+  }
   try {
     const id = safeNonNegativeInt(nodeId);
     const db = getDatabase();
@@ -2650,7 +2654,10 @@ ipcMain.handle('db:deleteNode', (_event, nodeId: number) => {
   }
 });
 
-ipcMain.handle('db:deleteNodesNeverHeard', () => {
+ipcMain.handle('db:deleteNodesNeverHeard', (event) => {
+  if (!validateIpcSender(event)) {
+    throw new Error('IPC sender validation failed');
+  }
   try {
     const result = getDatabase()
       .prepareOnce(
@@ -2668,7 +2675,10 @@ ipcMain.handle('db:deleteNodesNeverHeard', () => {
   }
 });
 
-ipcMain.handle('db:deleteNodesByAge', (_event, days: number) => {
+ipcMain.handle('db:deleteNodesByAge', (event, days: number) => {
+  if (!validateIpcSender(event)) {
+    throw new Error('IPC sender validation failed');
+  }
   try {
     if (typeof days !== 'number' || days < 1 || !isFinite(days)) return { changes: 0 };
     const cutoff = Math.floor(Date.now() / 1000) - days * 86400;
@@ -2709,7 +2719,10 @@ ipcMain.handle('db:pruneNodesByCount', (_event, maxCount: number) => {
   }
 });
 
-ipcMain.handle('db:deleteNodesBatch', (_event, nodeIds: number[]) => {
+ipcMain.handle('db:deleteNodesBatch', (event, nodeIds: number[]) => {
+  if (!validateIpcSender(event)) {
+    throw new Error('IPC sender validation failed');
+  }
   try {
     if (!Array.isArray(nodeIds) || nodeIds.length === 0) return 0;
     const safe = nodeIds
@@ -2731,7 +2744,10 @@ ipcMain.handle('db:deleteNodesBatch', (_event, nodeIds: number[]) => {
   }
 });
 
-ipcMain.handle('db:clearMessagesByChannel', (_event, channel: number) => {
+ipcMain.handle('db:clearMessagesByChannel', (event, channel: number) => {
+  if (!validateIpcSender(event)) {
+    throw new Error('IPC sender validation failed');
+  }
   try {
     const ch = safeNonNegativeInt(channel);
     const result = getDatabase().prepareOnce('DELETE FROM messages WHERE channel = ?').run(ch);
@@ -2762,7 +2778,10 @@ ipcMain.handle('db:getMessageChannels', () => {
   }
 });
 
-ipcMain.handle('db:deleteNodesBySource', (_event, source: string) => {
+ipcMain.handle('db:deleteNodesBySource', (event, source: string) => {
+  if (!validateIpcSender(event)) {
+    throw new Error('IPC sender validation failed');
+  }
   try {
     if (typeof source !== 'string')
       throw new Error('db:deleteNodesBySource: source must be a string');
@@ -2795,7 +2814,10 @@ ipcMain.handle('db:migrateRfStubNodes', () => {
   }
 });
 
-ipcMain.handle('db:deleteNodesWithoutLongname', () => {
+ipcMain.handle('db:deleteNodesWithoutLongname', (event) => {
+  if (!validateIpcSender(event)) {
+    throw new Error('IPC sender validation failed');
+  }
   try {
     const changes = deleteNodesWithoutLongname();
     console.debug(`[IPC] db:deleteNodesWithoutLongname: pruned ${changes} unnamed nodes`);
@@ -2986,7 +3008,10 @@ ipcMain.handle('db:import', async () => {
 });
 
 // ─── IPC: Clear Chromium session data (BLE cache, cookies, etc.) ──
-ipcMain.handle('session:clearData', async () => {
+ipcMain.handle('session:clearData', async (event) => {
+  if (!validateIpcSender(event)) {
+    throw new Error('IPC sender validation failed');
+  }
   try {
     const win = BrowserWindow.getAllWindows()[0];
     if (!win) return;
@@ -3028,7 +3053,10 @@ ipcMain.handle('log:getRecentLines', () => {
   }
 });
 
-ipcMain.handle('log:clear', () => {
+ipcMain.handle('log:clear', (event) => {
+  if (!validateIpcSender(event)) {
+    throw new Error('IPC sender validation failed');
+  }
   try {
     clearLogFile();
   } catch (err) {
@@ -3045,7 +3073,10 @@ ipcMain.handle('log:device-connection', (_event, detail: unknown) => {
   logDeviceConnection(detail);
 });
 
-ipcMain.handle('log:export', async () => {
+ipcMain.handle('log:export', async (event) => {
+  if (!validateIpcSender(event)) {
+    throw new Error('IPC sender validation failed');
+  }
   try {
     if (!mainWindow) return null;
     const result = await dialog.showSaveDialog(mainWindow, {
@@ -3393,7 +3424,10 @@ ipcMain.handle('db:deleteMeshcoreContact', (_event, nodeId: number) => {
   }
 });
 
-ipcMain.handle('db:clearMeshcoreMessages', () => {
+ipcMain.handle('db:clearMeshcoreMessages', (event) => {
+  if (!validateIpcSender(event)) {
+    throw new Error('IPC sender validation failed');
+  }
   try {
     return getDatabase().prepareOnce('DELETE FROM meshcore_messages').run();
   } catch (err) {
@@ -3421,7 +3455,10 @@ ipcMain.handle('db:getMeshcoreMessageChannels', () => {
   }
 });
 
-ipcMain.handle('db:clearMeshcoreMessagesByChannel', (_event, channelIdx: number) => {
+ipcMain.handle('db:clearMeshcoreMessagesByChannel', (event, channelIdx: number) => {
+  if (!validateIpcSender(event)) {
+    throw new Error('IPC sender validation failed');
+  }
   try {
     const ch = safeMeshcoreChannelIndex(channelIdx);
     const result = getDatabase()
@@ -3440,7 +3477,10 @@ ipcMain.handle('db:clearMeshcoreMessagesByChannel', (_event, channelIdx: number)
   }
 });
 
-ipcMain.handle('db:clearMeshcoreContacts', () => {
+ipcMain.handle('db:clearMeshcoreContacts', (event) => {
+  if (!validateIpcSender(event)) {
+    throw new Error('IPC sender validation failed');
+  }
   try {
     return getDatabase().prepareOnce('DELETE FROM meshcore_contacts').run();
   } catch (err) {
@@ -3453,7 +3493,10 @@ ipcMain.handle('db:clearMeshcoreContacts', () => {
 });
 
 // Deletes only Repeater-type contacts (contact_type = 2), leaving Chat and Room contacts intact.
-ipcMain.handle('db:clearMeshcoreRepeaters', () => {
+ipcMain.handle('db:clearMeshcoreRepeaters', (event) => {
+  if (!validateIpcSender(event)) {
+    throw new Error('IPC sender validation failed');
+  }
   try {
     return getDatabase().prepareOnce('DELETE FROM meshcore_contacts WHERE contact_type = 2').run();
   } catch (err) {
@@ -4273,6 +4316,10 @@ ipcMain.handle('tak:pushNodeUpdate', async (_event, node: unknown) => {
   if (!Number.isFinite(nodeId) || nodeId <= 0)
     throw new Error('tak:pushNodeUpdate: invalid node_id');
   const m = await ensureTakServerManager();
+  if (!m.getStatus().running) {
+    console.debug('[IPC] tak:pushNodeUpdate: TAK server not running, skipping');
+    return;
+  }
   m.onNodeUpdate(n as Parameters<TakServerManager['onNodeUpdate']>[0]);
 });
 
