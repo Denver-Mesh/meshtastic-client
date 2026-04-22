@@ -1533,7 +1533,8 @@ export default function App() {
 
         <div className="flex min-h-0 min-w-0 flex-1">
           {/* Sidebar - collapsible width on left */}
-          <div
+          <nav
+            aria-label="Application panels"
             className={`flex h-full min-h-0 shrink-0 flex-col border-r border-slate-800 transition-[width] duration-300 ${
               sidebarCollapsed ? 'w-16' : 'w-48'
             }`}
@@ -1546,10 +1547,10 @@ export default function App() {
               collapsed={sidebarCollapsed}
               onToggle={handleSidebarToggle}
             />
-          </div>
+          </nav>
 
           {/* Main column: viewport + footer */}
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             {/* Main Viewport - scrollable panel area */}
             <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
               {/* Scroll container - no padding so scrollbars pin to viewport edges */}
@@ -2181,7 +2182,7 @@ export default function App() {
             )}
 
             {/* Footer - fixed height at bottom of Content Wrapper */}
-            <div className="text-muted flex h-8 shrink-0 items-center justify-between border-t border-slate-800 bg-slate-900 px-4 text-[10px]">
+            <footer className="text-muted flex h-8 shrink-0 items-center justify-between border-t border-slate-800 bg-slate-900 px-4 text-[10px]">
               <span className="min-w-0">
                 A Project by{' '}
                 <a
@@ -2250,8 +2251,8 @@ export default function App() {
                   }
                 />
               </span>
-            </div>
-          </div>
+            </footer>
+          </main>
         </div>
       </div>
 

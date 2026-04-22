@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { axe } from 'vitest-axe';
+import { axe, configureAxe } from 'vitest-axe';
 
 import App from './App';
 
@@ -281,6 +281,25 @@ describe('App accessibility', () => {
     const { container } = render(<App />);
     const results = await axe(container);
     expect(results).toHaveNoViolations();
+  });
+
+  it('has no page landmark axe violations', async () => {
+    const { baseElement } = render(<App />);
+    const landmarkAxe = configureAxe({
+      rules: {
+        'landmark-one-main': { enabled: true },
+        region: { enabled: true },
+      },
+    });
+
+    const results = await landmarkAxe(baseElement);
+
+    expect(results).toHaveNoViolations();
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+    expect(screen.getByRole('navigation', { name: 'Application panels' })).toContainElement(
+      screen.getByRole('tablist', { name: 'Application panels' }),
+    );
+    expect(screen.getByRole('contentinfo')).toBeInTheDocument();
   });
 
   it('renders the queue badge in meshcore mode when queueStatus is available', async () => {
