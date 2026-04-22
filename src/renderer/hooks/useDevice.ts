@@ -719,21 +719,6 @@ export function useDevice() {
             }
             return;
           }
-          // #region agent log
-          fetch('http://127.0.0.1:7734/ingest/afc61236-b7e9-4068-81d9-23661201f65e', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '340742' },
-            body: JSON.stringify({
-              sessionId: '340742',
-              runId: 'post-fix-4',
-              hypothesisId: 'H20',
-              location: 'src/renderer/hooks/useDevice.ts:sendPresence',
-              message: 'publishing mqtt-only node info presence',
-              data: { from: virtualNodeIdRef.current },
-              timestamp: Date.now(),
-            }),
-          }).catch(() => {});
-          // #endregion
           window.electronAPI.mqtt
             .publishNodeInfo({
               from: virtualNodeIdRef.current,

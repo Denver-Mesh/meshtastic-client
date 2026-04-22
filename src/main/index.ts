@@ -4338,6 +4338,10 @@ ipcMain.handle('tak:pushNodeUpdate', async (_event, node: unknown) => {
   if (!Number.isFinite(nodeId) || nodeId <= 0)
     throw new Error('tak:pushNodeUpdate: invalid node_id');
   const m = await ensureTakServerManager();
+  if (!m.getStatus().running) {
+    console.debug('[IPC] tak:pushNodeUpdate: TAK server not running, skipping');
+    return;
+  }
   m.onNodeUpdate(n as Parameters<TakServerManager['onNodeUpdate']>[0]);
 });
 
