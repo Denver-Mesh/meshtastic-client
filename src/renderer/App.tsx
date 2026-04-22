@@ -524,6 +524,7 @@ export default function App() {
     protocol === 'meshcore'
       ? (meshcoreDevice as unknown as typeof meshtasticDevice)
       : meshtasticDevice;
+  const previousDeviceStatusRef = useRef(device.state.status);
   const activeTabRef = useRef(activeTab);
   const protocolRef = useRef(protocol);
   const lastMeshtasticTab = useRef(0);
@@ -742,12 +743,18 @@ export default function App() {
   ]);
 
   useEffect(() => {
-    if (device.state.status === 'disconnected') {
-      queueMicrotask(() => {
-        setTelemetryNoticeDismissed(false);
-      });
+    const previousDeviceStatus = previousDeviceStatusRef.current;
+
+    if (
+      device.state.status === 'disconnected' &&
+      previousDeviceStatus !== 'disconnected' &&
+      telemetryNoticeDismissed
+    ) {
+      setTelemetryNoticeDismissed(false);
     }
-  }, [device.state.status]);
+
+    previousDeviceStatusRef.current = device.state.status;
+  }, [device.state.status, telemetryNoticeDismissed]);
 
   const isConfigured = device.state.status === 'configured';
   const isOperational = isConfigured || device.state.status === 'stale';

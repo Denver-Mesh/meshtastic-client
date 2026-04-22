@@ -277,6 +277,19 @@ vi.mock('../preload', () => ({
 }));
 
 describe('App accessibility', () => {
+  it('does not log mount-time act warnings during render', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(<App />);
+    await Promise.resolve();
+
+    expect(
+      consoleError.mock.calls.some((call) =>
+        call.some((arg) => typeof arg === 'string' && arg.includes('not wrapped in act(...)')),
+      ),
+    ).toBe(false);
+  });
+
   it('has no axe violations', async () => {
     const { container } = render(<App />);
     const results = await axe(container);
