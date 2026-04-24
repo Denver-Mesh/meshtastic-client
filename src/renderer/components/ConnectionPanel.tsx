@@ -440,6 +440,24 @@ function migrateMqttSettingsOnce(): void {
 }
 migrateMqttSettingsOnce();
 
+function migrateMeshcoreTopicIataOnce(): void {
+  const MIGRATION_KEY = 'mesh-client:migrated:meshcore-topic-iata-v1';
+  if (localStorage.getItem(MIGRATION_KEY) !== null) return;
+  const raw = localStorage.getItem('mesh-client:mqttSettings:meshcore');
+  if (raw) {
+    const parsed = parseStoredJson<Partial<MQTTSettings>>(raw, 'migrateMeshcoreTopicIataOnce');
+    if (parsed?.topicPrefix === 'meshcore' && typeof parsed.server === 'string') {
+      const iata = parsed.server.trim() === COLORADO_MESH_HOST ? 'DEN' : 'test';
+      localStorage.setItem(
+        'mesh-client:mqttSettings:meshcore',
+        JSON.stringify({ ...parsed, topicPrefix: `meshcore/${iata}` }),
+      );
+    }
+  }
+  localStorage.setItem(MIGRATION_KEY, '1');
+}
+migrateMeshcoreTopicIataOnce();
+
 function loadMqttSettings(): MQTTSettings {
   const raw = localStorage.getItem('mesh-client:mqttSettings');
   const parsed = parseStoredJson<Partial<MQTTSettings>>(raw, 'ConnectionPanel loadMqttSettings');
@@ -653,7 +671,9 @@ export default function ConnectionPanel({
     const syncLetsMeshUsername = () => {
       if (
         protocol !== 'meshcore' ||
-        (meshcorePreset !== 'letsmesh' && meshcorePreset !== 'meshmapper')
+        (meshcorePreset !== 'letsmesh' &&
+          meshcorePreset !== 'meshmapper' &&
+          meshcorePreset !== 'coloradomesh')
       )
         return;
       const u = letsMeshMqttUsernameFromIdentity(readMeshcoreIdentity());
@@ -1974,7 +1994,7 @@ export default function ConnectionPanel({
                           ...prev,
                           server: LETSMESH_HOST_US,
                           port: 443,
-                          topicPrefix: 'meshcore',
+                          topicPrefix: 'meshcore/test',
                           useWebSocket: true,
                           keepalive: 60,
                           username: fromIdentity || prev.username,
@@ -2002,7 +2022,7 @@ export default function ConnectionPanel({
                           ...prev,
                           server: MESHMAPPER_HOST,
                           port: 443,
-                          topicPrefix: 'meshcore',
+                          topicPrefix: 'meshcore/test',
                           useWebSocket: true,
                           keepalive: 60,
                           username: fromIdentity || prev.username,
@@ -2048,7 +2068,6 @@ export default function ConnectionPanel({
                         port: 443,
                         useWebSocket: true,
                         keepalive: 60,
-                        topicPrefix: 'meshcore',
                         username: fromIdentity || prev.username,
                       }));
                     }}
@@ -2070,7 +2089,6 @@ export default function ConnectionPanel({
                         port: 443,
                         useWebSocket: true,
                         keepalive: 60,
-                        topicPrefix: 'meshcore',
                         username: fromIdentity || prev.username,
                       }));
                     }}
