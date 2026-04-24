@@ -1987,7 +1987,7 @@ export default function ConnectionPanel({
                           ...prev,
                           server: COLORADO_MESH_HOST,
                           port: 1883,
-                          topicPrefix: 'meshcore',
+                          topicPrefix: 'meshcore/DEN',
                           useWebSocket: true,
                           tlsEnabled: true,
                           wsPath: '/ws',

@@ -552,7 +552,9 @@ export class MeshcoreMqttAdapter extends EventEmitter {
       throw new Error('MeshCore MQTT not connected');
     }
     const base = normalizePrefix(this.lastSettings.topicPrefix || 'msh');
-    const topic = `${base}/meshcore/chat`;
+    const v1Pattern = /^v1_([0-9A-Fa-f]{64})$/i;
+    const pubKey = v1Pattern.exec(this.lastSettings.username ?? '')?.[1]?.toUpperCase();
+    const topic = pubKey ? `${base}/${pubKey}/chat` : `${base}/meshcore/chat`;
     const payload = JSON.stringify(envelope);
     this.client.publish(topic, payload, { qos: 0 });
   }
@@ -566,7 +568,10 @@ export class MeshcoreMqttAdapter extends EventEmitter {
       throw new Error('MeshCore MQTT not connected');
     }
     const base = normalizePrefix(this.lastSettings.topicPrefix || 'msh');
-    const topic = `${base}/meshcore/packets`;
+    const pubKey = /^v1_([0-9A-Fa-f]{64})$/i
+      .exec(this.lastSettings.username ?? '')?.[1]
+      ?.toUpperCase();
+    const topic = pubKey ? `${base}/${pubKey}/packets` : `${base}/meshcore/packets`;
     const now = new Date();
     const pad = (n: number) => n.toString().padStart(2, '0');
     const time = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;

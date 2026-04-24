@@ -3725,12 +3725,6 @@ export function useMeshCore() {
               replyId: replyField,
             });
           } else if (mqttStatusRef.current === 'connected') {
-            const mq = readMeshcoreMqttSettingsFromStorage();
-            if (isLetsMeshSettings(mq.server)) {
-              // LetsMesh MQTT is for authenticated packet/analyzer feeds (see docs), not MQTT-only
-              // channel chat without a radio.
-              return;
-            }
             await window.electronAPI.mqtt.publishMeshcore({
               text: textToSend,
               channelIdx,
