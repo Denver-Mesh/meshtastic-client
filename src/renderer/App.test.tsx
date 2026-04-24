@@ -1,93 +1,100 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axe, configureAxe } from 'vitest-axe';
 
 import App from './App';
 
-const { createMeshCoreMock, getStoredMeshProtocolMock, useMeshCoreMock, useRadioProviderMock } =
-  vi.hoisted(() => ({
-    createMeshCoreMock: () => ({
-      state: { status: 'disconnected', myNodeNum: 0, connectionType: null },
-      messages: [],
-      nodes: new Map(),
-      channels: [],
-      selfInfo: null,
-      meshcoreContactsForTelemetry: [],
-      meshcoreAutoadd: null,
-      connect: vi.fn(),
-      connectAutomatic: vi.fn(),
-      disconnect: vi.fn(),
-      mqttStatus: null,
-      getPickerStyleNodeLabel: vi.fn((num) => `!${num.toString(16)}`),
-      getFullNodeLabel: vi.fn(),
-      sendText: vi.fn().mockResolvedValue(undefined),
-      traceRoute: vi.fn(),
-      meshcoreCanPingTrace: () => true,
-      meshcorePingRouteReadyEpoch: 0,
-      traceRouteResults: [],
-      meshcoreTraceResults: new Map(),
-      meshcoreNodeStatus: new Map(),
-      meshcoreStatusErrors: new Map(),
-      meshcorePingErrors: new Map(),
-      meshcoreNeighbors: new Map(),
-      meshcoreNeighborErrors: new Map(),
-      meshcoreNodeTelemetry: new Map(),
-      meshcoreTelemetryErrors: new Map(),
-      meshcoreCliHistories: new Map(),
-      meshcoreCliErrors: new Map(),
-      ourPosition: null,
-      telemetryEnabled: true,
-      queueStatus: null,
-      refreshNodesFromDb: vi.fn(),
-      refreshMessagesFromDb: vi.fn(),
-      refreshContacts: vi.fn(),
-      requestRefresh: vi.fn(),
-      getNodes: vi.fn(),
-      selfNodeId: 0,
-      meshcoreLocalStats: null,
-      rawPackets: [],
-      clearRawPackets: vi.fn(),
-      sendAdvert: vi.fn().mockResolvedValue(undefined),
-      syncClock: vi.fn().mockResolvedValue(undefined),
-      importContacts: vi.fn().mockResolvedValue(undefined),
-      setOwner: vi.fn().mockResolvedValue(undefined),
-      setMeshcoreChannel: vi.fn().mockResolvedValue(undefined),
-      deleteMeshcoreChannel: vi.fn().mockResolvedValue(undefined),
-      setRadioParams: vi.fn().mockResolvedValue(undefined),
-      applyMeshcoreTelemetryPrivacyPolicy: vi.fn().mockResolvedValue(undefined),
-      applyMeshcoreContactAutoAdd: vi.fn().mockResolvedValue(undefined),
-      refreshMeshcoreAutoaddFromDevice: vi.fn().mockResolvedValue(undefined),
-      clearAllMeshcoreContacts: vi.fn().mockResolvedValue(undefined),
-      clearAllRepeaters: vi.fn().mockResolvedValue(undefined),
-      requestRepeaterStatus: vi.fn().mockResolvedValue(undefined),
-      requestTelemetry: vi.fn().mockResolvedValue(undefined),
-      requestNeighbors: vi.fn().mockResolvedValue(undefined),
-      sendRepeaterCliCommand: vi.fn().mockResolvedValue(undefined),
-      clearCliHistory: vi.fn().mockResolvedValue(undefined),
-      signData: vi.fn().mockResolvedValue(undefined),
-      exportPrivateKey: vi.fn().mockResolvedValue(undefined),
-      importPrivateKey: vi.fn().mockResolvedValue(undefined),
-      exportContact: vi.fn().mockResolvedValue(undefined),
-      shareContact: vi.fn().mockResolvedValue(undefined),
-      sendReaction: vi.fn().mockResolvedValue(undefined),
-      setNodeFavorited: vi.fn().mockResolvedValue(undefined),
-    }),
-    getStoredMeshProtocolMock: vi.fn(() => 'meshtastic'),
-    useMeshCoreMock: vi.fn(),
-    useRadioProviderMock: vi.fn(() => ({
-      protocol: 'meshtastic',
-      capabilities: {
-        hasTakPanel: false,
-        hasMapPanel: true,
-        hasSecurityPanel: true,
-        hasRepeatersPanel: false,
-      },
-    })),
-  }));
+const {
+  createMeshCoreMock,
+  getStoredMeshProtocolMock,
+  lastChatPanelProps,
+  useMeshCoreMock,
+  useRadioProviderMock,
+} = vi.hoisted(() => ({
+  createMeshCoreMock: () => ({
+    state: { status: 'disconnected', myNodeNum: 0, connectionType: null },
+    messages: [],
+    nodes: new Map(),
+    channels: [],
+    selfInfo: null,
+    meshcoreContactsForTelemetry: [],
+    meshcoreAutoadd: null,
+    connect: vi.fn(),
+    connectAutomatic: vi.fn(),
+    disconnect: vi.fn(),
+    mqttStatus: null,
+    getPickerStyleNodeLabel: vi.fn((num) => `!${num.toString(16)}`),
+    getFullNodeLabel: vi.fn(),
+    sendText: vi.fn().mockResolvedValue(undefined),
+    traceRoute: vi.fn(),
+    meshcoreCanPingTrace: () => true,
+    meshcorePingRouteReadyEpoch: 0,
+    traceRouteResults: [],
+    meshcoreTraceResults: new Map(),
+    meshcoreNodeStatus: new Map(),
+    meshcoreStatusErrors: new Map(),
+    meshcorePingErrors: new Map(),
+    meshcoreNeighbors: new Map(),
+    meshcoreNeighborErrors: new Map(),
+    meshcoreNodeTelemetry: new Map(),
+    meshcoreTelemetryErrors: new Map(),
+    meshcoreCliHistories: new Map(),
+    meshcoreCliErrors: new Map(),
+    ourPosition: null,
+    telemetryEnabled: true,
+    queueStatus: null,
+    refreshNodesFromDb: vi.fn(),
+    refreshMessagesFromDb: vi.fn(),
+    refreshContacts: vi.fn(),
+    requestRefresh: vi.fn(),
+    getNodes: vi.fn(),
+    selfNodeId: 0,
+    meshcoreLocalStats: null,
+    rawPackets: [],
+    clearRawPackets: vi.fn(),
+    sendAdvert: vi.fn().mockResolvedValue(undefined),
+    syncClock: vi.fn().mockResolvedValue(undefined),
+    importContacts: vi.fn().mockResolvedValue(undefined),
+    setOwner: vi.fn().mockResolvedValue(undefined),
+    setMeshcoreChannel: vi.fn().mockResolvedValue(undefined),
+    deleteMeshcoreChannel: vi.fn().mockResolvedValue(undefined),
+    setRadioParams: vi.fn().mockResolvedValue(undefined),
+    applyMeshcoreTelemetryPrivacyPolicy: vi.fn().mockResolvedValue(undefined),
+    applyMeshcoreContactAutoAdd: vi.fn().mockResolvedValue(undefined),
+    refreshMeshcoreAutoaddFromDevice: vi.fn().mockResolvedValue(undefined),
+    clearAllMeshcoreContacts: vi.fn().mockResolvedValue(undefined),
+    clearAllRepeaters: vi.fn().mockResolvedValue(undefined),
+    requestRepeaterStatus: vi.fn().mockResolvedValue(undefined),
+    requestTelemetry: vi.fn().mockResolvedValue(undefined),
+    requestNeighbors: vi.fn().mockResolvedValue(undefined),
+    sendRepeaterCliCommand: vi.fn().mockResolvedValue(undefined),
+    clearCliHistory: vi.fn().mockResolvedValue(undefined),
+    signData: vi.fn().mockResolvedValue(undefined),
+    exportPrivateKey: vi.fn().mockResolvedValue(undefined),
+    importPrivateKey: vi.fn().mockResolvedValue(undefined),
+    exportContact: vi.fn().mockResolvedValue(undefined),
+    shareContact: vi.fn().mockResolvedValue(undefined),
+    sendReaction: vi.fn().mockResolvedValue(undefined),
+    setNodeFavorited: vi.fn().mockResolvedValue(undefined),
+  }),
+  getStoredMeshProtocolMock: vi.fn(() => 'meshtastic'),
+  lastChatPanelProps: { current: null as null | Record<string, unknown> },
+  useMeshCoreMock: vi.fn(),
+  useRadioProviderMock: vi.fn(() => ({
+    protocol: 'meshtastic',
+    capabilities: {
+      hasTakPanel: false,
+      hasMapPanel: true,
+      hasSecurityPanel: true,
+      hasRepeatersPanel: false,
+    },
+  })),
+}));
 
 beforeEach(() => {
   getStoredMeshProtocolMock.mockReset();
   getStoredMeshProtocolMock.mockReturnValue('meshtastic');
+  lastChatPanelProps.current = null;
   useMeshCoreMock.mockReset();
   useMeshCoreMock.mockImplementation(() => createMeshCoreMock());
   useRadioProviderMock.mockReset();
@@ -151,7 +158,13 @@ vi.mock('./lib/radio/providerFactory', () => ({
 }));
 
 vi.mock('./lazyAppPanels', () => ({
-  ChatPanel: () => null,
+  ChatPanel: (props: Record<string, unknown>) => {
+    lastChatPanelProps.current = props;
+    const channels = Array.isArray(props.channels)
+      ? (props.channels as { name: string }[]).map((ch) => ch.name).join(',')
+      : '';
+    return <div data-testid="chat-panel-props">{channels}</div>;
+  },
   ConnectionPanel: () => null,
   LogPanel: () => null,
   NodeListPanel: () => null,
@@ -336,6 +349,39 @@ describe('App accessibility', () => {
     render(<App />);
 
     expect(await screen.findByText('Q: 7/256')).toBeInTheDocument();
+  });
+
+  it('passes only configured MeshCore channels through to ChatPanel', async () => {
+    getStoredMeshProtocolMock.mockReturnValue('meshcore');
+    useRadioProviderMock.mockReturnValue({
+      protocol: 'meshcore',
+      capabilities: {
+        hasTakPanel: false,
+        hasMapPanel: true,
+        hasSecurityPanel: false,
+        hasRepeatersPanel: true,
+      },
+    });
+    useMeshCoreMock.mockReturnValue({
+      ...createMeshCoreMock(),
+      state: { status: 'configured', myNodeNum: 0x12345678, connectionType: 'serial' },
+      channels: [
+        { index: 0, name: 'General', secret: new Uint8Array(16).fill(0x11) },
+        { index: 1, name: 'Unset', secret: new Uint8Array(16) },
+        { index: 2, name: 'Ops', secret: new Uint8Array(16).fill(0x22) },
+      ],
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Chat' }));
+
+    await waitFor(() => {
+      expect(lastChatPanelProps.current).not.toBeNull();
+      expect(lastChatPanelProps.current?.channels).toEqual([
+        { index: 0, name: 'General' },
+        { index: 2, name: 'Ops' },
+      ]);
+    });
   });
 
   it('keeps scrolling inside the main viewport container', () => {

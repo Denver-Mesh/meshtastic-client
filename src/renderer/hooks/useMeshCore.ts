@@ -2956,6 +2956,14 @@ export function useMeshCore() {
         // catch-no-log-ok deviceQuery optional for firmware string
       }
 
+      const rawChannels = await awaitUnlessMeshcoreSetupCancelled(
+        setupGen,
+        withTimeout(conn.getChannels(), MESHCORE_INIT_TIMEOUT_MS, 'getChannels'),
+      );
+      setChannels(
+        rawChannels.map((c) => ({ index: c.channelIdx, name: c.name, secret: c.secret })),
+      );
+
       const contactsRaw = await awaitUnlessMeshcoreSetupCancelled(
         setupGen,
         withTimeout(conn.getContacts(), MESHCORE_INIT_TIMEOUT_MS, 'getContacts'),
@@ -2972,14 +2980,6 @@ export function useMeshCore() {
         }),
       );
       setNodes((prev) => mergeMeshcoreChatStubNodes(prev, newNodes));
-
-      const rawChannels = await awaitUnlessMeshcoreSetupCancelled(
-        setupGen,
-        withTimeout(conn.getChannels(), MESHCORE_INIT_TIMEOUT_MS, 'getChannels'),
-      );
-      setChannels(
-        rawChannels.map((c) => ({ index: c.channelIdx, name: c.name, secret: c.secret })),
-      );
 
       // Post-init side-effects — run sequentially to avoid shared Ok/Err listener races
       // with user-initiated commands (e.g. config import right after connect).

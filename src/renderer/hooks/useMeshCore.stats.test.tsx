@@ -5,6 +5,8 @@ const getSelfInfoMock = vi.fn();
 const getStatsCoreMock = vi.fn();
 const getStatsRadioMock = vi.fn();
 const getStatsPacketsMock = vi.fn();
+const getContactsMock = vi.fn();
+const getChannelsMock = vi.fn();
 
 vi.mock('@liamcottle/meshcore.js', () => {
   class MockWebSerialConnection {
@@ -39,8 +41,8 @@ vi.mock('@liamcottle/meshcore.js', () => {
     }
     close = vi.fn().mockResolvedValue(undefined);
     getSelfInfo = getSelfInfoMock;
-    getContacts = vi.fn().mockResolvedValue([]);
-    getChannels = vi.fn().mockResolvedValue([]);
+    getContacts = getContactsMock;
+    getChannels = getChannelsMock;
     deviceQuery = vi.fn().mockResolvedValue({
       firmwareVer: 1,
       firmware_build_date: 'test',
@@ -161,6 +163,8 @@ describe('useMeshCore stats parsing', () => {
       txPower: 22,
       radioFreq: 902_000_000,
     });
+    getContactsMock.mockResolvedValue([]);
+    getChannelsMock.mockResolvedValue([]);
     getStatsCoreMock.mockResolvedValue({
       type: 0,
       raw: (() => {
@@ -253,5 +257,48 @@ describe('useMeshCore stats parsing', () => {
 
     expect(getStatsRadioMock).toHaveBeenCalled();
     expect(getStatsPacketsMock).toHaveBeenCalled();
+  });
+
+  it('hydrates channels before a slow contacts refresh completes', async () => {
+    let resolveContacts: ((value: []) => void) | undefined;
+    const contactsPromise = new Promise<[]>((resolve) => {
+      resolveContacts = resolve;
+    });
+    const opsSecret = new Uint8Array(16).fill(0x11);
+    getContactsMock.mockReturnValueOnce(contactsPromise);
+    getChannelsMock.mockResolvedValueOnce([
+      {
+        channelIdx: 1,
+        name: 'Ops',
+        secret: opsSecret,
+      },
+    ]);
+
+    const port = makeMockSerialPort();
+    Object.defineProperty(navigator, 'serial', {
+      configurable: true,
+      value: {
+        requestPort: vi.fn().mockResolvedValue(port),
+      },
+    });
+
+    const { result } = renderHook(() => useMeshCore());
+
+    let connectPromise: Promise<void> | undefined;
+    await act(async () => {
+      connectPromise = result.current.connect('serial');
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(result.current.state.status).toBe('configured');
+      expect(result.current.channels).toEqual([{ index: 1, name: 'Ops', secret: opsSecret }]);
+    });
+    expect(result.current.nodes.size).toBe(0);
+
+    resolveContacts?.([]);
+    await act(async () => {
+      await connectPromise;
+    });
   });
 });

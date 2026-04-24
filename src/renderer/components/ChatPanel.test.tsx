@@ -1,11 +1,15 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
 
 import type { MeshNode } from '../lib/types';
 import ChatPanel, { getDistFromChatBottom } from './ChatPanel';
 import { ToastProvider } from './Toast';
+
+beforeEach(() => {
+  localStorage.clear();
+});
 
 describe('ChatPanel accessibility', () => {
   const defaultProps = {
@@ -27,6 +31,7 @@ describe('ChatPanel accessibility', () => {
         <ChatPanel {...defaultProps} />
       </ToastProvider>,
     );
+    await screen.findByPlaceholderText('Connect to send messages');
     const results = await axe(container);
     expect(results).toHaveNoViolations();
   });
@@ -67,7 +72,9 @@ describe('ChatPanel accessibility', () => {
     const reactButtons = screen.getAllByTitle('React');
     await user.click(reactButtons[1]);
     // Picker should be visible — emoji buttons are titled 'Like', 'Love', etc.
-    expect(screen.getByTitle('Like')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTitle('Like')).toBeInTheDocument();
+    });
   });
 
   it('displays full hex ID for stub nodes with no short_name', () => {
@@ -226,7 +233,9 @@ describe('ChatPanel accessibility', () => {
 
     expect(screen.queryByText('Private hello')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Alice' }));
-    expect(screen.getByText('Private hello')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Private hello')).toBeInTheDocument();
+    });
   });
 
   it('shows close button for inferred DM tabs in Meshtastic', () => {
@@ -318,7 +327,9 @@ describe('ChatPanel accessibility', () => {
 
     expect(screen.getByRole('button', { name: 'Alice' })).toBeInTheDocument();
     await user.click(screen.getByTitle('Close DM'));
-    expect(screen.queryByRole('button', { name: 'Alice' })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Alice' })).not.toBeInTheDocument();
+    });
 
     rerender(
       <ToastProvider>
@@ -462,7 +473,9 @@ describe('ChatPanel accessibility', () => {
 
     expect(screen.getByRole('button', { name: 'Alice' })).toBeInTheDocument();
     await user.click(screen.getByTitle('Close DM'));
-    expect(screen.queryByRole('button', { name: 'Alice' })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Alice' })).not.toBeInTheDocument();
+    });
 
     // Re-render with same messages — tab should stay dismissed
     rerender(
@@ -835,5 +848,195 @@ describe('ChatPanel StatusBadge', () => {
     await user.hover(badge);
     const tooltip = document.querySelector('.pointer-events-none');
     expect(tooltip?.textContent?.trim()).toBeTruthy();
+  });
+});
+
+describe('ChatPanel unread watermarks', () => {
+  const baseProps = {
+    messages: [],
+    channels: [
+      { index: 0, name: 'General' },
+      { index: 1, name: 'Ops' },
+    ],
+    myNodeNum: 1,
+    onSend: vi.fn().mockResolvedValue(undefined),
+    onReact: vi.fn().mockResolvedValue(undefined),
+    onResend: vi.fn(),
+    onNodeClick: vi.fn(),
+    isConnected: true,
+    nodes: new Map(),
+    isActive: true,
+  };
+
+  it('clears a non-primary channel badge after that channel is viewed', async () => {
+    const user = userEvent.setup();
+    const ts = Date.now();
+    render(
+      <ToastProvider>
+        <ChatPanel
+          {...baseProps}
+          messages={[
+            {
+              sender_id: 2,
+              sender_name: 'Alice',
+              payload: 'Ops ping',
+              channel: 1,
+              timestamp: ts,
+              status: 'acked',
+            },
+          ]}
+        />
+      </ToastProvider>,
+    );
+
+    expect(screen.getByRole('button', { name: 'Ops 1' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Ops 1' }));
+    await user.click(screen.getByRole('button', { name: 'General' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Ops' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Ops 1' })).not.toBeInTheDocument();
+    });
+  });
+
+  it('keeps a read channel cleared when delayed history rows are merged later', async () => {
+    const user = userEvent.setup();
+    const ts = Date.now();
+    const { rerender } = render(
+      <ToastProvider>
+        <ChatPanel
+          {...baseProps}
+          messages={[
+            {
+              sender_id: 2,
+              sender_name: 'Alice',
+              payload: 'Ops ping',
+              channel: 1,
+              timestamp: ts,
+              status: 'acked',
+            },
+          ]}
+        />
+      </ToastProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Ops 1' }));
+    await user.click(screen.getByRole('button', { name: 'General' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Ops 1' })).not.toBeInTheDocument();
+    });
+
+    rerender(
+      <ToastProvider>
+        <ChatPanel
+          {...baseProps}
+          messages={[
+            {
+              sender_id: 2,
+              sender_name: 'Alice',
+              payload: 'Ops ping',
+              channel: 1,
+              timestamp: ts,
+              status: 'acked',
+            },
+            {
+              sender_id: 2,
+              sender_name: 'Alice',
+              payload: 'Delayed history replay',
+              channel: 1,
+              timestamp: ts + 60_000,
+              status: 'acked',
+              isHistory: true,
+            },
+          ]}
+        />
+      </ToastProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Ops' })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('button', { name: 'Ops 1' })).not.toBeInTheDocument();
+  });
+
+  it('clears future-dated channel messages once that channel is read', async () => {
+    const user = userEvent.setup();
+    const futureTs = Date.now() + 300_000;
+    render(
+      <ToastProvider>
+        <ChatPanel
+          {...baseProps}
+          messages={[
+            {
+              sender_id: 2,
+              sender_name: 'Alice',
+              payload: 'Clock skewed future message',
+              channel: 1,
+              timestamp: futureTs,
+              status: 'acked',
+            },
+          ]}
+        />
+      </ToastProvider>,
+    );
+
+    expect(screen.getByRole('button', { name: 'Ops 1' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Ops 1' }));
+    await user.click(screen.getByRole('button', { name: 'General' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Ops' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Ops 1' })).not.toBeInTheDocument();
+    });
+  });
+
+  it('clears all channel unread state when the All view is opened', async () => {
+    const user = userEvent.setup();
+    const ts = Date.now();
+    render(
+      <ToastProvider>
+        <ChatPanel
+          {...baseProps}
+          channels={[
+            { index: 2, name: 'Meta' },
+            { index: 0, name: 'General' },
+            { index: 1, name: 'Ops' },
+          ]}
+          messages={[
+            {
+              sender_id: 2,
+              sender_name: 'Alice',
+              payload: 'General unread',
+              channel: 0,
+              timestamp: ts,
+              status: 'acked',
+            },
+            {
+              sender_id: 3,
+              sender_name: 'Bob',
+              payload: 'Ops unread',
+              channel: 1,
+              timestamp: ts + 1_000,
+              status: 'acked',
+            },
+          ]}
+        />
+      </ToastProvider>,
+    );
+
+    expect(screen.getByRole('button', { name: 'General 1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ops 1' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'All' }));
+    await user.click(screen.getByRole('button', { name: 'Meta' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'General' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Ops' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'General 1' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Ops 1' })).not.toBeInTheDocument();
+    });
   });
 });
