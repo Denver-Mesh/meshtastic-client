@@ -1996,7 +1996,7 @@ export default function ConnectionPanel({
                           port: 443,
                           topicPrefix: 'meshcore/test',
                           useWebSocket: true,
-                          keepalive: 60,
+                          keepalive: 30,
                           username: fromIdentity || prev.username,
                           password: '',
                         }));
@@ -2011,7 +2011,7 @@ export default function ConnectionPanel({
                           useWebSocket: true,
                           tlsEnabled: true,
                           wsPath: '/ws',
-                          keepalive: 60,
+                          keepalive: 30,
                           username: fromIdentity || prev.username,
                           password: '',
                         }));
@@ -2024,7 +2024,7 @@ export default function ConnectionPanel({
                           port: 443,
                           topicPrefix: 'meshcore/test',
                           useWebSocket: true,
-                          keepalive: 60,
+                          keepalive: 30,
                           username: fromIdentity || prev.username,
                           password: '',
                         }));

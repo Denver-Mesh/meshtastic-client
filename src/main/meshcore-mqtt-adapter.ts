@@ -62,6 +62,8 @@ export class MeshcoreMqttAdapter extends EventEmitter {
   private firstMessageLogged = false;
   private wssPingTimer: ReturnType<typeof setInterval> | null = null;
   private keepaliveRescheduleTimer: ReturnType<typeof setInterval> | null = null;
+  private connectionWatchdogTimer: ReturnType<typeof setInterval> | null = null;
+  private lastPacketReceivedAt = 0;
   private pingReqLogged = false;
   private pingRespLogged = false;
   private retryCount = 0;
@@ -181,6 +183,26 @@ export class MeshcoreMqttAdapter extends EventEmitter {
     }
   }
 
+  private clearConnectionWatchdog(): void {
+    if (this.connectionWatchdogTimer) {
+      clearInterval(this.connectionWatchdogTimer);
+      this.connectionWatchdogTimer = null;
+    }
+  }
+
+  private startConnectionWatchdog(): void {
+    this.clearConnectionWatchdog();
+    const keepaliveSec = this.lastSettings?.keepalive ?? 60;
+    const timeoutMs = keepaliveSec * 1500; // 1.5× keepalive, mirrors broker's own threshold
+    this.connectionWatchdogTimer = setInterval(() => {
+      if (this.status !== 'connected' || !this.client || this.lastPacketReceivedAt === 0) return;
+      if (Date.now() - this.lastPacketReceivedAt > timeoutMs) {
+        console.warn('[MeshCore MQTT] connection watchdog: no packets received, forcing reconnect');
+        this.client.end(true);
+      }
+    }, 15_000);
+  }
+
   private startKeepaliveReschedule(): void {
     this.clearKeepaliveReschedule();
     this.keepaliveRescheduleTimer = setInterval(() => {
@@ -264,9 +286,10 @@ export class MeshcoreMqttAdapter extends EventEmitter {
 
     // Match MQTTManager: WebSocket uses mqtt.connect({ protocol, host, port, path, … }) — not
     // mqtt.connect(urlString, opts), which can hang or mis-handle TLS in Node mqtt.js.
-    // Use MQTT keepalive for both WebSocket and raw TCP; letsmesh requires PINGREQ every 60s.
+    // Use MQTT keepalive for both WebSocket and raw TCP; letsmesh brokers time out at 65s so we
+    // default to 30s to stay well inside that window.
     // WebSocket-level pings (MESHCORE_MQTT_WSS_PING_MS) additionally keep LB/proxy paths alive.
-    const keepaliveSec = settings.keepalive ?? 60;
+    const keepaliveSec = settings.keepalive ?? 30;
     const wsEnabled = settings.useWebSocket === true;
     const wsTlsEnabled =
       settings.tlsEnabled === true || (settings.tlsEnabled !== false && settings.port === 443);
@@ -353,7 +376,9 @@ export class MeshcoreMqttAdapter extends EventEmitter {
       );
       this.clientIdStr = this.client?.options?.clientId ?? '';
       this.lastConnected = Date.now();
+      this.lastPacketReceivedAt = Date.now();
       this.setStatus('connected');
+      this.startConnectionWatchdog();
       this.emit('clientId', this.clientIdStr);
       // LetsMesh/Colorado brokers (v1_ username) are publish-only — skip subscribe.
       const isLetsMeshBroker = /^v1_[0-9A-Fa-f]{64}$/i.test(settings.username ?? '');
@@ -411,6 +436,7 @@ export class MeshcoreMqttAdapter extends EventEmitter {
       }
     });
     this.client.on('packetreceive', (packet) => {
+      this.lastPacketReceivedAt = Date.now();
       if (packet.cmd === 'pingresp') {
         this.pingRespLogged = false;
         console.debug('[MeshCore MQTT] PINGRESP received', new Date().toISOString());
@@ -451,6 +477,7 @@ export class MeshcoreMqttAdapter extends EventEmitter {
     this.client.on('close', () => {
       this.clearWssPing();
       this.clearKeepaliveReschedule();
+      this.clearConnectionWatchdog();
       this.clearConnectTimers();
       const now = Date.now();
       this.disconnectCount++;
