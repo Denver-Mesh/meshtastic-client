@@ -355,33 +355,37 @@ export class MeshcoreMqttAdapter extends EventEmitter {
       this.lastConnected = Date.now();
       this.setStatus('connected');
       this.emit('clientId', this.clientIdStr);
-      // Add small delay before resubscribing to allow broker to stabilize
-      setTimeout(() => {
-        if (this.status !== 'connected' || !this.client) return;
-        const base = normalizePrefix(settings.topicPrefix || 'msh');
-        const subTopic = `${base}/#`;
-        this.client.subscribe(subTopic, (err: Error | null) => {
-          if (err) {
-            if (this.connectAbortByWatchdog) {
-              this.connectAbortByWatchdog = false;
+      // LetsMesh/Colorado brokers (v1_ username) are publish-only — skip subscribe.
+      const isLetsMeshBroker = /^v1_[0-9A-Fa-f]{64}$/i.test(settings.username ?? '');
+      if (!isLetsMeshBroker) {
+        // Add small delay before resubscribing to allow broker to stabilize
+        setTimeout(() => {
+          if (this.status !== 'connected' || !this.client) return;
+          const base = normalizePrefix(settings.topicPrefix || 'msh');
+          const subTopic = `${base}/#`;
+          this.client.subscribe(subTopic, (err: Error | null) => {
+            if (err) {
+              if (this.connectAbortByWatchdog) {
+                this.connectAbortByWatchdog = false;
+                return;
+              }
+              // Cascade after transport teardown (e.g. keepalive) — user already got `error`.
+              if (/^connection closed$/i.test(err.message.trim())) {
+                console.debug(
+                  '[MeshCore MQTT] subscribe skipped (connection closed)',
+                  sanitizeLogMessage(subTopic),
+                );
+                return;
+              }
+              const detail = `Subscribe to ${subTopic} failed: ${err.message}`;
+              console.warn('[MeshCore MQTT] subscribe warning', sanitizeLogMessage(detail));
+              this.emit('subscribeWarning', detail);
               return;
             }
-            // Cascade after transport teardown (e.g. keepalive) — user already got `error`.
-            if (/^connection closed$/i.test(err.message.trim())) {
-              console.debug(
-                '[MeshCore MQTT] subscribe skipped (connection closed)',
-                sanitizeLogMessage(subTopic),
-              );
-              return;
-            }
-            const detail = `Subscribe to ${subTopic} failed: ${err.message}`;
-            console.warn('[MeshCore MQTT] subscribe warning', sanitizeLogMessage(detail));
-            this.emit('subscribeWarning', detail);
-            return;
-          }
-          console.debug('[MeshCore MQTT] subscribe callback OK', sanitizeLogMessage(subTopic));
-        });
-      }, 500);
+            console.debug('[MeshCore MQTT] subscribe callback OK', sanitizeLogMessage(subTopic));
+          });
+        }, 500);
+      }
       // WebSocket-level pings keep LB/proxy paths alive independent of MQTT keepalive
       if (settings.useWebSocket) {
         // Ping every 10s so intermediary idle timers stay reset
