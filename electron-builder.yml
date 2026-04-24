@@ -11,8 +11,6 @@ files:
 asarUnpack:
   - 'node_modules/systeminformation/**/*'
   - 'node_modules/@stoprocent/**/*'
-asar:
-  integrity: true
 publish:
   provider: github
   owner: Colorado-Mesh
