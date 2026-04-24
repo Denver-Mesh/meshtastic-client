@@ -340,7 +340,21 @@ function ChatPanel({
   }, [dismissedDmTabs, protocol]);
 
   // Track unread counts per channel
-  const lastReadRef = useRef<Map<number, number>>(new Map());
+  // Initialize from persisted localStorage on mount - converts "ch:0" keys to numeric channel indices
+  const initialLastReadMap = useMemo(() => {
+    const map = new Map<number, number>();
+    const initial = loadPersistedLastReadInitial(protocol);
+    for (const [key, value] of Object.entries(initial)) {
+      if (key.startsWith('ch:')) {
+        const channelIndex = parseInt(key.slice(2), 10);
+        if (!isNaN(channelIndex)) {
+          map.set(channelIndex, value);
+        }
+      }
+    }
+    return map;
+  }, [protocol]);
+  const lastReadRef = useRef<Map<number, number>>(initialLastReadMap);
   const [unreadCounts, setUnreadCounts] = useState<Map<number, number>>(new Map());
 
   // Persisted lastRead: { "ch:0": timestamp, "ch:2": ..., "dm:12345678": ... }
