@@ -11,6 +11,9 @@ const MESHCORE_MQTT_DEFAULTS: MQTTSettings = {
   autoLaunch: false,
   maxRetries: 3,
   tokenExpiresAt: undefined,
+  useWebSocket: true,
+  tlsEnabled: true,
+  wsPath: '/ws',
 };
 
 /** Read persisted MeshCore MQTT settings (same merge as ConnectionPanel). */

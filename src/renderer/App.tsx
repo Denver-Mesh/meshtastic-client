@@ -1133,7 +1133,7 @@ export default function App() {
           e.preventDefault();
           setActiveTab(targetIndex);
         }
-      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'm') {
         const targetIndex = displayTabNames.indexOf('Stats');
         if (targetIndex >= 0 && targetIndex <= maxTab) {
           e.preventDefault();

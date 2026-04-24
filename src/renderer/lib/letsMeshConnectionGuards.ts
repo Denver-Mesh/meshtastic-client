@@ -2,7 +2,7 @@ import { COLORADO_MESH_HOST, isLetsMeshSettings } from './letsMeshJwt';
 import type { MQTTSettings } from './types';
 
 function getExpectedPort(server: string): number | null {
-  if (server.trim() === COLORADO_MESH_HOST) return 8883;
+  if (server.trim() === COLORADO_MESH_HOST) return 1883;
   return 443;
 }
 

@@ -178,6 +178,40 @@ function withoutDmNode(source: Record<number, number>, nodeNum: number): Record<
   return Object.fromEntries(Object.entries(source).filter(([key]) => Number(key) !== nodeNum));
 }
 
+function latestMessageTimestamp(messages: readonly ChatMessage[]): number {
+  let latest = 0;
+  for (const msg of messages) {
+    if (msg.timestamp > latest) latest = msg.timestamp;
+  }
+  return latest;
+}
+
+function latestChannelWatermarks(messages: readonly ChatMessage[]): Map<number, number> {
+  const watermarks = new Map<number, number>();
+  for (const msg of messages) {
+    if (msg.to != null) continue;
+    const prev = watermarks.get(msg.channel) ?? 0;
+    if (msg.timestamp > prev) {
+      watermarks.set(msg.channel, msg.timestamp);
+    }
+  }
+  return watermarks;
+}
+
+function mergeReadWatermarks(
+  prev: Record<string, number>,
+  watermarks: Iterable<readonly [string, number]>,
+): Record<string, number> {
+  let next = prev;
+  for (const [key, value] of watermarks) {
+    if (value <= 0) continue;
+    if ((next[key] ?? 0) >= value) continue;
+    if (next === prev) next = { ...prev };
+    next[key] = value;
+  }
+  return next;
+}
+
 /**
  * Distance from the “bottom” of the chat (latest messages). Uses the **maximum** of:
  * - Inner `overflow-y-auto` distance when the message list overflows, and
@@ -302,8 +336,6 @@ function ChatPanel({
   const [openDmTabs, setOpenDmTabs] = useState<number[]>(() => loadOpenDmTabsInitial(protocol));
   const openDmTabsRef = useRef(openDmTabs);
   openDmTabsRef.current = openDmTabs;
-  const channelsRef = useRef(channels);
-  channelsRef.current = channels;
   const [activeDmNode, setActiveDmNode] = useState<number | null>(null);
   const [dismissedDmTabs, setDismissedDmTabs] = useState<Record<number, number>>(() => {
     const raw = localStorage.getItem(dismissedDmTabsStorageKey(protocol));
@@ -338,10 +370,6 @@ function ChatPanel({
       console.warn('[ChatPanel] persist dismissedDmTabs failed', e);
     }
   }, [dismissedDmTabs, protocol]);
-
-  // Track unread counts per channel
-  const lastReadRef = useRef<Map<number, number>>(new Map());
-  const [unreadCounts, setUnreadCounts] = useState<Map<number, number>>(new Map());
 
   // Persisted lastRead: { "ch:0": timestamp, "ch:2": ..., "dm:12345678": ... }
   const [persistedLastRead, setPersistedLastRead] = useState<Record<string, number>>(() =>
@@ -481,56 +509,34 @@ function ChatPanel({
     return map;
   }, [regularMessages]);
 
-  // Update unread counts when messages change
-  useEffect(() => {
+  const unreadCounts = useMemo(() => {
     const counts = new Map<number, number>();
     for (const msg of regularMessages) {
       if (isOwnNode(msg.sender_id)) continue; // own messages don't count
       if (msg.to) continue; // DMs don't contribute to channel unread counts
-      const lastRead = lastReadRef.current.get(msg.channel) ?? 0;
+      if (msg.isHistory) continue; // history rehydration must not create fresh unread badges
+      const lastRead = persistedLastRead[`ch:${msg.channel}`] ?? 0;
       if (msg.timestamp > lastRead) {
         counts.set(msg.channel, (counts.get(msg.channel) ?? 0) + 1);
       }
     }
-    setUnreadCounts(counts);
-  }, [isOwnNode, regularMessages]);
+    return counts;
+  }, [isOwnNode, persistedLastRead, regularMessages]);
 
-  // Mark current channel as read when switching or viewing
-  useEffect(() => {
-    if (viewMode === 'channels') {
-      const now = Date.now();
-      if (channel === -1) {
-        // "All" view: mark every channel as read
-        for (const ch of channelsRef.current) {
-          lastReadRef.current.set(ch.index, now);
-        }
-        setUnreadCounts(new Map());
-      } else {
-        lastReadRef.current.set(channel, now);
-        setUnreadCounts((prev) => {
-          const next = new Map(prev);
-          next.delete(channel);
-          return next;
-        });
-      }
-    }
-  }, [channel, regularMessages.length, viewMode]);
-
-  const filteredMessages = useMemo(() => {
-    let msgs: ChatMessage[];
-
+  const viewMessages = useMemo(() => {
     if (viewMode === 'dm' && activeDmNode != null) {
-      // DM mode: show conversation between self and active DM node
-      msgs = regularMessages.filter(
+      return regularMessages.filter(
         (m) =>
           (m.to === activeDmNode && isOwnNode(m.sender_id)) ||
           (m.sender_id === activeDmNode && m.to != null && isOwnNode(m.to)),
       );
-    } else {
-      // Channel mode: show only broadcast messages (no DMs)
-      msgs = regularMessages.filter((m) => !m.to && (channel === -1 || m.channel === channel));
     }
 
+    return regularMessages.filter((m) => !m.to && (channel === -1 || m.channel === channel));
+  }, [activeDmNode, channel, isOwnNode, regularMessages, viewMode]);
+
+  const filteredMessages = useMemo(() => {
+    let msgs = viewMessages;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       msgs = msgs.filter(
@@ -538,12 +544,35 @@ function ChatPanel({
       );
     }
     return msgs;
-  }, [activeDmNode, channel, isOwnNode, regularMessages, searchQuery, viewMode]);
+  }, [searchQuery, viewMessages]);
 
   const viewKey = useMemo(() => {
     if (viewMode === 'dm' && activeDmNode != null) return `dm:${activeDmNode}`;
     return `ch:${channel}`;
   }, [viewMode, activeDmNode, channel]);
+
+  const markCurrentViewRead = useCallback(() => {
+    if (viewMode === 'dm' && activeDmNode == null) return;
+
+    if (viewKey === 'ch:-1') {
+      const watermarks = latestChannelWatermarks(viewMessages);
+      if (watermarks.size === 0) return;
+      setPersistedLastRead((prev) =>
+        mergeReadWatermarks(
+          prev,
+          Array.from(watermarks.entries(), ([channelIndex, timestamp]) => [
+            `ch:${channelIndex}`,
+            timestamp,
+          ]),
+        ),
+      );
+      return;
+    }
+
+    const latest = latestMessageTimestamp(viewMessages);
+    if (latest === 0) return;
+    setPersistedLastRead((prev) => mergeReadWatermarks(prev, [[viewKey, latest]]));
+  }, [activeDmNode, viewKey, viewMessages, viewMode]);
 
   // On view switch: snapshot lastRead for divider + arm scroll trigger
   useEffect(() => {
@@ -557,6 +586,11 @@ function ChatPanel({
     setUnreadDividerTimestamp(snapshot);
     setTriggerScrollToUnread((n) => n + 1);
   }, [viewKey]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    markCurrentViewRead();
+  }, [isActive, markCurrentViewRead]);
 
   const updateScrollButtonVisibility = useCallback(() => {
     const distFromBottom = getDistFromChatBottom(
@@ -572,12 +606,11 @@ function ChatPanel({
   const applyNearBottomReadState = useCallback(
     (distFromBottom: number) => {
       if (distFromBottom < 50) {
-        const now = Date.now();
-        setPersistedLastRead((prev) => ({ ...prev, [viewKey]: now }));
+        markCurrentViewRead();
         setUnreadDividerTimestamp(0); // hide divider once user has read to bottom
       }
     },
-    [viewKey],
+    [markCurrentViewRead],
   );
 
   // Scroll tracking for scroll-to-bottom button + mark-as-read when at bottom

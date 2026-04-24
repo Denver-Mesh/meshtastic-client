@@ -4,8 +4,8 @@ export const LETSMESH_HOST_US = 'mqtt-us-v1.letsmesh.net';
 export const LETSMESH_HOST_EU = 'mqtt-eu-v1.letsmesh.net';
 /** MeshMapper broker (WebSocket TLS on 443). */
 export const MESHMAPPER_HOST = 'mqtt.meshmapper.cc';
-/** Colorado Mesh broker (WebSocket, TLS disabled). */
-export const COLORADO_MESH_HOST = 'meshcore_mqtt.coloradomesh.org';
+/** Colorado Mesh broker (WebSocket, TLS enabled, port 1883). */
+export const COLORADO_MESH_HOST = 'mqtt.meshcore.coloradomesh.org';
 
 /** @deprecated Use {@link LETSMESH_HOST_US} */
 export const LETSMESH_HOST = LETSMESH_HOST_US;
@@ -23,13 +23,6 @@ export function isLetsMeshSettings(server: string): boolean {
 }
 
 /**
- * Custom JWT audience for brokers that require a specific `aud` claim (differs from server hostname).
- */
-const CUSTOM_JWT_AUDIENCES: Record<string, string> = {
-  [COLORADO_MESH_HOST]: 'meshcore_mqtt.coloradomesh.org',
-};
-
-/**
  * JWT `aud` for `createAuthToken`: trimmed MQTT server hostname (must match broker
  * `AUTH_EXPECTED_AUDIENCE` when set). Public LetsMesh US/EU use the regional broker host
  * (`mqtt-us-v1.letsmesh.net`, `mqtt-eu-v1.letsmesh.net`), matching common tooling such as
@@ -37,8 +30,7 @@ const CUSTOM_JWT_AUDIENCES: Record<string, string> = {
  * generated token.
  */
 export function letsMeshJwtAudience(serverHost: string): string {
-  const host = serverHost.trim();
-  return CUSTOM_JWT_AUDIENCES[host] ?? host;
+  return serverHost.trim();
 }
 
 // Read the identity cached by RadioPanel after a config-file import.
