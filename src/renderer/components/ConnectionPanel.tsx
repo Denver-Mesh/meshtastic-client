@@ -520,7 +520,6 @@ interface Props {
   mqttStatus: MQTTStatus;
   myNodeLabel?: string;
   protocol: MeshProtocol;
-  onProtocolChange: (p: MeshProtocol) => void;
   manualAddContacts?: boolean;
   onToggleManualContacts?: (manual: boolean) => Promise<void>;
   firmwareCheckState?: FirmwareCheckResult;
@@ -535,7 +534,6 @@ export default function ConnectionPanel({
   mqttStatus,
   myNodeLabel,
   protocol,
-  onProtocolChange,
   manualAddContacts,
   onToggleManualContacts,
   firmwareCheckState,
@@ -1523,32 +1521,6 @@ export default function ConnectionPanel({
     state.status === 'stale' ||
     state.status === 'reconnecting';
 
-  // ─── Protocol toggle (shown in both connected and disconnected views) ──
-  const protocolToggle = (
-    <div className="bg-deep-black flex overflow-hidden rounded-lg border border-gray-700">
-      {(['meshtastic', 'meshcore'] as const).map((p) => (
-        <button
-          key={p}
-          type="button"
-          aria-label={p === 'meshtastic' ? 'Meshtastic' : 'MeshCore'}
-          aria-pressed={protocol === p}
-          onClick={() => {
-            onProtocolChange(p);
-          }}
-          className={`flex-1 py-2 text-sm font-medium transition-colors ${
-            protocol === p
-              ? p === 'meshcore'
-                ? 'bg-cyan-600/20 text-cyan-400'
-                : 'bg-brand-green/20 text-brand-green border-brand-green'
-              : 'text-muted hover:bg-secondary-dark hover:text-gray-200'
-          }`}
-        >
-          {p === 'meshtastic' ? 'Meshtastic' : 'MeshCore'}
-        </button>
-      ))}
-    </div>
-  );
-
   // ─── Connecting Progress View ───────────────────────────────────
   if (connecting && !isConnected) {
     return (
@@ -2426,7 +2398,6 @@ export default function ConnectionPanel({
   if (isConnected) {
     return (
       <div className="w-full space-y-6">
-        {protocolToggle}
         <button
           onClick={async () => {
             // Cap wait so quit always runs if transport teardown hangs (e.g. Windows serial/BLE).
@@ -2558,7 +2529,6 @@ export default function ConnectionPanel({
   // ─── Disconnected View ─────────────────────────────────────────
   return (
     <div className="w-full space-y-6">
-      {protocolToggle}
       {mqttStatus === 'connected' && (
         <button
           type="button"
