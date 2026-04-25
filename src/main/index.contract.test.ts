@@ -51,7 +51,9 @@ describe('MeshCore DB IPC (source contract)', () => {
     expect(INDEX_SOURCE).toContain("'db:updateMeshcoreContactLastRf'");
     expect(INDEX_SOURCE).toContain('last_snr = ?,');
     expect(INDEX_SOURCE).toContain('last_rssi = ?,');
-    expect(INDEX_SOURCE).toContain('hops_away = COALESCE(?, hops_away),');
+    expect(INDEX_SOURCE).toContain(
+      'hops_away = CASE WHEN ? IS NOT NULL AND (hops_away IS NULL OR ? < hops_away) THEN ? ELSE hops_away END,',
+    );
     expect(INDEX_SOURCE).toContain('last_advert = CASE WHEN ? IS NOT NULL');
   });
 
@@ -59,6 +61,9 @@ describe('MeshCore DB IPC (source contract)', () => {
     expect(INDEX_SOURCE).toContain("'db:saveMeshcoreContact'");
     expect(INDEX_SOURCE).toContain('ON CONFLICT(node_id) DO UPDATE SET');
     expect(INDEX_SOURCE).toContain('favorited = meshcore_contacts.favorited');
+    expect(INDEX_SOURCE).toContain(
+      'hops_away = CASE WHEN excluded.hops_away IS NOT NULL AND (meshcore_contacts.hops_away IS NULL OR excluded.hops_away < meshcore_contacts.hops_away) THEN excluded.hops_away ELSE meshcore_contacts.hops_away END,',
+    );
     expect(INDEX_SOURCE).not.toContain('INSERT OR REPLACE INTO meshcore_contacts');
   });
 });

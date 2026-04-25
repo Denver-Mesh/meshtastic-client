@@ -339,6 +339,10 @@ export function meshcoreMergeContactHopsAwayFromPrevious(
     if (inferred === undefined || (inferred === 0 && slicedPathByteLength <= 1)) {
       return prev;
     }
+    // Prefer the smaller (better) hop count if both are defined and >= 1
+    if (inferred >= 1) {
+      return Math.min(inferred, prev);
+    }
   } else if (inferred === undefined && prev !== undefined) {
     return prev;
   }

@@ -1477,16 +1477,22 @@ export function useMeshCore() {
           }
         }
         // Merge hops_away from nodes table as fallback for any nodes missing it
-        for (const n of savedNodes as { node_id: number; hops_away: number | null }[]) {
-          if (n.hops_away != null) {
+        for (const n of savedNodes as {
+          node_id: number;
+          hops_away: number | null;
+          hops: number | null;
+        }[]) {
+          const hopCount = n.hops ?? n.hops_away;
+          if (hopCount != null) {
             const existing = initial.get(n.node_id);
             if (existing && existing.hops_away === undefined) {
-              initial.set(n.node_id, { ...existing, hops_away: n.hops_away });
+              initial.set(n.node_id, { ...existing, hops_away: hopCount });
             }
           }
         }
         const mapped = mapMeshcoreDbRowsToChatMessages(dbMsgs as MeshcoreMessageDbRow[]);
-        setNodes(mergeStubNodesFromMeshcoreMessages(initial, mapped));
+        const mergedInitial = mergeStubNodesFromMeshcoreMessages(initial, mapped);
+        setNodes(mergedInitial);
         if (mapped.length > 0) {
           setMessages((prev) => mergeMeshcoreDbHydrationWithLive(prev, mapped));
         }
@@ -1742,17 +1748,49 @@ export function useMeshCore() {
             });
           }
         }
-        for (const row of dbContacts) {
+        for (const row of dbContacts as (MeshcoreContactDbRow & { hops?: number | null })[]) {
           const existing = nextNodes.get(row.node_id);
           if (!existing) continue;
-          if (existing.hops_away === undefined && row.hops_away != null) {
-            nextNodes.set(row.node_id, { ...existing, hops_away: row.hops_away });
+          if (existing.hops_away === undefined) {
+            const hopCount = row.hops_away ?? row.hops;
+            if (hopCount != null) {
+              nextNodes.set(row.node_id, { ...existing, hops_away: hopCount });
+            }
           }
         }
         for (const row of dbContacts) {
           const existing = nextNodes.get(row.node_id);
           if (existing) {
-            nextNodes.set(row.node_id, { ...existing, favorited: row.favorited === 1 });
+            const fallbackSnr =
+              typeof row.last_snr === 'number' &&
+              Number.isFinite(row.last_snr) &&
+              row.last_snr !== 0
+                ? row.last_snr
+                : null;
+            const fallbackRssi =
+              typeof row.last_rssi === 'number' &&
+              Number.isFinite(row.last_rssi) &&
+              row.last_rssi !== 0
+                ? row.last_rssi
+                : null;
+            const nextSnr =
+              typeof existing.snr === 'number' &&
+              Number.isFinite(existing.snr) &&
+              existing.snr !== 0
+                ? existing.snr
+                : (fallbackSnr ?? existing.snr);
+            const nextRssi =
+              typeof existing.rssi === 'number' &&
+              Number.isFinite(existing.rssi) &&
+              existing.rssi !== 0
+                ? existing.rssi
+                : (fallbackRssi ?? existing.rssi);
+            nextNodes.set(row.node_id, {
+              ...existing,
+              favorited: row.favorited === 1,
+              snr: nextSnr,
+              rssi: nextRssi,
+            });
           }
         }
         for (const row of dbContacts) {
@@ -4132,6 +4170,7 @@ export function useMeshCore() {
         return next;
       });
 
+      let tracePathHash: string | undefined;
       try {
         const conn = connRef.current;
         if (!conn) {
@@ -4247,16 +4286,48 @@ export function useMeshCore() {
         if (outPath.length === 1 && outPath[0] === 0 && pubKey[0] !== 0) {
           outPath = new Uint8Array([pubKey[0]]);
         }
-        const result = await withTimeout(
-          runMeshcoreTracePathMultiplexed(
-            conn as unknown as MeshcoreTracePathMuxConnection,
-            outPath,
-            MESHCORE_TRACE_TIMEOUT_MS,
-            repeaterRemoteRpcRef.current,
-          ),
-          MESHCORE_TRACE_PING_TOTAL_TIMEOUT_MS,
-          'meshcoreTracePing',
-        );
+        const tracePathBytes = Array.from(outPath);
+        tracePathHash = tracePathBytes.length > 0 ? computePathHash(tracePathBytes) : undefined;
+        if (tracePathHash) {
+          const tracePathHops =
+            typeof hopsAway === 'number' && Number.isFinite(hopsAway)
+              ? Math.max(0, hopsAway)
+              : Math.max(0, tracePathBytes.length - 1);
+          usePathHistoryStore
+            .getState()
+            .recordPathUpdated(nodeId, tracePathBytes, tracePathHops, false);
+        }
+        let tracePathInUse = outPath;
+        let result;
+        try {
+          result = await withTimeout(
+            runMeshcoreTracePathMultiplexed(
+              conn as unknown as MeshcoreTracePathMuxConnection,
+              tracePathInUse,
+              MESHCORE_TRACE_TIMEOUT_MS,
+              repeaterRemoteRpcRef.current,
+            ),
+            MESHCORE_TRACE_PING_TOTAL_TIMEOUT_MS,
+            'meshcoreTracePing',
+          );
+        } catch (firstTraceError: unknown) {
+          const directRetryEligible = (hopsAway ?? 0) === 0 && tracePathInUse.length === 1;
+          if (!directRetryEligible) throw firstTraceError;
+          tracePathInUse = new Uint8Array(pubKey);
+          const retryPathBytes = Array.from(tracePathInUse);
+          tracePathHash = computePathHash(retryPathBytes);
+          usePathHistoryStore.getState().recordPathUpdated(nodeId, retryPathBytes, 0, false);
+          result = await withTimeout(
+            runMeshcoreTracePathMultiplexed(
+              conn as unknown as MeshcoreTracePathMuxConnection,
+              tracePathInUse,
+              MESHCORE_TRACE_TIMEOUT_MS,
+              repeaterRemoteRpcRef.current,
+            ),
+            MESHCORE_TRACE_PING_TOTAL_TIMEOUT_MS,
+            'meshcoreTracePingDirectRetry',
+          );
+        }
         const traceHops = meshcoreTracePathLenToHops(result.pathLen);
         const convertedSnrs = (result.pathSnrs ?? []).map((s) => s * MESHCORE_RPC_SNR_RAW_TO_DB);
         const convertedLastSnr = result.lastSnr;
@@ -4306,6 +4377,9 @@ export function useMeshCore() {
           });
         useRepeaterSignalStore.getState().recordSignal(nodeId, result.lastSnr);
         bumpMeshcoreNodeLastHeardFromRpc(nodeId);
+        if (tracePathHash) {
+          usePathHistoryStore.getState().recordOutcome(nodeId, tracePathHash, true);
+        }
         clearMeshcorePingNoRouteExpiryTimer(nodeId);
         setMeshcorePingErrors((prev) => {
           const next = new Map(prev);
@@ -4321,6 +4395,9 @@ export function useMeshCore() {
           ? `Request timed out (up to ~${Math.round(MESHCORE_TRACE_PING_TOTAL_TIMEOUT_MS / 1000)}s)`
           : `Failed: ${errMsg}`;
         friendlyErr = meshcoreAppendRepeaterAuthHint(friendlyErr);
+        if (tracePathHash) {
+          usePathHistoryStore.getState().recordOutcome(nodeId, tracePathHash, false);
+        }
         setMeshcorePingErrors((prev) => {
           const next = new Map(prev);
           next.set(nodeId, friendlyErr);
@@ -4994,16 +5071,18 @@ export function useMeshCore() {
 
     if (validEntries.length > 0) {
       const importSec = Math.floor(Date.now() / 1000);
-      let dbRows: { node_id: number; last_advert: number | null }[] = [];
+      let dbRows: { node_id: number; last_advert: number | null; hops_away: number | null }[] = [];
       try {
         dbRows = (await window.electronAPI.db.getMeshcoreContacts()) as {
           node_id: number;
           last_advert: number | null;
+          hops_away: number | null;
         }[];
       } catch (e: unknown) {
         console.warn('[useMeshCore] importContacts: getMeshcoreContacts for last_advert merge', e);
       }
       const dbLastAdvertById = new Map(dbRows.map((r) => [r.node_id, r.last_advert]));
+      const dbHopsById = new Map(dbRows.map((r) => [r.node_id, r.hops_away]));
       /** Built inside `setNodes` so we read merged `last_heard` before `nodesRef` catches up. */
       const lastAdvertForDbByNodeId = new Map<number, number>();
 
@@ -5029,6 +5108,7 @@ export function useMeshCore() {
               .map((b) => b.toString(16).padStart(2, '0'))
               .join('');
             pubKeyPrefixMapRef.current.set(prefix, nodeId);
+            const dbHops = dbHopsById.get(nodeId);
             next.set(nodeId, {
               node_id: nodeId,
               long_name: name,
@@ -5041,6 +5121,7 @@ export function useMeshCore() {
               latitude: hasImportGps ? latitude : null,
               longitude: hasImportGps ? longitude : null,
               favorited: false,
+              ...(dbHops != null ? { hops_away: dbHops } : {}),
             });
           }
           const rowPrior = dbLastAdvertById.get(nodeId);
@@ -5478,25 +5559,37 @@ export function useMeshCore() {
         last_snr: number | null;
         last_rssi: number | null;
         favorited: number;
+        hops_away: number | null;
       }[];
       setNodes((prev) => {
         const next = new Map(prev);
         for (const row of dbContacts) {
-          if (!next.has(row.node_id)) {
-            next.set(row.node_id, {
-              node_id: row.node_id,
-              long_name: row.adv_name ?? `Node-${row.node_id.toString(16).toUpperCase()}`,
-              short_name: '',
-              hw_model: CONTACT_TYPE_LABELS[row.contact_type] ?? 'Unknown',
-              battery: 0,
-              snr: row.last_snr ?? 0,
-              rssi: row.last_rssi ?? 0,
-              last_heard: row.last_advert ?? 0,
-              latitude: row.adv_lat ?? null,
-              longitude: row.adv_lon ?? null,
-              favorited: row.favorited === 1,
-            });
+          const existing = next.get(row.node_id);
+          const mergedHopsAway =
+            row.hops_away != null
+              ? existing?.hops_away != null
+                ? Math.min(existing.hops_away, row.hops_away)
+                : row.hops_away
+              : existing?.hops_away;
+          if (existing) {
+            if (existing.hops_away === mergedHopsAway) continue;
+            next.set(row.node_id, { ...existing, hops_away: mergedHopsAway });
+            continue;
           }
+          next.set(row.node_id, {
+            node_id: row.node_id,
+            long_name: row.adv_name ?? `Node-${row.node_id.toString(16).toUpperCase()}`,
+            short_name: '',
+            hw_model: CONTACT_TYPE_LABELS[row.contact_type] ?? 'Unknown',
+            battery: 0,
+            snr: row.last_snr ?? 0,
+            rssi: row.last_rssi ?? 0,
+            last_heard: row.last_advert ?? 0,
+            latitude: row.adv_lat ?? null,
+            longitude: row.adv_lon ?? null,
+            favorited: row.favorited === 1,
+            ...(mergedHopsAway != null ? { hops_away: mergedHopsAway } : {}),
+          });
         }
         return next;
       });

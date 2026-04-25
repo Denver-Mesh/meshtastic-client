@@ -1,9 +1,10 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
 
 import type { MeshNode } from '../lib/types';
+import { computePathHash, usePathHistoryStore } from '../stores/pathHistoryStore';
 import RepeatersPanel from './RepeatersPanel';
 
 const mockAddToast = vi.fn();
@@ -38,6 +39,21 @@ function mockRepeaterNode(id: number): MeshNode {
 
 const repeater = mockRepeaterNode(0xabc);
 
+function mockRepeaterNodeWithFavorited(id: number, favorited: boolean): MeshNode {
+  return {
+    node_id: id,
+    long_name: `Repeater ${id.toString(16)}`,
+    short_name: 'TR',
+    hw_model: 'Repeater',
+    snr: 2,
+    battery: 100,
+    last_heard: Math.floor(Date.now() / 1000),
+    latitude: null,
+    longitude: null,
+    favorited,
+  };
+}
+
 function makeBaseProps() {
   return {
     nodes: new Map([[repeater.node_id, repeater]]),
@@ -55,6 +71,7 @@ describe('RepeatersPanel', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    usePathHistoryStore.setState({ records: new Map(), lruOrder: [] });
   });
 
   afterEach(() => {
@@ -158,5 +175,108 @@ describe('RepeatersPanel', () => {
     await userEvent.click(screen.getByRole('button', { name: 'name' }));
 
     expect(onSendCliCommand).toHaveBeenCalledWith(repeater.node_id, 'name', false);
+  });
+
+  it('pins favorited repeaters above non-favorites', () => {
+    const now = Math.floor(Date.now() / 1000);
+    const older = mockRepeaterNodeWithFavorited(0x100, false);
+    older.last_heard = now - 1000;
+    const newer = mockRepeaterNodeWithFavorited(0x200, false);
+    newer.last_heard = now;
+    const favOlder = mockRepeaterNodeWithFavorited(0x300, true);
+    favOlder.last_heard = now - 100;
+
+    const nodes = new Map([
+      [older.node_id, older],
+      [newer.node_id, newer],
+      [favOlder.node_id, favOlder],
+    ]);
+
+    render(<RepeatersPanel {...makeBaseProps()} nodes={nodes} />);
+
+    // Extract text from name buttons (the underline-decorated ones) to check sort order
+    const nameLinks = screen
+      .getAllByRole('button', { name: /Repeater/ })
+      .filter((b) => b.className.includes('underline'));
+    const names = nameLinks.map((b) => b.textContent);
+    // Favorited repeater should be first even though newer repeater was heard more recently
+    expect(names).toHaveLength(3);
+    expect(names[0]).toBe('Repeater 300'); // favorited
+    expect(names[1]).toBe('Repeater 200'); // most recent non-fav
+    expect(names[2]).toBe('Repeater 100'); // oldest non-fav
+  });
+
+  it('renders reliability from historical path outcomes at launch', () => {
+    usePathHistoryStore.setState({
+      records: new Map([
+        [
+          repeater.node_id,
+          [
+            {
+              nodeId: repeater.node_id,
+              pathHash: 'aa',
+              hopCount: 1,
+              pathBytes: [0xaa],
+              wasFloodDiscovery: false,
+              successCount: 2,
+              failureCount: 1,
+              tripTimeMs: 0,
+              routeWeight: 1,
+              lastSuccessTs: null,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            },
+          ],
+        ],
+      ]),
+      lruOrder: [repeater.node_id],
+    });
+
+    render(<RepeatersPanel {...makeBaseProps()} />);
+
+    expect(screen.getByText('67%')).toBeInTheDocument();
+  });
+
+  it('updates reliability after new outcome and persists outcome to DB', async () => {
+    const dbOutcomeSpy = vi.spyOn(window.electronAPI.db, 'recordMeshcorePathOutcome');
+    const pathBytes = [0x33, 0x44];
+    const pathHash = computePathHash(pathBytes);
+    usePathHistoryStore.getState().recordPathUpdated(repeater.node_id, pathBytes, 1, false);
+
+    render(<RepeatersPanel {...makeBaseProps()} />);
+
+    await act(async () => {
+      usePathHistoryStore.getState().recordOutcome(repeater.node_id, pathHash, true);
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText('100%')).toBeInTheDocument();
+    expect(dbOutcomeSpy).toHaveBeenCalledWith(repeater.node_id, pathHash, true, undefined);
+  });
+
+  it('loads reliability from DB via ensureBestPathLoaded fallback on mount', async () => {
+    vi.spyOn(window.electronAPI.db, 'getMeshcorePathHistory').mockResolvedValue([
+      {
+        id: 1,
+        node_id: repeater.node_id,
+        path_hash: 'bb',
+        hop_count: 1,
+        path_bytes: '[187]',
+        was_flood_discovery: 0,
+        success_count: 3,
+        failure_count: 1,
+        trip_time_ms: 0,
+        route_weight: 1,
+        last_success_ts: null,
+        created_at: 1,
+        updated_at: 2,
+      },
+    ]);
+
+    render(<RepeatersPanel {...makeBaseProps()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('75%')).toBeInTheDocument();
+    });
   });
 });

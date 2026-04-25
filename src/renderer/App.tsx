@@ -1933,6 +1933,7 @@ export default function App() {
                               meshcoreCliHistories={meshcoreDevice.meshcoreCliHistories}
                               meshcoreCliErrors={meshcoreDevice.meshcoreCliErrors}
                               onClearCliHistory={meshcoreDevice.clearCliHistory}
+                              onToggleFavorite={meshcoreDevice.setNodeFavorited}
                             />
                           </Suspense>
                         </ErrorBoundary>

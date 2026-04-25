@@ -2488,7 +2488,10 @@ ipcMain.handle('db:saveNode', (_event, node) => {
         latitude = CASE WHEN excluded.latitude IS NOT NULL AND excluded.latitude != 0 THEN excluded.latitude ELSE nodes.latitude END,
         longitude = CASE WHEN excluded.longitude IS NOT NULL AND excluded.longitude != 0 THEN excluded.longitude ELSE nodes.longitude END,
         role = COALESCE(excluded.role, nodes.role),
-        hops_away = COALESCE(excluded.hops_away, nodes.hops_away),
+        hops_away = CASE
+          WHEN excluded.hops_away IS NOT NULL AND (nodes.hops_away IS NULL OR excluded.hops_away < nodes.hops_away) THEN excluded.hops_away
+          ELSE nodes.hops_away
+        END,
         via_mqtt = COALESCE(excluded.via_mqtt, nodes.via_mqtt),
         voltage = COALESCE(excluded.voltage, nodes.voltage),
         channel_utilization = COALESCE(excluded.channel_utilization, nodes.channel_utilization),
@@ -2502,7 +2505,10 @@ ipcMain.handle('db:saveNode', (_event, node) => {
         num_rx_dupe = COALESCE(excluded.num_rx_dupe, num_rx_dupe),
         num_packets_rx = COALESCE(excluded.num_packets_rx, num_packets_rx),
         num_packets_tx = COALESCE(excluded.num_packets_tx, num_packets_tx),
-        hops = COALESCE(excluded.hops, nodes.hops),
+        hops = CASE
+          WHEN excluded.hops IS NOT NULL AND (nodes.hops IS NULL OR excluded.hops < nodes.hops) THEN excluded.hops
+          ELSE nodes.hops
+        END,
         path = COALESCE(excluded.path, nodes.path)
     `);
     return stmt.run({
@@ -3266,7 +3272,7 @@ ipcMain.handle('db:saveMeshcoreContact', (_event, contact) => {
           'favorited = meshcore_contacts.favorited, ' +
           'nickname = COALESCE(excluded.nickname, meshcore_contacts.nickname), ' +
           'contact_flags = COALESCE(excluded.contact_flags, meshcore_contacts.contact_flags), ' +
-          'hops_away = COALESCE(excluded.hops_away, meshcore_contacts.hops_away), ' +
+          'hops_away = CASE WHEN excluded.hops_away IS NOT NULL AND (meshcore_contacts.hops_away IS NULL OR excluded.hops_away < meshcore_contacts.hops_away) THEN excluded.hops_away ELSE meshcore_contacts.hops_away END, ' +
           'on_radio = excluded.on_radio, ' +
           'last_synced_from_radio = excluded.last_synced_from_radio',
       )
@@ -3788,13 +3794,15 @@ ipcMain.handle(
           'UPDATE meshcore_contacts SET ' +
             'last_snr = ?, ' +
             'last_rssi = ?, ' +
-            'hops_away = COALESCE(?, hops_away), ' +
+            'hops_away = CASE WHEN ? IS NOT NULL AND (hops_away IS NULL OR ? < hops_away) THEN ? ELSE hops_away END, ' +
             'last_advert = CASE WHEN ? IS NOT NULL AND ? > COALESCE(last_advert, 0) THEN ? ELSE last_advert END ' +
             'WHERE node_id = ?',
         )
         .run(
           lastSnr,
           lastRssi,
+          hops ?? null,
+          hops ?? null,
           hops ?? null,
           timestamp ?? null,
           timestamp ?? null,
@@ -4209,12 +4217,6 @@ ipcMain.handle('http:connect', async (_event, host: unknown, tls: unknown) => {
     httpDevice = null;
   }
   await httpPreflight(host, tls);
-  let controller: { enqueue: (chunk: { type: string; data: Uint8Array }) => void };
-  void new ReadableStream({
-    start(ctrl) {
-      controller = ctrl;
-    },
-  });
   const intervalId = setInterval(() => {
     void (async () => {
       try {
@@ -4230,10 +4232,6 @@ ipcMain.handle('http:connect', async (_event, host: unknown, tls: unknown) => {
           readBuffer = await response.arrayBuffer();
           if (readBuffer.byteLength > 0) {
             const data = new Uint8Array(readBuffer);
-            controller.enqueue({
-              type: 'packet',
-              data,
-            });
             mainWindow?.webContents.send('http:data', data);
           }
         }

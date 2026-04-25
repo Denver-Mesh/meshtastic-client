@@ -307,6 +307,11 @@ describe('meshcoreMergeContactHopsAwayFromPrevious', () => {
     expect(meshcoreMergeContactHopsAwayFromPrevious(2, 3, 4)).toBe(2);
   });
 
+  it('favors smaller hop count when both are defined (best known path)', () => {
+    expect(meshcoreMergeContactHopsAwayFromPrevious(3, 1, 4)).toBe(1);
+    expect(meshcoreMergeContactHopsAwayFromPrevious(1, 3, 2)).toBe(1);
+  });
+
   it('fills from previous when inferred is undefined and prev is direct', () => {
     expect(meshcoreMergeContactHopsAwayFromPrevious(undefined, 0, 1)).toBe(0);
   });

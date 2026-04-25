@@ -17,6 +17,7 @@ import {
   meshcoreTracePathLenToHops,
 } from '../lib/meshcoreUtils';
 import { getNodeStatus, normalizeLastHeardMs } from '../lib/nodeStatus';
+import type { PathRecord } from '../lib/pathHistoryTypes';
 import { useRadioProvider } from '../lib/radio/providerFactory';
 import type { MeshNode } from '../lib/types';
 import { useCoordFormatStore } from '../stores/coordFormatStore';
@@ -53,6 +54,16 @@ interface Props {
   onClearCliHistory?: (nodeId: number) => void;
   /** MeshCore: when set (non-null), prefetches SQLite path history for visible repeaters. */
   meshcoreCanPingTrace?: (nodeId: number) => boolean;
+  onToggleFavorite?: (nodeId: number, favorited: boolean) => void;
+}
+
+const SIGNAL_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+function isSignalRecent(lastAdvert: number | null | undefined): boolean {
+  if (lastAdvert == null) return true;
+  const advertMs = normalizeLastHeardMs(lastAdvert);
+  if (!advertMs) return false;
+  return Date.now() - advertMs < SIGNAL_MAX_AGE_MS;
 }
 
 function formatRelativeTime(
@@ -91,47 +102,79 @@ function formatUptime(secs: number | undefined): string {
   return `${mins}m`;
 }
 
+interface SignalPoint {
+  ts: number;
+  snr: number;
+}
+
 /** Prefer on-demand repeater status (remote query); contact list SNR/RSSI are often stale for MeshCore. */
-function displayRepeaterSnr(node: MeshNode, status: MeshCoreRepeaterStatus | undefined): string {
+function displayRepeaterSnr(
+  node: MeshNode,
+  status: MeshCoreRepeaterStatus | undefined,
+  history?: SignalPoint[],
+  contacts?: Map<
+    number,
+    {
+      node_id: number;
+      last_snr: number | null;
+      last_rssi: number | null;
+      last_advert: number | null;
+    }
+  >,
+): string {
   if (status !== undefined && Number.isFinite(status.lastSnr)) {
     return status.lastSnr.toFixed(1);
+  }
+  const latestSignal = history && history.length > 0 ? history[history.length - 1] : undefined;
+  if (latestSignal != null && Number.isFinite(latestSignal.snr)) {
+    return latestSignal.snr.toFixed(1);
+  }
+  const contactSignal = contacts?.get(node.node_id);
+  if (
+    contactSignal?.last_snr != null &&
+    contactSignal.last_snr !== 0 &&
+    isSignalRecent(contactSignal.last_advert)
+  ) {
+    return contactSignal.last_snr.toFixed(1);
   }
   if (node.snr != null && node.snr !== 0) return node.snr.toFixed(1);
   return '—';
 }
 
-function displayRepeaterRssi(node: MeshNode, status: MeshCoreRepeaterStatus | undefined): string {
+function displayRepeaterRssi(
+  node: MeshNode,
+  status: MeshCoreRepeaterStatus | undefined,
+  contacts?: Map<
+    number,
+    {
+      node_id: number;
+      last_snr: number | null;
+      last_rssi: number | null;
+      last_advert: number | null;
+    }
+  >,
+): string {
   if (status !== undefined && Number.isFinite(status.lastRssi)) {
     return String(status.lastRssi);
+  }
+  const contactSignal = contacts?.get(node.node_id);
+  if (
+    contactSignal?.last_rssi != null &&
+    contactSignal.last_rssi !== 0 &&
+    isSignalRecent(contactSignal.last_advert)
+  ) {
+    return String(contactSignal.last_rssi);
   }
   if (node.rssi != null && node.rssi !== 0) return String(node.rssi);
   return '—';
 }
 
-function SignalSparkline({ points }: { points: { ts: number; snr: number }[] }) {
-  if (points.length < 2) return <span className="text-xs text-gray-600">—</span>;
-  const W = 80,
-    H = 24;
-  const snrs = points.map((p) => p.snr);
-  const minS = Math.min(...snrs),
-    maxS = Math.max(...snrs);
-  const range = maxS - minS || 1;
-  const minT = points[0].ts,
-    maxT = points[points.length - 1].ts;
-  const timeRange = maxT - minT || 1;
-  const toX = (t: number) => ((t - minT) / timeRange) * W;
-  const toY = (s: number) => H - ((s - minS) / range) * H;
-  const d = points
-    .map((p, i) => `${i === 0 ? 'M' : 'L'}${toX(p.ts).toFixed(1)},${toY(p.snr).toFixed(1)}`)
-    .join(' ');
-  const latest = points[points.length - 1];
-  const tooltip = `${latest.snr.toFixed(1)} dB · ${formatRelativeTime(latest.ts / 1000, undefined, 'signal history')}`;
-  return (
-    <svg width={W} height={H} className="text-brand-green">
-      <title>{tooltip}</title>
-      <path d={d} fill="none" stroke="currentColor" strokeWidth="1.5" />
-    </svg>
-  );
+function displayReliability(paths: PathRecord[]): string {
+  if (!paths.length) return '—';
+  const total = paths.reduce((sum, p) => sum + p.successCount + p.failureCount, 0);
+  if (total === 0) return '—';
+  const successes = paths.reduce((sum, p) => sum + p.successCount, 0);
+  return `${((successes / total) * 100).toFixed(0)}%`;
 }
 
 export default function RepeatersPanel({
@@ -156,6 +199,7 @@ export default function RepeatersPanel({
   meshcoreCliErrors,
   onClearCliHistory,
   meshcoreCanPingTrace,
+  onToggleFavorite,
 }: Props) {
   const { addToast } = useToast();
   const { ensureConfigured, RemoteAuthModal } = useMeshcoreRepeaterRemoteAuth();
@@ -165,6 +209,7 @@ export default function RepeatersPanel({
   }, []);
   const coordinateFormat = useCoordFormatStore((s) => s.coordinateFormat);
   const signalHistory = useRepeaterSignalStore((s) => s.history);
+  const pathHistory = usePathHistoryStore((s) => s.records);
   const [statusLoadingSet, setStatusLoadingSet] = useState<Set<number>>(new Set());
   const [pingLoadingSet, setPingLoadingSet] = useState<Set<number>>(new Set());
   const [deleteLoadingSet, setDeleteLoadingSet] = useState<Set<number>>(new Set());
@@ -179,14 +224,58 @@ export default function RepeatersPanel({
   const [cliLoadingSet, setCliLoadingSet] = useState<Set<number>>(new Set());
   const [cliUseSavedPath, setCliUseSavedPath] = useState<Map<number, boolean>>(new Map());
   const [searchQuery, setSearchQuery] = useState('');
+  const [meshcoreContactsDb, setMeshcoreContactsDb] = useState<
+    Map<
+      number,
+      {
+        node_id: number;
+        last_snr: number | null;
+        last_rssi: number | null;
+        last_advert: number | null;
+      }
+    >
+  >(new Map());
+
+  useEffect(() => {
+    void window.electronAPI.db
+      .getMeshcoreContacts()
+      .then((rows) => {
+        const m = new Map<
+          number,
+          {
+            node_id: number;
+            last_snr: number | null;
+            last_rssi: number | null;
+            last_advert: number | null;
+          }
+        >();
+        for (const row of rows as {
+          node_id: number;
+          last_snr: number | null;
+          last_rssi: number | null;
+          last_advert: number | null;
+        }[]) {
+          m.set(row.node_id, row);
+        }
+        setMeshcoreContactsDb(m);
+      })
+      .catch(() => {
+        // catch-no-log-ok database error - contacts will show as unavailable
+      });
+  }, [isConnected, nodes.size]);
 
   const { nodeStaleThresholdMs, nodeOfflineThresholdMs } = useRadioProvider('meshcore');
 
   const repeaters = Array.from(nodes.values())
     .filter((n) => n.hw_model === 'Repeater')
-    .sort(
-      (a, b) => normalizeLastHeardMs(b.last_heard ?? 0) - normalizeLastHeardMs(a.last_heard ?? 0),
-    );
+    .sort((a, b) => {
+      // Favorites pinned above non-favorites
+      const aFav = a.favorited ? 1 : 0;
+      const bFav = b.favorited ? 1 : 0;
+      if (aFav !== bFav) return bFav - aFav;
+      // Then by last heard
+      return normalizeLastHeardMs(b.last_heard ?? 0) - normalizeLastHeardMs(a.last_heard ?? 0);
+    });
 
   useEffect(() => {
     if (nodes.size === 0) return;
@@ -203,9 +292,15 @@ export default function RepeatersPanel({
   }, [repeaters, searchQuery]);
 
   useEffect(() => {
+    for (const n of repeatersFiltered) {
+      void usePathHistoryStore.getState().ensureBestPathLoaded(n.node_id);
+    }
+  }, [pathHistory, repeatersFiltered]);
+
+  useEffect(() => {
     if (!isConnected || meshcoreCanPingTrace == null) return;
     for (const n of repeatersFiltered) {
-      void usePathHistoryStore.getState().loadForNode(n.node_id);
+      void usePathHistoryStore.getState().ensureBestPathLoaded(n.node_id);
     }
   }, [isConnected, repeatersFiltered, meshcoreCanPingTrace]);
 
@@ -467,7 +562,7 @@ export default function RepeatersPanel({
                   </th>
                   <th className="py-2 pr-4 font-medium">Uptime</th>
                   <th className="py-2 pr-4 font-medium">Air%</th>
-                  <th className="py-2 pr-4 font-medium">Path History</th>
+                  <th className="py-2 pr-4 font-medium">Reliability</th>
                   <th className="py-2 font-medium">Actions</th>
                 </tr>
               </thead>
@@ -481,6 +576,8 @@ export default function RepeatersPanel({
                     nodeOfflineThresholdMs,
                   );
                   const history = signalHistory.get(node.node_id) ?? [];
+                  const paths = pathHistory.get(node.node_id) ?? [];
+                  const reliabilityText = displayReliability(paths);
                   const airPct =
                     status?.totalAirTimeSecs && status?.totalUpTimeSecs
                       ? ((status.totalAirTimeSecs / status.totalUpTimeSecs) * 100).toFixed(1)
@@ -551,14 +648,28 @@ export default function RepeatersPanel({
                           </span>
                         </td>
                         <td className="py-2 pr-4 font-medium text-white">
-                          <button
-                            type="button"
-                            onClick={() => onSelectRepeater?.(node)}
-                            aria-label={node.long_name}
-                            className="hover:text-brand-green hover:decoration-brand-green/70 text-left text-white underline decoration-transparent transition-colors disabled:no-underline"
-                          >
-                            {node.long_name}
-                          </button>
+                          <span className="flex items-center gap-1">
+                            {onToggleFavorite ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onToggleFavorite(node.node_id, !node.favorited);
+                                }}
+                                className="text-brand-yellow/70 hover:text-brand-yellow text-base leading-none"
+                                aria-label={node.favorited ? 'Unfavorite' : 'Favorite'}
+                              >
+                                {node.favorited ? '★' : '☆'}
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => onSelectRepeater?.(node)}
+                              aria-label={node.long_name}
+                              className="hover:text-brand-green hover:decoration-brand-green/70 text-white underline decoration-transparent transition-colors disabled:no-underline"
+                            >
+                              {node.long_name}
+                            </button>
+                          </span>
                         </td>
                         <td className="py-2 pr-4 text-xs text-gray-400">
                           {formatRelativeTime(node.last_heard, node.node_id, node.long_name)}
@@ -571,7 +682,7 @@ export default function RepeatersPanel({
                               : 'Contact SNR — use Status for live reading'
                           }
                         >
-                          {displayRepeaterSnr(node, status)}
+                          {displayRepeaterSnr(node, status, history, meshcoreContactsDb)}
                         </td>
                         <td
                           className="py-2 pr-4"
@@ -581,7 +692,7 @@ export default function RepeatersPanel({
                               : 'Contact RSSI — use Status for live reading'
                           }
                         >
-                          {displayRepeaterRssi(node, status)}
+                          {displayRepeaterRssi(node, status, meshcoreContactsDb)}
                         </td>
                         <td className="py-2 pr-4">
                           {traceResult ? (
@@ -603,9 +714,7 @@ export default function RepeatersPanel({
                         </td>
                         <td className="py-2 pr-4">{formatUptime(status?.totalUpTimeSecs)}</td>
                         <td className="py-2 pr-4">{airPct != null ? `${airPct}%` : '—'}</td>
-                        <td className="py-2 pr-4">
-                          <SignalSparkline points={history} />
-                        </td>
+                        <td className="py-2 pr-4">{reliabilityText}</td>
                         <td className="py-2">
                           <div className="flex flex-wrap gap-1">
                             {pingHardDisabled && pingBlockReason ? (
