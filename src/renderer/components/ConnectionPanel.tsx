@@ -1782,9 +1782,7 @@ export default function ConnectionPanel({
 
   // ─── Shared MQTT section ────────────────────────────────────────
   const mqttHeaderBar = (
-    <div
-      className={`bg-secondary-dark flex items-center justify-between border-b px-4 py-3 ${mqttStatus === 'connected' ? 'border-brand-green/20' : 'border-gray-700'}`}
-    >
+    <div className="bg-secondary-dark flex items-center justify-between border-b border-gray-700 px-4 py-3">
       <div className="flex items-center gap-2">
         <MqttGlobeIcon status={mqttStatus} />
         <span className="font-medium text-gray-200">MQTT Connection</span>
@@ -1809,7 +1807,7 @@ export default function ConnectionPanel({
 
   const mqttSection =
     mqttStatus === 'connected' ? (
-      <div className={`bg-deep-black border-brand-green/20 overflow-hidden rounded-lg border`}>
+      <div className="bg-deep-black overflow-hidden rounded-lg border border-gray-700">
         {mqttHeaderBar}
         {mqttError && (
           <div className="border-b border-red-800 bg-red-900/50 px-4 py-2 text-xs text-red-300">
@@ -2444,16 +2442,8 @@ export default function ConnectionPanel({
           Disconnect &amp; Quit
         </button>
 
-        <div
-          className={`bg-deep-black overflow-hidden rounded-lg border ${
-            state.status === 'reconnecting' ? 'border-orange-500/30' : 'border-brand-green/20'
-          }`}
-        >
-          <div
-            className={`bg-secondary-dark flex items-center justify-between border-b px-4 py-3 ${
-              state.status === 'reconnecting' ? 'border-orange-500/30' : 'border-brand-green/20'
-            }`}
-          >
+        <div className="bg-deep-black overflow-hidden rounded-lg border border-gray-700">
+          <div className="bg-secondary-dark flex items-center justify-between border-b border-gray-700 px-4 py-3">
             <div className="flex items-center gap-2">
               <ConnectionIcon type={state.connectionType!} />
               <span className="font-medium text-gray-200">Radio Connection</span>
