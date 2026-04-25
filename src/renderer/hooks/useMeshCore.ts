@@ -2513,6 +2513,17 @@ export function useMeshCore() {
             receivedVia: 'rf',
           }),
         );
+        if (mqttStatusRef.current === 'connected') {
+          void window.electronAPI.mqtt
+            .publishMeshcorePacketLog({
+              origin: selfInfoRef.current?.name ?? 'mesh-client',
+              snr: rfMatch?.snr ?? 0,
+              rssi: rfMatch?.rssi ?? 0,
+            })
+            .catch((e: unknown) => {
+              console.warn('[useMeshCore] publishMeshcorePacketLog (heard RF) error', e);
+            });
+        }
         setRawPackets((prev) =>
           meshcoreCorrelateOrSynthesizeChatEntry(prev, 'GRP_TXT', stubId, {
             ts: now,
