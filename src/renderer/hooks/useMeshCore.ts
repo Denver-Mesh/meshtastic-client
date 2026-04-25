@@ -1477,11 +1477,16 @@ export function useMeshCore() {
           }
         }
         // Merge hops_away from nodes table as fallback for any nodes missing it
-        for (const n of savedNodes as { node_id: number; hops_away: number | null }[]) {
-          if (n.hops_away != null) {
+        for (const n of savedNodes as {
+          node_id: number;
+          hops_away: number | null;
+          hops: number | null;
+        }[]) {
+          const hopCount = n.hops ?? n.hops_away;
+          if (hopCount != null) {
             const existing = initial.get(n.node_id);
             if (existing && existing.hops_away === undefined) {
-              initial.set(n.node_id, { ...existing, hops_away: n.hops_away });
+              initial.set(n.node_id, { ...existing, hops_away: hopCount });
             }
           }
         }
@@ -1742,11 +1747,14 @@ export function useMeshCore() {
             });
           }
         }
-        for (const row of dbContacts) {
+        for (const row of dbContacts as (MeshcoreContactDbRow & { hops?: number | null })[]) {
           const existing = nextNodes.get(row.node_id);
           if (!existing) continue;
-          if (existing.hops_away === undefined && row.hops_away != null) {
-            nextNodes.set(row.node_id, { ...existing, hops_away: row.hops_away });
+          if (existing.hops_away === undefined) {
+            const hopCount = row.hops_away ?? row.hops;
+            if (hopCount != null) {
+              nextNodes.set(row.node_id, { ...existing, hops_away: hopCount });
+            }
           }
         }
         for (const row of dbContacts) {
@@ -4994,16 +5002,18 @@ export function useMeshCore() {
 
     if (validEntries.length > 0) {
       const importSec = Math.floor(Date.now() / 1000);
-      let dbRows: { node_id: number; last_advert: number | null }[] = [];
+      let dbRows: { node_id: number; last_advert: number | null; hops_away: number | null }[] = [];
       try {
         dbRows = (await window.electronAPI.db.getMeshcoreContacts()) as {
           node_id: number;
           last_advert: number | null;
+          hops_away: number | null;
         }[];
       } catch (e: unknown) {
         console.warn('[useMeshCore] importContacts: getMeshcoreContacts for last_advert merge', e);
       }
       const dbLastAdvertById = new Map(dbRows.map((r) => [r.node_id, r.last_advert]));
+      const dbHopsById = new Map(dbRows.map((r) => [r.node_id, r.hops_away]));
       /** Built inside `setNodes` so we read merged `last_heard` before `nodesRef` catches up. */
       const lastAdvertForDbByNodeId = new Map<number, number>();
 
@@ -5029,6 +5039,7 @@ export function useMeshCore() {
               .map((b) => b.toString(16).padStart(2, '0'))
               .join('');
             pubKeyPrefixMapRef.current.set(prefix, nodeId);
+            const dbHops = dbHopsById.get(nodeId);
             next.set(nodeId, {
               node_id: nodeId,
               long_name: name,
@@ -5041,6 +5052,7 @@ export function useMeshCore() {
               latitude: hasImportGps ? latitude : null,
               longitude: hasImportGps ? longitude : null,
               favorited: false,
+              ...(dbHops != null ? { hops_away: dbHops } : {}),
             });
           }
           const rowPrior = dbLastAdvertById.get(nodeId);

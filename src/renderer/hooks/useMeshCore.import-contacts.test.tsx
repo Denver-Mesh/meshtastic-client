@@ -70,6 +70,28 @@ describe('useMeshCore importContacts', () => {
     expect(node?.longitude).toBe(-122.42);
   });
 
+  it('preserves hops_away from DB when the node is not yet in the nodes map', async () => {
+    vi.mocked(window.electronAPI.db.getMeshcoreContacts).mockResolvedValue([
+      {
+        node_id: IMPORT_NODE_ID,
+        public_key: HEX32,
+        last_advert: null,
+        hops_away: 3,
+      },
+    ]);
+    vi.mocked(window.electronAPI.meshcore.openJsonFile).mockResolvedValue(
+      JSON.stringify([{ name: 'Known RPT', public_key: HEX32 }]),
+    );
+
+    const { result } = renderHook(() => useMeshCore());
+
+    await act(async () => {
+      await result.current.importContacts();
+    });
+
+    expect(result.current.nodes.get(IMPORT_NODE_ID)?.hops_away).toBe(3);
+  });
+
   it('preserves last_heard on re-import when the node already exists (no stale nodesRef)', async () => {
     vi.mocked(window.electronAPI.meshcore.openJsonFile).mockResolvedValue(
       JSON.stringify([
