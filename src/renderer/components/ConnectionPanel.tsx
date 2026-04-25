@@ -567,7 +567,6 @@ export default function ConnectionPanel({
   const [showMqttPassword, setShowMqttPassword] = useState(false);
   const [mqttError, setMqttError] = useState<string | null>(null);
   const [mqttWarning, setMqttWarning] = useState<string | null>(null);
-  const [mqttClientId, setMqttClientId] = useState('');
   const mqttSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const meshcoreMqttSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [meshcorePreset, setMeshcorePreset] = useState<
@@ -640,27 +639,11 @@ export default function ConnectionPanel({
       setMqttWarning(protocol === 'meshcore' ? meshcoreMqttUserFacingHint(warning) : warning);
     });
   }, [protocol]);
-  useEffect(() => {
-    // Restore clientId if already connected when this component mounts (e.g. after tab switch)
-    window.electronAPI.mqtt
-      .getClientId(protocol)
-      .then((id) => {
-        if (id) setMqttClientId(id);
-      })
-      .catch((err: unknown) => {
-        console.warn('[ConnectionPanel] getClientId failed:', err);
-      });
-    return window.electronAPI.mqtt.onClientId(({ clientId, protocol: mqttProtocol }) => {
-      if (mqttProtocol !== protocol) return;
-      setMqttClientId(clientId);
-    });
-  }, [protocol]);
 
   // Clear MQTT error on successful connect; leave it visible on disconnect so the user can read it.
   useEffect(() => {
     if (mqttStatus === 'connected') setMqttError(null);
     if (mqttStatus === 'disconnected') {
-      setMqttClientId('');
       setMqttWarning(null);
     }
     if (mqttStatus === 'connecting') setMqttWarning(null);
@@ -1845,10 +1828,12 @@ export default function ConnectionPanel({
               {activeMqttSettings.server}:{activeMqttSettings.port}
             </span>
           </div>
-          {mqttClientId && (
+          {state.myNodeNum > 0 && (
             <div className="flex justify-between text-sm">
-              <span className="text-muted">Client ID</span>
-              <span className="font-mono text-xs text-gray-200">{mqttClientId}</span>
+              <span className="text-muted">From</span>
+              <span className="font-mono text-xs text-gray-200">
+                !{state.myNodeNum.toString(16)}
+              </span>
             </div>
           )}
           <div className="flex justify-between text-sm">
