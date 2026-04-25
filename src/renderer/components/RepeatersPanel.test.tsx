@@ -38,6 +38,21 @@ function mockRepeaterNode(id: number): MeshNode {
 
 const repeater = mockRepeaterNode(0xabc);
 
+function mockRepeaterNodeWithFavorited(id: number, favorited: boolean): MeshNode {
+  return {
+    node_id: id,
+    long_name: `Repeater ${id.toString(16)}`,
+    short_name: 'TR',
+    hw_model: 'Repeater',
+    snr: 2,
+    battery: 100,
+    last_heard: Math.floor(Date.now() / 1000),
+    latitude: null,
+    longitude: null,
+    favorited,
+  };
+}
+
 function makeBaseProps() {
   return {
     nodes: new Map([[repeater.node_id, repeater]]),
@@ -158,5 +173,34 @@ describe('RepeatersPanel', () => {
     await userEvent.click(screen.getByRole('button', { name: 'name' }));
 
     expect(onSendCliCommand).toHaveBeenCalledWith(repeater.node_id, 'name', false);
+  });
+
+  it('pins favorited repeaters above non-favorites', () => {
+    const now = Math.floor(Date.now() / 1000);
+    const older = mockRepeaterNodeWithFavorited(0x100, false);
+    older.last_heard = now - 1000;
+    const newer = mockRepeaterNodeWithFavorited(0x200, false);
+    newer.last_heard = now;
+    const favOlder = mockRepeaterNodeWithFavorited(0x300, true);
+    favOlder.last_heard = now - 100;
+
+    const nodes = new Map([
+      [older.node_id, older],
+      [newer.node_id, newer],
+      [favOlder.node_id, favOlder],
+    ]);
+
+    render(<RepeatersPanel {...makeBaseProps()} nodes={nodes} />);
+
+    // Extract text from name buttons (the underline-decorated ones) to check sort order
+    const nameLinks = screen
+      .getAllByRole('button', { name: /Repeater/ })
+      .filter((b) => b.className.includes('underline'));
+    const names = nameLinks.map((b) => b.textContent);
+    // Favorited repeater should be first even though newer repeater was heard more recently
+    expect(names).toHaveLength(3);
+    expect(names[0]).toBe('Repeater 300'); // favorited
+    expect(names[1]).toBe('Repeater 200'); // most recent non-fav
+    expect(names[2]).toBe('Repeater 100'); // oldest non-fav
   });
 });
