@@ -737,7 +737,11 @@ export default function MapPanel({
 
     return Array.from(nodes.values()).filter((n) => {
       let rejectReason: string | null = null;
-      if (!rejectReason && excludeMeshcoreRepeaterInMeshtastic && n.hw_model === 'Repeater') {
+      if (
+        rejectReason === null &&
+        excludeMeshcoreRepeaterInMeshtastic &&
+        n.hw_model === 'Repeater'
+      ) {
         rejectReason = 'meshcore_repeater_filtered_for_meshtastic';
       }
       if (
@@ -747,10 +751,10 @@ export default function MapPanel({
       ) {
         rejectReason = 'invalid_or_zero_coords';
       }
-      if (!rejectReason && locationFilter.hideMqttOnly && n.heard_via_mqtt_only) {
+      if (rejectReason === null && locationFilter.hideMqttOnly && n.heard_via_mqtt_only) {
         rejectReason = 'mqtt_only_filtered';
       }
-      if (!rejectReason && locationFilter.enabled && homeHasLocation) {
+      if (rejectReason === null && locationFilter.enabled && homeHasLocation) {
         const d = haversineDistanceKm(
           homeNode.latitude!,
           homeNode.longitude!,
