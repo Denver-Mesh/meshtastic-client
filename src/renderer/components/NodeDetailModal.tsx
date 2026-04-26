@@ -804,7 +804,7 @@ export default function NodeDetailModal({
                 const record = neighborInfo.get(node.node_id);
                 if (!record || record.neighbors.length === 0) return null;
                 return (
-                  <div className="space-y-2 px-5 pb-2">
+                  <div className="space-y-2 pb-2">
                     <h4 className="text-muted text-xs font-medium tracking-wide uppercase">
                       Neighbors ({record.neighbors.length})
                     </h4>
@@ -834,7 +834,7 @@ export default function NodeDetailModal({
 
             {/* MeshCore Local Stats section (for connected node only) */}
             {protocol === 'meshcore' && meshcoreLocalStats && (
-              <div className="space-y-2 px-5 pb-2">
+              <div className="space-y-2 pb-2">
                 <h4 className="text-muted text-xs font-medium tracking-wide uppercase">
                   Radio Stats (Local)
                 </h4>
@@ -946,17 +946,15 @@ export default function NodeDetailModal({
 
             {/* Map Report section (Meshtastic only) */}
             {protocol === 'meshtastic' && mapReports && (
-              <div className="space-y-2 px-5 pb-2">
-                <h4 className="text-muted text-xs font-medium tracking-wide uppercase">
-                  Map Report
-                </h4>
+              <div className="space-y-2 pb-2">
+                <h4 className="text-muted text-sm font-medium">Map Report</h4>
                 {(() => {
                   const mapReport = mapReports.get(node.node_id);
                   if (!mapReport) {
                     return <p className="text-xs text-gray-500">No map report received</p>;
                   }
                   return (
-                    <div className="bg-secondary-dark grid grid-cols-2 gap-x-4 gap-y-1 rounded p-2 text-xs">
+                    <div className="bg-secondary-dark grid grid-cols-2 gap-x-4 gap-y-1 rounded py-2 text-xs">
                       <div className="text-muted">Last Report</div>
                       <div className="font-mono text-gray-200">
                         {formatSecondsAgo(
@@ -975,10 +973,8 @@ export default function NodeDetailModal({
 
             {/* Position History (GPS tracking path) */}
             {positionHistory && (
-              <div className="space-y-2 px-5 pb-2">
-                <h4 className="text-muted text-xs font-medium tracking-wide uppercase">
-                  Position History
-                </h4>
+              <div className="space-y-2 pb-2">
+                <h4 className="text-muted text-sm font-medium">Position History</h4>
                 {(() => {
                   const points = positionHistory.get(node.node_id);
                   if (!points || points.length === 0) {
@@ -991,7 +987,7 @@ export default function NodeDetailModal({
                   const recentPoints = [...sorted].reverse().slice(0, POSITION_HISTORY_MAX_ROWS);
                   return (
                     <>
-                      <div className="bg-secondary-dark grid grid-cols-2 gap-x-4 gap-y-1 rounded p-2 text-xs">
+                      <div className="bg-secondary-dark grid grid-cols-2 gap-x-4 gap-y-1 rounded py-2 text-xs">
                         <div className="text-muted">Recorded Points</div>
                         <div className="font-mono text-gray-200">{points.length}</div>
                         <div className="text-muted">Time Span</div>
@@ -1015,7 +1011,7 @@ export default function NodeDetailModal({
                           Showing newest {POSITION_HISTORY_MAX_ROWS} of {sorted.length} points
                         </div>
                       )}
-                      <div className="bg-secondary-dark space-y-1 rounded p-2">
+                      <div className="bg-secondary-dark space-y-1 rounded py-2">
                         {recentPoints.map((point, idx) => (
                           <div
                             key={`${point.t}-${point.lat}-${point.lon}-${idx}`}

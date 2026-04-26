@@ -501,8 +501,8 @@ export default function NodeInfoBody({
       )}
 
       {/* Routing Health */}
-      <div className="bg-primary-dark mt-3 rounded-lg p-3">
-        <div className="mb-1.5 text-xs text-gray-400">Routing Health</div>
+      <div className="bg-primary-dark mt-3 rounded-lg py-3">
+        <div className="mb-1.5 text-sm font-medium text-gray-400">Routing Health</div>
 
         {/* Remedy badge */}
         {(() => {
@@ -909,9 +909,9 @@ function RFDiagnosticsSection({
         />
       )}
 
-      <div className="bg-primary-dark mt-3 rounded-lg p-3">
+      <div className="bg-primary-dark mt-3 rounded-lg py-3">
         <div className="mb-2 flex items-center justify-between">
-          <div className="text-xs text-gray-400">RF Diagnostics</div>
+          <div className="text-sm font-medium text-gray-400">RF Diagnostics</div>
           {!noTelemetry && totalChecks !== null && (
             <span
               className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
