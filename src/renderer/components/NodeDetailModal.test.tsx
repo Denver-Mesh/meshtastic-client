@@ -165,4 +165,21 @@ describe('NodeDetailModal accessibility', () => {
     ).toBeGreaterThan(0);
     expect(screen.queryByText('41.00000, -106.00000')).not.toBeInTheDocument();
   });
+
+  it('shows node online status badge in header', () => {
+    render(
+      <NodeDetailModal
+        node={mockNode}
+        onClose={vi.fn()}
+        onRequestPosition={vi.fn().mockResolvedValue(undefined)}
+        onTraceRoute={vi.fn().mockResolvedValue(undefined)}
+        onDeleteNode={vi.fn().mockResolvedValue(undefined)}
+        onToggleFavorite={vi.fn()}
+        isConnected={true}
+        homeNode={null}
+      />,
+    );
+
+    expect(screen.getByText('Online')).toBeInTheDocument();
+  });
 });

@@ -16,6 +16,8 @@ import {
   MESHCORE_MAX_CONTACTS,
   meshcoreTracePathLenToHops,
 } from '../lib/meshcoreUtils';
+import { getNodeStatus } from '../lib/nodeStatus';
+import { useRadioProvider } from '../lib/radio/providerFactory';
 import { MESHCORE_TRACE_PING_TOTAL_TIMEOUT_MS } from '../lib/timeConstants';
 import type { MeshCoreLocalStats, MeshNode, MeshProtocol, NeighborInfoRecord } from '../lib/types';
 import { useCoordFormatStore } from '../stores/coordFormatStore';
@@ -272,6 +274,10 @@ export default function NodeDetailModal({
     };
   }, [traceRoutePending]);
 
+  const { nodeStaleThresholdMs, nodeOfflineThresholdMs } = useRadioProvider(
+    protocol ?? 'meshtastic',
+  );
+
   if (!node) return null;
 
   const hexId = `!${node.node_id.toString(16)}`;
@@ -279,6 +285,25 @@ export default function NodeDetailModal({
   const isIncomplete = !node.short_name && !node.long_name && node.role === undefined;
   const displayName = node.short_name || node.long_name || hexId;
   const isOurNode = node.node_id === homeNode?.node_id;
+  const nodeStatus = getNodeStatus(node.last_heard, nodeStaleThresholdMs, nodeOfflineThresholdMs);
+  const nodeStatusUi =
+    nodeStatus === 'online'
+      ? {
+          label: 'Online',
+          dotClass: 'bg-brand-green',
+          textClass: 'text-brand-green',
+        }
+      : nodeStatus === 'stale'
+        ? {
+            label: 'Stale',
+            dotClass: 'bg-violet-400',
+            textClass: 'text-violet-300',
+          }
+        : {
+            label: 'Offline',
+            dotClass: 'bg-slate-400',
+            textClass: 'text-slate-300',
+          };
 
   const headerHardwareSubtitle =
     protocol === 'meshtastic'
@@ -333,7 +358,7 @@ export default function NodeDetailModal({
           className="bg-deep-black relative z-10 flex max-h-[90vh] min-h-0 w-full max-w-lg flex-col overflow-hidden rounded-xl border border-gray-700 shadow-2xl"
         >
           {/* Header */}
-          <div className="flex shrink-0 items-center justify-between border-b border-gray-700 px-5 py-4">
+          <div className="flex shrink-0 items-start justify-between border-b border-gray-700 px-5 py-4">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <h3 id="node-modal-title" className="truncate text-lg font-semibold text-gray-100">
@@ -426,37 +451,48 @@ export default function NodeDetailModal({
                   )}
               </div>
             </div>
-            <button
-              onClick={() => {
-                onToggleFavorite(node.node_id, !node.favorited);
-              }}
-              className="hover:bg-secondary-dark mr-1 shrink-0 rounded-lg p-1.5 transition-colors"
-              aria-label={node.favorited ? 'Remove from favorites' : 'Add to favorites'}
-              aria-pressed={node.favorited}
-            >
+            <div className="ml-3 flex shrink-0 flex-col items-end gap-1">
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => {
+                    onToggleFavorite(node.node_id, !node.favorited);
+                  }}
+                  className="hover:bg-secondary-dark shrink-0 rounded-lg p-1.5 transition-colors"
+                  aria-label={node.favorited ? 'Remove from favorites' : 'Add to favorites'}
+                  aria-pressed={node.favorited}
+                >
+                  <span
+                    className={`text-xl ${node.favorited ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}`}
+                    aria-hidden="true"
+                  >
+                    {node.favorited ? '★' : '☆'}
+                  </span>
+                </button>
+                <button
+                  ref={closeButtonRef}
+                  onClick={onClose}
+                  aria-label="Close dialog"
+                  className="hover:bg-secondary-dark text-muted shrink-0 rounded-lg p-1.5 transition-colors hover:text-gray-200"
+                >
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
               <span
-                className={`text-xl ${node.favorited ? 'text-yellow-400' : 'text-gray-500 hover:text-yellow-400'}`}
-                aria-hidden="true"
+                className={`flex items-center gap-1 text-[11px] font-medium ${nodeStatusUi.textClass}`}
+                title="Current node status"
               >
-                {node.favorited ? '★' : '☆'}
+                <span className={`inline-block h-2 w-2 rounded-full ${nodeStatusUi.dotClass}`} />
+                {nodeStatusUi.label}
               </span>
-            </button>
-            <button
-              ref={closeButtonRef}
-              onClick={onClose}
-              aria-label="Close dialog"
-              className="hover:bg-secondary-dark text-muted shrink-0 rounded-lg p-1.5 transition-colors hover:text-gray-200"
-            >
-              <svg
-                className="h-5 w-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            </div>
           </div>
 
           {/* Body — scrollable so long RF/diagnostics content fits on screen */}
