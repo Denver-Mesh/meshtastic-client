@@ -1,6 +1,6 @@
 # Architecture
 
-Project layout, data flow, and code placement for AI-assisted development. Mesh-specific workflow and security expectations: [AGENTS.md](AGENTS.md). Code style, testing protocols, hooks, and commands: [CONTRIBUTING.md](CONTRIBUTING.md).
+Project layout, data flow, and code placement for human reference. For AI coding guidelines, see [AGENTS.md](AGENTS.md) (self-contained).
 
 ## Layout map
 

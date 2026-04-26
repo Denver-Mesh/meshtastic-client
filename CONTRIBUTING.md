@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing. See [docs/development-environment.md](docs/development-environment.md) for setup.
 
-**Where conventions live:** [AGENTS.md](AGENTS.md) covers mesh-specific architecture, scope, security and IPC expectations, and AI-oriented workflow. **This file** adds human setup, hooks, PR flow, and **detailed code style and testing protocols** (below). Read both when contributing.
+**Where conventions live:** [AGENTS.md](AGENTS.md) is self-contained for AI assistants (code style, testing, architecture, and security all inlined). **This file** covers human setup, hooks, and PR flow.
 
 ## Code style & standards
 
