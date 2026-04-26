@@ -268,8 +268,8 @@ export default function TelemetryPanel({
                   />
                   <Tooltip
                     contentStyle={{
-                      background: '#1a202c',
-                      border: '1px solid #374151',
+                      background: '#0f172a',
+                      border: '1px solid #334155',
                       borderRadius: '8px',
                     }}
                   />
@@ -332,8 +332,8 @@ export default function TelemetryPanel({
                   />
                   <Tooltip
                     contentStyle={{
-                      background: '#1a202c',
-                      border: '1px solid #374151',
+                      background: '#0f172a',
+                      border: '1px solid #334155',
                       borderRadius: '8px',
                     }}
                   />
@@ -403,8 +403,8 @@ export default function TelemetryPanel({
                   )}
                   <Tooltip
                     contentStyle={{
-                      background: '#1a202c',
-                      border: '1px solid #374151',
+                      background: '#0f172a',
+                      border: '1px solid #334155',
                       borderRadius: '8px',
                     }}
                   />
@@ -459,8 +459,8 @@ export default function TelemetryPanel({
                   />
                   <Tooltip
                     contentStyle={{
-                      background: '#1a202c',
-                      border: '1px solid #374151',
+                      background: '#0f172a',
+                      border: '1px solid #334155',
                       borderRadius: '8px',
                     }}
                   />
@@ -502,8 +502,8 @@ export default function TelemetryPanel({
                   />
                   <Tooltip
                     contentStyle={{
-                      background: '#1a202c',
-                      border: '1px solid #374151',
+                      background: '#0f172a',
+                      border: '1px solid #334155',
                       borderRadius: '8px',
                     }}
                   />

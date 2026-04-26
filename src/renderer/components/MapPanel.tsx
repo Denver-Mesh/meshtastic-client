@@ -61,15 +61,15 @@ function ensureMapStyles() {
       pointer-events: none !important;
     }
     .leaflet-popup-content-wrapper {
-      background: #0d0d0d;
-      border: 1px solid #374151;
+      background: #0f172a;
+      border: 1px solid #334155;
       color: #e5e7eb;
       border-radius: 0.75rem;
       padding: 0;
       box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
     }
     .leaflet-popup-tip {
-      background: #0d0d0d;
+      background: #0f172a;
     }
     .leaflet-popup-content {
       margin: 0;
@@ -90,15 +90,15 @@ function ensureMapStyles() {
       justify-content: center;
       width: 30px;
       height: 30px;
-      background: #fff;
-      color: #444;
+      background: #ffffff;
+      color: #52525b;
       cursor: pointer;
       border: none;
       outline: none;
     }
     .leaflet-locate-control a:hover {
-      background: #f4f4f4;
-      color: #000;
+      background: #f4f4f5;
+      color: #000000;
     }
     .leaflet-locate-control a.locating {
       color: #3b82f6;
@@ -141,18 +141,18 @@ function createMarkerIcon(
       : '';
   const mqttBadge = (c: number) =>
     isMqttOnly
-      ? `<circle cx="${c + 7}" cy="${c - 7}" r="4" fill="#3b82f6" stroke="#fff" stroke-width="1.5"/>`
+      ? `<circle cx="${c + 7}" cy="${c - 7}" r="4" fill="#3b82f6" stroke="#ffffff" stroke-width="1.5"/>`
       : '';
   const nodeBadgeSvg = (c: number) => {
     const path = nodeBadge ? NODE_BADGE_PATHS[nodeBadge] : null;
     if (!path) return '';
-    return `<g><circle cx="${c - 7}" cy="${c - 7}" r="6" fill="#111827" stroke="#fff" stroke-width="1.2"/><path transform="translate(${c - 12},${c - 12}) scale(0.4167)" d="${path}" fill="#f9fafb"/></g>`;
+    return `<g><circle cx="${c - 7}" cy="${c - 7}" r="6" fill="#111827" stroke="#ffffff" stroke-width="1.2"/><path transform="translate(${c - 12},${c - 12}) scale(0.4167)" d="${path}" fill="#f9fafb"/></g>`;
   };
 
   if (isSelf) {
     const total = 32 + 2 * haloPx;
     const c = total / 2;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${total}" opacity="${markerOpacity}">${halo(c)}<g transform="translate(${haloPx},${haloPx}) scale(${32 / 24})"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="${escapeSvgAttr(color)}" stroke="#000" stroke-width="0.5"/></g>${mqttBadge(c)}${nodeBadgeSvg(c)}</svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${total}" opacity="${markerOpacity}">${halo(c)}<g transform="translate(${haloPx},${haloPx}) scale(${32 / 24})"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="${escapeSvgAttr(color)}" stroke="#000000" stroke-width="0.5"/></g>${mqttBadge(c)}${nodeBadgeSvg(c)}</svg>`;
     return L.icon({
       iconUrl: `data:image/svg+xml,${encodeURIComponent(svg)}`,
       iconSize: [total, total],
@@ -163,7 +163,7 @@ function createMarkerIcon(
 
   const total = 25 + 2 * haloPx;
   const c = total / 2;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${total}" opacity="${markerOpacity}">${halo(c)}<circle cx="${c}" cy="${c}" r="10.4" fill="${escapeSvgAttr(color)}" stroke="#000" stroke-width="1" opacity="0.9"/><circle cx="${c}" cy="${c}" r="4.2" fill="#fff" opacity="0.8"/>${mqttBadge(c)}${nodeBadgeSvg(c)}</svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${total}" height="${total}" opacity="${markerOpacity}">${halo(c)}<circle cx="${c}" cy="${c}" r="10.4" fill="${escapeSvgAttr(color)}" stroke="#000000" stroke-width="1" opacity="0.9"/><circle cx="${c}" cy="${c}" r="4.2" fill="#ffffff" opacity="0.8"/>${mqttBadge(c)}${nodeBadgeSvg(c)}</svg>`;
   return L.icon({
     iconUrl: `data:image/svg+xml,${encodeURIComponent(svg)}`,
     iconSize: [total, total],
@@ -179,14 +179,14 @@ function getMarkerIcon(
   isMqttOnly = false,
   nodeBadge: 'repeater' | 'room' | 'sensor' | 'home' | 'clock' | null = null,
 ): L.Icon {
-  const color = status === 'online' ? '#9ae6b4' : status === 'stale' ? '#451B88' : '#6b7280';
+  const color = status === 'online' ? '#86efac' : status === 'stale' ? '#4c1d95' : '#6b7280';
   const opacity = status === 'online' ? 1 : status === 'stale' ? 0.65 : 0.45;
   return createMarkerIcon(color, isSelf, cu, opacity, isMqttOnly, nodeBadge);
 }
 
 const PATH_COLORS = {
-  online: '#9ae6b4',
-  stale: '#451B88',
+  online: '#86efac',
+  stale: '#4c1d95',
   offline: '#6b7280',
 } as const;
 
@@ -276,8 +276,8 @@ const MapMarker = memo(
             pane="diagnosticPane"
             interactive={false}
             pathOptions={{
-              color: isError ? '#ef4444' : '#FFBF00',
-              fillColor: isError ? '#ef4444' : '#FFBF00',
+              color: isError ? '#ef4444' : '#f59e0b',
+              fillColor: isError ? '#ef4444' : '#f59e0b',
               fillOpacity: 0.18,
               weight: 2,
               opacity: 0.75,
@@ -517,7 +517,7 @@ function LocateMeControl({
         <CircleMarker
           center={locatedPos}
           radius={8}
-          pathOptions={{ color: '#fff', fillColor: '#3b82f6', fillOpacity: 1, weight: 2 }}
+          pathOptions={{ color: '#ffffff', fillColor: '#3b82f6', fillOpacity: 1, weight: 2 }}
         />
       )}
     </>
