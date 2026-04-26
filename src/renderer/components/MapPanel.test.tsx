@@ -4,22 +4,30 @@ import { axe } from 'vitest-axe';
 
 import type { PathRecord } from '../lib/pathHistoryTypes';
 import { usePathHistoryStore } from '../stores/pathHistoryStore';
+import { usePositionHistoryStore } from '../stores/positionHistoryStore';
 import MapPanel from './MapPanel';
 
-const { leafletIconMock, mapContainerMock, circleMock, polylineMock, diagnosticsStoreState } =
-  vi.hoisted(() => ({
-    leafletIconMock: vi.fn().mockReturnValue({}),
-    mapContainerMock: vi.fn(({ children }: { children: React.ReactNode }) => (
-      <div data-testid="map-container">{children}</div>
-    )),
-    circleMock: vi.fn(() => null),
-    polylineMock: vi.fn(() => null),
-    diagnosticsStoreState: {
-      diagnosticRows: [] as unknown[],
-      anomalyHalosEnabled: false,
-      congestionHalosEnabled: false,
-    },
-  }));
+const {
+  leafletIconMock,
+  mapContainerMock,
+  markerMock,
+  circleMock,
+  polylineMock,
+  diagnosticsStoreState,
+} = vi.hoisted(() => ({
+  leafletIconMock: vi.fn().mockReturnValue({}),
+  mapContainerMock: vi.fn(({ children }: { children: React.ReactNode }) => (
+    <div data-testid="map-container">{children}</div>
+  )),
+  markerMock: vi.fn(() => null),
+  circleMock: vi.fn(() => null),
+  polylineMock: vi.fn(() => null),
+  diagnosticsStoreState: {
+    diagnosticRows: [] as unknown[],
+    anomalyHalosEnabled: false,
+    congestionHalosEnabled: false,
+  },
+}));
 
 vi.mock('../stores/diagnosticsStore', () => ({
   useDiagnosticsStore: (selector: (s: unknown) => unknown) => selector(diagnosticsStoreState),
@@ -46,7 +54,7 @@ const mockMapInstance = {
 vi.mock('react-leaflet', () => ({
   MapContainer: mapContainerMock,
   TileLayer: () => null,
-  Marker: () => null,
+  Marker: markerMock,
   Popup: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   Polyline: polylineMock,
   CircleMarker: () => null,
@@ -82,6 +90,8 @@ describe('MapPanel accessibility', () => {
     diagnosticsStoreState.diagnosticRows = [];
     diagnosticsStoreState.anomalyHalosEnabled = false;
     diagnosticsStoreState.congestionHalosEnabled = false;
+    usePositionHistoryStore.setState({ history: new Map(), showPaths: true });
+    markerMock.mockClear();
     circleMock.mockClear();
     polylineMock.mockClear();
   });
@@ -330,5 +340,101 @@ describe('MapPanel accessibility', () => {
     });
 
     expect(mapContainerMock.mock.calls.length).toBeLessThanOrEqual(initialMapContainerRenders + 1);
+  });
+
+  it('routes marker click to node detail modal via onNodeClick', () => {
+    const onNodeClick = vi.fn();
+    const nowSec = Math.floor(Date.now() / 1000);
+    const nodes = new Map([
+      [
+        2,
+        {
+          node_id: 2,
+          long_name: 'User Node',
+          short_name: 'USER',
+          hw_model: 'T-Echo',
+          snr: 0,
+          battery: 0,
+          last_heard: nowSec,
+          latitude: 40.186,
+          longitude: -105.074,
+        },
+      ],
+    ]);
+
+    render(
+      <MapPanel
+        nodes={nodes}
+        myNodeNum={2}
+        locationFilter={defaultFilter}
+        ourPosition={null}
+        onLocateMe={vi.fn().mockResolvedValue(null)}
+        onNodeClick={onNodeClick}
+      />,
+    );
+
+    const markerCalls = markerMock.mock.calls as any[];
+    const markerProps = markerCalls[0]?.[0] as {
+      eventHandlers?: { click?: () => void };
+    };
+    expect(markerProps?.eventHandlers?.click).toBeDefined();
+    markerProps.eventHandlers?.click?.();
+    expect(onNodeClick).toHaveBeenCalledWith(2);
+  });
+
+  it('routes path click to node detail modal via onNodeClick', () => {
+    const onNodeClick = vi.fn();
+    const nowSec = Math.floor(Date.now() / 1000);
+    const nodes = new Map([
+      [
+        7,
+        {
+          node_id: 7,
+          long_name: 'Moving Node',
+          short_name: 'MOVE',
+          hw_model: 'T-Echo',
+          snr: 0,
+          battery: 0,
+          last_heard: nowSec,
+          latitude: 40.1,
+          longitude: -105.1,
+        },
+      ],
+    ]);
+    usePositionHistoryStore.setState({
+      history: new Map([
+        [
+          7,
+          [
+            { t: Date.now() - 2000, lat: 40.1, lon: -105.1 },
+            { t: Date.now(), lat: 40.1005, lon: -105.1005 },
+          ],
+        ],
+      ]),
+      showPaths: true,
+    });
+
+    render(
+      <MapPanel
+        nodes={nodes}
+        myNodeNum={7}
+        locationFilter={defaultFilter}
+        ourPosition={null}
+        onLocateMe={vi.fn().mockResolvedValue(null)}
+        onNodeClick={onNodeClick}
+      />,
+    );
+
+    const polylineCalls = polylineMock.mock.calls as any[];
+    const pathPolylineCall = polylineCalls.find(
+      (call) =>
+        (call[0] as { eventHandlers?: { click?: () => void } })?.eventHandlers?.click != null,
+    );
+    const pathProps = pathPolylineCall?.[0] as {
+      eventHandlers?: { click?: () => void };
+    };
+    expect(pathProps?.eventHandlers?.click).toBeDefined();
+    pathProps.eventHandlers?.click?.();
+    expect(onNodeClick).toHaveBeenCalledWith(7);
   });
 });

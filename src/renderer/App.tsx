@@ -763,8 +763,25 @@ export default function App() {
   const isConnectedOrOperational = isOperational || device.state.status === 'connected';
   const selectedNode = useMemo(() => {
     if (selectedNodeId == null) return null;
-    return nodesForUi.get(selectedNodeId) ?? meshNodeStubForDetailModal(selectedNodeId);
-  }, [selectedNodeId, nodesForUi]);
+    const liveNode = nodesForUi.get(selectedNodeId);
+    if (liveNode) return liveNode;
+
+    const fallback = meshNodeStubForDetailModal(selectedNodeId);
+    const historyPoints = positionHistory.get(selectedNodeId);
+    if (!historyPoints || historyPoints.length === 0) return fallback;
+
+    let latest = historyPoints[0];
+    for (let i = 1; i < historyPoints.length; i++) {
+      if (historyPoints[i].t > latest.t) latest = historyPoints[i];
+    }
+
+    return {
+      ...fallback,
+      latitude: latest.lat,
+      longitude: latest.lon,
+      last_heard: Math.max(fallback.last_heard, Math.floor(latest.t / 1000)),
+    };
+  }, [selectedNodeId, nodesForUi, positionHistory]);
 
   const handleResend = useCallback(
     (msg: ChatMessage) => {
