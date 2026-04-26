@@ -343,7 +343,7 @@ export default function TelemetryPanel({
                     type="monotone"
                     dataKey="snr"
                     name="SNR"
-                    stroke="#ef4444"
+                    stroke="#f97316"
                     strokeWidth={2}
                     dot={false}
                     connectNulls
@@ -353,7 +353,7 @@ export default function TelemetryPanel({
                     type="monotone"
                     dataKey="rssi"
                     name="RSSI"
-                    stroke="#f97316"
+                    stroke="#3b82f6"
                     strokeWidth={2}
                     dot={false}
                     connectNulls
