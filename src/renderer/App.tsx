@@ -73,6 +73,7 @@ import { applyThemeColors, loadThemeColors } from './lib/themeColors';
 import type { ChatMessage, DeviceState, MeshProtocol, MQTTSettings, MQTTStatus } from './lib/types';
 import { useDiagnosticsStore } from './stores/diagnosticsStore';
 import { usePathHistoryStore } from './stores/pathHistoryStore';
+import { usePositionHistoryStore } from './stores/positionHistoryStore';
 
 // Tabs (0-indexed) that are disabled in MeshCore mode
 // Security tab (index 7) is hidden for MeshCore since PKI config is not supported
@@ -403,6 +404,7 @@ export default function App() {
   }, [sidebarCollapsed]);
 
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const positionHistory = usePositionHistoryStore((s) => s.history);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [locationFilter, setLocationFilter] = useState<LocationFilter>(() => {
@@ -2432,6 +2434,7 @@ export default function App() {
             meshcoreManufacturerModel={
               protocol === 'meshcore' ? meshcoreDevice.state.manufacturerModel : undefined
             }
+            positionHistory={positionHistory}
           />
         </Suspense>
       )}

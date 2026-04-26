@@ -25,6 +25,7 @@ import NodeInfoBody, { formatSecondsAgo } from './NodeInfoBody';
 import SnrIndicator from './SnrIndicator';
 
 const TRACE_ROUTE_UI_TIMEOUT_MS = 120_000;
+const POSITION_HISTORY_MAX_ROWS = 100;
 
 interface NodeDetailModalProps {
   /** Optional: enables originator list for Mesh Congestion (RF duplicate-prone by node). */
@@ -65,6 +66,8 @@ interface NodeDetailModalProps {
   meshcoreLocalStats?: MeshCoreLocalStats | null;
   /** MeshCore: local radio manufacturer/model from `deviceQuery` (our node only in body). */
   meshcoreManufacturerModel?: string;
+  /** GPS position history (tracking path) for mobile nodes */
+  positionHistory?: Map<number, { t: number; lat: number; lon: number }[]>;
 }
 
 export default function NodeDetailModal({
@@ -98,6 +101,7 @@ export default function NodeDetailModal({
   onShareContact,
   meshcoreLocalStats,
   meshcoreManufacturerModel,
+  positionHistory,
 }: NodeDetailModalProps) {
   const { ensureConfigured, RemoteAuthModal } = useMeshcoreRepeaterRemoteAuth();
   const coordinateFormat = useCoordFormatStore((s) => s.coordinateFormat);
@@ -962,6 +966,69 @@ export default function NodeDetailModal({
                       {mapReport.data ? JSON.stringify(mapReport.data).slice(0, 50) : 'N/A'}
                     </div>
                   </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* Position History (GPS tracking path) */}
+          {positionHistory && (
+            <div className="space-y-2 px-5 pb-2">
+              <h4 className="text-muted text-xs font-medium tracking-wide uppercase">
+                Position History
+              </h4>
+              {(() => {
+                const points = positionHistory.get(node.node_id);
+                if (!points || points.length === 0) {
+                  return <p className="text-xs text-gray-500">No position history recorded</p>;
+                }
+                const sorted = [...points].sort((a, b) => a.t - b.t);
+                const first = sorted[0];
+                const last = sorted[sorted.length - 1];
+                const durationHours = ((last.t - first.t) / (1000 * 60 * 60)).toFixed(1);
+                const recentPoints = [...sorted].reverse().slice(0, POSITION_HISTORY_MAX_ROWS);
+                return (
+                  <>
+                    <div className="bg-secondary-dark grid grid-cols-2 gap-x-4 gap-y-1 rounded p-2 text-xs">
+                      <div className="text-muted">Recorded Points</div>
+                      <div className="font-mono text-gray-200">{points.length}</div>
+                      <div className="text-muted">Time Span</div>
+                      <div className="font-mono text-gray-200">{durationHours}h</div>
+                      <div className="text-muted">First Position</div>
+                      <div className="font-mono text-gray-200">
+                        {new Date(first.t).toLocaleString()}
+                      </div>
+                      <div className="text-muted">Last Position</div>
+                      <div className="font-mono text-gray-200">
+                        {new Date(last.t).toLocaleString()}
+                      </div>
+                    </div>
+                    {sorted.length > 1 && (
+                      <div className="text-[10px] text-gray-500">
+                        Most recent: {last.lat.toFixed(5)}, {last.lon.toFixed(5)}
+                      </div>
+                    )}
+                    {sorted.length > POSITION_HISTORY_MAX_ROWS && (
+                      <div className="text-[10px] text-gray-500">
+                        Showing newest {POSITION_HISTORY_MAX_ROWS} of {sorted.length} points
+                      </div>
+                    )}
+                    <div className="bg-secondary-dark max-h-48 space-y-1 overflow-y-auto rounded p-2">
+                      {recentPoints.map((point, idx) => (
+                        <div
+                          key={`${point.t}-${point.lat}-${point.lon}-${idx}`}
+                          className="grid grid-cols-[auto_1fr] gap-x-2 text-[10px]"
+                        >
+                          <span className="text-gray-500">
+                            {new Date(point.t).toLocaleString()}
+                          </span>
+                          <span className="font-mono text-gray-200">
+                            {formatCoordPair(point.lat, point.lon, coordinateFormat)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
                 );
               })()}
             </div>
