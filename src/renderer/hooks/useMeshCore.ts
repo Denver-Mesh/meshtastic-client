@@ -1705,7 +1705,6 @@ export function useMeshCore() {
           console.warn('[useMeshCore] saveMeshcoreContact error', e);
         });
       }
-
       try {
         const dbContacts =
           (await window.electronAPI.db.getMeshcoreContacts()) as MeshcoreContactDbRow[];
