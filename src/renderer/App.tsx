@@ -1765,6 +1765,7 @@ export default function App() {
                               waypoints={device.waypoints}
                               onSendWaypoint={device.sendWaypoint}
                               onDeleteWaypoint={device.deleteWaypoint}
+                              onNodeClick={setSelectedNodeId}
                               protocol={protocol}
                             />
                           </Suspense>

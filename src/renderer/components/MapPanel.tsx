@@ -573,6 +573,7 @@ interface Props {
     ch?: number,
   ) => Promise<void>;
   onDeleteWaypoint?: (id: number) => Promise<void>;
+  onNodeClick?: (nodeId: number) => void;
   protocol?: MeshProtocol;
 }
 
@@ -584,6 +585,7 @@ export default function MapPanel({
   onLocateMe,
   waypoints,
   onDeleteWaypoint,
+  onNodeClick,
   protocol = 'meshtastic',
 }: Props) {
   const homeNode = nodes.get(myNodeNum) ?? null;
@@ -956,7 +958,12 @@ export default function MapPanel({
           updateWhenIdle
         />
         {movingNodePaths.map(({ nodeId, positions: pathPositions, pathOptions }) => (
-          <Polyline key={`path-${nodeId}`} positions={pathPositions} pathOptions={pathOptions} />
+          <Polyline
+            key={`path-${nodeId}`}
+            positions={pathPositions}
+            pathOptions={pathOptions}
+            eventHandlers={{ click: () => onNodeClick?.(nodeId) }}
+          />
         ))}
         {routeWeightPolylines}
         {anomalyHalosEnabled || congestionHalosEnabled
