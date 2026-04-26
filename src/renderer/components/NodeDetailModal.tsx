@@ -330,7 +330,7 @@ export default function NodeDetailModal({
           role="dialog"
           aria-modal="true"
           aria-labelledby="node-modal-title"
-          className="bg-deep-black relative z-10 flex max-h-[90vh] min-h-0 w-full max-w-md flex-col overflow-hidden rounded-xl border border-gray-700 shadow-2xl"
+          className="bg-deep-black relative z-10 flex max-h-[90vh] min-h-0 w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-gray-700 shadow-2xl"
         >
           {/* Header */}
           <div className="flex shrink-0 items-center justify-between border-b border-gray-700 px-5 py-4">
@@ -460,7 +460,7 @@ export default function NodeDetailModal({
           </div>
 
           {/* Body — scrollable so long RF/diagnostics content fits on screen */}
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-3">
+          <div className="min-h-0 flex-1 overflow-auto overscroll-contain px-5 py-3">
             <NodeInfoBody
               node={node}
               homeNode={homeNode}
@@ -1013,7 +1013,7 @@ export default function NodeDetailModal({
                         Showing newest {POSITION_HISTORY_MAX_ROWS} of {sorted.length} points
                       </div>
                     )}
-                    <div className="bg-secondary-dark max-h-48 space-y-1 overflow-y-auto rounded p-2">
+                    <div className="bg-secondary-dark max-h-48 space-y-1 overflow-auto rounded p-2">
                       {recentPoints.map((point, idx) => (
                         <div
                           key={`${point.t}-${point.lat}-${point.lon}-${idx}`}
@@ -1022,7 +1022,7 @@ export default function NodeDetailModal({
                           <span className="text-gray-500">
                             {new Date(point.t).toLocaleString()}
                           </span>
-                          <span className="font-mono text-gray-200">
+                          <span className="font-mono whitespace-nowrap text-gray-200">
                             {formatCoordPair(point.lat, point.lon, coordinateFormat)}
                           </span>
                         </div>
