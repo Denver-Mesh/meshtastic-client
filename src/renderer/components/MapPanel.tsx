@@ -192,6 +192,18 @@ const PATH_COLORS = {
   stale: '#4c1d95',
   offline: '#334155',
 } as const;
+const MAX_PATH_POINTS_RENDER = 500; // Avoid huge polyline arrays in renderer memory
+
+function downsamplePathPoints(points: [number, number][], maxPoints: number): [number, number][] {
+  if (points.length <= maxPoints) return points;
+  const step = (points.length - 1) / (maxPoints - 1);
+  const sampled: [number, number][] = [];
+  for (let i = 0; i < maxPoints; i++) {
+    const idx = Math.round(i * step);
+    sampled.push(points[idx]);
+  }
+  return sampled;
+}
 
 // ─── DiagnosticPanes ──────────────────────────────────────────────────────────
 // Creates a dedicated Leaflet pane for anomaly halos. Sits above overlayPane
@@ -222,6 +234,7 @@ interface MapMarkerProps {
   node: MeshNode;
   anomaly: NodeAnomaly | null;
   isSelf: boolean;
+  homeNode?: MeshNode | null;
   nodes: Map<number, MeshNode>;
   protocol: MeshProtocol;
   congestionHalosEnabled: boolean;
@@ -323,6 +336,7 @@ const MapMarker = memo(
     node,
     anomaly,
     isSelf,
+    homeNode,
     nodes,
     protocol,
     congestionHalosEnabled,
@@ -344,8 +358,6 @@ const MapMarker = memo(
       () => getMarkerIcon(status, isSelf, cuForIcon, node.heard_via_mqtt_only, nodeBadge),
       [status, isSelf, cuForIcon, node.heard_via_mqtt_only, nodeBadge],
     );
-
-    const homeNode = nodes.get(isSelf ? node.node_id : 0) ?? null;
 
     const markerRef = useRef<L.Marker>(null);
     useEffect(() => {
@@ -390,6 +402,7 @@ const MapMarker = memo(
     prev.node === next.node &&
     prev.anomaly === next.anomaly &&
     prev.isSelf === next.isSelf &&
+    prev.homeNode === next.homeNode &&
     prev.nodes === next.nodes &&
     prev.protocol === next.protocol &&
     prev.congestionHalosEnabled === next.congestionHalosEnabled,
@@ -872,7 +885,10 @@ export default function MapPanel({
       const status = getNodeStatus(node.last_heard, nodeStaleThresholdMs, nodeOfflineThresholdMs);
       result.push({
         nodeId,
-        positions: points.map((p) => [p.lat, p.lon]),
+        positions: downsamplePathPoints(
+          points.map((p) => [p.lat, p.lon] as [number, number]),
+          MAX_PATH_POINTS_RENDER,
+        ),
         pathOptions: { color: PATH_COLORS[status], weight: 3, opacity: 0.65 },
       });
     }
@@ -1038,6 +1054,7 @@ export default function MapPanel({
               node={node}
               anomaly={anomaly}
               isSelf={node.node_id === myNodeNum}
+              homeNode={homeNode}
               nodes={nodes}
               protocol={protocol}
               congestionHalosEnabled={congestionHalosEnabled}
