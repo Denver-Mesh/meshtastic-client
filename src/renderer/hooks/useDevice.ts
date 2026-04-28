@@ -667,8 +667,14 @@ export function useDevice() {
         protocol?: 'meshtastic' | 'meshcore';
         positionWarning?: string | null;
         neighbors?: MeshNeighbor[];
+        portnum?: number;
       };
       if (!nodeUpdate.node_id) return;
+
+      // Record noisy portnums from MQTT for diagnostics
+      if (nodeUpdate.portnum != null) {
+        useDiagnosticsStore.getState().recordNoisePort(nodeUpdate.node_id, nodeUpdate.portnum);
+      }
 
       // Skip if protocol doesn't match current mode (backward compat: no protocol = process)
       if (nodeUpdate.protocol && nodeUpdate.protocol !== getStoredMeshProtocol()) {

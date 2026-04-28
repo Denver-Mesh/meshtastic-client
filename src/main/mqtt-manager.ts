@@ -1103,6 +1103,7 @@ export class MQTTManager extends EventEmitter {
             positionWarning: warning,
             last_heard: Date.now(),
             from_mqtt: true,
+            portnum: PortNum.POSITION_APP,
             ...(hopsAway !== undefined && { hops_away: hopsAway }),
           });
         } else if (pos.latitudeI || pos.longitudeI) {
@@ -1118,6 +1119,7 @@ export class MQTTManager extends EventEmitter {
             node_id: number;
             from_mqtt: boolean;
             positionWarning: null;
+            portnum?: number;
           } = {
             node_id: nodeId,
             latitude: lat,
@@ -1126,6 +1128,7 @@ export class MQTTManager extends EventEmitter {
             last_heard: now,
             from_mqtt: true,
             positionWarning: null,
+            portnum: PortNum.POSITION_APP,
             ...(hopsAway !== undefined && { hops_away: hopsAway }),
           };
           this.emit('nodeUpdate', nodeUpdate);
