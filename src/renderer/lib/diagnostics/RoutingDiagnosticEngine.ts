@@ -253,6 +253,7 @@ export function detectNoisyNode(
 
     if (portnum === NOISY_PORTNUMS.NODEINFO_APP) localWarn = 4;
     else if (portnum === NOISY_PORTNUMS.TELEMETRY_APP) localWarn = 4;
+    else if (portnum === NOISY_PORTNUMS.POSITION_APP) localWarn = 4;
     else if (portnum === NOISY_PORTNUMS.NEIGHBOR_INFO_APP) {
       localWarn = 1;
       localError = 2;
