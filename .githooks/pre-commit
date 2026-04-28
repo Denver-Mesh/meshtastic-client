@@ -39,7 +39,7 @@ if [ -s "$STAGED_LIST" ]; then
   done < "$STAGED_LIST"
 
   if [ -s "$MARKDOWN_LIST" ]; then
-    markdownlint-cli2 "$(cat "$MARKDOWN_LIST")" || fail 'markdownlint-cli2'
+    pnpm exec markdownlint-cli2 "$(cat "$MARKDOWN_LIST")" || fail 'markdownlint-cli2'
   fi
 
   pnpm dedupe || fail 'pnpm dedupe'
