@@ -1726,6 +1726,15 @@ export function useDevice() {
           } catch (e) {
             console.debug('[useDevice] raw packet log entry failed', e);
           }
+
+          // Record noisy portnums for diagnostics
+          const decoded = packet.payloadVariant;
+          if (decoded.case === 'decoded') {
+            const portnum = decoded.value.portnum;
+            if (typeof portnum === 'number') {
+              useDiagnosticsStore.getState().recordNoisePort(mp.from, portnum);
+            }
+          }
         }
 
         if (!mp.from) return;

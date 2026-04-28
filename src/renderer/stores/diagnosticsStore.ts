@@ -15,7 +15,8 @@ import {
   hasLocalStatsData,
   resetCuSpikeCooldown,
 } from '../lib/diagnostics/RFDiagnosticEngine';
-import { analyzeNode } from '../lib/diagnostics/RoutingDiagnosticEngine';
+import type { NoiseStats } from '../lib/diagnostics/RoutingDiagnosticEngine';
+import { analyzeNode, NOISY_PORTNUMS } from '../lib/diagnostics/RoutingDiagnosticEngine';
 import {
   classifyProximity,
   type PacketClass,
@@ -282,6 +283,8 @@ interface DiagnosticsState {
   /** Per-node channel_utilization samples (24h rolling) for CU spike detection */
   cuHistory: Map<number, CuSample[]>;
   packetStats: Map<number, { total: number; duplicates: number }>;
+  /** Rolling window of timestamps per node per noisy portnum (1h window). Outer key: nodeId, inner key: portnum. */
+  noiseRateStats: Map<number, Map<number, number[]>>;
   packetCache: Map<number, PacketRecord>;
   nodeRedundancy: Map<number, NodeRedundancy>;
   congestionHalosEnabled: boolean;
@@ -330,6 +333,7 @@ interface DiagnosticsState {
     getNodes?: () => Map<number, MeshNode>,
   ): void;
   recordPacketPath(packetId: number, fromNodeId: number, path: PacketPath): void;
+  recordNoisePort(fromNodeId: number, portnum: number): void;
   runReanalysis(
     getNodes: () => Map<number, MeshNode>,
     myNodeNum: number,
@@ -377,6 +381,24 @@ interface DiagnosticsState {
 // Module-level debounce timer and pending analysis buffer
 let analysisTimer: ReturnType<typeof setTimeout> | null = null;
 const pendingAnalyses = new Map<number, { node: MeshNode; homeNode: MeshNode | null }>();
+
+const NOISE_WINDOW_MS = 60 * 60 * 1000; // 1 hour rolling window
+
+function getNoiseStatsForNode(
+  noiseRateStats: Map<number, Map<number, number[]>>,
+  nodeId: number,
+): NoiseStats | null {
+  const byPortnum = noiseRateStats.get(nodeId);
+  if (!byPortnum || byPortnum.size === 0) return null;
+  const cutoff = Date.now() - NOISE_WINDOW_MS;
+  const counts: Record<number, number> = {};
+  for (const [portnum, timestamps] of byPortnum) {
+    const inWindow = timestamps.filter((t) => t >= cutoff).length;
+    if (inWindow > 0) counts[portnum] = inWindow;
+  }
+  if (Object.keys(counts).length === 0) return null;
+  return { nodeId, counts, windowMs: NOISE_WINDOW_MS };
+}
 
 function loadPersistedBool(key: string): boolean {
   const raw = getAppSettingsRaw();
@@ -448,6 +470,7 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
   hopHistory: new Map(),
   cuHistory: new Map(),
   packetStats: new Map(),
+  noiseRateStats: new Map(),
   packetCache: new Map(),
   nodeRedundancy: new Map(),
   congestionHalosEnabled: loadPersistedBool('congestionHalosEnabled'),
@@ -661,6 +684,7 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
           const history = state.hopHistory.get(nodeId) ?? [];
           const stats = state.packetStats.get(nodeId);
           const ignoreMqtt = state.ignoreMqttEnabled || state.mqttIgnoredNodes.has(nodeId);
+          const noiseData = getNoiseStatsForNode(state.noiseRateStats, nodeId);
           const anomaly = analyzeNode(
             n,
             stats,
@@ -671,6 +695,7 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
             0,
             hopsThreshold,
             capabilities,
+            noiseData,
           );
           if (anomaly) newAnomalies.set(nodeId, anomaly);
           else newAnomalies.delete(nodeId);
@@ -716,6 +741,26 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
       const newPacketStats = new Map(state.packetStats);
       newPacketStats.set(fromNodeId, { ...stats, duplicates: stats.duplicates + 1 });
       return { packetStats: newPacketStats };
+    });
+  },
+
+  recordNoisePort(fromNodeId: number, portnum: number) {
+    const noisyPortnumValues: readonly number[] = Object.values(NOISY_PORTNUMS);
+    const isMeshCorePort = portnum === 1001 || portnum === 1002;
+    if (!isMeshCorePort && !noisyPortnumValues.includes(portnum)) return;
+    const now = Date.now();
+    const cutoff = now - NOISE_WINDOW_MS;
+    set((state) => {
+      const byPortnum = state.noiseRateStats.get(fromNodeId) ?? new Map<number, number[]>();
+      const existing = byPortnum.get(portnum) ?? [];
+      // Prune expired entries on write to prevent unbounded growth
+      const pruned = existing.filter((t) => t >= cutoff);
+      pruned.push(now);
+      const newByPortnum = new Map(byPortnum);
+      newByPortnum.set(portnum, pruned);
+      const newMap = new Map(state.noiseRateStats);
+      newMap.set(fromNodeId, newByPortnum);
+      return { noiseRateStats: newMap };
     });
   },
 
@@ -903,6 +948,7 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
         const history = state.hopHistory.get(nodeId) ?? [];
         const stats = state.packetStats.get(nodeId);
         const ignoreMqtt = state.ignoreMqttEnabled || state.mqttIgnoredNodes.has(nodeId);
+        const noiseData = getNoiseStatsForNode(state.noiseRateStats, nodeId);
         const anomaly = analyzeNode(
           node,
           stats,
@@ -913,6 +959,7 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
           0,
           hopsThreshold,
           capabilities,
+          noiseData,
         );
         if (anomaly) newAnomalies.set(nodeId, anomaly);
       }
