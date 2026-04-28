@@ -3,8 +3,8 @@ import type { ProtocolCapabilities } from '../radio/BaseRadioProvider';
 import type { HopHistoryPoint, MeshNode, NodeAnomaly } from '../types';
 
 export const NOISY_PORTNUMS = {
-  POSITION_APP: 2,
-  REMOTE_HARDWARE_APP: 3,
+  POSITION_APP: 3,
+  REMOTE_HARDWARE_APP: 2,
   NODEINFO_APP: 4,
   ADMIN_APP: 6,
   TRACEROUTE_APP: 11,
