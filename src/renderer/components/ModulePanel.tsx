@@ -1,7 +1,12 @@
 import { useState } from 'react';
 
+import {
+  MESHTASTIC_DEVICE_METRICS_HELP_TOOLTIP,
+  MESHTASTIC_MODULE_DEVICE_METRICS_DESCRIPTION,
+} from '@/renderer/lib/meshtasticTelemetryLocalClientCopy';
 import { MS_PER_MINUTE } from '@/renderer/lib/timeConstants';
 
+import { HelpTooltip } from './HelpTooltip';
 import { useToast } from './Toast';
 
 interface PacketMessage {
@@ -77,6 +82,7 @@ function ConfigNumber({
   max,
   unit,
   description,
+  tooltip,
 }: {
   label: string;
   value: number;
@@ -86,10 +92,14 @@ function ConfigNumber({
   max?: number;
   unit?: string;
   description?: string;
+  tooltip?: string;
 }) {
   return (
     <div className="space-y-1">
-      <label className="text-muted text-sm">{label}</label>
+      <div className="flex items-center gap-1.5">
+        <label className="text-muted text-sm">{label}</label>
+        {tooltip && <HelpTooltip text={tooltip} />}
+      </div>
       <div className="flex items-center gap-2">
         <input
           type="number"
@@ -1131,7 +1141,8 @@ export default function ModulePanel({
           min={0}
           max={86400}
           unit="seconds"
-          description="How often to send battery/voltage/channel utilization. 0 = disabled."
+          description={MESHTASTIC_MODULE_DEVICE_METRICS_DESCRIPTION}
+          tooltip={MESHTASTIC_DEVICE_METRICS_HELP_TOOLTIP}
         />
         <ConfigNumber
           label="Environment metrics interval"

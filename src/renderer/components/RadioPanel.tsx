@@ -15,6 +15,10 @@ import {
   meshcoreSelfInfoBwToDisplayKhz,
   meshcoreSelfInfoFreqToDisplayHz,
 } from '../lib/meshcoreUtils';
+import {
+  MESHTASTIC_DEVICE_METRICS_HELP_TOOLTIP,
+  MESHTASTIC_RADIO_DEVICE_METRICS_DESCRIPTION,
+} from '../lib/meshtasticTelemetryLocalClientCopy';
 import type { ProtocolCapabilities } from '../lib/radio/BaseRadioProvider';
 import { HelpTooltip } from './HelpTooltip';
 import MeshcoreContactSettingsSection from './MeshcoreContactSettingsSection';
@@ -1694,7 +1698,8 @@ export default function RadioPanel({
             min={0}
             max={86400}
             unit="seconds"
-            description="How often to send device metrics (battery, voltage, channel utilization) to the mesh. 0 = disabled. Default 1800 (30 min)."
+            description={MESHTASTIC_RADIO_DEVICE_METRICS_DESCRIPTION}
+            tooltip={MESHTASTIC_DEVICE_METRICS_HELP_TOOLTIP}
           />
         </ConfigSection>
       )}
