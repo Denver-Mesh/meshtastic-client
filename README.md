@@ -277,6 +277,21 @@ See [Troubleshooting — macOS: File is damaged…](docs/troubleshooting.md#maco
 
 ---
 
+## Run Locally
+
+**Prerequisites:** [Node.js 22.13.0+](https://nodejs.org/) and [pnpm 10+](https://pnpm.io/installation).
+
+```bash
+git clone https://github.com/Colorado-Mesh/mesh-client
+cd mesh-client
+pnpm install
+pnpm run dev
+```
+
+For OS-specific steps — BLE permissions on macOS, serial port group on Linux, Visual Studio Build Tools on Windows — see [docs/development-environment.md](docs/development-environment.md).
+
+---
+
 ## Usage
 
 ### Choosing a Protocol
