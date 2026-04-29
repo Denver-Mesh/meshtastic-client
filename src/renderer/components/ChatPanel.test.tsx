@@ -1040,3 +1040,65 @@ describe('ChatPanel unread watermarks', () => {
     });
   });
 });
+
+describe('ChatPanel compose emoji picker', () => {
+  const defaultProps = {
+    messages: [],
+    channels: [{ index: 0, name: 'General' }],
+    myNodeNum: 1,
+    onSend: vi.fn().mockResolvedValue(undefined),
+    onReact: vi.fn().mockResolvedValue(undefined),
+    onResend: vi.fn(),
+    onNodeClick: vi.fn(),
+    isConnected: true,
+    nodes: new Map(),
+    isActive: true,
+  };
+
+  beforeEach(() => {
+    vi.mocked(window.electronAPI.getPlatform).mockReturnValue('linux');
+    vi.mocked(window.electronAPI.showEmojiPanel).mockClear().mockResolvedValue(undefined);
+  });
+
+  it('shows emoji-picker element on Linux when emoji button is clicked', async () => {
+    vi.mocked(window.electronAPI.getPlatform).mockReturnValue('linux');
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <ChatPanel {...defaultProps} />
+      </ToastProvider>,
+    );
+    const emojiBtn = screen.getByRole('button', { name: '😊' });
+    await user.click(emojiBtn);
+    expect(document.querySelector('emoji-picker')).toBeInTheDocument();
+    expect(window.electronAPI.showEmojiPanel).not.toHaveBeenCalled();
+  });
+
+  it('calls showEmojiPanel and does not render emoji-picker on macOS', async () => {
+    vi.mocked(window.electronAPI.getPlatform).mockReturnValue('darwin');
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <ChatPanel {...defaultProps} />
+      </ToastProvider>,
+    );
+    const emojiBtn = screen.getByRole('button', { name: '😊' });
+    await user.click(emojiBtn);
+    expect(window.electronAPI.showEmojiPanel).toHaveBeenCalledOnce();
+    expect(document.querySelector('emoji-picker')).not.toBeInTheDocument();
+  });
+
+  it('calls showEmojiPanel and does not render emoji-picker on Windows', async () => {
+    vi.mocked(window.electronAPI.getPlatform).mockReturnValue('win32');
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <ChatPanel {...defaultProps} />
+      </ToastProvider>,
+    );
+    const emojiBtn = screen.getByRole('button', { name: '😊' });
+    await user.click(emojiBtn);
+    expect(window.electronAPI.showEmojiPanel).toHaveBeenCalledOnce();
+    expect(document.querySelector('emoji-picker')).not.toBeInTheDocument();
+  });
+});

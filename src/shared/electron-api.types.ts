@@ -524,6 +524,10 @@ export interface ElectronAPI {
     setLoginItem: (openAtLogin: boolean) => Promise<void>;
   };
 
+  // ─── OS emoji panel ──────────────────────────────────────────────────────────
+  getPlatform: () => string;
+  showEmojiPanel: () => Promise<void>;
+
   // ─── Power events ────────────────────────────────────────────────────────────
   onPowerSuspend: (cb: () => void) => () => void;
   onPowerResume: (cb: () => void) => () => void;

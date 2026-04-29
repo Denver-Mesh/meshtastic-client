@@ -728,6 +728,8 @@ declare global {
       notifyDeviceDisconnected: () => void;
       setTrayUnread: (count: number) => void;
       quitApp: () => Promise<void>;
+      getPlatform: () => string;
+      showEmojiPanel: () => Promise<void>;
       log: {
         getPath: () => Promise<string>;
         getRecentLines: () => Promise<

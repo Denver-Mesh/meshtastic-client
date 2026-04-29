@@ -2339,6 +2339,15 @@ ipcMain.handle('app:setLoginItem', (_event, openAtLogin: unknown) => {
   app.setLoginItemSettings({ openAtLogin });
 });
 
+ipcMain.handle('app:showEmojiPanel', (event) => {
+  if (!validateIpcSender(event)) {
+    throw new Error('IPC sender validation failed');
+  }
+  if (process.platform === 'darwin' || process.platform === 'win32') {
+    app.showEmojiPanel();
+  }
+});
+
 ipcMain.handle('app:quit', async (event) => {
   if (!validateIpcSender(event)) {
     throw new Error('IPC sender validation failed');

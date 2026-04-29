@@ -1,4 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/refs */
+import 'emoji-picker-element';
+
 import {
   memo,
   useCallback,
@@ -24,6 +26,15 @@ import { truncateReplyPreviewText } from '../lib/replyPreview';
 import type { ChatMessage, MeshNode, MeshProtocol } from '../lib/types';
 import { ChatPayloadText } from './ChatPayloadText';
 import { HelpTooltip } from './HelpTooltip';
+
+declare module 'react' {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace JSX {
+    interface IntrinsicElements {
+      'emoji-picker': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
+    }
+  }
+}
 
 function StatusBadge({
   status,
@@ -323,12 +334,14 @@ function ChatPanel({
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [pickerOpenFor, setPickerOpenFor] = useState<number | null>(null);
   const [showComposePicker, setShowComposePicker] = useState(false);
+  const isLinux = useMemo(() => window.electronAPI.getPlatform() === 'linux', []);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const emojiPickerRef = useRef<HTMLElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Two-section UI state — load DM tabs from localStorage for restart persistence
@@ -803,23 +816,6 @@ function ChatPanel({
     }
   };
 
-  const insertEmojiAtCursor = (code: number) => {
-    const el = inputRef.current;
-    const char = String.fromCodePoint(code);
-    // emoji is a surrogate pair = 2 UTF-16 code units
-    const charLen = char.length;
-    const start = el?.selectionStart ?? input.length;
-    const end = el?.selectionEnd ?? input.length;
-    const newVal = input.slice(0, start) + char + input.slice(end);
-    if (newVal.length > 228) return; // enforce maxLength
-    setInput(newVal);
-    setShowComposePicker(false);
-    requestAnimationFrame(() => {
-      el?.focus();
-      el?.setSelectionRange(start + charLen, start + charLen);
-    });
-  };
-
   // Open a DM tab for a node
   const openDmTo = useCallback((nodeNum: number) => {
     setOpenDmTabs((prev) => (prev.includes(nodeNum) ? prev : [...prev, nodeNum]));
@@ -890,6 +886,30 @@ function ChatPanel({
     }
     return -1;
   }, [channel, filteredMessages, isOwnNode, searchQuery, unreadDividerTimestamp]);
+
+  useEffect(() => {
+    const el = emojiPickerRef.current;
+    if (!el) return;
+    const handler = (e: Event) => {
+      const unicode: string = (e as CustomEvent).detail.emoji.unicode;
+      const textarea = inputRef.current;
+      const currentValue = textarea?.value ?? '';
+      const start = textarea?.selectionStart ?? currentValue.length;
+      const end = textarea?.selectionEnd ?? currentValue.length;
+      const newVal = currentValue.slice(0, start) + unicode + currentValue.slice(end);
+      if (newVal.length > 228) return;
+      setInput(newVal);
+      setShowComposePicker(false);
+      requestAnimationFrame(() => {
+        textarea?.focus();
+        textarea?.setSelectionRange(start + unicode.length, start + unicode.length);
+      });
+    };
+    el.addEventListener('emoji-click', handler);
+    return () => {
+      el.removeEventListener('emoji-click', handler);
+    };
+  }, [showComposePicker]);
 
   const isDmMode = viewMode === 'dm' && activeDmNode != null;
   const dmNodeName = activeDmNode != null ? getDmLabel(activeDmNode) : '';
@@ -1496,38 +1516,12 @@ function ChatPanel({
         )}
       </div>
 
-      {/* Compose emoji picker — renders above the input row */}
-      {showComposePicker && (
-        <div className="bg-secondary-dark mb-1 flex flex-col gap-0.5 self-start rounded-xl border border-gray-600 px-2 py-1.5 shadow-lg">
-          <div className="flex gap-1">
-            {REACTION_EMOJIS.slice(0, 6).map((re) => (
-              <button
-                key={re.code}
-                onClick={() => {
-                  insertEmojiAtCursor(re.code);
-                }}
-                className="px-0.5 text-lg transition-transform hover:scale-125"
-                title={re.name}
-              >
-                {re.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex justify-center gap-1">
-            {REACTION_EMOJIS.slice(6).map((re) => (
-              <button
-                key={re.code}
-                onClick={() => {
-                  insertEmojiAtCursor(re.code);
-                }}
-                className="px-0.5 text-lg transition-transform hover:scale-125"
-                title={re.name}
-              >
-                {re.label}
-              </button>
-            ))}
-          </div>
-        </div>
+      {/* Compose emoji picker — Linux only; macOS/Windows use native showEmojiPanel() */}
+      {isLinux && showComposePicker && (
+        <emoji-picker
+          ref={emojiPickerRef}
+          style={{ width: '100%', maxWidth: '350px', alignSelf: 'flex-start' }}
+        />
       )}
 
       {/* Reply preview bar */}
@@ -1604,7 +1598,12 @@ function ChatPanel({
         {/* Compose emoji picker toggle */}
         <button
           onClick={() => {
-            setShowComposePicker((prev) => !prev);
+            if (isLinux) {
+              setShowComposePicker((prev) => !prev);
+            } else {
+              inputRef.current?.focus();
+              void window.electronAPI.showEmojiPanel();
+            }
           }}
           disabled={!isConnected || sending}
           aria-label="😊"
