@@ -39,6 +39,8 @@ describe('ChatPanel accessibility', () => {
   it('emoji picker opens for the correct message when messages have no packetId', async () => {
     // Messages without packetId must use timestamp as picker key so re-renders
     // don't shift the picker to a different message (regression: was using -(i+1)).
+    // Use macOS so the hardcoded reaction grid renders (Linux shows emoji-picker-element).
+    vi.mocked(window.electronAPI.getPlatform).mockReturnValue('darwin');
     const now = Date.now();
     const user = userEvent.setup();
     render(
@@ -1099,6 +1101,66 @@ describe('ChatPanel compose emoji picker', () => {
     const emojiBtn = screen.getByRole('button', { name: '😊' });
     await user.click(emojiBtn);
     expect(window.electronAPI.showEmojiPanel).toHaveBeenCalledOnce();
+    expect(document.querySelector('emoji-picker')).not.toBeInTheDocument();
+  });
+});
+
+describe('ChatPanel tapback reaction picker', () => {
+  const baseMessage = {
+    sender_id: 2,
+    sender_name: 'Alice',
+    payload: 'hello',
+    channel: 0,
+    timestamp: Date.now() - 1000,
+    status: 'acked' as const,
+  };
+
+  const defaultProps = {
+    messages: [baseMessage],
+    channels: [{ index: 0, name: 'General' }],
+    myNodeNum: 1,
+    onSend: vi.fn().mockResolvedValue(undefined),
+    onReact: vi.fn().mockResolvedValue(undefined),
+    onResend: vi.fn(),
+    onNodeClick: vi.fn(),
+    isConnected: true,
+    nodes: new Map(),
+    isActive: true,
+  };
+
+  beforeEach(() => {
+    vi.mocked(window.electronAPI.getPlatform).mockReturnValue('linux');
+    vi.mocked(window.electronAPI.showEmojiPanel).mockClear().mockResolvedValue(undefined);
+  });
+
+  it('shows emoji-picker element on Linux when React button is clicked', async () => {
+    vi.mocked(window.electronAPI.getPlatform).mockReturnValue('linux');
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <ChatPanel {...defaultProps} />
+      </ToastProvider>,
+    );
+    const reactBtn = screen.getByTitle('React');
+    await user.click(reactBtn);
+    expect(document.querySelector('emoji-picker')).toBeInTheDocument();
+    // hardcoded grid buttons should not be present
+    expect(screen.queryByTitle('Like')).not.toBeInTheDocument();
+  });
+
+  it('shows hardcoded reaction grid on macOS when React button is clicked', async () => {
+    vi.mocked(window.electronAPI.getPlatform).mockReturnValue('darwin');
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <ChatPanel {...defaultProps} />
+      </ToastProvider>,
+    );
+    const reactBtn = screen.getByTitle('React');
+    await user.click(reactBtn);
+    await waitFor(() => {
+      expect(screen.getByTitle('Like')).toBeInTheDocument();
+    });
     expect(document.querySelector('emoji-picker')).not.toBeInTheDocument();
   });
 });

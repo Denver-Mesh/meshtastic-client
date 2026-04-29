@@ -342,6 +342,10 @@ function ChatPanel({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const emojiPickerRef = useRef<HTMLElement | null>(null);
+  const reactionPickerRef = useRef<HTMLElement | null>(null);
+  const reactionPickerTarget = useRef<{ id: number; channel: number } | null>(null);
+
+  const handleReactRef = useRef<any>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Two-section UI state — load DM tabs from localStorage for restart persistence
@@ -808,6 +812,7 @@ function ChatPanel({
       });
     }
   };
+  handleReactRef.current = handleReact;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -910,6 +915,26 @@ function ChatPanel({
       el.removeEventListener('emoji-click', handler);
     };
   }, [showComposePicker]);
+
+  // Linux reaction picker — attach emoji-click on the <emoji-picker> web component
+  useEffect(() => {
+    if (!isLinux || !pickerOpenFor) return;
+    const el = reactionPickerRef.current;
+    if (!el) return;
+    const target = reactionPickerTarget.current;
+    if (!target) return;
+    const handler = (e: Event) => {
+      const unicode = (e as CustomEvent).detail.emoji.unicode as string;
+      const code = unicode.codePointAt(0);
+      if (code !== undefined) {
+        void handleReactRef.current(code, target.id, target.channel);
+      }
+    };
+    el.addEventListener('emoji-click', handler);
+    return () => {
+      el.removeEventListener('emoji-click', handler);
+    };
+  }, [pickerOpenFor, isLinux]);
 
   const isDmMode = viewMode === 'dm' && activeDmNode != null;
   const dmNodeName = activeDmNode != null ? getDmLabel(activeDmNode) : '';
@@ -1357,7 +1382,11 @@ function ChatPanel({
                           {/* React */}
                           <button
                             onClick={() => {
-                              setPickerOpenFor(showPicker ? null : (msg.packetId ?? msg.timestamp));
+                              const id = msg.packetId ?? msg.timestamp;
+                              if (!showPicker) {
+                                reactionPickerTarget.current = { id, channel: msg.channel };
+                              }
+                              setPickerOpenFor(showPicker ? null : id);
                             }}
                             className="rounded p-1 text-xs text-gray-600 hover:text-gray-300"
                             aria-label="Add reaction"
@@ -1405,8 +1434,15 @@ function ChatPanel({
                       )}
                     </div>
 
-                    {/* Emoji picker */}
-                    {showPicker && (
+                    {/* Reaction picker — Linux: full emoji-picker-element; macOS/Windows: quick grid */}
+                    {showPicker && isLinux && (
+                      <div
+                        className={`${pickerOpensAbove ? 'order-first mb-1' : 'mt-1'} ${isOwn ? 'self-end' : 'self-start'}`}
+                      >
+                        <emoji-picker ref={reactionPickerRef} style={{ width: '320px' }} />
+                      </div>
+                    )}
+                    {showPicker && !isLinux && (
                       <div
                         className={`bg-secondary-dark flex flex-col gap-0.5 rounded-xl border border-gray-600 px-2 py-1.5 shadow-lg ${
                           pickerOpensAbove ? 'order-first mb-1' : 'mt-1'
