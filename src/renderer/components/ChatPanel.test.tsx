@@ -1083,9 +1083,7 @@ describe('ChatPanel compose emoji picker', () => {
     );
     const emojiBtn = screen.getByRole('button', { name: '😊' });
     await user.click(emojiBtn);
-    await waitFor(() => {
-      expect(window.electronAPI.showEmojiPanel).toHaveBeenCalledOnce();
-    });
+    expect(window.electronAPI.showEmojiPanel).toHaveBeenCalledOnce();
     expect(document.querySelector('emoji-picker')).not.toBeInTheDocument();
   });
 
@@ -1099,9 +1097,7 @@ describe('ChatPanel compose emoji picker', () => {
     );
     const emojiBtn = screen.getByRole('button', { name: '😊' });
     await user.click(emojiBtn);
-    await waitFor(() => {
-      expect(window.electronAPI.showEmojiPanel).toHaveBeenCalledOnce();
-    });
+    expect(window.electronAPI.showEmojiPanel).toHaveBeenCalledOnce();
     expect(document.querySelector('emoji-picker')).not.toBeInTheDocument();
   });
 });
@@ -1162,9 +1158,7 @@ describe('ChatPanel tapback reaction picker', () => {
       );
       const reactBtn = screen.getByTitle('React');
       await user.click(reactBtn);
-      await waitFor(() => {
-        expect(window.electronAPI.showEmojiPanel).toHaveBeenCalledOnce();
-      });
+      expect(window.electronAPI.showEmojiPanel).toHaveBeenCalledOnce();
       expect(document.querySelector('emoji-picker')).not.toBeInTheDocument();
     },
   );

@@ -1384,16 +1384,17 @@ function ChatPanel({
                           </button>
                           {/* React */}
                           <button
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              if (!isLinux) reactionHiddenInputRef.current?.focus();
+                            }}
                             onClick={() => {
                               const id = msg.packetId ?? msg.timestamp;
                               reactionPickerTarget.current = { id, channel: msg.channel };
                               if (isLinux) {
                                 setPickerOpenFor(showPicker ? null : id);
                               } else {
-                                reactionHiddenInputRef.current?.focus();
-                                requestAnimationFrame(() => {
-                                  void window.electronAPI.showEmojiPanel();
-                                });
+                                void window.electronAPI.showEmojiPanel();
                               }
                             }}
                             className="rounded p-1 text-xs text-gray-600 hover:text-gray-300"
@@ -1614,14 +1615,15 @@ function ChatPanel({
         />
         {/* Compose emoji picker toggle */}
         <button
+          onMouseDown={(e) => {
+            e.preventDefault(); // keep textarea focused; also pre-focus it so OS settles before showEmojiPanel()
+            if (!isLinux) inputRef.current?.focus();
+          }}
           onClick={() => {
             if (isLinux) {
               setShowComposePicker((prev) => !prev);
             } else {
-              inputRef.current?.focus();
-              requestAnimationFrame(() => {
-                void window.electronAPI.showEmojiPanel();
-              });
+              void window.electronAPI.showEmojiPanel();
             }
           }}
           disabled={!isConnected || sending}
