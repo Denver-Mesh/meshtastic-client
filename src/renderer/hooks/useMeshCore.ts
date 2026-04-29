@@ -994,6 +994,12 @@ function coerceOptionalDbInt(v: number | string | null | undefined): number | un
   return Number.isFinite(n) ? n : undefined;
 }
 
+function safeEmojiCodepoint(v: number | string | null | undefined): number | undefined {
+  const n = coerceOptionalDbInt(v);
+  if (n != null && n >= 1 && n <= 0x10ffff) return n;
+  return undefined;
+}
+
 /** 32-byte pubkey from `meshcore_contacts.public_key` hex, or null if synthetic / invalid length. */
 function meshcoreFullPubKeyBytesFromContactDbHex(raw: string): Uint8Array | null {
   const hex = raw.replace(/\s/g, '');
@@ -1029,7 +1035,7 @@ function mapMeshcoreDbRowsToChatMessages(rows: MeshcoreMessageDbRow[]): ChatMess
       timestamp: r.timestamp,
       status: (r.status as ChatMessage['status']) ?? 'acked',
       packetId: r.packet_id ?? undefined,
-      emoji: coerceOptionalDbInt(r.emoji),
+      emoji: safeEmojiCodepoint(r.emoji),
       replyId: coerceOptionalDbInt(r.reply_id),
       to: r.to_node ?? undefined,
       receivedVia: meshcoreReceivedViaFromDb(r.received_via),

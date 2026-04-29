@@ -39,8 +39,6 @@ describe('ChatPanel accessibility', () => {
   it('emoji picker opens for the correct message when messages have no packetId', async () => {
     // Messages without packetId must use timestamp as picker key so re-renders
     // don't shift the picker to a different message (regression: was using -(i+1)).
-    // Use macOS so the hardcoded reaction grid renders (Linux shows emoji-picker-element).
-    vi.mocked(window.electronAPI.getPlatform).mockReturnValue('darwin');
     const now = Date.now();
     const user = userEvent.setup();
     render(
@@ -70,12 +68,11 @@ describe('ChatPanel accessibility', () => {
         />
       </ToastProvider>,
     );
-    // Open picker for the second message
+    // Open picker for the second message (Linux default mock → emoji-picker-element)
     const reactButtons = screen.getAllByTitle('React');
     await user.click(reactButtons[1]);
-    // Picker should be visible — emoji buttons are titled 'Like', 'Love', etc.
     await waitFor(() => {
-      expect(screen.getByTitle('Like')).toBeInTheDocument();
+      expect(document.querySelector('emoji-picker')).toBeInTheDocument();
     });
   });
 
@@ -1143,24 +1140,26 @@ describe('ChatPanel tapback reaction picker', () => {
     );
     const reactBtn = screen.getByTitle('React');
     await user.click(reactBtn);
-    expect(document.querySelector('emoji-picker')).toBeInTheDocument();
-    // hardcoded grid buttons should not be present
-    expect(screen.queryByTitle('Like')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(document.querySelector('emoji-picker')).toBeInTheDocument();
+    });
+    expect(window.electronAPI.showEmojiPanel).not.toHaveBeenCalled();
   });
 
-  it('shows hardcoded reaction grid on macOS when React button is clicked', async () => {
-    vi.mocked(window.electronAPI.getPlatform).mockReturnValue('darwin');
-    const user = userEvent.setup();
-    render(
-      <ToastProvider>
-        <ChatPanel {...defaultProps} />
-      </ToastProvider>,
-    );
-    const reactBtn = screen.getByTitle('React');
-    await user.click(reactBtn);
-    await waitFor(() => {
-      expect(screen.getByTitle('Like')).toBeInTheDocument();
-    });
-    expect(document.querySelector('emoji-picker')).not.toBeInTheDocument();
-  });
+  it.each(['darwin', 'win32'] as const)(
+    'calls showEmojiPanel and does not render emoji-picker on %s when React button is clicked',
+    async (platform) => {
+      vi.mocked(window.electronAPI.getPlatform).mockReturnValue(platform);
+      const user = userEvent.setup();
+      render(
+        <ToastProvider>
+          <ChatPanel {...defaultProps} />
+        </ToastProvider>,
+      );
+      const reactBtn = screen.getByTitle('React');
+      await user.click(reactBtn);
+      expect(window.electronAPI.showEmojiPanel).toHaveBeenCalledOnce();
+      expect(document.querySelector('emoji-picker')).not.toBeInTheDocument();
+    },
+  );
 });

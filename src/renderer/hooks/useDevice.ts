@@ -787,7 +787,10 @@ export function useDevice() {
 
       // Normalize placeholder replyId/emoji (some senders emit 0 instead of omitting the field)
       const cleanedReplyId = raw.replyId != null && raw.replyId !== 0 ? raw.replyId : undefined;
-      const cleanedEmoji = raw.emoji != null && raw.emoji !== 0 ? raw.emoji : undefined;
+      const cleanedEmoji =
+        raw.emoji != null && raw.emoji !== 0 && raw.emoji >= 1 && raw.emoji <= 0x10ffff
+          ? raw.emoji
+          : undefined;
 
       let cleanedPayload = raw.payload;
       if (typeof cleanedPayload === 'string') {

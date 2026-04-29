@@ -133,24 +133,6 @@ function TransportBadge({ via }: { via: 'rf' | 'mqtt' | 'both' }) {
   return via === 'rf' ? rfIcon : mqttIcon;
 }
 
-// Standard emoji reaction set — Row 1: iMessage Classic, Row 2: WhatsApp/RCS Extended
-const REACTION_EMOJIS = [
-  // Row 1 (6)
-  { code: 128077, label: '\ud83d\udc4d', name: 'Like' }, // 👍
-  { code: 10084, label: '\u2764\ufe0f', name: 'Love' }, // ❤️
-  { code: 128514, label: '\ud83d\ude02', name: 'Laugh' }, // 😂
-  { code: 128078, label: '\ud83d\udc4e', name: 'Dislike' }, // 👎
-  { code: 127881, label: '\ud83c\udf89', name: 'Party' }, // 🎉
-  { code: 128558, label: '\ud83d\ude2e', name: 'Wow' }, // 😮
-  // Row 2 (6)
-  { code: 128546, label: '\ud83d\ude22', name: 'Sad' }, // 😢
-  { code: 128075, label: '\ud83d\udc4b', name: 'Wave' }, // 👋
-  { code: 128591, label: '\ud83d\ude4f', name: 'Thanks' }, // 🙏
-  { code: 128293, label: '\ud83d\udd25', name: 'Fire' }, // 🔥
-  { code: 9989, label: '\u2705', name: 'Check' }, // ✅
-  { code: 129300, label: '\ud83e\udd14', name: 'Thinking' }, // 🤔
-];
-
 /** Format a date for day separators */
 function formatDayLabel(ts: number): string {
   const date = new Date(ts);
@@ -344,6 +326,7 @@ function ChatPanel({
   const emojiPickerRef = useRef<HTMLElement | null>(null);
   const reactionPickerRef = useRef<HTMLElement | null>(null);
   const reactionPickerTarget = useRef<{ id: number; channel: number } | null>(null);
+  const reactionHiddenInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleReactRef = useRef<any>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -918,7 +901,7 @@ function ChatPanel({
 
   // Linux reaction picker — attach emoji-click on the <emoji-picker> web component
   useEffect(() => {
-    if (!isLinux || !pickerOpenFor) return;
+    if (!pickerOpenFor) return;
     const el = reactionPickerRef.current;
     if (!el) return;
     const target = reactionPickerTarget.current;
@@ -934,7 +917,27 @@ function ChatPanel({
     return () => {
       el.removeEventListener('emoji-click', handler);
     };
-  }, [pickerOpenFor, isLinux]);
+  }, [pickerOpenFor]);
+
+  // macOS/Windows reaction picker — intercept emoji inserted into hidden input by showEmojiPanel()
+  useEffect(() => {
+    const el = reactionHiddenInputRef.current;
+    if (!el) return;
+    const handler = () => {
+      const unicode = el.value;
+      el.value = '';
+      if (!unicode) return;
+      const code = unicode.codePointAt(0);
+      const target = reactionPickerTarget.current;
+      if (code !== undefined && target) {
+        void handleReactRef.current(code, target.id, target.channel);
+      }
+    };
+    el.addEventListener('input', handler);
+    return () => {
+      el.removeEventListener('input', handler);
+    };
+  }, []);
 
   const isDmMode = viewMode === 'dm' && activeDmNode != null;
   const dmNodeName = activeDmNode != null ? getDmLabel(activeDmNode) : '';
@@ -1383,10 +1386,13 @@ function ChatPanel({
                           <button
                             onClick={() => {
                               const id = msg.packetId ?? msg.timestamp;
-                              if (!showPicker) {
-                                reactionPickerTarget.current = { id, channel: msg.channel };
+                              reactionPickerTarget.current = { id, channel: msg.channel };
+                              if (isLinux) {
+                                setPickerOpenFor(showPicker ? null : id);
+                              } else {
+                                reactionHiddenInputRef.current?.focus();
+                                void window.electronAPI.showEmojiPanel();
                               }
-                              setPickerOpenFor(showPicker ? null : id);
                             }}
                             className="rounded p-1 text-xs text-gray-600 hover:text-gray-300"
                             aria-label="Add reaction"
@@ -1434,48 +1440,12 @@ function ChatPanel({
                       )}
                     </div>
 
-                    {/* Reaction picker — Linux: full emoji-picker-element; macOS/Windows: quick grid */}
+                    {/* Reaction picker — Linux: emoji-picker-element; macOS/Windows: showEmojiPanel() */}
                     {showPicker && isLinux && (
                       <div
                         className={`${pickerOpensAbove ? 'order-first mb-1' : 'mt-1'} ${isOwn ? 'self-end' : 'self-start'}`}
                       >
                         <emoji-picker ref={reactionPickerRef} style={{ width: '320px' }} />
-                      </div>
-                    )}
-                    {showPicker && !isLinux && (
-                      <div
-                        className={`bg-secondary-dark flex flex-col gap-0.5 rounded-xl border border-gray-600 px-2 py-1.5 shadow-lg ${
-                          pickerOpensAbove ? 'order-first mb-1' : 'mt-1'
-                        } ${isOwn ? 'self-end' : 'self-start'}`}
-                      >
-                        <div className="flex gap-1">
-                          {REACTION_EMOJIS.slice(0, 6).map((re) => (
-                            <button
-                              key={re.code}
-                              onClick={() =>
-                                handleReact(re.code, msg.packetId ?? msg.timestamp, msg.channel)
-                              }
-                              className="px-0.5 text-lg transition-transform hover:scale-125"
-                              title={re.name}
-                            >
-                              {re.label}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="flex justify-center gap-1">
-                          {REACTION_EMOJIS.slice(6).map((re) => (
-                            <button
-                              key={re.code}
-                              onClick={() =>
-                                handleReact(re.code, msg.packetId ?? msg.timestamp, msg.channel)
-                              }
-                              className="px-0.5 text-lg transition-transform hover:scale-125"
-                              title={re.name}
-                            >
-                              {re.label}
-                            </button>
-                          ))}
-                        </div>
                       </div>
                     )}
 
@@ -1551,6 +1521,15 @@ function ChatPanel({
           </button>
         )}
       </div>
+
+      {/* Hidden input: macOS/Windows native emoji panel inserts here for tapback reactions */}
+      <input
+        ref={reactionHiddenInputRef}
+        aria-hidden="true"
+        tabIndex={-1}
+        readOnly={false}
+        style={{ position: 'absolute', opacity: 0, width: 0, height: 0, pointerEvents: 'none' }}
+      />
 
       {/* Compose emoji picker — Linux only; macOS/Windows use native showEmojiPanel() */}
       {isLinux && showComposePicker && (
