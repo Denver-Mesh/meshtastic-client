@@ -1,4 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/refs */
+import 'emoji-picker-element';
+
 import {
   memo,
   useCallback,
@@ -24,6 +26,15 @@ import { truncateReplyPreviewText } from '../lib/replyPreview';
 import type { ChatMessage, MeshNode, MeshProtocol } from '../lib/types';
 import { ChatPayloadText } from './ChatPayloadText';
 import { HelpTooltip } from './HelpTooltip';
+
+declare module 'react' {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace JSX {
+    interface IntrinsicElements {
+      'emoji-picker': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
+    }
+  }
+}
 
 function StatusBadge({
   status,
@@ -121,24 +132,6 @@ function TransportBadge({ via }: { via: 'rf' | 'mqtt' | 'both' }) {
   }
   return via === 'rf' ? rfIcon : mqttIcon;
 }
-
-// Standard emoji reaction set — Row 1: iMessage Classic, Row 2: WhatsApp/RCS Extended
-const REACTION_EMOJIS = [
-  // Row 1 (6)
-  { code: 128077, label: '\ud83d\udc4d', name: 'Like' }, // 👍
-  { code: 10084, label: '\u2764\ufe0f', name: 'Love' }, // ❤️
-  { code: 128514, label: '\ud83d\ude02', name: 'Laugh' }, // 😂
-  { code: 128078, label: '\ud83d\udc4e', name: 'Dislike' }, // 👎
-  { code: 127881, label: '\ud83c\udf89', name: 'Party' }, // 🎉
-  { code: 128558, label: '\ud83d\ude2e', name: 'Wow' }, // 😮
-  // Row 2 (6)
-  { code: 128546, label: '\ud83d\ude22', name: 'Sad' }, // 😢
-  { code: 128075, label: '\ud83d\udc4b', name: 'Wave' }, // 👋
-  { code: 128591, label: '\ud83d\ude4f', name: 'Thanks' }, // 🙏
-  { code: 128293, label: '\ud83d\udd25', name: 'Fire' }, // 🔥
-  { code: 9989, label: '\u2705', name: 'Check' }, // ✅
-  { code: 129300, label: '\ud83e\udd14', name: 'Thinking' }, // 🤔
-];
 
 /** Format a date for day separators */
 function formatDayLabel(ts: number): string {
@@ -323,12 +316,19 @@ function ChatPanel({
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [pickerOpenFor, setPickerOpenFor] = useState<number | null>(null);
   const [showComposePicker, setShowComposePicker] = useState(false);
+  const isLinux = useMemo(() => window.electronAPI.getPlatform() === 'linux', []);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const emojiPickerRef = useRef<HTMLElement | null>(null);
+  const reactionPickerRef = useRef<HTMLElement | null>(null);
+  const reactionPickerTarget = useRef<{ id: number; channel: number } | null>(null);
+  const reactionHiddenInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleReactRef = useRef<any>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Two-section UI state — load DM tabs from localStorage for restart persistence
@@ -795,29 +795,13 @@ function ChatPanel({
       });
     }
   };
+  handleReactRef.current = handleReact;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       void handleSend();
     }
-  };
-
-  const insertEmojiAtCursor = (code: number) => {
-    const el = inputRef.current;
-    const char = String.fromCodePoint(code);
-    // emoji is a surrogate pair = 2 UTF-16 code units
-    const charLen = char.length;
-    const start = el?.selectionStart ?? input.length;
-    const end = el?.selectionEnd ?? input.length;
-    const newVal = input.slice(0, start) + char + input.slice(end);
-    if (newVal.length > 228) return; // enforce maxLength
-    setInput(newVal);
-    setShowComposePicker(false);
-    requestAnimationFrame(() => {
-      el?.focus();
-      el?.setSelectionRange(start + charLen, start + charLen);
-    });
   };
 
   // Open a DM tab for a node
@@ -890,6 +874,70 @@ function ChatPanel({
     }
     return -1;
   }, [channel, filteredMessages, isOwnNode, searchQuery, unreadDividerTimestamp]);
+
+  useEffect(() => {
+    const el = emojiPickerRef.current;
+    if (!el) return;
+    const handler = (e: Event) => {
+      const unicode: string = (e as CustomEvent).detail.emoji.unicode;
+      const textarea = inputRef.current;
+      const currentValue = textarea?.value ?? '';
+      const start = textarea?.selectionStart ?? currentValue.length;
+      const end = textarea?.selectionEnd ?? currentValue.length;
+      const newVal = currentValue.slice(0, start) + unicode + currentValue.slice(end);
+      if (newVal.length > 228) return;
+      setInput(newVal);
+      setShowComposePicker(false);
+      requestAnimationFrame(() => {
+        textarea?.focus();
+        textarea?.setSelectionRange(start + unicode.length, start + unicode.length);
+      });
+    };
+    el.addEventListener('emoji-click', handler);
+    return () => {
+      el.removeEventListener('emoji-click', handler);
+    };
+  }, [showComposePicker]);
+
+  // Linux reaction picker — attach emoji-click on the <emoji-picker> web component
+  useEffect(() => {
+    if (!pickerOpenFor) return;
+    const el = reactionPickerRef.current;
+    if (!el) return;
+    const target = reactionPickerTarget.current;
+    if (!target) return;
+    const handler = (e: Event) => {
+      const unicode = (e as CustomEvent).detail.emoji.unicode as string;
+      const code = unicode.codePointAt(0);
+      if (code !== undefined) {
+        void handleReactRef.current(code, target.id, target.channel);
+      }
+    };
+    el.addEventListener('emoji-click', handler);
+    return () => {
+      el.removeEventListener('emoji-click', handler);
+    };
+  }, [pickerOpenFor]);
+
+  // macOS/Windows reaction picker — intercept emoji inserted into hidden input by showEmojiPanel()
+  useEffect(() => {
+    const el = reactionHiddenInputRef.current;
+    if (!el) return;
+    const handler = () => {
+      const unicode = el.value;
+      el.value = '';
+      if (!unicode) return;
+      const code = unicode.codePointAt(0);
+      const target = reactionPickerTarget.current;
+      if (code !== undefined && target) {
+        void handleReactRef.current(code, target.id, target.channel);
+      }
+    };
+    el.addEventListener('input', handler);
+    return () => {
+      el.removeEventListener('input', handler);
+    };
+  }, []);
 
   const isDmMode = viewMode === 'dm' && activeDmNode != null;
   const dmNodeName = activeDmNode != null ? getDmLabel(activeDmNode) : '';
@@ -1336,8 +1384,18 @@ function ChatPanel({
                           </button>
                           {/* React */}
                           <button
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              if (!isLinux) reactionHiddenInputRef.current?.focus();
+                            }}
                             onClick={() => {
-                              setPickerOpenFor(showPicker ? null : (msg.packetId ?? msg.timestamp));
+                              const id = msg.packetId ?? msg.timestamp;
+                              reactionPickerTarget.current = { id, channel: msg.channel };
+                              if (isLinux) {
+                                setPickerOpenFor(showPicker ? null : id);
+                              } else {
+                                void window.electronAPI.showEmojiPanel();
+                              }
                             }}
                             className="rounded p-1 text-xs text-gray-600 hover:text-gray-300"
                             aria-label="Add reaction"
@@ -1385,41 +1443,12 @@ function ChatPanel({
                       )}
                     </div>
 
-                    {/* Emoji picker */}
-                    {showPicker && (
+                    {/* Reaction picker — Linux: emoji-picker-element; macOS/Windows: showEmojiPanel() */}
+                    {showPicker && isLinux && (
                       <div
-                        className={`bg-secondary-dark flex flex-col gap-0.5 rounded-xl border border-gray-600 px-2 py-1.5 shadow-lg ${
-                          pickerOpensAbove ? 'order-first mb-1' : 'mt-1'
-                        } ${isOwn ? 'self-end' : 'self-start'}`}
+                        className={`${pickerOpensAbove ? 'order-first mb-1' : 'mt-1'} ${isOwn ? 'self-end' : 'self-start'}`}
                       >
-                        <div className="flex gap-1">
-                          {REACTION_EMOJIS.slice(0, 6).map((re) => (
-                            <button
-                              key={re.code}
-                              onClick={() =>
-                                handleReact(re.code, msg.packetId ?? msg.timestamp, msg.channel)
-                              }
-                              className="px-0.5 text-lg transition-transform hover:scale-125"
-                              title={re.name}
-                            >
-                              {re.label}
-                            </button>
-                          ))}
-                        </div>
-                        <div className="flex justify-center gap-1">
-                          {REACTION_EMOJIS.slice(6).map((re) => (
-                            <button
-                              key={re.code}
-                              onClick={() =>
-                                handleReact(re.code, msg.packetId ?? msg.timestamp, msg.channel)
-                              }
-                              className="px-0.5 text-lg transition-transform hover:scale-125"
-                              title={re.name}
-                            >
-                              {re.label}
-                            </button>
-                          ))}
-                        </div>
+                        <emoji-picker ref={reactionPickerRef} style={{ width: '320px' }} />
                       </div>
                     )}
 
@@ -1496,38 +1525,21 @@ function ChatPanel({
         )}
       </div>
 
-      {/* Compose emoji picker — renders above the input row */}
-      {showComposePicker && (
-        <div className="bg-secondary-dark mb-1 flex flex-col gap-0.5 self-start rounded-xl border border-gray-600 px-2 py-1.5 shadow-lg">
-          <div className="flex gap-1">
-            {REACTION_EMOJIS.slice(0, 6).map((re) => (
-              <button
-                key={re.code}
-                onClick={() => {
-                  insertEmojiAtCursor(re.code);
-                }}
-                className="px-0.5 text-lg transition-transform hover:scale-125"
-                title={re.name}
-              >
-                {re.label}
-              </button>
-            ))}
-          </div>
-          <div className="flex justify-center gap-1">
-            {REACTION_EMOJIS.slice(6).map((re) => (
-              <button
-                key={re.code}
-                onClick={() => {
-                  insertEmojiAtCursor(re.code);
-                }}
-                className="px-0.5 text-lg transition-transform hover:scale-125"
-                title={re.name}
-              >
-                {re.label}
-              </button>
-            ))}
-          </div>
-        </div>
+      {/* Hidden input: macOS/Windows native emoji panel inserts here for tapback reactions */}
+      <input
+        ref={reactionHiddenInputRef}
+        aria-hidden="true"
+        tabIndex={-1}
+        readOnly={false}
+        style={{ position: 'absolute', opacity: 0, width: 0, height: 0, pointerEvents: 'none' }}
+      />
+
+      {/* Compose emoji picker — Linux only; macOS/Windows use native showEmojiPanel() */}
+      {isLinux && showComposePicker && (
+        <emoji-picker
+          ref={emojiPickerRef}
+          style={{ width: '100%', maxWidth: '350px', alignSelf: 'flex-start' }}
+        />
       )}
 
       {/* Reply preview bar */}
@@ -1603,8 +1615,16 @@ function ChatPanel({
         />
         {/* Compose emoji picker toggle */}
         <button
+          onMouseDown={(e) => {
+            e.preventDefault(); // keep textarea focused; also pre-focus it so OS settles before showEmojiPanel()
+            if (!isLinux) inputRef.current?.focus();
+          }}
           onClick={() => {
-            setShowComposePicker((prev) => !prev);
+            if (isLinux) {
+              setShowComposePicker((prev) => !prev);
+            } else {
+              void window.electronAPI.showEmojiPanel();
+            }
           }}
           disabled={!isConnected || sending}
           aria-label="😊"

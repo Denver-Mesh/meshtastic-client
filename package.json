@@ -81,6 +81,7 @@
     "@meshtastic/protobufs": "npm:@jsr/meshtastic__protobufs@^2.7.23",
     "@stoprocent/noble": "^2.4.1",
     "electron-updater": "^6.8.3",
+    "emoji-picker-element": "^1.29.1",
     "jszip": "^3.10.1",
     "leaflet.markercluster": "^1.5.3",
     "mgrs": "^2.1.0",

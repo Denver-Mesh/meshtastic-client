@@ -5,6 +5,7 @@ import {
   DEFAULT_RF_DIAGNOSTIC_MAX_AGE_MS,
   DEFAULT_ROUTING_DIAGNOSTIC_MAX_AGE_MS,
   diagnosticRowsToRoutingMap,
+  FOREIGN_LORA_RF_CONDITIONS,
   pruneDiagnosticRowsByAge,
   replaceRfRowsForNode,
   replaceRoutingRowsFromMap,
@@ -92,14 +93,6 @@ function foreignLoraSenderKey(packetClass: PacketClass, senderId?: number): stri
   if (packetClass === 'meshcore') return 'meshcore';
   return 'unknown';
 }
-
-/** Foreign LoRa condition strings — used to surgically replace only these rows. */
-const FOREIGN_LORA_CONDITIONS = new Set([
-  'MeshCore Activity Detected',
-  'Meshtastic Traffic Detected',
-  'Unknown LoRa Traffic',
-  'Potential MeshCore Repeater Conflict',
-]);
 
 /** Module-level rate counter for MeshCore-class packets (Meshtastic mode). */
 const meshcoreRateCounter = new RollingRateCounter(60_000);
@@ -769,7 +762,10 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
               diagnosticRows = replaceRfRowsForNode(diagnosticRows, myNodeNum, findings);
             } else {
               diagnosticRows = diagnosticRows.filter(
-                (r) => r.kind !== 'rf' || r.nodeId !== myNodeNum,
+                (r) =>
+                  r.kind !== 'rf' ||
+                  r.nodeId !== myNodeNum ||
+                  FOREIGN_LORA_RF_CONDITIONS.has(r.condition),
               );
             }
           }
@@ -931,7 +927,7 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
       // Replace only foreign LoRa rows (preserve CU spike and other RF rows)
       const withoutForeign = state.diagnosticRows.filter(
         (r) =>
-          !(r.kind === 'rf' && r.nodeId === nodeId && FOREIGN_LORA_CONDITIONS.has(r.condition)),
+          !(r.kind === 'rf' && r.nodeId === nodeId && FOREIGN_LORA_RF_CONDITIONS.has(r.condition)),
       );
       const diagnosticRows = [...withoutForeign, mainRow, ...extraRows];
       schedulePersistDiagnosticRows(() => get().diagnosticRows);
@@ -1058,7 +1054,12 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
         if (findings.length > 0) {
           diagnosticRows = replaceRfRowsForNode(diagnosticRows, myNodeNum, findings);
         } else {
-          diagnosticRows = diagnosticRows.filter((r) => r.kind !== 'rf' || r.nodeId !== myNodeNum);
+          diagnosticRows = diagnosticRows.filter(
+            (r) =>
+              r.kind !== 'rf' ||
+              r.nodeId !== myNodeNum ||
+              FOREIGN_LORA_RF_CONDITIONS.has(r.condition),
+          );
         }
       }
       for (const [nodeId, node] of nodes) {
@@ -1071,7 +1072,10 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
         if (findings && findings.length > 0) {
           diagnosticRows = replaceRfRowsForNode(diagnosticRows, nodeId, findings);
         } else {
-          diagnosticRows = diagnosticRows.filter((r) => r.kind !== 'rf' || r.nodeId !== nodeId);
+          diagnosticRows = diagnosticRows.filter(
+            (r) =>
+              r.kind !== 'rf' || r.nodeId !== nodeId || FOREIGN_LORA_RF_CONDITIONS.has(r.condition),
+          );
         }
       }
       const now = Date.now();
@@ -1205,7 +1209,7 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
       nextDetections.delete(0);
       nextDetections.set(toNodeId, new Map(bySenderAtZero));
       const diagnosticRows = state.diagnosticRows.map((r) => {
-        if (r.kind === 'rf' && r.nodeId === 0 && FOREIGN_LORA_CONDITIONS.has(r.condition)) {
+        if (r.kind === 'rf' && r.nodeId === 0 && FOREIGN_LORA_RF_CONDITIONS.has(r.condition)) {
           return { ...r, nodeId: toNodeId, id: rfRowId(toNodeId, r.condition) };
         }
         return r;

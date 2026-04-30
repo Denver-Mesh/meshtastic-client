@@ -15,7 +15,7 @@ import {
   getRecommendedAction,
   getRecommendedActionForRfCondition,
 } from '../lib/diagnostics/RemediationEngine';
-import { diagnoseConnectedNode, hasLocalStatsData } from '../lib/diagnostics/RFDiagnosticEngine';
+import { hasLocalStatsData } from '../lib/diagnostics/RFDiagnosticEngine';
 import type { OurPosition } from '../lib/gpsSource';
 import { startNetworkDiscovery } from '../lib/networkDiscovery';
 import type { ProtocolCapabilities } from '../lib/radio/BaseRadioProvider';
@@ -117,7 +117,6 @@ export default function DiagnosticsPanel({
   );
   const packetStats = useDiagnosticsStore((s) => s.packetStats);
   const packetCache = useDiagnosticsStore((s) => s.packetCache);
-  const getCuStats24h = useDiagnosticsStore((s) => s.getCuStats24h);
   const homeNode = nodes.get(myNodeNum) ?? null;
   const congestionHalosEnabled = useDiagnosticsStore((s) => s.congestionHalosEnabled);
   const setCongestionHalosEnabled = useDiagnosticsStore((s) => s.setCongestionHalosEnabled);
@@ -333,12 +332,10 @@ export default function DiagnosticsPanel({
 
   const meshCongestionBlock = useMemo(() => {
     if (!homeNode) return null;
-    if (!hasLocalStatsData(homeNode) && homeNode.channel_utilization == null) return null;
-    const cuStats24h = getCuStats24h(homeNode.node_id);
-    const findings = diagnoseConnectedNode(homeNode, {
-      cuStats24h: cuStats24h ?? undefined,
-    });
-    if (!findings?.some((f) => f.condition === 'Mesh Congestion')) return null;
+    const hasMeshCongestionRow = diagnosticRows.some(
+      (r) => r.kind === 'rf' && r.nodeId === homeNode.node_id && r.condition === 'Mesh Congestion',
+    );
+    if (!hasMeshCongestionRow) return null;
     const attr = summarizeMeshCongestionAttribution(packetCache, routingAnomaliesMap);
     const lines = meshCongestionDetailLines(attr, {
       alwaysIncludeRoutingAnomalies: true,
@@ -346,7 +343,7 @@ export default function DiagnosticsPanel({
     const originators = packetCache.size > 0 ? summarizeRfDuplicateOriginators(packetCache) : [];
     if (lines.length === 0 && originators.length === 0) return null;
     return { lines, originators };
-  }, [homeNode, packetCache, routingAnomaliesMap, getCuStats24h]);
+  }, [homeNode, packetCache, routingAnomaliesMap, diagnosticRows]);
 
   const anomalyList = diagnosticRows.filter(matchesSearchRow).sort((a, b) => {
     const order = (s: string) => (s === 'error' ? 0 : s === 'warning' ? 1 : 2);

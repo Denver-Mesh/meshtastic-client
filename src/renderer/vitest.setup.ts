@@ -187,6 +187,8 @@ const electronAPIMock = {
   notifyDeviceDisconnected: vi.fn(),
   setTrayUnread: vi.fn(),
   quitApp: vi.fn().mockResolvedValue(undefined),
+  getPlatform: vi.fn().mockReturnValue('linux'),
+  showEmojiPanel: vi.fn().mockResolvedValue(undefined),
   notify: {
     show: vi.fn().mockResolvedValue(undefined),
   },

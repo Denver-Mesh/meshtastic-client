@@ -4,6 +4,7 @@ import {
   DEFAULT_RF_DIAGNOSTIC_MAX_AGE_MS,
   DEFAULT_ROUTING_DIAGNOSTIC_MAX_AGE_MS,
   pruneDiagnosticRowsByAge,
+  replaceRfRowsForNode,
 } from './diagnosticRows';
 
 const routingRow = (nodeId: number, detectedAt: number) => ({
@@ -24,6 +25,40 @@ const rfRow = (nodeId: number, detectedAt: number) => ({
   cause: 'dupes',
   severity: 'warning' as const,
   detectedAt,
+});
+
+const foreignLoraRfRow = (nodeId: number, detectedAt: number) => ({
+  kind: 'rf' as const,
+  id: `rf:${nodeId}:unknown_lora`,
+  nodeId,
+  condition: 'Unknown LoRa Traffic',
+  cause: 'non-Meshtastic traffic',
+  severity: 'info' as const,
+  detectedAt,
+});
+
+describe('replaceRfRowsForNode', () => {
+  it('preserves Foreign LoRa RF rows for the same node when replacing telemetry findings', () => {
+    const t = 1_000_000;
+    const rows = [foreignLoraRfRow(42, t), rfRow(42, t)];
+    const out = replaceRfRowsForNode(rows, 42, []);
+    expect(out.some((r) => r.kind === 'rf' && r.condition === 'Unknown LoRa Traffic')).toBe(true);
+    expect(out.some((r) => r.kind === 'rf' && r.condition === 'Mesh Congestion')).toBe(false);
+  });
+
+  it('replaces telemetry RF rows for the node with new findings', () => {
+    const t = 1_000_000;
+    const rows = [rfRow(7, t)];
+    const out = replaceRfRowsForNode(rows, 7, [
+      {
+        condition: 'Utilization vs. TX',
+        cause: 'test',
+        severity: 'warning',
+      },
+    ]);
+    expect(out.some((r) => r.kind === 'rf' && r.condition === 'Utilization vs. TX')).toBe(true);
+    expect(out.some((r) => r.kind === 'rf' && r.condition === 'Mesh Congestion')).toBe(false);
+  });
 });
 
 describe('pruneDiagnosticRowsByAge', () => {

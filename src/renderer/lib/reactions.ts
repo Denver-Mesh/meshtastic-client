@@ -21,6 +21,10 @@ export function normalizeReactionEmoji(
   if (wireEmoji >= 1 && wireEmoji <= REACTION_EMOJI_CODES.length) {
     return REACTION_EMOJI_CODES[wireEmoji - 1];
   }
+  if (wireEmoji < 1 || wireEmoji > 0x10ffff) {
+    console.debug('[reactions] normalizeReactionEmoji out of range, skipping', wireEmoji);
+    return undefined;
+  }
   return wireEmoji;
 }
 
@@ -43,6 +47,10 @@ const REACTION_NAMES = [
 export function emojiDisplayChar(code: number): string {
   if (code >= 1 && code <= REACTION_EMOJI_CODES.length) {
     return String.fromCodePoint(REACTION_EMOJI_CODES[code - 1]);
+  }
+  if (code < 1 || code > 0x10ffff) {
+    console.debug('[reactions] emojiDisplayChar out of range', code);
+    return '\u2753';
   }
   try {
     return String.fromCodePoint(code);

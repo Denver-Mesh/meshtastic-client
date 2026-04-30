@@ -660,6 +660,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   quitApp: () => ipcRenderer.invoke('app:quit'),
 
+  // ─── OS emoji panel ──────────────────────────────────────────────────────────
+  getPlatform: () => process.platform,
+  showEmojiPanel: () => ipcRenderer.invoke('app:showEmojiPanel'),
+
   // ─── Native OS notifications ───────────────────────────────────
   notify: {
     show: (title: string, body: string): Promise<void> =>
