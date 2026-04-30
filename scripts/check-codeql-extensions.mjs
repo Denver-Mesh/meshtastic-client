@@ -32,19 +32,32 @@ function main() {
   }
 
   let foundBarriers = false;
+  let foundPackMeta = false;
   for (const dir of packs) {
     const qlpack = path.join(dir, 'qlpack.yml');
-    if (!fs.existsSync(qlpack)) continue;
-    const yml = readText(qlpack);
-    if (!yml.includes('library: true')) {
-      console.error(`check-codeql-extensions: ${qlpack} must declare library: true`);
-      process.exit(1);
-    }
-    if (!yml.includes('extensionTargets:') || !yml.includes('dataExtensions:')) {
-      console.error(
-        `check-codeql-extensions: ${qlpack} must declare extensionTargets and dataExtensions`,
-      );
-      process.exit(1);
+    const codeqlPack = path.join(dir, 'codeql-pack.yml');
+    const metaFiles = [qlpack, codeqlPack].filter((p) => fs.existsSync(p));
+    if (metaFiles.length === 0) continue;
+
+    for (const metaPath of metaFiles) {
+      foundPackMeta = true;
+      const yml = readText(metaPath);
+      if (!yml.includes('library: true')) {
+        console.error(`check-codeql-extensions: ${metaPath} must declare library: true`);
+        process.exit(1);
+      }
+      if (!yml.includes('extensionTargets:') || !yml.includes('dataExtensions:')) {
+        console.error(
+          `check-codeql-extensions: ${metaPath} must declare extensionTargets and dataExtensions`,
+        );
+        process.exit(1);
+      }
+      if (/codeql\/javascript-all:\s*['"]?\*['"]?(\s|$)/m.test(yml)) {
+        console.error(
+          `check-codeql-extensions: ${metaPath} must not use '*' for codeql/javascript-all (pack may be skipped)`,
+        );
+        process.exit(1);
+      }
     }
 
     const modelsDir = path.join(dir, 'models');
@@ -57,7 +70,8 @@ function main() {
         if (
           !body.includes('sanitizeLogPayloadForDisk') ||
           !body.includes('sanitizeForLogSink') ||
-          !body.includes('sanitizeLogMessage')
+          !body.includes('sanitizeLogMessage') ||
+          !body.includes('sanitizeForConsoleEcho')
         ) {
           console.error(
             `check-codeql-extensions: ${ent.name} must model mesh-client log sanitizers as barriers`,
@@ -70,6 +84,13 @@ function main() {
 
   if (!foundBarriers) {
     console.error('check-codeql-extensions: no barrierModel extensions found under models/');
+    process.exit(1);
+  }
+
+  if (!foundPackMeta) {
+    console.error(
+      'check-codeql-extensions: no qlpack.yml or codeql-pack.yml under extension packs',
+    );
     process.exit(1);
   }
 

@@ -1,5 +1,5 @@
-# Local CodeQL model extensions (default setup picks up packs under .github/codeql/extensions).
-# Barriers for mesh-client log sanitizers — see customizing-library-models-for-javascript.
+# GitHub default-setup extensions accept either qlpack.yml or codeql-pack.yml; duplicate metadata
+# so pack resolution does not skip loading when only one filename is scanned.
 name: mesh-client/mesh-client-models
 version: 1.0.0
 library: true

@@ -7,6 +7,7 @@ import path from 'path';
 
 import { formatLogFileTimestamp } from '../shared/formatLogTimestamp';
 import {
+  sanitizeForConsoleEcho,
   sanitizeForLogSink,
   sanitizeLogMessage,
   sanitizeLogPayloadForDisk,
@@ -240,7 +241,7 @@ const original = {
 function debugLogService(context: string, err: unknown): void {
   const detailRaw = err instanceof Error ? (err.stack ?? err.message) : String(err);
   const detail = sanitizeForLogSink(detailRaw);
-  original.debug(sanitizeForLogSink(`${context} ${detail}`));
+  original.debug(sanitizeForConsoleEcho(`${context} ${detail}`));
 }
 
 function stringifyArgs(args: unknown[]): string {
@@ -273,10 +274,8 @@ function resolveMainSource(): 'sdk' | 'main' {
 /**
  * Route main-process console.* through appendLine and still echo to original console
  * so terminal/devtools behavior is preserved.
- * Uses sanitizeForLogSink ( .replace(/\n|\r/g, ' ') first) so CodeQL js/log-injection
- * recognizes the sanitizer; see sanitize-log-message.test.ts for pre-commit coverage.
- * Terminal echo passes one string wrapped with sanitizeForLogSink(...) at the original.* call
- * so CodeQL js/log-injection sees the sanitizer at the sink (spread + helper return was not enough).
+ * Disk / UI lines use {@link sanitizeForLogSink}; terminal echo uses {@link sanitizeForConsoleEcho}
+ * so CodeQL's newline StringReplaceSanitizer applies at console sinks.
  */
 export function patchMainConsole(): void {
   if (consolePatched) return;
@@ -286,27 +285,27 @@ export function patchMainConsole(): void {
     const joined = stringifyArgs(args);
     const safe = sanitizeForLogSink(joined);
     appendLine('log', resolveMainSource(), safe);
-    original.log(sanitizeForLogSink(joined));
+    original.log(sanitizeForConsoleEcho(joined));
   };
   console.info = (...args: unknown[]) => {
     const joined = stringifyArgs(args);
     const safe = sanitizeForLogSink(joined);
     appendLine('info', resolveMainSource(), safe);
-    original.info(sanitizeForLogSink(joined));
+    original.info(sanitizeForConsoleEcho(joined));
   };
   console.warn = (...args: unknown[]) => {
     const joined = stringifyArgs(args);
     const safe = sanitizeForLogSink(joined);
     appendLine('warn', resolveMainSource(), safe);
     const ts = formatLogFileTimestamp(Date.now());
-    original.warn(sanitizeForLogSink(`[${ts}] ${safe}`));
+    original.warn(sanitizeForConsoleEcho(`[${ts}] ${safe}`));
   };
   console.error = (...args: unknown[]) => {
     const joined = stringifyArgs(args);
     const safe = sanitizeForLogSink(joined);
     appendLine('error', resolveMainSource(), safe);
     const ts = formatLogFileTimestamp(Date.now());
-    original.error(sanitizeForLogSink(`[${ts}] ${safe}`));
+    original.error(sanitizeForConsoleEcho(`[${ts}] ${safe}`));
   };
   console.debug = (...args: unknown[]) => {
     const joined = stringifyArgs(args);

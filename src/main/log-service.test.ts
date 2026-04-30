@@ -70,9 +70,13 @@ describe('log-service source contracts', () => {
     expect(body).toContain('LOG_MAX_BYTES');
   });
 
-  it('patchMainConsole echoes warn/error through sanitizeForLogSink at original.* sink', () => {
-    expect(LOG_SERVICE_SOURCE).toContain('original.warn(sanitizeForLogSink(`[${ts}] ${safe}`))');
-    expect(LOG_SERVICE_SOURCE).toContain('original.error(sanitizeForLogSink(`[${ts}] ${safe}`))');
+  it('patchMainConsole echoes warn/error through sanitizeForConsoleEcho at original.* sink', () => {
+    expect(LOG_SERVICE_SOURCE).toContain(
+      'original.warn(sanitizeForConsoleEcho(`[${ts}] ${safe}`))',
+    );
+    expect(LOG_SERVICE_SOURCE).toContain(
+      'original.error(sanitizeForConsoleEcho(`[${ts}] ${safe}`))',
+    );
   });
 
   it('stringifyArgs sanitizes each argument fragment (CodeQL log paths)', () => {
@@ -83,7 +87,7 @@ describe('log-service source contracts', () => {
     expect(LOG_SERVICE_SOURCE).toContain('function debugLogService');
     expect(LOG_SERVICE_SOURCE).toContain('const detail = sanitizeForLogSink(detailRaw);');
     expect(LOG_SERVICE_SOURCE).toContain(
-      'original.debug(sanitizeForLogSink(`${context} ${detail}`))',
+      'original.debug(sanitizeForConsoleEcho(`${context} ${detail}`))',
     );
   });
 

@@ -6,8 +6,19 @@ extensions:
       # NPM package name from package.json (primary).
       - ['mesh-client', 'Member[sanitizeForLogSink].ReturnValue', 'log-injection']
       - ['mesh-client', 'Member[sanitizeLogMessage].ReturnValue', 'log-injection']
+      - ['mesh-client', 'Member[sanitizeForConsoleEcho].ReturnValue', 'log-injection']
       - ['mesh-client', 'Member[sanitizeLogPayloadForDisk].ReturnValue', 'http-to-file-access']
-      # Fallback module labels sometimes emitted for relative imports (keep if alerts persist).
+      - ['mesh-client', 'Member[sanitizeLogPayloadForDisk].ReturnValue', 'js/http-to-file-access']
+      # Alternate API-graph roots seen on some scans.
+      - - mesh-client/src/main/sanitize-log-message
+        - Member[sanitizeLogPayloadForDisk].ReturnValue
+        - http-to-file-access
+      - - mesh-client/src/main/sanitize-log-message
+        - Member[sanitizeLogPayloadForDisk].ReturnValue
+        - js/http-to-file-access
+      # Fallback module labels for relative imports.
       - ['src/main/sanitize-log-message', 'Member[sanitizeForLogSink].ReturnValue', 'log-injection']
       - ['src/main/sanitize-log-message', 'Member[sanitizeLogMessage].ReturnValue', 'log-injection']
+      - ['src/main/sanitize-log-message', 'Member[sanitizeForConsoleEcho].ReturnValue', 'log-injection']
       - ['src/main/sanitize-log-message', 'Member[sanitizeLogPayloadForDisk].ReturnValue', 'http-to-file-access']
+      - ['src/main/sanitize-log-message', 'Member[sanitizeLogPayloadForDisk].ReturnValue', 'js/http-to-file-access']
