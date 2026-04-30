@@ -12,6 +12,7 @@ import {
   powerMonitor,
   powerSaveBlocker,
   safeStorage,
+  screen,
   type Session,
   shell,
   Tray,
@@ -101,6 +102,63 @@ if (process.platform === 'linux' && process.env.MESH_CLIENT_DISABLE_GPU === '1')
 if (!app.requestSingleInstanceLock()) {
   app.quit();
   process.exit(0);
+}
+
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.meshclient.app');
+}
+
+// ─── Window state persistence ───────────────────────────────────────
+interface WindowState {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const WINDOW_STATE_PATH = path.join(app.getPath('userData'), 'window-state.json');
+const DEFAULT_WINDOW_STATE: WindowState = { x: 0, y: 0, width: 1200, height: 800 };
+
+function loadWindowState(): WindowState {
+  try {
+    if (fs.existsSync(WINDOW_STATE_PATH)) {
+      const raw = JSON.parse(fs.readFileSync(WINDOW_STATE_PATH, 'utf-8')) as unknown;
+      if (
+        raw &&
+        typeof raw === 'object' &&
+        typeof (raw as Record<string, unknown>).x === 'number' &&
+        typeof (raw as Record<string, unknown>).y === 'number' &&
+        typeof (raw as Record<string, unknown>).width === 'number' &&
+        typeof (raw as Record<string, unknown>).height === 'number'
+      ) {
+        return raw as WindowState;
+      }
+    }
+  } catch {
+    // catch-no-log-ok: non-critical; fall through to defaults
+  }
+  return DEFAULT_WINDOW_STATE;
+}
+
+function saveWindowState(state: WindowState): void {
+  try {
+    fs.writeFileSync(WINDOW_STATE_PATH, JSON.stringify(state), 'utf-8');
+  } catch {
+    // catch-no-log-ok: non-critical persistence failure
+  }
+}
+
+function isWindowStateOnScreen(state: WindowState): boolean {
+  const displays = screen.getAllDisplays();
+  return displays.some((d) => {
+    const { x, y, width, height } = d.workArea;
+    return (
+      state.x < x + width &&
+      state.x + state.width > x &&
+      state.y < y + height &&
+      state.y + state.height > y
+    );
+  });
 }
 
 const mqttManager = new MQTTManager();
@@ -920,9 +978,15 @@ function openExternalHttpOrHttpsIfExternal(currentUrl: string, targetUrl: string
 }
 
 function createWindow() {
+  const savedState = loadWindowState();
+  const bounds = isWindowStateOnScreen(savedState) ? savedState : DEFAULT_WINDOW_STATE;
+  const center = bounds === DEFAULT_WINDOW_STATE;
+
   const win = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: bounds.width,
+    height: bounds.height,
+    x: center ? undefined : bounds.x,
+    y: center ? undefined : bounds.y,
     minWidth: 900,
     minHeight: 600,
     title: 'Mesh Client',
@@ -944,6 +1008,18 @@ function createWindow() {
     },
   });
   mainWindow = win;
+
+  let windowStateSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  const scheduleSaveWindowState = () => {
+    if (windowStateSaveTimer) clearTimeout(windowStateSaveTimer);
+    windowStateSaveTimer = setTimeout(() => {
+      if (!win.isMinimized() && !win.isMaximized()) {
+        saveWindowState(win.getBounds());
+      }
+    }, 300);
+  };
+  win.on('move', scheduleSaveWindowState);
+  win.on('resize', scheduleSaveWindowState);
 
   // External link handling: route http/https websites to the system browser.
   // Failure point: malicious URL schemes attempting protocol-handler abuse.
@@ -1280,7 +1356,14 @@ function createWindow() {
     setMainWindow(null);
     mainWindow = null;
   });
-  // Handle window close event
+  win.on('close', () => {
+    if (windowStateSaveTimer) clearTimeout(windowStateSaveTimer);
+    if (!win.isMinimized() && !win.isMaximized()) {
+      saveWindowState(win.getBounds());
+    }
+  });
+
+  // Handle window close event (prevent-close when device connected)
   win.on('close', (event) => {
     if (!isQuitting && (isConnected || isAnyMqttConnected())) {
       event.preventDefault();
