@@ -159,22 +159,17 @@ export function appendLine(level: LogLevel, source: string, message: string): vo
   }
 
   const diskLine = sanitizeLogPayloadForDisk(line);
-  // Debug messages are kept in the in-memory buffer and broadcast to the renderer
-  // Log panel in all environments, but are not written to disk in production builds
-  // to reduce noise and disk usage.
-  if (level !== 'debug' || !app.isPackaged) {
-    appendChain = appendChain
-      .then(() => rotateLogIfNeeded())
-      .then(() => fs.promises.appendFile(getLogFilePath(), diskLine, 'utf8'))
-      .catch((e: unknown) => {
-        original.debug('[log-service] appendFile failed, retry writeFileSync', e);
-        try {
-          fs.writeFileSync(getLogFilePath(), diskLine, { encoding: 'utf8' });
-        } catch (e2) {
-          original.debug('[log-service] writeFileSync retry failed', e2);
-        }
-      });
-  }
+  appendChain = appendChain
+    .then(() => rotateLogIfNeeded())
+    .then(() => fs.promises.appendFile(getLogFilePath(), diskLine, 'utf8'))
+    .catch((e: unknown) => {
+      original.debug('[log-service] appendFile failed, retry writeFileSync', e);
+      try {
+        fs.writeFileSync(getLogFilePath(), diskLine, { encoding: 'utf8' });
+      } catch (e2) {
+        original.debug('[log-service] writeFileSync retry failed', e2);
+      }
+    });
 
   broadcastLine(ts, level, source, message);
 }
@@ -276,14 +271,12 @@ export function patchMainConsole(): void {
   console.log = (...args: unknown[]) => {
     const safe = sanitizeForLogSink(stringifyArgs(args));
     appendLine('log', resolveMainSource(), safe);
-    const ts = formatLogFileTimestamp(Date.now());
-    original.log(`[${ts}]`, ...args);
+    original.log(...args);
   };
   console.info = (...args: unknown[]) => {
     const safe = sanitizeForLogSink(stringifyArgs(args));
     appendLine('info', resolveMainSource(), safe);
-    const ts = formatLogFileTimestamp(Date.now());
-    original.info(`[${ts}]`, ...args);
+    original.info(...args);
   };
   console.warn = (...args: unknown[]) => {
     const safe = sanitizeForLogSink(stringifyArgs(args));
@@ -300,8 +293,6 @@ export function patchMainConsole(): void {
   console.debug = (...args: unknown[]) => {
     const safe = sanitizeForLogSink(stringifyArgs(args));
     appendLine('debug', resolveMainSource(), safe);
-    const ts = formatLogFileTimestamp(Date.now());
-    original.debug(`[${ts}]`, ...args);
   };
 
   // Capture process.stdout/stderr text writes (some deps log without console.*)

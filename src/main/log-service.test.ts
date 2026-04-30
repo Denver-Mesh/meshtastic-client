@@ -31,12 +31,12 @@ describe('log-service source contracts', () => {
     expect(rotateIdx).toBeLessThan(appendFileIdx);
   });
 
-  it('suppresses debug disk writes when app.isPackaged is true', () => {
+  it('always writes all levels to disk (including debug)', () => {
     const appendLineIdx = LOG_SERVICE_SOURCE.indexOf('export function appendLine(');
     const body = LOG_SERVICE_SOURCE.slice(appendLineIdx, appendLineIdx + 1200);
-    // The debug suppression guard must reference both level and isPackaged
-    expect(body).toContain("level !== 'debug'");
-    expect(body).toContain('app.isPackaged');
+    // No debug suppression guard - all levels go to disk
+    expect(body).not.toContain("level !== 'debug'");
+    expect(body).not.toContain('app.isPackaged');
   });
 
   it('broadcastLine wraps webContents.send in try/catch', () => {
