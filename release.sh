@@ -291,6 +291,11 @@ if ! pnpm run check:log-injection; then
   exit 1
 fi
 
+if ! pnpm run check:log-service-sinks; then
+  print_error "Log service disk sink check failed."
+  exit 1
+fi
+
 if ! pnpm run check:db-migrations; then
   print_error "Database migration check failed."
   exit 1

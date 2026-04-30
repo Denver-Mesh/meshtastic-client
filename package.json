@@ -40,6 +40,7 @@
     "check:ipc-contract": "node scripts/check-ipc-contract.mjs",
     "check:licenses": "license-checker-rseidelsohn --summary --excludePrivatePackages",
     "check:log-injection": "node scripts/check-log-injection.mjs",
+    "check:log-service-sinks": "node scripts/check-log-service-sinks.mjs",
     "check:log-panel-filter": "node scripts/check-log-panel-filter.mjs",
     "check:silent-catches": "node scripts/check-silent-catches.mjs",
     "check:xss-patterns": "node scripts/check-xss-patterns.mjs",

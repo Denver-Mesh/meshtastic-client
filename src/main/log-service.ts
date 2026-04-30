@@ -104,11 +104,12 @@ function flushPendingBuffer(): void {
   if (pendingBuffer.length === 0) return;
   const lines = pendingBuffer.splice(0, pendingBuffer.length);
   const p = getLogFilePath();
-  const data = sanitizeLogPayloadForDisk(lines.join(''));
   appendChain = appendChain.then(() =>
-    fs.promises.appendFile(p, data, 'utf8').catch((e: unknown) => {
-      debugLogService('[log-service] flushPendingBuffer appendFile failed', e);
-    }),
+    fs.promises
+      .appendFile(p, sanitizeLogPayloadForDisk(lines.join('')), 'utf8')
+      .catch((e: unknown) => {
+        debugLogService('[log-service] flushPendingBuffer appendFile failed', e);
+      }),
   );
 }
 
@@ -158,14 +159,15 @@ export function appendLine(level: LogLevel, source: string, message: string): vo
     return;
   }
 
-  const diskLine = sanitizeLogPayloadForDisk(line);
   appendChain = appendChain
     .then(() => rotateLogIfNeeded())
-    .then(() => fs.promises.appendFile(getLogFilePath(), diskLine, 'utf8'))
+    .then(() => fs.promises.appendFile(getLogFilePath(), sanitizeLogPayloadForDisk(line), 'utf8'))
     .catch((e: unknown) => {
       debugLogService('[log-service] appendFile failed, retry writeFileSync', e);
       try {
-        fs.writeFileSync(getLogFilePath(), diskLine, { encoding: 'utf8' });
+        fs.writeFileSync(getLogFilePath(), sanitizeLogPayloadForDisk(line), {
+          encoding: 'utf8',
+        });
       } catch (e2) {
         debugLogService('[log-service] writeFileSync retry failed', e2);
       }
@@ -236,23 +238,27 @@ const original = {
 
 /** Single-line debug echo with CodeQL-visible sanitization (js/log-injection). */
 function debugLogService(context: string, err: unknown): void {
-  const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
+  const detailRaw = err instanceof Error ? (err.stack ?? err.message) : String(err);
+  const detail = sanitizeForLogSink(detailRaw);
   original.debug(sanitizeForLogSink(`${context} ${detail}`));
 }
 
 function stringifyArgs(args: unknown[]): string {
   return args
     .map((a) => {
-      if (a instanceof Error) return a.stack ?? a.message;
-      if (typeof a === 'object' && a !== null) {
+      let piece: string;
+      if (a instanceof Error) piece = a.stack ?? a.message;
+      else if (typeof a === 'object' && a !== null) {
         try {
-          return JSON.stringify(a);
+          piece = JSON.stringify(a);
         } catch (e) {
           debugLogService('[log-service] stringifyArgs JSON.stringify failed', e);
-          return '[unserializable]';
+          piece = '[unserializable]';
         }
+      } else {
+        piece = String(a);
       }
-      return String(a);
+      return sanitizeForLogSink(piece);
     })
     .join(' ');
 }
@@ -277,33 +283,34 @@ export function patchMainConsole(): void {
   consolePatched = true;
 
   console.log = (...args: unknown[]) => {
-    const raw = stringifyArgs(args);
-    const safe = sanitizeForLogSink(raw);
+    const joined = stringifyArgs(args);
+    const safe = sanitizeForLogSink(joined);
     appendLine('log', resolveMainSource(), safe);
-    original.log(sanitizeForLogSink(raw));
+    original.log(sanitizeForLogSink(joined));
   };
   console.info = (...args: unknown[]) => {
-    const raw = stringifyArgs(args);
-    const safe = sanitizeForLogSink(raw);
+    const joined = stringifyArgs(args);
+    const safe = sanitizeForLogSink(joined);
     appendLine('info', resolveMainSource(), safe);
-    original.info(sanitizeForLogSink(raw));
+    original.info(sanitizeForLogSink(joined));
   };
   console.warn = (...args: unknown[]) => {
-    const raw = stringifyArgs(args);
-    const safe = sanitizeForLogSink(raw);
+    const joined = stringifyArgs(args);
+    const safe = sanitizeForLogSink(joined);
     appendLine('warn', resolveMainSource(), safe);
     const ts = formatLogFileTimestamp(Date.now());
-    original.warn(sanitizeForLogSink(`[${ts}] ${raw}`));
+    original.warn(sanitizeForLogSink(`[${ts}] ${safe}`));
   };
   console.error = (...args: unknown[]) => {
-    const raw = stringifyArgs(args);
-    const safe = sanitizeForLogSink(raw);
+    const joined = stringifyArgs(args);
+    const safe = sanitizeForLogSink(joined);
     appendLine('error', resolveMainSource(), safe);
     const ts = formatLogFileTimestamp(Date.now());
-    original.error(sanitizeForLogSink(`[${ts}] ${raw}`));
+    original.error(sanitizeForLogSink(`[${ts}] ${safe}`));
   };
   console.debug = (...args: unknown[]) => {
-    const safe = sanitizeForLogSink(stringifyArgs(args));
+    const joined = stringifyArgs(args);
+    const safe = sanitizeForLogSink(joined);
     appendLine('debug', resolveMainSource(), safe);
   };
 

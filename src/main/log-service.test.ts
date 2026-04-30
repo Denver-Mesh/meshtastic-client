@@ -71,14 +71,31 @@ describe('log-service source contracts', () => {
   });
 
   it('patchMainConsole echoes warn/error through sanitizeForLogSink at original.* sink', () => {
-    expect(LOG_SERVICE_SOURCE).toContain('original.warn(sanitizeForLogSink(`[${ts}] ${raw}`))');
-    expect(LOG_SERVICE_SOURCE).toContain('original.error(sanitizeForLogSink(`[${ts}] ${raw}`))');
+    expect(LOG_SERVICE_SOURCE).toContain('original.warn(sanitizeForLogSink(`[${ts}] ${safe}`))');
+    expect(LOG_SERVICE_SOURCE).toContain('original.error(sanitizeForLogSink(`[${ts}] ${safe}`))');
+  });
+
+  it('stringifyArgs sanitizes each argument fragment (CodeQL log paths)', () => {
+    expect(LOG_SERVICE_SOURCE).toContain('return sanitizeForLogSink(piece);');
   });
 
   it('routes internal failures through debugLogService (sanitized original.debug)', () => {
     expect(LOG_SERVICE_SOURCE).toContain('function debugLogService');
+    expect(LOG_SERVICE_SOURCE).toContain('const detail = sanitizeForLogSink(detailRaw);');
     expect(LOG_SERVICE_SOURCE).toContain(
       'original.debug(sanitizeForLogSink(`${context} ${detail}`))',
+    );
+  });
+
+  it('wraps appendFile/writeFileSync data with sanitizeLogPayloadForDisk at call site', () => {
+    expect(LOG_SERVICE_SOURCE).toContain(
+      ".appendFile(p, sanitizeLogPayloadForDisk(lines.join('')), 'utf8')",
+    );
+    expect(LOG_SERVICE_SOURCE).toContain(
+      "fs.promises.appendFile(getLogFilePath(), sanitizeLogPayloadForDisk(line), 'utf8')",
+    );
+    expect(LOG_SERVICE_SOURCE).toContain(
+      'fs.writeFileSync(getLogFilePath(), sanitizeLogPayloadForDisk(line)',
     );
   });
 });
