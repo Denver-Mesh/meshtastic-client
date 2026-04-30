@@ -78,6 +78,19 @@ function main() {
           );
           process.exit(1);
         }
+        // MaD barrier kinds are validated like sink kinds; query ids are not valid.
+        if (body.includes('http-to-file-access') || body.includes('js/http-to-file-access')) {
+          console.error(
+            `check-codeql-extensions: ${ent.name} must not use http-to-file-access / js/http-to-file-access as barrier kinds (invalid MaD kind). Use file-content-store for disk body sinks.`,
+          );
+          process.exit(1);
+        }
+        if (!body.includes('file-content-store')) {
+          console.error(
+            `check-codeql-extensions: ${ent.name} must declare file-content-store barriers for sanitizeLogPayloadForDisk`,
+          );
+          process.exit(1);
+        }
       }
     }
   }

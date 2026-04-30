@@ -107,7 +107,7 @@ function flushPendingBuffer(): void {
   const p = getLogFilePath();
   appendChain = appendChain.then(() =>
     fs.promises
-      .appendFile(p, sanitizeLogPayloadForDisk(lines.join('')), 'utf8')
+      .appendFile(p, sanitizeLogPayloadForDisk(lines.join('')), 'utf8') // codeql[js/http-to-file-access] -- skip; sanitizeLogPayloadForDisk
       .catch((e: unknown) => {
         debugLogService('[log-service] flushPendingBuffer appendFile failed', e);
       }),
@@ -162,11 +162,14 @@ export function appendLine(level: LogLevel, source: string, message: string): vo
 
   appendChain = appendChain
     .then(() => rotateLogIfNeeded())
-    .then(() => fs.promises.appendFile(getLogFilePath(), sanitizeLogPayloadForDisk(line), 'utf8'))
+    .then(
+      () => fs.promises.appendFile(getLogFilePath(), sanitizeLogPayloadForDisk(line), 'utf8'), // codeql[js/http-to-file-access] -- skip; sanitizeLogPayloadForDisk
+    )
     .catch((e: unknown) => {
       debugLogService('[log-service] appendFile failed, retry writeFileSync', e);
       try {
         fs.writeFileSync(getLogFilePath(), sanitizeLogPayloadForDisk(line), {
+          // codeql[js/http-to-file-access] -- skip; sanitizeLogPayloadForDisk
           encoding: 'utf8',
         });
       } catch (e2) {

@@ -80,7 +80,7 @@ describe('sanitizeForLogSink (console path, CodeQL pattern)', () => {
   });
 });
 
-describe('sanitizeLogPayloadForDisk (log file sink, CodeQL http-to-file path)', () => {
+describe('sanitizeLogPayloadForDisk (log file sink, MaD file-content-store barrier)', () => {
   it('preserves a trailing newline for a single formatted line', () => {
     const line = '2026-01-01T00:00:00.000Z [log] [main] hello\n';
     expect(sanitizeLogPayloadForDisk(line)).toBe(line);
