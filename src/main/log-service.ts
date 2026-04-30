@@ -276,26 +276,32 @@ export function patchMainConsole(): void {
   console.log = (...args: unknown[]) => {
     const safe = sanitizeForLogSink(stringifyArgs(args));
     appendLine('log', resolveMainSource(), safe);
-    original.log(...args);
+    const ts = formatLogFileTimestamp(Date.now());
+    original.log(`[${ts}]`, ...args);
   };
   console.info = (...args: unknown[]) => {
     const safe = sanitizeForLogSink(stringifyArgs(args));
     appendLine('info', resolveMainSource(), safe);
-    original.info(...args);
+    const ts = formatLogFileTimestamp(Date.now());
+    original.info(`[${ts}]`, ...args);
   };
   console.warn = (...args: unknown[]) => {
     const safe = sanitizeForLogSink(stringifyArgs(args));
     appendLine('warn', resolveMainSource(), safe);
-    original.warn(...args);
+    const ts = formatLogFileTimestamp(Date.now());
+    original.warn(`[${ts}]`, ...args);
   };
   console.error = (...args: unknown[]) => {
     const safe = sanitizeForLogSink(stringifyArgs(args));
     appendLine('error', resolveMainSource(), safe);
-    original.error(...args);
+    const ts = formatLogFileTimestamp(Date.now());
+    original.error(`[${ts}]`, ...args);
   };
   console.debug = (...args: unknown[]) => {
     const safe = sanitizeForLogSink(stringifyArgs(args));
     appendLine('debug', resolveMainSource(), safe);
+    const ts = formatLogFileTimestamp(Date.now());
+    original.debug(`[${ts}]`, ...args);
   };
 
   // Capture process.stdout/stderr text writes (some deps log without console.*)
