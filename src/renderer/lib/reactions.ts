@@ -44,7 +44,8 @@ const REACTION_NAMES = [
 ] as const;
 
 /** Return display character for a stored emoji code (handles legacy index 1..12 and Unicode). */
-export function emojiDisplayChar(code: number): string {
+export function emojiDisplayChar(code: number | null | undefined): string {
+  if (code == null) return '';
   if (code >= 1 && code <= REACTION_EMOJI_CODES.length) {
     return String.fromCodePoint(REACTION_EMOJI_CODES[code - 1]);
   }
@@ -61,7 +62,8 @@ export function emojiDisplayChar(code: number): string {
 }
 
 /** Return label for tooltip (name for known reactions, character otherwise). */
-export function emojiDisplayLabel(code: number): string {
+export function emojiDisplayLabel(code: number | null | undefined): string {
+  if (code == null) return '';
   if (code >= 1 && code <= REACTION_EMOJI_CODES.length) {
     return REACTION_NAMES[code - 1];
   }
