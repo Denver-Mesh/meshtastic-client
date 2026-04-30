@@ -49,6 +49,13 @@ describe('MQTT forwarder dropped-event logs (source contract)', () => {
   });
 });
 
+describe('Meshtastic message DB IPC (source contract)', () => {
+  it('registers db:updateMessagePacketId for optimistic packet_id → RF id (tapback reply_id)', () => {
+    expect(INDEX_SOURCE).toContain("'db:updateMessagePacketId'");
+    expect(INDEX_SOURCE).toMatch(/UPDATE messages SET packet_id = \? WHERE packet_id = \?/);
+  });
+});
+
 describe('MeshCore DB IPC (source contract)', () => {
   it('registers updateMeshcoreContactLastRf for repeater Status persistence', () => {
     expect(INDEX_SOURCE).toContain("'db:updateMeshcoreContactLastRf'");

@@ -69,6 +69,7 @@ const electronAPIMock = {
     prunePositionHistory: vi.fn().mockResolvedValue(0),
     clearNodePositions: vi.fn().mockResolvedValue(undefined),
     updateMessageReceivedVia: vi.fn().mockResolvedValue(undefined),
+    updateMessagePacketId: vi.fn().mockResolvedValue(undefined),
     getMeshcoreMessages: vi.fn().mockResolvedValue([]),
     searchMessages: vi.fn().mockResolvedValue([]),
     searchMeshcoreMessages: vi.fn().mockResolvedValue([]),

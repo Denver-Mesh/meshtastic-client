@@ -17,6 +17,7 @@ import {
   MQTT_MAX_RECONNECT_ATTEMPTS,
 } from '../shared/meshtasticMqttReconnect';
 import { meshtasticShortNameAfterClearingDefault } from '../shared/nodeNameUtils';
+import { MESHTASTIC_TAPBACK_DATA_EMOJI_FLAG } from '../shared/reactionEmoji';
 import { sanitizeLogMessage } from './log-service';
 
 const { ServiceEnvelopeSchema } = MqttProto;
@@ -445,10 +446,12 @@ export class MQTTManager extends EventEmitter {
     const destId = destination >>> 0;
     const channelId = channel >>> 0;
 
+    const hasTapback = replyId != null && emoji != null && emoji !== 0;
+    const payloadText = hasTapback && text.trim().length === 0 ? String.fromCodePoint(emoji) : text;
     const data = create(DataSchema, {
       portnum: PortNum.TEXT_MESSAGE_APP,
-      payload: new TextEncoder().encode(text),
-      ...(emoji ? { emoji } : {}),
+      payload: new TextEncoder().encode(payloadText),
+      ...(hasTapback ? { emoji: MESHTASTIC_TAPBACK_DATA_EMOJI_FLAG } : {}),
       ...(replyId ? { replyId } : {}),
     });
     return this.publishEncryptedData(

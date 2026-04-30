@@ -13,9 +13,16 @@ export function normalizeReactionEmoji(
   wireEmoji: number | undefined,
   payloadUtf8: string,
 ): number | undefined {
-  if (payloadUtf8.length > 0) {
-    const cp = payloadUtf8.codePointAt(0);
-    if (cp !== undefined && cp > 0x1000) return cp;
+  const trimmed = payloadUtf8.trim();
+  if (trimmed.length > 0) {
+    const cp = trimmed.codePointAt(0);
+    if (cp !== undefined) {
+      // mesh.proto: `emoji` value 1 is the standard tapback boolean; payload UTF-8 is the glyph (any scalar).
+      if (wireEmoji === 1) {
+        return cp;
+      }
+      if (cp > 0x1000) return cp;
+    }
   }
   if (wireEmoji == null) return undefined;
   if (wireEmoji >= 1 && wireEmoji <= REACTION_EMOJI_CODES.length) {

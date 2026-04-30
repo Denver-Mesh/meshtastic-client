@@ -8,6 +8,12 @@ import {
   meshtasticShortNameAfterClearingDefault,
   preferNonEmptyTrimmedString,
 } from '../../shared/nodeNameUtils';
+import {
+  MESHTASTIC_TAPBACK_DATA_EMOJI_FLAG,
+  meshtasticWireUint32AllowZero,
+  meshtasticWireUint32NonZero,
+  sanitizeUnicodeReactionScalar,
+} from '../../shared/reactionEmoji';
 import { getAppSettingsRaw } from '../lib/appSettingsStorage';
 import { MAX_IN_MEMORY_CHAT_MESSAGES, trimChatMessagesToMax } from '../lib/chatInMemoryBuffer';
 import {
@@ -157,6 +163,8 @@ export function useDevice() {
   const onStatusUpdateRef = useRef<(event: StatusUpdateEvent) => void>(() => {});
   // Tracks the tempId of an in-flight optimistic message (device path) so the echo can be skipped
   const pendingTempIdRef = useRef<number | undefined>(undefined);
+  /** After device ack, optimistic `tempId` → RF `packet_id` so MQTT status callbacks still find the row. */
+  const ackMeshPacketIdByTempIdRef = useRef<Map<number, number>>(new Map());
   // True while the device is in the configuring phase (replaying queued packets); messages
   // received during this window are historical and should not increment the unread counter.
   const isConfiguringRef = useRef<boolean>(false);
@@ -431,6 +439,7 @@ export function useDevice() {
       }
     }
     unsubscribesRef.current = [];
+    ackMeshPacketIdByTempIdRef.current.clear();
   }, []);
 
   const clearConfigureTimeout = useCallback(() => {
@@ -525,7 +534,11 @@ export function useDevice() {
     window.electronAPI.db
       .getMessages(undefined, getMessageLoadLimit())
       .then((msgs) => {
-        const reversed = msgs.reverse();
+        const sanitized = msgs.map((m) => ({
+          ...m,
+          emoji: m.emoji != null ? sanitizeUnicodeReactionScalar(m.emoji) : undefined,
+        }));
+        const reversed = sanitized.reverse();
         setMessages(trimChatMessagesToMax(reversed, MAX_IN_MEMORY_CHAT_MESSAGES));
         // Seed dedup map so device config-sync replays are caught immediately
         for (const m of reversed) {
@@ -786,10 +799,11 @@ export function useDevice() {
       const raw = rawMsg as Omit<ChatMessage, 'id'> & { from_mqtt?: boolean };
 
       // Normalize placeholder replyId/emoji (some senders emit 0 instead of omitting the field)
-      const cleanedReplyId = raw.replyId != null && raw.replyId !== 0 ? raw.replyId : undefined;
+      const cleanedReplyId = meshtasticWireUint32NonZero(raw.replyId);
+      const wireEmojiRaw = meshtasticWireUint32NonZero(raw.emoji);
       const cleanedEmoji =
-        raw.emoji != null && raw.emoji !== 0 && raw.emoji >= 1 && raw.emoji <= 0x10ffff
-          ? raw.emoji
+        wireEmojiRaw != null && wireEmojiRaw >= 1 && wireEmojiRaw <= 0x10ffff
+          ? wireEmojiRaw
           : undefined;
 
       let cleanedPayload = raw.payload;
@@ -812,7 +826,9 @@ export function useDevice() {
         baseMsg.emoji != null && baseMsg.replyId != null
           ? {
               ...baseMsg,
-              emoji: normalizeReactionEmoji(baseMsg.emoji, baseMsg.payload) ?? baseMsg.emoji,
+              emoji:
+                normalizeReactionEmoji(baseMsg.emoji, baseMsg.payload) ??
+                sanitizeUnicodeReactionScalar(baseMsg.emoji),
             }
           : baseMsg;
 
@@ -1077,7 +1093,9 @@ export function useDevice() {
 
       // ─── Text messages ─────────────────────────────────────────
       const unsub3 = device.events.onMeshPacket.subscribe((meshPacket) => {
-        if (meshPacket.payloadVariant.case !== 'decoded') return;
+        if (meshPacket.payloadVariant.case !== 'decoded') {
+          return;
+        }
         const dataPacket = meshPacket.payloadVariant.value;
         if (dataPacket.portnum !== Portnums.PortNum.TEXT_MESSAGE_APP) return;
 
@@ -1109,18 +1127,17 @@ export function useDevice() {
         let payloadText = new TextDecoder().decode(dataPacket.payload);
         const data = dataPacket as { replyId?: number; reply_id?: number; emoji?: number };
 
-        const rawReplyId = data.replyId ?? data.reply_id ?? undefined;
-        const replyId = rawReplyId != null && rawReplyId !== 0 ? rawReplyId : undefined;
-        const wireEmoji = data.emoji != null && data.emoji !== 0 ? data.emoji : undefined;
+        const replyId = meshtasticWireUint32NonZero(data.replyId ?? data.reply_id);
+        const wireEmoji = meshtasticWireUint32NonZero(data.emoji);
 
         if (payloadText.trim() === '0' && !replyId && !wireEmoji) {
           // Strip leading "0" payloads that are just a placeholder from buggy senders
           payloadText = '';
         }
 
-        const emoji = replyId
-          ? (normalizeReactionEmoji(wireEmoji, payloadText) ?? wireEmoji ?? undefined)
-          : undefined;
+        const emoji = replyId ? normalizeReactionEmoji(wireEmoji, payloadText) : undefined;
+
+        const packetIdCoerced = meshtasticWireUint32AllowZero(meshPacket.id);
 
         const msgBase: ChatMessage = {
           sender_id: meshPacket.from,
@@ -1128,7 +1145,7 @@ export function useDevice() {
           payload: payloadText,
           channel: meshPacket.channel ?? 0,
           timestamp: meshPacket.rxTime ? meshPacket.rxTime * 1000 : Date.now(),
-          packetId: meshPacket.id,
+          packetId: packetIdCoerced,
           status: isEcho ? 'sending' : undefined,
           emoji,
           replyId,
@@ -2640,12 +2657,39 @@ export function useDevice() {
 
       if (transport === 'device') {
         if (status === 'acked') {
-          // Register the real HW packet ID for RF/MQTT dedup of future incoming echoes
-          if (finalPacketId !== undefined) isDuplicate(finalPacketId);
+          const resolvedPid =
+            finalPacketId !== undefined
+              ? (meshtasticWireUint32AllowZero(finalPacketId) ?? tempId)
+              : tempId;
+          if (finalPacketId !== undefined) {
+            isDuplicate(resolvedPid);
+          }
+          if (resolvedPid !== tempId) {
+            ackMeshPacketIdByTempIdRef.current.set(tempId, resolvedPid);
+          }
           setMessages((prev) =>
-            prev.map((m) => (m.packetId === tempId ? { ...m, status: 'acked' as const } : m)),
+            prev.map((m) =>
+              m.packetId === tempId
+                ? {
+                    ...m,
+                    status: 'acked' as const,
+                    ...(resolvedPid !== tempId ? { packetId: resolvedPid } : {}),
+                  }
+                : m,
+            ),
           );
-          void window.electronAPI.db.updateMessageStatus(tempId, 'acked');
+          void (
+            resolvedPid !== tempId
+              ? window.electronAPI.db.updateMessagePacketId(tempId, resolvedPid)
+              : Promise.resolve()
+          )
+            .then(() => window.electronAPI.db.updateMessageStatus(resolvedPid, 'acked'))
+            .catch((err: unknown) => {
+              console.error(
+                '[useDevice] device ack DB update failed:',
+                err instanceof Error ? err.message : String(err),
+              );
+            });
         } else {
           // failed
           setMessages((prev) =>
@@ -2657,18 +2701,19 @@ export function useDevice() {
         }
       } else {
         // mqtt — read current device status from state so the DB update is consistent
+        const rowPacketId = ackMeshPacketIdByTempIdRef.current.get(tempId) ?? tempId;
         setMessages((prev) => {
-          const existing = prev.find((m) => m.packetId === tempId);
+          const existing = prev.find((m) => m.packetId === rowPacketId);
           if (status !== 'sending' && existing) {
             const deviceStatus = existing.status ?? 'acked';
             void window.electronAPI.db.updateMessageStatus(
-              tempId,
+              rowPacketId,
               deviceStatus,
               existing.error,
               status,
             );
           }
-          return prev.map((m) => (m.packetId === tempId ? { ...m, mqttStatus: status } : m));
+          return prev.map((m) => (m.packetId === rowPacketId ? { ...m, mqttStatus: status } : m));
         });
       }
     },
@@ -3132,30 +3177,43 @@ export function useDevice() {
           ),
         );
       }
+      const safeScalar = sanitizeUnicodeReactionScalar(emoji);
+      if (safeScalar === undefined) {
+        return Promise.reject(new Error('Invalid reaction emoji'));
+      }
+      const tapPayload = String.fromCodePoint(safeScalar);
+
       const msg: ChatMessage = {
         sender_id: from,
         sender_name: getNodeName(from),
-        payload: '',
+        payload: tapPayload,
         channel,
         timestamp: Date.now(),
-        emoji,
+        emoji: safeScalar,
         replyId,
       };
 
       // Optimistic update — dedup guard in echo handler prevents duplicate when echo arrives
       setMessages((prev) => {
         const isDup = prev.some(
-          (m) => m.emoji === emoji && m.replyId === replyId && m.sender_id === from,
+          (m) => m.emoji === safeScalar && m.replyId === replyId && m.sender_id === from,
         );
         if (isDup) return prev;
         return trimChatMessagesToMax([...prev, msg], MAX_IN_MEMORY_CHAT_MESSAGES);
       });
       void window.electronAPI.db.saveMessage(msg);
 
-      // Device transport
+      // Device transport — mesh.proto: `emoji` is a boolean flag; the glyph is UTF-8 in `payload`.
       if (deviceRef.current) {
         deviceRef.current
-          .sendText('', 'broadcast', true, channel, replyId, emoji)
+          .sendText(
+            tapPayload,
+            'broadcast',
+            true,
+            channel,
+            replyId,
+            MESHTASTIC_TAPBACK_DATA_EMOJI_FLAG,
+          )
           .then(() => {})
           .catch((e: unknown) => {
             console.warn('[useDevice] sendReaction device sendText failed', e);
