@@ -391,6 +391,7 @@ declare global {
         prunePositionHistory: (days: number) => Promise<number>;
         clearNodePositions: () => Promise<unknown>;
         updateMessageReceivedVia: (packetId: number) => Promise<unknown>;
+        updateMessagePacketId: (oldPacketId: number, newPacketId: number) => Promise<unknown>;
         saveMeshcoreMessage: (message: {
           sender_id?: number | null;
           sender_name?: string | null;

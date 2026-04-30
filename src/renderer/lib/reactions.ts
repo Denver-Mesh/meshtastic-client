@@ -13,9 +13,16 @@ export function normalizeReactionEmoji(
   wireEmoji: number | undefined,
   payloadUtf8: string,
 ): number | undefined {
-  if (payloadUtf8.length > 0) {
-    const cp = payloadUtf8.codePointAt(0);
-    if (cp !== undefined && cp > 0x1000) return cp;
+  const trimmed = payloadUtf8.trim();
+  if (trimmed.length > 0) {
+    const cp = trimmed.codePointAt(0);
+    if (cp !== undefined) {
+      // mesh.proto: `emoji` value 1 is the standard tapback boolean; payload UTF-8 is the glyph (any scalar).
+      if (wireEmoji === 1) {
+        return cp;
+      }
+      if (cp > 0x1000) return cp;
+    }
   }
   if (wireEmoji == null) return undefined;
   if (wireEmoji >= 1 && wireEmoji <= REACTION_EMOJI_CODES.length) {
@@ -44,7 +51,8 @@ const REACTION_NAMES = [
 ] as const;
 
 /** Return display character for a stored emoji code (handles legacy index 1..12 and Unicode). */
-export function emojiDisplayChar(code: number): string {
+export function emojiDisplayChar(code: number | null | undefined): string {
+  if (code == null) return '';
   if (code >= 1 && code <= REACTION_EMOJI_CODES.length) {
     return String.fromCodePoint(REACTION_EMOJI_CODES[code - 1]);
   }
@@ -61,7 +69,8 @@ export function emojiDisplayChar(code: number): string {
 }
 
 /** Return label for tooltip (name for known reactions, character otherwise). */
-export function emojiDisplayLabel(code: number): string {
+export function emojiDisplayLabel(code: number | null | undefined): string {
+  if (code == null) return '';
   if (code >= 1 && code <= REACTION_EMOJI_CODES.length) {
     return REACTION_NAMES[code - 1];
   }

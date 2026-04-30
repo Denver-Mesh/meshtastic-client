@@ -17,6 +17,7 @@ import {
   MQTT_MAX_RECONNECT_ATTEMPTS,
 } from '../shared/meshtasticMqttReconnect';
 import { meshtasticShortNameAfterClearingDefault } from '../shared/nodeNameUtils';
+import { MESHTASTIC_TAPBACK_DATA_EMOJI_FLAG } from '../shared/reactionEmoji';
 import { sanitizeLogMessage } from './log-service';
 
 const { ServiceEnvelopeSchema } = MqttProto;
@@ -108,6 +109,7 @@ const MESHTASTIC_MQTT_WSS_PING_MS = 25_000;
  */
 const MESHTASTIC_MQTT_RESCHEDULE_MS = 30_000;
 const NOISY_DEBUG_LOG_INTERVAL_MS = 60_000;
+const BAD_ENVELOPE_SIGNATURE_TTL_MS = 10 * 60 * 1000;
 
 interface SampledDebugLogState {
   lastLoggedAt: number;
@@ -128,6 +130,7 @@ export class MQTTManager extends EventEmitter {
   private wssPingTimer: ReturnType<typeof setInterval> | null = null;
   private keepaliveRescheduleTimer: ReturnType<typeof setInterval> | null = null;
   private sampledDebugLogs = new Map<string, SampledDebugLogState>();
+  private badEnvelopeSignatures = new Map<string, number>(); // signature -> expiry timestamp
   private static MAX_SAMPLED_LOGS = 1000;
   /** Wall time at start of last `_doConnect` (CONNACK timing in connect logs). */
   private meshtasticConnectT0 = 0;
@@ -443,10 +446,12 @@ export class MQTTManager extends EventEmitter {
     const destId = destination >>> 0;
     const channelId = channel >>> 0;
 
+    const hasTapback = replyId != null && emoji != null && emoji !== 0;
+    const payloadText = hasTapback && text.trim().length === 0 ? String.fromCodePoint(emoji) : text;
     const data = create(DataSchema, {
       portnum: PortNum.TEXT_MESSAGE_APP,
-      payload: new TextEncoder().encode(text),
-      ...(emoji ? { emoji } : {}),
+      payload: new TextEncoder().encode(payloadText),
+      ...(hasTapback ? { emoji: MESHTASTIC_TAPBACK_DATA_EMOJI_FLAG } : {}),
       ...(replyId ? { replyId } : {}),
     });
     return this.publishEncryptedData(
@@ -590,6 +595,36 @@ export class MQTTManager extends EventEmitter {
     }
   }
 
+  private signatureFromPayload(topic: string, bytes: Uint8Array): string {
+    const head = Array.from(bytes.subarray(0, Math.min(24, bytes.length)))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+    const tail = Array.from(bytes.subarray(Math.max(0, bytes.length - 8)))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+    return `${topic}|${bytes.length}|${head}|${tail}`;
+  }
+
+  private shouldSkipKnownBadEnvelope(topic: string, bytes: Uint8Array): boolean {
+    const now = Date.now();
+    const key = this.signatureFromPayload(topic, bytes);
+    const expiry = this.badEnvelopeSignatures.get(key);
+    if (expiry && expiry > now) return true;
+    if (expiry && expiry <= now) this.badEnvelopeSignatures.delete(key);
+    return false;
+  }
+
+  private rememberBadEnvelope(topic: string, bytes: Uint8Array): void {
+    const now = Date.now();
+    const key = this.signatureFromPayload(topic, bytes);
+    this.badEnvelopeSignatures.set(key, now + BAD_ENVELOPE_SIGNATURE_TTL_MS);
+    if (this.badEnvelopeSignatures.size > 1000) {
+      for (const [sig, expiry] of this.badEnvelopeSignatures) {
+        if (expiry <= now) this.badEnvelopeSignatures.delete(sig);
+      }
+    }
+  }
+
   private upsertNodeCache(update: Partial<CachedNode> & { node_id: number }): void {
     const { node_id, last_heard = Date.now() } = update;
     const existing = this.nodeCache.get(node_id);
@@ -637,6 +672,10 @@ export class MQTTManager extends EventEmitter {
       return;
     }
 
+    if (this.shouldSkipKnownBadEnvelope(topic, cleanBytes)) {
+      return;
+    }
+
     try {
       this.decodeAndHandleServiceEnvelope(cleanBytes, topic);
     } catch (err) {
@@ -666,6 +705,8 @@ export class MQTTManager extends EventEmitter {
 
       // catch-no-log-ok decode failures are sampled via logSampledDebug (avoid duplicate console lines)
       const finalMsg = err instanceof Error ? err.message : String(err);
+      // Identical bytes always decode the same way; skip re-decoding recurring bad broker payloads.
+      this.rememberBadEnvelope(topic, cleanBytes);
       this.logSampledDebug(
         'service-envelope-decode-failed',
         `[Meshtastic MQTT] ServiceEnvelope decode failed: ${sanitizeLogMessage(finalMsg)} | Topic: ${sanitizeLogMessage(topic)}`,
@@ -801,7 +842,7 @@ export class MQTTManager extends EventEmitter {
       return null;
     }
     if (typeof fromRaw === 'number') {
-      return fromRaw;
+      return fromRaw >>> 0;
     }
     if (typeof fromRaw !== 'string') {
       console.debug(`[Meshtastic MQTT] JSON ${handler} unexpected from type: ${typeof fromRaw}`); // log-filter-ok Meshtastic MQTT logs → App log panel
@@ -814,14 +855,14 @@ export class MQTTManager extends EventEmitter {
         console.debug(`[Meshtastic MQTT] JSON ${handler} invalid from hex: ${fromStr}`); // log-filter-ok Meshtastic MQTT logs → App log panel
         return null;
       }
-      return nodeId;
+      return nodeId >>> 0;
     }
     const nodeId = parseInt(fromStr, 10);
     if (isNaN(nodeId)) {
       console.debug(`[Meshtastic MQTT] JSON ${handler} invalid from: ${fromStr}`); // log-filter-ok Meshtastic MQTT logs → App log panel
       return null;
     }
-    return nodeId;
+    return nodeId >>> 0;
   }
 
   private handleJsonNodeInfo(json: Record<string, unknown>, topic: string): void {

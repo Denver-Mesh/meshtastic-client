@@ -12,9 +12,15 @@ describe('log-service disk writes (sanitization contract)', () => {
     const writeFileSyncCalls = LOG_SERVICE_SOURCE.match(/fs\.writeFileSync\(/g) ?? [];
     expect(appendFileCalls.length).toBe(2);
     expect(writeFileSyncCalls.length).toBe(2);
-    expect((LOG_SERVICE_SOURCE.match(/sanitizeLogPayloadForDisk\(/g) ?? []).length).toBe(2);
-    expect(LOG_SERVICE_SOURCE).toMatch(/appendFile\(\s*p\s*,\s*data\s*,/);
-    expect(LOG_SERVICE_SOURCE).toMatch(/appendFile\(\s*getLogFilePath\(\)\s*,\s*diskLine\s*,/);
-    expect(LOG_SERVICE_SOURCE).toMatch(/writeFileSync\(\s*getLogFilePath\(\)\s*,\s*diskLine\s*,/);
+    expect((LOG_SERVICE_SOURCE.match(/sanitizeLogPayloadForDisk\(/g) ?? []).length).toBe(3);
+    expect(LOG_SERVICE_SOURCE).toMatch(
+      /\.appendFile\(\s*p\s*,\s*sanitizeLogPayloadForDisk\(lines\.join\(''\)\)/,
+    );
+    expect(LOG_SERVICE_SOURCE).toMatch(
+      /appendFile\(\s*getLogFilePath\(\)\s*,\s*sanitizeLogPayloadForDisk\(line\)/,
+    );
+    expect(LOG_SERVICE_SOURCE).toMatch(
+      /writeFileSync\(\s*getLogFilePath\(\)\s*,\s*sanitizeLogPayloadForDisk\(line\)/,
+    );
   });
 });

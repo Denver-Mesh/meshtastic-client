@@ -19,14 +19,12 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
-const SCAN_DIRS = [
-  path.join(ROOT, 'src', 'main'),
-  path.join(ROOT, 'src', 'renderer'),
-];
+const SCAN_DIRS = [path.join(ROOT, 'src', 'main'), path.join(ROOT, 'src', 'renderer')];
 
 const SUPPRESSION = /\/\/\s*catch-no-log-ok\b/;
 // Also recognise `original.(debug|...)` — the pre-patch console alias used in log-service.ts
-const HAS_CONSOLE = /(?:console|original)\.(log|warn|error|info|debug)\s*\(/;
+// and `debugLogService(...)` — sanitized internal logging in log-service.ts
+const HAS_CONSOLE = /(?:console|original)\.(log|warn|error|info|debug)\s*\(|debugLogService\s*\(/;
 const HAS_THROW = /\bthrow\b/;
 
 function collectSourceFiles(dir) {
@@ -64,7 +62,8 @@ function parseCatchBlocks(content) {
     if (content[i] === '\n') lineStarts.push(i + 1);
   }
   function lineNumAt(charOffset) {
-    let lo = 0, hi = lineStarts.length - 1;
+    let lo = 0,
+      hi = lineStarts.length - 1;
     while (lo < hi) {
       const mid = (lo + hi + 1) >> 1;
       if (lineStarts[mid] <= charOffset) lo = mid;

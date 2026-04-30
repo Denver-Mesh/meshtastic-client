@@ -9,6 +9,7 @@ import path from 'path';
 import { describe, expect, it } from 'vitest';
 
 import {
+  sanitizeForConsoleEcho,
   sanitizeForLogSink,
   sanitizeLogMessage,
   sanitizeLogPayloadForDisk,
@@ -41,6 +42,18 @@ describe('sanitizeLogMessage', () => {
   });
 });
 
+describe('sanitizeForConsoleEcho (terminal console.* echo, CodeQL newline barrier)', () => {
+  it('removes newlines with empty replacement then normalizes whitespace', () => {
+    expect(sanitizeForConsoleEcho('a\nb')).toBe('ab');
+    expect(sanitizeForConsoleEcho('a \n b')).toBe('a b');
+    expect(sanitizeForConsoleEcho('a\r\nb')).toBe('ab');
+  });
+
+  it('still collapses forged multi-line payloads to a single line', () => {
+    expect(sanitizeForConsoleEcho('line1\n[INFO] forged\nline2')).toBe('line1[INFO] forgedline2');
+  });
+});
+
 describe('sanitizeForLogSink (console path, CodeQL pattern)', () => {
   it('strips newlines and keeps output on one line', () => {
     expect(sanitizeForLogSink('a\nb')).toBe('a b');
@@ -67,7 +80,7 @@ describe('sanitizeForLogSink (console path, CodeQL pattern)', () => {
   });
 });
 
-describe('sanitizeLogPayloadForDisk (log file sink, CodeQL http-to-file path)', () => {
+describe('sanitizeLogPayloadForDisk (log file sink, MaD file-content-store barrier)', () => {
   it('preserves a trailing newline for a single formatted line', () => {
     const line = '2026-01-01T00:00:00.000Z [log] [main] hello\n';
     expect(sanitizeLogPayloadForDisk(line)).toBe(line);
@@ -85,6 +98,18 @@ describe('sanitizeLogPayloadForDisk (log file sink, CodeQL http-to-file path)', 
   it('is stable on already-sanitized multiline payloads', () => {
     const once = sanitizeLogPayloadForDisk('a\nb\n');
     expect(sanitizeLogPayloadForDisk(once)).toBe(once);
+  });
+});
+
+describe('CodeQL extensions layout', () => {
+  it('embedded model pack under .github/codeql/extensions is valid', () => {
+    const projectRoot = path.resolve(import.meta.dirname ?? __dirname, '..', '..', '..');
+    execFileSync('node', [path.join(projectRoot, 'scripts', 'check-codeql-extensions.mjs')], {
+      encoding: 'utf8',
+      stdio: 'pipe',
+      cwd: projectRoot,
+    });
+    expect(true).toBe(true);
   });
 });
 

@@ -7,6 +7,7 @@ import path from 'path';
 
 import { formatLogFileTimestamp } from '../shared/formatLogTimestamp';
 import {
+  sanitizeForConsoleEcho,
   sanitizeForLogSink,
   sanitizeLogMessage,
   sanitizeLogPayloadForDisk,
@@ -95,7 +96,7 @@ export function initLogFile(): void {
   try {
     fs.writeFileSync(p, '', { encoding: 'utf8' });
   } catch (e) {
-    original.debug('[log-service] initLogFile truncate failed', e);
+    debugLogService('[log-service] initLogFile truncate failed', e);
   }
   flushPendingBuffer();
 }
@@ -104,11 +105,12 @@ function flushPendingBuffer(): void {
   if (pendingBuffer.length === 0) return;
   const lines = pendingBuffer.splice(0, pendingBuffer.length);
   const p = getLogFilePath();
-  const data = sanitizeLogPayloadForDisk(lines.join(''));
   appendChain = appendChain.then(() =>
-    fs.promises.appendFile(p, data, 'utf8').catch((e: unknown) => {
-      original.debug('[log-service] flushPendingBuffer appendFile failed', e);
-    }),
+    fs.promises
+      .appendFile(p, sanitizeLogPayloadForDisk(lines.join('')), 'utf8') // codeql[js/http-to-file-access] -- skip; sanitizeLogPayloadForDisk
+      .catch((e: unknown) => {
+        debugLogService('[log-service] flushPendingBuffer appendFile failed', e);
+      }),
   );
 }
 
@@ -158,23 +160,22 @@ export function appendLine(level: LogLevel, source: string, message: string): vo
     return;
   }
 
-  const diskLine = sanitizeLogPayloadForDisk(line);
-  // Debug messages are kept in the in-memory buffer and broadcast to the renderer
-  // Log panel in all environments, but are not written to disk in production builds
-  // to reduce noise and disk usage.
-  if (level !== 'debug' || !app.isPackaged) {
-    appendChain = appendChain
-      .then(() => rotateLogIfNeeded())
-      .then(() => fs.promises.appendFile(getLogFilePath(), diskLine, 'utf8'))
-      .catch((e: unknown) => {
-        original.debug('[log-service] appendFile failed, retry writeFileSync', e);
-        try {
-          fs.writeFileSync(getLogFilePath(), diskLine, { encoding: 'utf8' });
-        } catch (e2) {
-          original.debug('[log-service] writeFileSync retry failed', e2);
-        }
-      });
-  }
+  appendChain = appendChain
+    .then(() => rotateLogIfNeeded())
+    .then(
+      () => fs.promises.appendFile(getLogFilePath(), sanitizeLogPayloadForDisk(line), 'utf8'), // codeql[js/http-to-file-access] -- skip; sanitizeLogPayloadForDisk
+    )
+    .catch((e: unknown) => {
+      debugLogService('[log-service] appendFile failed, retry writeFileSync', e);
+      try {
+        fs.writeFileSync(getLogFilePath(), sanitizeLogPayloadForDisk(line), {
+          // codeql[js/http-to-file-access] -- skip; sanitizeLogPayloadForDisk
+          encoding: 'utf8',
+        });
+      } catch (e2) {
+        debugLogService('[log-service] writeFileSync retry failed', e2);
+      }
+    });
 
   broadcastLine(ts, level, source, message);
 }
@@ -202,7 +203,7 @@ function broadcastLine(ts: number, level: LogLevel, source: string, message: str
   try {
     win.webContents.send('log:line', { ts, level, source, message: msg });
   } catch (e) {
-    original.debug('[log-service] broadcastLine send failed', e);
+    debugLogService('[log-service] broadcastLine send failed', e);
   }
 }
 
@@ -226,7 +227,7 @@ export function clearLogFile(): void {
       fs.unlinkSync(p);
     }
   } catch (e) {
-    original.debug('[log-service] clearLogFile unlink failed', e);
+    debugLogService('[log-service] clearLogFile unlink failed', e);
   }
 }
 
@@ -239,19 +240,29 @@ const original = {
   debug: console.debug.bind(console),
 };
 
+/** Single-line debug echo with CodeQL-visible sanitization (js/log-injection). */
+function debugLogService(context: string, err: unknown): void {
+  const detailRaw = err instanceof Error ? (err.stack ?? err.message) : String(err);
+  const detail = sanitizeForLogSink(detailRaw);
+  original.debug(sanitizeForConsoleEcho(`${context} ${detail}`));
+}
+
 function stringifyArgs(args: unknown[]): string {
   return args
     .map((a) => {
-      if (a instanceof Error) return a.stack ?? a.message;
-      if (typeof a === 'object' && a !== null) {
+      let piece: string;
+      if (a instanceof Error) piece = a.stack ?? a.message;
+      else if (typeof a === 'object' && a !== null) {
         try {
-          return JSON.stringify(a);
+          piece = JSON.stringify(a);
         } catch (e) {
-          original.debug('[log-service] stringifyArgs JSON.stringify failed', e);
-          return '[unserializable]';
+          debugLogService('[log-service] stringifyArgs JSON.stringify failed', e);
+          piece = '[unserializable]';
         }
+      } else {
+        piece = String(a);
       }
-      return String(a);
+      return sanitizeForLogSink(piece);
     })
     .join(' ');
 }
@@ -266,35 +277,42 @@ function resolveMainSource(): 'sdk' | 'main' {
 /**
  * Route main-process console.* through appendLine and still echo to original console
  * so terminal/devtools behavior is preserved.
- * Uses sanitizeForLogSink ( .replace(/\n|\r/g, ' ') first) so CodeQL js/log-injection
- * recognizes the sanitizer; see sanitize-log-message.test.ts for pre-commit coverage.
+ * Disk / UI lines use {@link sanitizeForLogSink}; terminal echo uses {@link sanitizeForConsoleEcho}
+ * so CodeQL's newline StringReplaceSanitizer applies at console sinks.
  */
 export function patchMainConsole(): void {
   if (consolePatched) return;
   consolePatched = true;
 
   console.log = (...args: unknown[]) => {
-    const safe = sanitizeForLogSink(stringifyArgs(args));
+    const joined = stringifyArgs(args);
+    const safe = sanitizeForLogSink(joined);
     appendLine('log', resolveMainSource(), safe);
-    original.log(...args);
+    original.log(sanitizeForConsoleEcho(joined));
   };
   console.info = (...args: unknown[]) => {
-    const safe = sanitizeForLogSink(stringifyArgs(args));
+    const joined = stringifyArgs(args);
+    const safe = sanitizeForLogSink(joined);
     appendLine('info', resolveMainSource(), safe);
-    original.info(...args);
+    original.info(sanitizeForConsoleEcho(joined));
   };
   console.warn = (...args: unknown[]) => {
-    const safe = sanitizeForLogSink(stringifyArgs(args));
+    const joined = stringifyArgs(args);
+    const safe = sanitizeForLogSink(joined);
     appendLine('warn', resolveMainSource(), safe);
-    original.warn(...args);
+    const ts = formatLogFileTimestamp(Date.now());
+    original.warn(sanitizeForConsoleEcho(`[${ts}] ${safe}`));
   };
   console.error = (...args: unknown[]) => {
-    const safe = sanitizeForLogSink(stringifyArgs(args));
+    const joined = stringifyArgs(args);
+    const safe = sanitizeForLogSink(joined);
     appendLine('error', resolveMainSource(), safe);
-    original.error(...args);
+    const ts = formatLogFileTimestamp(Date.now());
+    original.error(sanitizeForConsoleEcho(`[${ts}] ${safe}`));
   };
   console.debug = (...args: unknown[]) => {
-    const safe = sanitizeForLogSink(stringifyArgs(args));
+    const joined = stringifyArgs(args);
+    const safe = sanitizeForLogSink(joined);
     appendLine('debug', resolveMainSource(), safe);
   };
 
@@ -309,7 +327,7 @@ export function patchMainConsole(): void {
           if (trimmed) appendLine(level, source, sanitizeLogMessage(trimmed));
         }
       } catch (e) {
-        original.debug('[log-service] patchStream write hook', e);
+        debugLogService('[log-service] patchStream write hook', e);
       }
       return origWrite.apply(this, args as Parameters<typeof origWrite>);
     };

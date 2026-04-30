@@ -94,6 +94,7 @@ import { MeshcoreWebBluetoothConnection } from '../lib/meshcoreWebBluetoothConne
 import { lastHeardToUnixSeconds, mergeMeshcoreLastHeardFromAdvert } from '../lib/nodeStatus';
 import { parseStoredJson } from '../lib/parseStoredJson';
 import { MAX_RAW_PACKET_LOG_ENTRIES } from '../lib/rawPacketLogConstants';
+import { emojiDisplayChar } from '../lib/reactions';
 import {
   type CliHistoryEntry,
   createRepeaterCommandService,
@@ -5263,7 +5264,7 @@ export function useMeshCore() {
         (m) => m.packetId === replyId || m.timestamp === replyId,
       );
       const targetName = reactedTo?.sender_name || 'Unknown';
-      const emojiChar = String.fromCodePoint(emoji);
+      const emojiChar = emojiDisplayChar(emoji);
       const tapbackText = `@[${targetName}] ${emojiChar}`;
       const conn = connRef.current;
       const me = myNodeNumRef.current;
