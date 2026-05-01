@@ -64,6 +64,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     deleteNode: (nodeId: number) => ipcRenderer.invoke('db:deleteNode', nodeId),
     updateMessageStatus: (packetId: number, status: string, error?: string, mqttStatus?: string) =>
       ipcRenderer.invoke('db:updateMessageStatus', packetId, status, error, mqttStatus),
+    updateMessagePacketId: (oldPacketId: number, newPacketId: number) =>
+      ipcRenderer.invoke('db:updateMessagePacketId', oldPacketId, newPacketId),
     exportDb: () => ipcRenderer.invoke('db:export'),
     importDb: () => ipcRenderer.invoke('db:import'),
     deleteNodesByAge: (days: number) => ipcRenderer.invoke('db:deleteNodesByAge', days),
@@ -659,6 +661,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.send('set-tray-unread', count);
   },
   quitApp: () => ipcRenderer.invoke('app:quit'),
+
+  // ─── OS emoji panel ──────────────────────────────────────────────────────────
+  getPlatform: () => process.platform,
+  showEmojiPanel: () => ipcRenderer.invoke('app:showEmojiPanel'),
 
   // ─── Native OS notifications ───────────────────────────────────
   notify: {

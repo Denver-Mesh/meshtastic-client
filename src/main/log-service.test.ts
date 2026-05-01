@@ -31,12 +31,12 @@ describe('log-service source contracts', () => {
     expect(rotateIdx).toBeLessThan(appendFileIdx);
   });
 
-  it('suppresses debug disk writes when app.isPackaged is true', () => {
+  it('always writes all levels to disk (including debug)', () => {
     const appendLineIdx = LOG_SERVICE_SOURCE.indexOf('export function appendLine(');
     const body = LOG_SERVICE_SOURCE.slice(appendLineIdx, appendLineIdx + 1200);
-    // The debug suppression guard must reference both level and isPackaged
-    expect(body).toContain("level !== 'debug'");
-    expect(body).toContain('app.isPackaged');
+    // No debug suppression guard - all levels go to disk
+    expect(body).not.toContain("level !== 'debug'");
+    expect(body).not.toContain('app.isPackaged');
   });
 
   it('broadcastLine wraps webContents.send in try/catch', () => {
@@ -68,6 +68,39 @@ describe('log-service source contracts', () => {
     expect(body).toContain('fs.promises.stat(');
     expect(body).toContain('stat.size');
     expect(body).toContain('LOG_MAX_BYTES');
+  });
+
+  it('patchMainConsole echoes warn/error through sanitizeForConsoleEcho at original.* sink', () => {
+    expect(LOG_SERVICE_SOURCE).toContain(
+      'original.warn(sanitizeForConsoleEcho(`[${ts}] ${safe}`))',
+    );
+    expect(LOG_SERVICE_SOURCE).toContain(
+      'original.error(sanitizeForConsoleEcho(`[${ts}] ${safe}`))',
+    );
+  });
+
+  it('stringifyArgs sanitizes each argument fragment (CodeQL log paths)', () => {
+    expect(LOG_SERVICE_SOURCE).toContain('return sanitizeForLogSink(piece);');
+  });
+
+  it('routes internal failures through debugLogService (sanitized original.debug)', () => {
+    expect(LOG_SERVICE_SOURCE).toContain('function debugLogService');
+    expect(LOG_SERVICE_SOURCE).toContain('const detail = sanitizeForLogSink(detailRaw);');
+    expect(LOG_SERVICE_SOURCE).toContain(
+      'original.debug(sanitizeForConsoleEcho(`${context} ${detail}`))',
+    );
+  });
+
+  it('wraps appendFile/writeFileSync data with sanitizeLogPayloadForDisk at call site', () => {
+    expect(LOG_SERVICE_SOURCE).toContain(
+      ".appendFile(p, sanitizeLogPayloadForDisk(lines.join('')), 'utf8')",
+    );
+    expect(LOG_SERVICE_SOURCE).toContain(
+      "fs.promises.appendFile(getLogFilePath(), sanitizeLogPayloadForDisk(line), 'utf8')",
+    );
+    expect(LOG_SERVICE_SOURCE).toContain(
+      'fs.writeFileSync(getLogFilePath(), sanitizeLogPayloadForDisk(line)',
+    );
   });
 });
 

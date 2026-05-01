@@ -1,0 +1,10 @@
+# GitHub default-setup extensions accept either qlpack.yml or codeql-pack.yml; duplicate metadata
+# so pack resolution does not skip loading when only one filename is scanned.
+name: mesh-client/mesh-client-models
+version: 1.0.0
+library: true
+extensionTargets:
+  # Match GitHub-hosted CodeQL 2.25.x+ (avoid '*' — semver may reject and skip the pack).
+  codeql/javascript-all: '>=2.25.0 <5.0.0'
+dataExtensions:
+  - models/*.yml

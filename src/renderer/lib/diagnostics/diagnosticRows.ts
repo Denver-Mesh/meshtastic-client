@@ -2,6 +2,14 @@ import type { DiagnosticRow, NodeAnomaly, RfDiagnosticRow, RoutingDiagnosticRow 
 import { nodeAnomalyToRoutingRow, rfRowId, routingRowToNodeAnomaly } from '../types';
 import type { RFDiagnosis } from './RFDiagnosticEngine';
 
+/** Foreign LoRa RF row conditions — preserved when replacing telemetry-driven RF rows per node. */
+export const FOREIGN_LORA_RF_CONDITIONS = new Set([
+  'MeshCore Activity Detected',
+  'Meshtastic Traffic Detected',
+  'Unknown LoRa Traffic',
+  'Potential MeshCore Repeater Conflict',
+]);
+
 /** Align with hop/CU history windows in diagnosticsStore. */
 export const DEFAULT_ROUTING_DIAGNOSTIC_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 /** RF findings are telemetry snapshots — shorter TTL reduces stale Mesh Congestion etc. */
@@ -88,12 +96,16 @@ export function replaceRoutingRowsFromMap(
   return [...routingRows, ...rfOnly];
 }
 
-/** Remove all RF rows for nodeId then append new ones. */
+/**
+ * Remove telemetry-driven RF rows for nodeId, preserve Foreign LoRa rows for that node, then append new findings.
+ */
 export function replaceRfRowsForNode(
   current: DiagnosticRow[],
   nodeId: number,
   findings: RFDiagnosis[],
 ): DiagnosticRow[] {
-  const withoutRf = current.filter((r) => r.kind !== 'rf' || r.nodeId !== nodeId);
+  const withoutRf = current.filter(
+    (r) => r.kind !== 'rf' || r.nodeId !== nodeId || FOREIGN_LORA_RF_CONDITIONS.has(r.condition),
+  );
   return [...withoutRf, ...rfDiagnosesToRows(nodeId, findings)];
 }

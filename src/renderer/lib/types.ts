@@ -391,6 +391,7 @@ declare global {
         prunePositionHistory: (days: number) => Promise<number>;
         clearNodePositions: () => Promise<unknown>;
         updateMessageReceivedVia: (packetId: number) => Promise<unknown>;
+        updateMessagePacketId: (oldPacketId: number, newPacketId: number) => Promise<unknown>;
         saveMeshcoreMessage: (message: {
           sender_id?: number | null;
           sender_name?: string | null;
@@ -728,6 +729,8 @@ declare global {
       notifyDeviceDisconnected: () => void;
       setTrayUnread: (count: number) => void;
       quitApp: () => Promise<void>;
+      getPlatform: () => string;
+      showEmojiPanel: () => Promise<void>;
       log: {
         getPath: () => Promise<string>;
         getRecentLines: () => Promise<

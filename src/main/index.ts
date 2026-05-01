@@ -12,6 +12,7 @@ import {
   powerMonitor,
   powerSaveBlocker,
   safeStorage,
+  screen,
   type Session,
   shell,
   Tray,
@@ -23,6 +24,7 @@ import { pathToFileURL } from 'url';
 import zlib from 'zlib';
 
 import type { MQTTSettings } from '../renderer/lib/types';
+import { sanitizeUnicodeReactionScalar } from '../shared/reactionEmoji';
 import type { TAKServerStatus, TAKSettings } from '../shared/tak-types';
 import {
   addContactToGroup,
@@ -101,6 +103,63 @@ if (process.platform === 'linux' && process.env.MESH_CLIENT_DISABLE_GPU === '1')
 if (!app.requestSingleInstanceLock()) {
   app.quit();
   process.exit(0);
+}
+
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.meshclient.app');
+}
+
+// ─── Window state persistence ───────────────────────────────────────
+interface WindowState {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const WINDOW_STATE_PATH = path.join(app.getPath('userData'), 'window-state.json');
+const DEFAULT_WINDOW_STATE: WindowState = { x: 0, y: 0, width: 1200, height: 800 };
+
+function loadWindowState(): WindowState {
+  try {
+    if (fs.existsSync(WINDOW_STATE_PATH)) {
+      const raw = JSON.parse(fs.readFileSync(WINDOW_STATE_PATH, 'utf-8')) as unknown;
+      if (
+        raw &&
+        typeof raw === 'object' &&
+        typeof (raw as Record<string, unknown>).x === 'number' &&
+        typeof (raw as Record<string, unknown>).y === 'number' &&
+        typeof (raw as Record<string, unknown>).width === 'number' &&
+        typeof (raw as Record<string, unknown>).height === 'number'
+      ) {
+        return raw as WindowState;
+      }
+    }
+  } catch {
+    // catch-no-log-ok: non-critical; fall through to defaults
+  }
+  return DEFAULT_WINDOW_STATE;
+}
+
+function saveWindowState(state: WindowState): void {
+  try {
+    fs.writeFileSync(WINDOW_STATE_PATH, JSON.stringify(state), 'utf-8');
+  } catch {
+    // catch-no-log-ok: non-critical persistence failure
+  }
+}
+
+function isWindowStateOnScreen(state: WindowState): boolean {
+  const displays = screen.getAllDisplays();
+  return displays.some((d) => {
+    const { x, y, width, height } = d.workArea;
+    return (
+      state.x < x + width &&
+      state.x + state.width > x &&
+      state.y < y + height &&
+      state.y + state.height > y
+    );
+  });
 }
 
 const mqttManager = new MQTTManager();
@@ -366,7 +425,15 @@ function validateSaveMessage(message: unknown): asserts message is Record<string
   const m = message as Record<string, unknown>;
   if (typeof m.payload !== 'string') throw new Error('db:saveMessage: payload must be a string');
   if (m.payload.length > MAX_PAYLOAD_LENGTH) throw new Error('db:saveMessage: payload too long');
-  safeNonNegativeInt(m.sender_id);
+  const rawSenderId = Number(m.sender_id);
+  if (!Number.isFinite(rawSenderId))
+    throw new Error('db:saveMessage: sender_id must be a finite number');
+  m.sender_id = rawSenderId >>> 0;
+  if (m.to != null) {
+    const rawTo = Number(m.to);
+    if (!Number.isFinite(rawTo)) throw new Error('db:saveMessage: to must be a finite number');
+    m.to = rawTo >>> 0;
+  }
   if (typeof m.sender_name !== 'string')
     throw new Error('db:saveMessage: sender_name must be a string');
   if (m.sender_name.length > MAX_NODE_STRING)
@@ -393,9 +460,9 @@ function validateSaveNode(
 ): asserts node is Record<string, unknown> & { node_id: number } {
   if (!node || typeof node !== 'object') throw new Error('db:saveNode: node must be an object');
   const n = node as Record<string, unknown>;
-  const nodeId = Number(n.node_id);
-  if (!Number.isFinite(nodeId) || nodeId < 0)
-    throw new Error('db:saveNode: node_id must be a finite non-negative number');
+  const rawNodeId = Number(n.node_id);
+  if (!Number.isFinite(rawNodeId)) throw new Error('db:saveNode: node_id must be a finite number');
+  n.node_id = rawNodeId >>> 0;
   const checkStr = (key: string, max: number) => {
     const v = n[key];
     if (v != null && typeof v === 'string' && v.length > max)
@@ -920,9 +987,15 @@ function openExternalHttpOrHttpsIfExternal(currentUrl: string, targetUrl: string
 }
 
 function createWindow() {
+  const savedState = loadWindowState();
+  const bounds = isWindowStateOnScreen(savedState) ? savedState : DEFAULT_WINDOW_STATE;
+  const center = bounds === DEFAULT_WINDOW_STATE;
+
   const win = new BrowserWindow({
-    width: 1200,
-    height: 800,
+    width: bounds.width,
+    height: bounds.height,
+    x: center ? undefined : bounds.x,
+    y: center ? undefined : bounds.y,
     minWidth: 900,
     minHeight: 600,
     title: 'Mesh Client',
@@ -944,6 +1017,18 @@ function createWindow() {
     },
   });
   mainWindow = win;
+
+  let windowStateSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  const scheduleSaveWindowState = () => {
+    if (windowStateSaveTimer) clearTimeout(windowStateSaveTimer);
+    windowStateSaveTimer = setTimeout(() => {
+      if (!win.isMinimized() && !win.isMaximized()) {
+        saveWindowState(win.getBounds());
+      }
+    }, 300);
+  };
+  win.on('move', scheduleSaveWindowState);
+  win.on('resize', scheduleSaveWindowState);
 
   // External link handling: route http/https websites to the system browser.
   // Failure point: malicious URL schemes attempting protocol-handler abuse.
@@ -1280,7 +1365,14 @@ function createWindow() {
     setMainWindow(null);
     mainWindow = null;
   });
-  // Handle window close event
+  win.on('close', () => {
+    if (windowStateSaveTimer) clearTimeout(windowStateSaveTimer);
+    if (!win.isMinimized() && !win.isMaximized()) {
+      saveWindowState(win.getBounds());
+    }
+  });
+
+  // Handle window close event (prevent-close when device connected)
   win.on('close', (event) => {
     if (!isQuitting && (isConnected || isAnyMqttConnected())) {
       event.preventDefault();
@@ -2339,6 +2431,15 @@ ipcMain.handle('app:setLoginItem', (_event, openAtLogin: unknown) => {
   app.setLoginItemSettings({ openAtLogin });
 });
 
+ipcMain.handle('app:showEmojiPanel', (event) => {
+  if (!validateIpcSender(event)) {
+    throw new Error('IPC sender validation failed');
+  }
+  if (process.platform === 'darwin' || process.platform === 'win32') {
+    app.showEmojiPanel();
+  }
+});
+
 ipcMain.handle('app:quit', async (event) => {
   if (!validateIpcSender(event)) {
     throw new Error('IPC sender validation failed');
@@ -2412,7 +2513,7 @@ ipcMain.handle('db:saveMessage', (_event, message) => {
       packet_id: message.packetId != null ? safeNonNegativeInt(message.packetId) : null,
       status: message.status ?? null,
       error: message.error ?? null,
-      emoji: message.emoji != null ? safeNonNegativeInt(message.emoji) : null,
+      emoji: message.emoji != null ? (sanitizeUnicodeReactionScalar(message.emoji) ?? null) : null,
       reply_id: message.replyId != null ? safeNonNegativeInt(message.replyId) : null,
       to_node: message.to != null ? safeNonNegativeInt(message.to) : null,
       mqtt_status: message.mqttStatus ?? null,
@@ -2454,10 +2555,12 @@ ipcMain.handle('db:getMessages', (_event, channel?: number, limit = 200) => {
         .all(safeLimit);
     }
 
-    // Map to_node back to `to` for the renderer
+    // Map to_node back to `to` for the renderer; drop invalid reaction scalars from legacy rows
     return rows.map((r: any) => {
-      const { to_node, ...rest } = r;
-      return { ...rest, to: to_node ?? undefined };
+      const { to_node, emoji: emojiRaw, ...rest } = r;
+      const emoji =
+        emojiRaw != null ? (sanitizeUnicodeReactionScalar(emojiRaw) ?? undefined) : undefined;
+      return { ...rest, emoji, to: to_node ?? undefined };
     });
   } catch (err) {
     console.error(
@@ -2985,6 +3088,24 @@ ipcMain.handle('db:updateMessageReceivedVia', (_event, packetId: number) => {
   }
 });
 
+/** Replace optimistic temp `packet_id` with the real mesh id from `sendText()` (tapbacks key on `reply_id`). */
+ipcMain.handle('db:updateMessagePacketId', (_event, oldPacketId: number, newPacketId: number) => {
+  try {
+    const oldPid = safeNonNegativeInt(oldPacketId);
+    const newPid = safeNonNegativeInt(newPacketId);
+    const db = getDatabase();
+    return db
+      .prepareOnce('UPDATE messages SET packet_id = ? WHERE packet_id = ?')
+      .run(newPid, oldPid);
+  } catch (err) {
+    console.error(
+      '[IPC] db:updateMessagePacketId failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
 // ─── IPC: Export database ───────────────────────────────────────────
 ipcMain.handle('db:export', async () => {
   try {
@@ -3233,7 +3354,7 @@ ipcMain.handle('db:saveMeshcoreMessage', (_event, message) => {
         timestamp: m.timestamp,
         status: typeof m.status === 'string' ? m.status : 'acked',
         packet_id: m.packet_id != null ? Number(m.packet_id) : null,
-        emoji: m.emoji != null ? safeNonNegativeInt(m.emoji) : null,
+        emoji: m.emoji != null ? (sanitizeUnicodeReactionScalar(m.emoji) ?? null) : null,
         reply_id: replyId,
         to_node: m.to_node != null ? Number(m.to_node) : null,
         received_via,

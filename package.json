@@ -1,6 +1,6 @@
 {
   "name": "mesh-client",
-  "version": "5.13.0",
+  "version": "5.14.0",
   "description": "Cross-platform Electron desktop client for Meshtastic and MeshCore on macOS, Linux, and Windows — BLE, USB serial, Wi-Fi/TCP, MQTT, local SQLite history, routing diagnostics, and keyboard-first workflows.",
   "keywords": [
     "meshtastic",
@@ -34,6 +34,7 @@
     "build:main:size": "node scripts/print-main-bundle-size.mjs",
     "build:preload": "esbuild src/preload/index.ts --bundle --platform=node --outfile=dist-electron/preload/index.js --external:electron --format=cjs",
     "build:renderer": "vite build",
+    "check:codeql-extensions": "node scripts/check-codeql-extensions.mjs",
     "check:console-log": "node scripts/check-console-log.mjs",
     "check:db-migrations": "node scripts/check-db-migrations.mjs",
     "check:electron-security": "node scripts/check-electron-security.mjs",
@@ -41,6 +42,7 @@
     "check:licenses": "license-checker-rseidelsohn --summary --excludePrivatePackages",
     "check:log-injection": "node scripts/check-log-injection.mjs",
     "check:log-panel-filter": "node scripts/check-log-panel-filter.mjs",
+    "check:log-service-sinks": "node scripts/check-log-service-sinks.mjs",
     "check:silent-catches": "node scripts/check-silent-catches.mjs",
     "check:xss-patterns": "node scripts/check-xss-patterns.mjs",
     "clean": "rm -rf dist-electron dist node_modules",
@@ -81,6 +83,7 @@
     "@meshtastic/protobufs": "npm:@jsr/meshtastic__protobufs@^2.7.23",
     "@stoprocent/noble": "^2.4.1",
     "electron-updater": "^6.8.3",
+    "emoji-picker-element": "^1.29.1",
     "jszip": "^3.10.1",
     "leaflet.markercluster": "^1.5.3",
     "mgrs": "^2.1.0",
@@ -90,7 +93,7 @@
     "systeminformation": "^5.31.5"
   },
   "devDependencies": {
-    "@axe-core/react": "^4.11.2",
+    "@axe-core/react": "^4.11.3",
     "@eslint/js": "^10.0.1",
     "@liamcottle/meshcore.js": "^1.13.0",
     "@meshtastic/core": "npm:@jsr/meshtastic__core@^2.6.6",
@@ -125,7 +128,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-security": "^4.0.0",
     "eslint-plugin-simple-import-sort": "^13.0.0",
-    "jsdom": "^29.1.0",
+    "jsdom": "^29.1.1",
     "leaflet": "^1.9.4",
     "license-checker-rseidelsohn": "^4.4.2",
     "markdownlint-cli2": "^0.22.1",

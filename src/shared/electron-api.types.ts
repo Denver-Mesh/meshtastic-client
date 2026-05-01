@@ -160,6 +160,8 @@ export interface ElectronAPI {
     prunePositionHistory: (days: number) => Promise<number>;
     clearNodePositions: () => Promise<unknown>;
     updateMessageReceivedVia: (packetId: number) => Promise<unknown>;
+    /** Meshtastic: replace optimistic temp `packet_id` with RF `sendText()` id for `reply_id` / tapback matching. */
+    updateMessagePacketId: (oldPacketId: number, newPacketId: number) => Promise<unknown>;
 
     getMeshcoreMessages: (channelIdx?: number, limit?: number) => Promise<unknown[]>;
     searchMessages: (query: string, limit?: number) => Promise<unknown[]>;
@@ -523,6 +525,10 @@ export interface ElectronAPI {
     getLoginItem: () => Promise<{ openAtLogin: boolean }>;
     setLoginItem: (openAtLogin: boolean) => Promise<void>;
   };
+
+  // ─── OS emoji panel ──────────────────────────────────────────────────────────
+  getPlatform: () => string;
+  showEmojiPanel: () => Promise<void>;
 
   // ─── Power events ────────────────────────────────────────────────────────────
   onPowerSuspend: (cb: () => void) => () => void;
