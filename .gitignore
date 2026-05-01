@@ -12,3 +12,6 @@ node_modules/
 release/
 test-results/
 .context-os
+
+# Workspace specific
+.vscode/
