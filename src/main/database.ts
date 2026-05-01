@@ -955,6 +955,29 @@ function runMigrations(): void {
       throw new Error(`Migration v27 failed: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
+
+  if (userVersion < 28) {
+    try {
+      db!.execScript(`
+        CREATE TABLE IF NOT EXISTS app_settings (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        );
+      `);
+      const seed = db!.prepare('INSERT OR IGNORE INTO app_settings(key, value) VALUES (?, ?)');
+      seed.run('meshtasticMessageRetentionEnabled', '1');
+      seed.run('meshtasticMessageRetentionCount', '4000');
+      seed.run('meshcoreMessageRetentionEnabled', '1');
+      seed.run('meshcoreMessageRetentionCount', '4000');
+      db!.pragma('user_version = 28');
+    } catch (e) {
+      console.error(
+        '[db] migration v28 failed',
+        sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+      );
+      throw new Error(`Migration v28 failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
 }
 
 /** Export DB to a file. Best-effort for very large databases; may take a long time with no progress callback. */

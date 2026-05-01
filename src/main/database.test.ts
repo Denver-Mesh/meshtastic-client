@@ -300,6 +300,72 @@ describe('escapeSqlLikePattern', () => {
   });
 });
 
+/**
+ * Migration 28 + DB-backed message retention setting (issue #387).
+ * Source-level checks because we cannot exercise the Electron-bound DB layer
+ * directly in this Node test environment.
+ */
+describe('app_settings table + message retention defaults (migration v28)', () => {
+  const INDEX_SOURCE = readFileSync(join(__dirname, '../main/index.ts'), 'utf-8');
+
+  it('migration_28 creates the app_settings KV table', () => {
+    expect(DB_SOURCE).toMatch(/userVersion < 28/);
+    expect(DB_SOURCE).toMatch(/CREATE TABLE IF NOT EXISTS app_settings\s*\(/);
+    expect(DB_SOURCE).toMatch(/key TEXT PRIMARY KEY/);
+    expect(DB_SOURCE).toMatch(/value TEXT NOT NULL/);
+  });
+
+  it('seeds the four retention defaults via INSERT OR IGNORE so user values are preserved', () => {
+    expect(DB_SOURCE).toMatch(/INSERT OR IGNORE INTO app_settings\(key, value\) VALUES \(\?, \?\)/);
+    expect(DB_SOURCE).toContain("'meshtasticMessageRetentionEnabled', '1'");
+    expect(DB_SOURCE).toContain("'meshtasticMessageRetentionCount', '4000'");
+    expect(DB_SOURCE).toContain("'meshcoreMessageRetentionEnabled', '1'");
+    expect(DB_SOURCE).toContain("'meshcoreMessageRetentionCount', '4000'");
+    expect(DB_SOURCE).toMatch(/db!\.pragma\('user_version = 28'\)/);
+  });
+
+  it('appSettings:get IPC handler reads from app_settings', () => {
+    expect(INDEX_SOURCE).toContain("'appSettings:get'");
+    expect(INDEX_SOURCE).toMatch(/SELECT key, value FROM app_settings/);
+  });
+
+  it('appSettings:set IPC handler enforces an allow-list of retention keys', () => {
+    expect(INDEX_SOURCE).toContain("'appSettings:set'");
+    expect(INDEX_SOURCE).toContain('APP_SETTINGS_ALLOWED_KEYS');
+    expect(INDEX_SOURCE).toContain('meshtasticMessageRetentionEnabled');
+    expect(INDEX_SOURCE).toContain('meshtasticMessageRetentionCount');
+    expect(INDEX_SOURCE).toContain('meshcoreMessageRetentionEnabled');
+    expect(INDEX_SOURCE).toContain('meshcoreMessageRetentionCount');
+    expect(INDEX_SOURCE).toMatch(/INSERT OR REPLACE INTO app_settings\(key, value\) VALUES/);
+  });
+
+  it('appSettings:set rejects oversized values to bound DB writes', () => {
+    expect(INDEX_SOURCE).toContain('APP_SETTINGS_MAX_VALUE_LENGTH');
+    expect(INDEX_SOURCE).toMatch(/value\.length > APP_SETTINGS_MAX_VALUE_LENGTH/);
+  });
+
+  it('db:pruneMessagesByCount keeps the newest N rows by timestamp', () => {
+    expect(INDEX_SOURCE).toContain("'db:pruneMessagesByCount'");
+    expect(INDEX_SOURCE).toMatch(
+      /DELETE FROM messages WHERE id NOT IN \(SELECT id FROM messages ORDER BY timestamp DESC, id DESC LIMIT \?\)/,
+    );
+  });
+
+  it('db:pruneMeshcoreMessagesByCount keeps the newest N rows by timestamp', () => {
+    expect(INDEX_SOURCE).toContain("'db:pruneMeshcoreMessagesByCount'");
+    expect(INDEX_SOURCE).toMatch(
+      /DELETE FROM meshcore_messages WHERE id NOT IN \(SELECT id FROM meshcore_messages ORDER BY timestamp DESC, id DESC LIMIT \?\)/,
+    );
+  });
+
+  it('prune handlers reject obviously invalid maxCount inputs', () => {
+    // Both prune handlers should refuse counts under the safety floor (100).
+    const matches = INDEX_SOURCE.match(/maxCount < 100 \|\| !isFinite\(maxCount\)/g);
+    expect(matches).not.toBeNull();
+    expect(matches!.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
 describe('meshcore_path_history bounded reads', () => {
   it('getMeshcorePathHistory uses ORDER BY updated_at DESC with a LIMIT placeholder', () => {
     expect(DB_SOURCE).toMatch(

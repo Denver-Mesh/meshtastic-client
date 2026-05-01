@@ -6,6 +6,14 @@ import { getAppSettingsRaw, mergeAppSetting, setAppSettingsRaw } from '../lib/ap
 import { formatCoordPair } from '../lib/coordUtils';
 import { DEFAULT_APP_SETTINGS_SHARED } from '../lib/defaultAppSettings';
 import type { OurPosition } from '../lib/gpsSource';
+import {
+  DEFAULT_MESSAGE_RETENTION,
+  fetchMessageRetention,
+  MESSAGE_RETENTION_KEYS,
+  MESSAGE_RETENTION_MAX_COUNT,
+  MESSAGE_RETENTION_MIN_COUNT,
+  type MessageRetentionSettings,
+} from '../lib/messageRetention';
 import { getNodeStatus, haversineDistanceKm } from '../lib/nodeStatus';
 import { parseStoredJson } from '../lib/parseStoredJson';
 import { useRadioProvider } from '../lib/radio/providerFactory';
@@ -238,6 +246,90 @@ export default function AppPanel({
     setSettings((prev) => ({ ...prev, [key]: value }));
     mergeAppSetting(key, value, 'AppPanel updateSetting');
   };
+
+  // ─── DB-backed message retention (issue #387) ─────────────────
+  // Source of truth lives in SQLite (`app_settings` KV table). Hydrate on
+  // mount; debounce writes through IPC. Two independent caps gated by the
+  // currently selected protocol — pruning still runs for both tables on
+  // startup (see App.tsx) since both stacks may be active simultaneously.
+  const [retention, setRetention] = useState<MessageRetentionSettings>({
+    ...DEFAULT_MESSAGE_RETENTION,
+  });
+  const lastSavedRetentionRef = useRef<MessageRetentionSettings>({ ...DEFAULT_MESSAGE_RETENTION });
+  const retentionSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchMessageRetention()
+      .then((loaded) => {
+        if (cancelled) return;
+        setRetention(loaded);
+        lastSavedRetentionRef.current = loaded;
+      })
+      .catch((e: unknown) => {
+        console.warn('[AppPanel] fetchMessageRetention failed', e);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const persistRetention = useCallback(
+    (
+      key: keyof typeof MESSAGE_RETENTION_KEYS,
+      value: string,
+      previous: MessageRetentionSettings,
+    ) => {
+      const dbKey = MESSAGE_RETENTION_KEYS[key];
+      window.electronAPI.appSettings.set(dbKey, value).then(
+        () => {
+          lastSavedRetentionRef.current = { ...lastSavedRetentionRef.current, [key]: value };
+        },
+        (err: unknown) => {
+          console.error('[AppPanel] persist message retention failed', err);
+          addToast('Failed to save message retention setting.', 'error');
+          setRetention(previous);
+        },
+      );
+    },
+    [addToast],
+  );
+
+  const updateRetentionEnabled = useCallback(
+    (which: 'meshtastic' | 'meshcore', enabled: boolean) => {
+      const previous = retention;
+      const next = { ...previous, [`${which}Enabled`]: enabled };
+      setRetention(next);
+      const debouncedKey = which === 'meshtastic' ? 'meshtasticEnabled' : 'meshcoreEnabled';
+      persistRetention(debouncedKey, enabled ? '1' : '0', previous);
+    },
+    [retention, persistRetention],
+  );
+
+  const updateRetentionCount = useCallback(
+    (which: 'meshtastic' | 'meshcore', count: number) => {
+      const clamped = Math.max(
+        MESSAGE_RETENTION_MIN_COUNT,
+        Math.min(MESSAGE_RETENTION_MAX_COUNT, Math.floor(count) || MESSAGE_RETENTION_MIN_COUNT),
+      );
+      const previous = retention;
+      const next = { ...previous, [`${which}Count`]: clamped };
+      setRetention(next);
+      const stateKey = which === 'meshtastic' ? 'meshtasticCount' : 'meshcoreCount';
+
+      if (retentionSaveTimerRef.current) clearTimeout(retentionSaveTimerRef.current);
+      retentionSaveTimerRef.current = setTimeout(() => {
+        persistRetention(stateKey, String(clamped), previous);
+      }, 300);
+    },
+    [retention, persistRetention],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (retentionSaveTimerRef.current) clearTimeout(retentionSaveTimerRef.current);
+    };
+  }, []);
 
   // ─── GPS refresh settings ────────────────────────────────────
   const [gpsRefreshInterval, setGpsRefreshInterval] = useState<number>(() => {
@@ -994,11 +1086,12 @@ export default function AppPanel({
           </div>
         )}
 
-        {/* Message limit */}
+        {/* Messages: load limit (localStorage) + DB retention cap — single card (issue #387). */}
         <div className="bg-secondary-dark space-y-3 rounded-lg p-4">
           <p className="text-muted text-xs leading-relaxed">
-            Limits how many messages are loaded from the database. Helps keep memory usage low on
-            busy networks.
+            Limit how many messages load into memory for the UI, and cap how many rows stay in
+            SQLite. Loading fewer keeps RAM down on busy networks; the database cap prunes older
+            messages on app startup (stored per protocol).
           </p>
           <div className="flex items-center gap-2">
             <input
@@ -1037,6 +1130,83 @@ export default function AppPanel({
             />
             <span className="text-sm text-gray-300">messages</span>
           </div>
+          {protocol !== 'meshcore' ? (
+            <div className="flex items-center gap-2 border-t border-gray-700 pt-2">
+              <input
+                type="checkbox"
+                id="messageRetentionMeshtastic"
+                checked={retention.meshtasticEnabled}
+                onChange={(e) => {
+                  updateRetentionEnabled('meshtastic', e.target.checked);
+                }}
+                aria-label="Cap stored messages, keep newest"
+                className="accent-brand-green"
+              />
+              <label
+                id="apppanel-message-retention-meshtastic-label"
+                htmlFor="messageRetentionMeshtastic"
+                className="flex-1 cursor-pointer text-sm text-gray-300"
+              >
+                Cap stored messages, keep newest
+              </label>
+              <input
+                id="apppanel-message-retention-meshtastic-count"
+                type="number"
+                min={MESSAGE_RETENTION_MIN_COUNT}
+                max={MESSAGE_RETENTION_MAX_COUNT}
+                value={retention.meshtasticCount}
+                onChange={(e) => {
+                  updateRetentionCount(
+                    'meshtastic',
+                    parseInt(e.target.value, 10) || MESSAGE_RETENTION_MIN_COUNT,
+                  );
+                }}
+                disabled={!retention.meshtasticEnabled}
+                aria-labelledby="apppanel-message-retention-meshtastic-label"
+                aria-label={`Cap stored messages, keep newest ${retention.meshtasticCount} messages`}
+                className="bg-deep-black focus:border-brand-green w-24 rounded border border-gray-600 px-2 py-1 text-right text-sm text-gray-200 focus:outline-none disabled:opacity-40"
+              />
+              <span className="text-sm text-gray-300">messages</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 border-t border-gray-700 pt-2">
+              <input
+                type="checkbox"
+                id="messageRetentionMeshcore"
+                checked={retention.meshcoreEnabled}
+                onChange={(e) => {
+                  updateRetentionEnabled('meshcore', e.target.checked);
+                }}
+                aria-label="Cap stored messages, keep newest"
+                className="accent-brand-green"
+              />
+              <label
+                id="apppanel-message-retention-meshcore-label"
+                htmlFor="messageRetentionMeshcore"
+                className="flex-1 cursor-pointer text-sm text-gray-300"
+              >
+                Cap stored messages, keep newest
+              </label>
+              <input
+                id="apppanel-message-retention-meshcore-count"
+                type="number"
+                min={MESSAGE_RETENTION_MIN_COUNT}
+                max={MESSAGE_RETENTION_MAX_COUNT}
+                value={retention.meshcoreCount}
+                onChange={(e) => {
+                  updateRetentionCount(
+                    'meshcore',
+                    parseInt(e.target.value, 10) || MESSAGE_RETENTION_MIN_COUNT,
+                  );
+                }}
+                disabled={!retention.meshcoreEnabled}
+                aria-labelledby="apppanel-message-retention-meshcore-label"
+                aria-label={`Cap stored messages, keep newest ${retention.meshcoreCount} messages`}
+                className="bg-deep-black focus:border-brand-green w-24 rounded border border-gray-600 px-2 py-1 text-right text-sm text-gray-200 focus:outline-none disabled:opacity-40"
+              />
+              <span className="text-sm text-gray-300">messages</span>
+            </div>
+          )}
         </div>
       </div>
 
