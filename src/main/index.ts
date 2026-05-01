@@ -807,8 +807,7 @@ async function showAboutDialog(): Promise<void> {
   const detail = [
     `Version ${app.getVersion()}`,
     '',
-    'Cross-platform Meshtastic desktop client',
-    'BLE, Serial, HTTP, and MQTT support',
+    'Cross-platform Electron desktop client for Meshtastic and MeshCore on macOS, Linux, and Windows — BLE, USB serial, Wi‑Fi/TCP, MQTT, local SQLite history, routing diagnostics, and keyboard-first workflows.',
     '',
     'License: MIT',
     'Author: Colorado Mesh',
