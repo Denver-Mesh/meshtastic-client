@@ -251,6 +251,7 @@ describe('analyzeLogs', () => {
   it('detects database failures', () => {
     const entries: LogEntry[] = [
       makeEntry('[db] Database init failed: SQLITE_CANTOPEN', 'error'),
+      makeEntry('[db] runSchemaUpgrade failed corrupt', 'error'),
       makeEntry('[db] migration v12 failed: rollback', 'error'),
       makeEntry('[db] mergeDatabase failed: corrupt', 'error'),
       makeEntry('[db] Merge failed: duplicate', 'error'),
@@ -259,7 +260,7 @@ describe('analyzeLogs', () => {
     const result = analyzeLogs(entries, 'meshtastic');
     const cat = result.categories.find((c) => c.id === 'database-error');
     expect(cat).toBeDefined();
-    expect(cat?.count).toBe(5);
+    expect(cat?.count).toBe(6);
   });
 
   it('detects database chmod as warning', () => {

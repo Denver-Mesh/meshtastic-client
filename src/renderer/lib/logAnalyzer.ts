@@ -185,6 +185,7 @@ const PATTERN_CATEGORIES: PatternCategory[] = [
     patterns: [
       /\[db\] Database init failed/i,
       /\[db\] Merge failed/i,
+      /\[db\] runSchemaUpgrade failed/i,
       /\[db\] migration v\d+ failed/i,
       /\[db\] mergeDatabase failed/i,
       /\[db\] createBaseTables failed/i,
