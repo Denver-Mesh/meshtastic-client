@@ -158,7 +158,7 @@ From real-time diagnostics to permanent message archives, Mesh-Client delivers t
 **Productivity**
 
 - **Log panel** (right rail) — live app log stream, optional debug toggle, **Analyze** (scans the buffered log for connection, BLE, MQTT, and related patterns and suggests fixes), export or delete the log file
-- Full keyboard navigation — press `?` for shortcut reference; `Cmd/Ctrl+1–9` switches the **first nine** main tabs (on **Meshtastic**, **Diagnostics** is the tenth tab — use the tab strip); `Cmd/Ctrl+[` switches to Meshtastic; `Cmd/Ctrl+]` switches to MeshCore; `Cmd/Ctrl+Shift+F` opens **chat search** across all channels (optional `user:name` and `channel:name` filters)
+- Full keyboard navigation — press `?` for shortcut reference; `Cmd/Ctrl+1–9` select the **first nine visible** tabs (slot order); `Cmd/Ctrl+0`, `Cmd/Ctrl+A`, `Cmd/Ctrl+M`, and `Cmd/Ctrl+S` jump to **App**, **Diagnostics**, **Stats**, and **Packet Sniffer** by tab name (see overlay — stays correct when **Security** / **TAK** are hidden in MeshCore); `Cmd/Ctrl+[` switches to Meshtastic; `Cmd/Ctrl+]` switches to MeshCore; `Cmd/Ctrl+Shift+F` opens **chat search** across all channels (optional `user:name` and `channel:name` filters)
 - **Updates** — permanent status in the footer (up to date, update available, errors, download progress, etc.); automatic check runs a few seconds after every launch; **Check for Updates…** in the app menu (macOS) or **Help** (Windows/Linux), or tap **Up to date** in the footer to re-check; Windows/Linux packaged builds can download in-app, macOS and dev builds open the GitHub release page
 - System tray with live unread badge; app stays accessible when window is closed
 - Persistent SQLite storage; DB export/import/clear in the App tab; Clear GPS Data and Reset Diagnostics without a full DB wipe
@@ -176,7 +176,7 @@ From real-time diagnostics to permanent message archives, Mesh-Client delivers t
 
 ### MeshCore Features
 
-MeshCore runs simultaneously alongside Meshtastic. Use the protocol switcher pill in the header to bring MeshCore into view — the Meshtastic session stays connected in the background. **Meshtastic** shows **12** main tabs (including **Security** and **TAK**); **MeshCore** shows **10** (**Security** and **TAK** are hidden; the sixth tab is **Repeaters** instead of **Modules**). **Sniffer** is available in both protocol modes. Network Diagnostics and the rest of the shell stay available.
+MeshCore runs simultaneously alongside Meshtastic. Use the protocol switcher pill in the header to bring MeshCore into view — the Meshtastic session stays connected in the background. **Meshtastic** shows **13** main tabs (including **Security**, **TAK**, **Stats**, and **Sniffer**); **MeshCore** shows **11** (**Security** and **TAK** are hidden; the sixth tab is **Repeaters** instead of **Modules**). **Stats** and **Sniffer** are available in both protocol modes. Network Diagnostics and the rest of the shell stay available.
 
 - **Transmit queue** — header badge (with tooltip) when the connected radio reports outbound queue depth (STATS).
 
@@ -358,15 +358,14 @@ Enter your broker URL, topic, and optional credentials in the MQTT section of th
 | Component  | Technology                                                                                                                         |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | Desktop    | Electron                                                                                                                           |
-| UI         | React 19 + TypeScript 6                                                                                                            |
+| UI         | React 19 + TypeScript 6 + Zustand                                                                                                  |
 | Styling    | Tailwind CSS v4                                                                                                                    |
 | Meshtastic | @meshtastic/core + transport-http, transport-web-serial (JSR); BLE via @stoprocent/noble (macOS/Windows) and Web Bluetooth (Linux) |
 | MeshCore   | @liamcottle/meshcore.js (BLE, Web Serial, TCP via main-process IPC)                                                                |
 | Maps       | Leaflet + OpenStreetMap                                                                                                            |
 | Charts     | Recharts                                                                                                                           |
 | Database   | SQLite (node:sqlite built-in, via db-compat.ts shim)                                                                               |
-
-| Build | esbuild + Vite + electron-builder |
+| Build      | esbuild + Vite + electron-builder                                                                                                  |
 
 ### Architecture
 

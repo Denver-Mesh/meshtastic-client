@@ -8,8 +8,8 @@ This is a living document. Check items against VoiceOver (macOS), NVDA (Windows)
 
 - [ ] Tab through every interactive element in order (no skips, no traps outside modals)
 - [ ] Shift+Tab reverses correctly
-- [ ] **Meshtastic:** `Cmd/Ctrl+1`–`9` map to the **first nine** main tabs only; **Diagnostics** (tenth tab) has **no** number shortcut — verify it is still reachable from the tab strip and that order matches labels
-- [ ] **MeshCore:** nine visible tabs — `Cmd/Ctrl+1`–`9` should cover all main tabs; verify each shortcut selects the expected panel
+- [ ] **Meshtastic:** `Cmd/Ctrl+1`–`9` select visible indices **0–8** (Connection through **TAK**). **App**, **Diagnostics**, **Stats**, and **Packet Sniffer** use `Cmd/Ctrl+0`, `A`, `M`, and `S` (by tab name). Confirm the overlay (`?`) matches the tab strip.
+- [ ] **MeshCore:** **11** visible tabs (**Security** / **TAK** hidden). `Cmd/Ctrl+1`–`9` cover only the **first nine** visible tabs; the rest use `Cmd/Ctrl+0` / `A` / `M` / `S` by name. Verify numbered keys follow the **visible** strip, not Meshtastic-only labels.
 - [ ] `?` button opens Keyboard Shortcuts modal; Escape closes it; focus returns to `?` button
 - [ ] Keyboard shortcuts modal table is readable by screen reader in correct order
 - [ ] Modals: Tab cycles only within modal; Escape closes
