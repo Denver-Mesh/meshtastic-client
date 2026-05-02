@@ -1,6 +1,6 @@
-# AGENTS.md — Coding Guidelines for AI Assistants
+# AGENTS.md: Coding Guidelines for AI Assistants
 
-This file is self-contained. ARCHITECTURE.md and CONTRIBUTING.md are human references — read them only if you need deep subsystem detail beyond what's here.
+This file is self-contained. ARCHITECTURE.md and CONTRIBUTING.md are human references; read them only if you need deep subsystem detail beyond what's here.
 
 ## 1. Scope & Workflow
 
@@ -75,8 +75,8 @@ Adding a cross-boundary feature:
 
 **Pre-commit hook order:**
 
-1. `pnpm run format` — Prettier writes fixes
-2. `pnpm run lint:md` — Markdown fixes
+1. `pnpm run format`: Prettier writes fixes
+2. `pnpm run lint:md`: Markdown fixes
 3. Re-stage staged files
 4. `pnpm run lint`
 5. `pnpm run typecheck`
@@ -95,8 +95,8 @@ Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`).
 
 ### Diagnostics
 
-- **Engines:** `src/renderer/lib/diagnostics/` — `RoutingDiagnosticEngine.ts`, `RFDiagnosticEngine.ts`, `RemediationEngine.ts`.
-- **Store:** `src/renderer/stores/diagnosticsStore.ts` — routing/RF rows, foreign LoRa, MQTT ignore, redundancy.
+- **Engines:** `src/renderer/lib/diagnostics/`; `RoutingDiagnosticEngine.ts`, `RFDiagnosticEngine.ts`, `RemediationEngine.ts`.
+- **Store:** `src/renderer/stores/diagnosticsStore.ts`; routing/RF rows, foreign LoRa, MQTT ignore, redundancy.
 - **Extend:** adjust `DiagnosticRow` in `src/renderer/lib/types.ts`, add detector, wire `replaceRoutingRowsFromMap` / `replaceRfRowsForNode`; TTL defaults in `diagnosticRows.ts` (routing 24h, RF 1h).
 - **Full reference:** [docs/diagnostics.md](docs/diagnostics.md).
 

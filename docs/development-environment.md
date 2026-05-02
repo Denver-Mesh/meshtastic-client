@@ -190,7 +190,7 @@ Complete reference of all pnpm scripts in `package.json`, organized by category.
 Automated dependency updates are configured in `.github/dependabot.yml`:
 
 - **Schedule:** Weekly on Saturdays
-- **pnpm dependencies:** Grouped PRs — `electron` separate, all other deps together
+- **pnpm dependencies:** Grouped PRs; `electron` separate, all other deps together
 - **GitHub Actions:** Grouped into one PR
 
 **Testing Dependabot PRs locally:**
@@ -204,7 +204,7 @@ pnpm run build
 pnpm run test:run
 ```
 
-Do **not** use `npm install` — it creates a `package-lock.json` and may not respect pnpm's lockfile format.
+Do **not** use `npm install`; it creates a `package-lock.json` and may not respect pnpm's lockfile format.
 
 ### 4) Test harness setup and local quality checks
 

@@ -32,7 +32,7 @@ Path alias `@/*` maps to `src/*` (see `tsconfig.json`).
 
 Both stacks can run at once: independent connections, header switcher for focus, inactive protocol stays connected, per-protocol unread badges (Meshtastic green, MeshCore cyan). Capabilities differ (e.g. Meshtastic: Security/Modules/TAK; MeshCore: Repeaters, contact groups, MeshCore MQTT adapter).
 
-**Feature gating:** use `ProtocolCapabilities` via `useRadioProvider(protocol)` from `src/renderer/lib/radio/providerFactory.ts` — do not branch on raw `protocol === 'meshcore'` strings.
+**Feature gating:** use `ProtocolCapabilities` via `useRadioProvider(protocol)` from `src/renderer/lib/radio/providerFactory.ts`; do not branch on raw `protocol === 'meshcore'` strings.
 
 ```typescript
 import { useRadioProvider } from '@/lib/radio/providerFactory';
@@ -55,8 +55,8 @@ Sanitize user-controlled strings before logs and IPC per [AGENTS.md](AGENTS.md).
 
 ### Diagnostics
 
-- **Engines:** `src/renderer/lib/diagnostics/` — `RoutingDiagnosticEngine.ts`, `RFDiagnosticEngine.ts`, `RemediationEngine.ts`.
-- **Store:** `src/renderer/stores/diagnosticsStore.ts` — routing/RF rows, foreign LoRa, MQTT ignore, redundancy.
+- **Engines:** `src/renderer/lib/diagnostics/`; `RoutingDiagnosticEngine.ts`, `RFDiagnosticEngine.ts`, `RemediationEngine.ts`.
+- **Store:** `src/renderer/stores/diagnosticsStore.ts`; routing/RF rows, foreign LoRa, MQTT ignore, redundancy.
 - **Extend:** adjust `DiagnosticRow` in `src/renderer/lib/types.ts`, add detector, wire `replaceRoutingRowsFromMap` / `replaceRfRowsForNode`; TTL defaults in `diagnosticRows.ts` (routing 24h, RF 1h).
 - **Full reference** (meanings, triggers, UI surfaces): [docs/diagnostics.md](docs/diagnostics.md).
 

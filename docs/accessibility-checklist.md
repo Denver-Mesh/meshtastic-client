@@ -52,7 +52,7 @@ This is a living document. Check items against VoiceOver (macOS), NVDA (Windows)
 
 ## Electron-Specific Considerations
 
-- [ ] **Native menus**: macOS menu bar (File/Edit/View) must be VoiceOver-navigable — test with macOS Accessibility Inspector, not just browser axe. Electron's Menu API uses native macOS accessibility APIs that browser tools cannot reach.
+- [ ] **Native menus**: macOS menu bar (File/Edit/View) must be VoiceOver-navigable; test with macOS Accessibility Inspector, not just browser axe. Electron's Menu API uses native macOS accessibility APIs that browser tools cannot reach.
 - [ ] **System dialogs**: File picker, Bluetooth permission dialogs are OS-native; ensure trigger buttons have descriptive labels so screen readers can explain what will open.
 - [ ] **Tray icon**: macOS menu bar tray icon must have a `toolTip` set in the Tray constructor. Verify with VoiceOver cursor on menu bar.
 - [ ] **Window focus**: When the app regains focus (e.g., after a system dialog), verify focus returns to the last focused element.
@@ -67,5 +67,5 @@ This is a living document. Check items against VoiceOver (macOS), NVDA (Windows)
 - **macOS VoiceOver**: `Cmd+F5` to toggle; navigate with `Ctrl+Opt+arrow`
 - **Windows NVDA**: Free download from nvaccess.org; use with Chrome/Edge
 - **Linux Orca**: Built-in on GNOME; `Super+Alt+S` to toggle
-- **Colour Contrast Analyser**: Free tool from TPGi — test actual rendered colors, not design specs
+- **Colour Contrast Analyser**: Free tool from TPGi; test actual rendered colors, not design specs
 - **axe DevTools** (browser extension): Supplements automated vitest-axe tests with interactive inspection
