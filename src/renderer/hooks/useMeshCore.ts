@@ -1164,6 +1164,11 @@ export function useMeshCore() {
   const meshcoreLastPersistedNodesRef = useRef<Map<number, MeshNode>>(new Map());
   /** Mount DB load — initConn awaits this so an immediate connect does not skip persisted hop counts. */
   const meshcoreMountHydrationPromiseRef = useRef<Promise<void> | null>(null);
+  /** Same baseline as initConn: avoid empty `nodesRef` during contact rebuilds (debounced 129 / refresh). */
+  const meshcorePreviousNodesBaselineForBuild = useCallback(
+    () => (nodesRef.current.size > 0 ? nodesRef.current : meshcoreLastPersistedNodesRef.current),
+    [],
+  );
   const messagesRef = useRef<ChatMessage[]>([]);
   const rawPacketsRef = useRef<RxPacketEntry[]>([]);
   // Stable ref to own node ID so event listeners don't form stale closures
@@ -2192,7 +2197,7 @@ export function useMeshCore() {
               const newNodes = await buildFn(contacts, {
                 self: selfInfoRef.current,
                 myNodeId: myNodeNumRef.current,
-                previousNodes: nodesRef.current,
+                previousNodes: meshcorePreviousNodesBaselineForBuild(),
               });
               setNodes((prev) => mergeMeshcoreChatStubNodes(prev, newNodes));
               // Record path history for any nodeIds that triggered event 129
@@ -2971,7 +2976,13 @@ export function useMeshCore() {
         processWaitingMessagesRef.current = null;
       };
     },
-    [addMessage, addCliHistoryEntry, setDeviceLogs, teardownMeshcoreConnEventListeners],
+    [
+      addMessage,
+      addCliHistoryEntry,
+      setDeviceLogs,
+      teardownMeshcoreConnEventListeners,
+      meshcorePreviousNodesBaselineForBuild,
+    ],
   );
 
   /** Reject promptly when `disconnect()` bumps `meshcoreSetupGenerationRef` (avoids hanging on getChannels, etc.). */
@@ -3116,8 +3127,7 @@ export function useMeshCore() {
       const contacts = contactsRaw.map(meshcoreContactRawFromDevice);
       setMeshcoreContactsForTelemetry(contacts);
       await meshcoreMountHydrationPromiseRef.current?.catch(() => {});
-      const previousNodesBaseline =
-        nodesRef.current.size > 0 ? nodesRef.current : meshcoreLastPersistedNodesRef.current;
+      const previousNodesBaseline = meshcorePreviousNodesBaselineForBuild();
       const newNodes = await awaitUnlessMeshcoreSetupCancelled(
         setupGen,
         buildNodesFromContacts(contacts, {
@@ -3189,6 +3199,7 @@ export function useMeshCore() {
     [
       awaitUnlessMeshcoreSetupCancelled,
       buildNodesFromContacts,
+      meshcorePreviousNodesBaselineForBuild,
       refreshMeshcoreAutoaddFromDevice,
       setupEventListeners,
     ],
@@ -3935,7 +3946,7 @@ export function useMeshCore() {
       const newNodes = await buildNodesFromContacts(contacts, {
         self: selfInfo,
         myNodeId: myNodeNumRef.current,
-        previousNodes: nodesRef.current,
+        previousNodes: meshcorePreviousNodesBaselineForBuild(),
         contactsFromRadio: true, // Signal to save with on_radio=1
       });
       setNodes((prev) => mergeMeshcoreChatStubNodes(prev, newNodes));
@@ -3949,7 +3960,7 @@ export function useMeshCore() {
     } catch (e) {
       console.error('[useMeshCore] refreshContacts error', e);
     }
-  }, [buildNodesFromContacts, selfInfo]);
+  }, [buildNodesFromContacts, meshcorePreviousNodesBaselineForBuild, selfInfo]);
 
   const sendAdvert = useCallback(async () => {
     const conn = connRef.current;
