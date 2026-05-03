@@ -19,12 +19,39 @@ import {
   meshcoreMergeContactHopsAwayFromPrevious,
   meshcoreMilliVoltsToApproximateBatteryPercent,
   meshcoreMinimalNodeFromAdvertEvent,
+  meshcoreScaledAdvLatLonToDeg,
   meshcoreSelfInfoBwToDisplayKhz,
   meshcoreSelfInfoFreqToDisplayHz,
   meshcoreSliceContactOutPathForTrace,
   meshcoreTracePathLenToHops,
   pubkeyToNodeId,
 } from './meshcoreUtils';
+
+describe('meshcoreScaledAdvLatLonToDeg', () => {
+  it('maps non-zero scaled integers to degrees', () => {
+    const r = meshcoreScaledAdvLatLonToDeg(45_123456, -93_654321);
+    expect(r.lat).toBeCloseTo(45.123456, 6);
+    expect(r.lon).toBeCloseTo(-93.654321, 6);
+  });
+
+  it('returns null per axis for zero', () => {
+    expect(meshcoreScaledAdvLatLonToDeg(0, 0)).toEqual({ lat: null, lon: null });
+    expect(meshcoreScaledAdvLatLonToDeg(1_000000, 0)).toEqual({ lat: 1, lon: null });
+    expect(meshcoreScaledAdvLatLonToDeg(0, -2_000000)).toEqual({ lat: null, lon: -2 });
+  });
+
+  it('returns null for non-finite inputs', () => {
+    expect(meshcoreScaledAdvLatLonToDeg(Number.NaN, 1)).toEqual({ lat: null, lon: 1e-6 });
+    expect(meshcoreScaledAdvLatLonToDeg(1, Number.POSITIVE_INFINITY)).toEqual({
+      lat: 1e-6,
+      lon: null,
+    });
+    expect(meshcoreScaledAdvLatLonToDeg(Number.POSITIVE_INFINITY, 1)).toEqual({
+      lat: null,
+      lon: 1e-6,
+    });
+  });
+});
 
 describe('meshcoreMinimalNodeFromAdvertEvent', () => {
   const key32 = new Uint8Array(32);

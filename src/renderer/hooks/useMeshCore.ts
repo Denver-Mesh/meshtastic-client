@@ -70,6 +70,7 @@ import {
   mergeHwModelOnContactUpdate,
   mergeMeshcoreChatStubNodes,
   MESHCORE_CONTACTS_WARNING_THRESHOLD,
+  MESHCORE_COORD_SCALE,
   MESHCORE_MAX_CONTACTS,
   MESHCORE_RPC_SNR_RAW_TO_DB,
   meshcoreAppendRepeaterAuthHint,
@@ -84,6 +85,7 @@ import {
   meshcoreMergeContactHopsAwayFromPrevious,
   meshcoreMilliVoltsToApproximateBatteryPercent,
   meshcoreMinimalNodeFromAdvertEvent,
+  meshcoreScaledAdvLatLonToDeg,
   meshcoreSliceContactOutPathForTrace,
   meshcoreSyntheticPlaceholderPubKeyHex,
   meshcoreTracePathLenToHops,
@@ -830,7 +832,6 @@ interface MeshCoreStatsResponse<TData> {
 }
 
 const MANUAL_CONTACTS_KEY = 'mesh-client:meshcoreManualContacts';
-const MESHCORE_COORD_SCALE = 1e6;
 
 const INITIAL_STATE: DeviceState = {
   status: 'disconnected',
@@ -1178,6 +1179,10 @@ export function useMeshCore() {
   /** MQTT-derived contacts persisted with a placeholder pubkey until 0x8A supplies a real key. */
   const mqttPlaceholderSavedRef = useRef<Set<number>>(new Set());
   const selfInfoRef = useRef<MeshCoreSelfInfo | null>(null);
+  /** Post-connect GPS refresh; assigned to {@link refreshOurPositionNoop} below (initConn runs earlier in the hook). */
+  const refreshOurPositionMeshCoreRef = useRef<() => Promise<OurPosition | null>>(() =>
+    Promise.resolve(null),
+  );
   /** Throttle LetsMesh packet-logger publishes (event 136 can be very frequent). */
   const lastPacketLogAtRef = useRef(0);
   /** Rate-limit debug logs when optional packet-logger IPC publish fails. */
@@ -1851,12 +1856,15 @@ export function useMeshCore() {
                 battery: meshcoreMilliVoltsToApproximateBatteryPercent(selfMv),
               }
             : null;
+        const fromSelfAdv = meshcoreScaledAdvLatLonToDeg(self.advLat ?? 0, self.advLon ?? 0);
         if (selfNode) {
           nextNodes.set(myNodeId, {
             ...selfNode,
             long_name: displayLongName,
             short_name: displayShortName,
             hops_away: 0,
+            latitude: fromSelfAdv.lat ?? selfNode.latitude ?? null,
+            longitude: fromSelfAdv.lon ?? selfNode.longitude ?? null,
             ...(fromSelfBattery ?? {}),
           });
         } else {
@@ -1869,8 +1877,8 @@ export function useMeshCore() {
             snr: 0,
             rssi: 0,
             last_heard: Math.floor(Date.now() / 1000),
-            latitude: null,
-            longitude: null,
+            latitude: fromSelfAdv.lat,
+            longitude: fromSelfAdv.lon,
             hops_away: 0,
             ...(fromSelfBattery?.voltage != null ? { voltage: fromSelfBattery.voltage } : {}),
           });
@@ -3138,6 +3146,15 @@ export function useMeshCore() {
         }),
       );
       setNodes((prev) => mergeMeshcoreChatStubNodes(prev, newNodes));
+
+      // Re-resolve map/App GPS after nodesRef picks up getSelfInfo advert coords (same tick as setNodes is too early).
+      requestAnimationFrame(() => {
+        queueMicrotask(() => {
+          void refreshOurPositionMeshCoreRef.current().catch((e: unknown) => {
+            console.debug('[useMeshCore] post-connect refreshOurPosition', e);
+          });
+        });
+      });
 
       // Post-init side-effects — run sequentially to avoid shared Ok/Err listener races
       // with user-initiated commands (e.g. config import right after connect).
@@ -5643,6 +5660,8 @@ export function useMeshCore() {
     }
     return pos;
   }, []);
+
+  refreshOurPositionMeshCoreRef.current = refreshOurPositionNoop;
 
   // Same as useDevice: resolve map/static GPS on startup so MapPanel receives ourPosition.
   useEffect(() => {

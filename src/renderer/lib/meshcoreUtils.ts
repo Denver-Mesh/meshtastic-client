@@ -1,6 +1,7 @@
 import type { ConnectionType, MeshNode } from './types';
 
-const MESHCORE_COORD_SCALE = 1e6;
+/** MeshCore companion scaled coordinates: integer × degrees (same as firmware advert fields). */
+export const MESHCORE_COORD_SCALE = 1e6;
 
 /** Reserved range for channel / unknown-sender chat stubs (name-only, no pubkey). */
 export const MESHCORE_CHAT_STUB_ID_MIN = 0xa0000000 >>> 0;
@@ -232,10 +233,28 @@ interface MeshCoreContact {
   outPath?: Uint8Array;
 }
 
+/**
+ * Maps MeshCore `advLat` / `advLon` integers (degrees × {@link MESHCORE_COORD_SCALE}) to decimal degrees.
+ * Non-finite values or zero on an axis yield null for that axis (same rules as {@link meshcoreContactToMeshNode}).
+ */
+export function meshcoreScaledAdvLatLonToDeg(
+  advLat: number,
+  advLon: number,
+): { lat: number | null; lon: number | null } {
+  const lat =
+    typeof advLat === 'number' && Number.isFinite(advLat) && advLat !== 0
+      ? advLat / MESHCORE_COORD_SCALE
+      : null;
+  const lon =
+    typeof advLon === 'number' && Number.isFinite(advLon) && advLon !== 0
+      ? advLon / MESHCORE_COORD_SCALE
+      : null;
+  return { lat, lon };
+}
+
 export function meshcoreContactToMeshNode(contact: MeshCoreContact): MeshNode {
   const nodeId = pubkeyToNodeId(contact.publicKey);
-  const lat = contact.advLat !== 0 ? contact.advLat / MESHCORE_COORD_SCALE : null;
-  const lon = contact.advLon !== 0 ? contact.advLon / MESHCORE_COORD_SCALE : null;
+  const { lat, lon } = meshcoreScaledAdvLatLonToDeg(contact.advLat, contact.advLon);
   return {
     node_id: nodeId,
     long_name: contact.advName || `Node-${nodeId.toString(16).toUpperCase()}`,
@@ -381,16 +400,13 @@ export function meshcoreMinimalNodeFromAdvertEvent(
     typeof opts.contactType === 'number' && Number.isFinite(opts.contactType)
       ? Math.max(0, Math.floor(opts.contactType))
       : 0;
-  const hasLat =
-    typeof opts.advLat === 'number' && Number.isFinite(opts.advLat) && opts.advLat !== 0;
-  const hasLon =
-    typeof opts.advLon === 'number' && Number.isFinite(opts.advLon) && opts.advLon !== 0;
   const lastHeardSec =
     typeof opts.lastAdvert === 'number' && Number.isFinite(opts.lastAdvert) && opts.lastAdvert > 0
       ? opts.lastAdvert
       : opts.nowSec;
-  const latDeg = hasLat ? opts.advLat! / MESHCORE_COORD_SCALE : null;
-  const lonDeg = hasLon ? opts.advLon! / MESHCORE_COORD_SCALE : null;
+  const advLat = typeof opts.advLat === 'number' ? opts.advLat : 0;
+  const advLon = typeof opts.advLon === 'number' ? opts.advLon : 0;
+  const { lat: latDeg, lon: lonDeg } = meshcoreScaledAdvLatLonToDeg(advLat, advLon);
   const advNameTrim =
     typeof opts.advName === 'string' && opts.advName.trim() ? opts.advName.trim() : '';
   const node: MeshNode = {

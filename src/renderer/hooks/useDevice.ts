@@ -496,6 +496,8 @@ export function useDevice() {
       const intervalSecs = gpsParsed?.refreshInterval ?? 0;
       if (intervalSecs > 0) {
         gpsIntervalRef.current = setInterval(() => {
+          // Dual-protocol: avoid host IP/geo refresh churn while MeshCore is the active UI protocol.
+          if (getStoredMeshProtocol() !== 'meshtastic') return;
           refreshOurPositionRef.current().catch((err: unknown) => {
             console.error('[useDevice] GPS interval refresh error:', err);
           });
@@ -3061,6 +3063,11 @@ export function useDevice() {
   );
 
   const refreshOurPosition = useCallback(async (): Promise<OurPosition | null> => {
+    // Dual-protocol: Meshtastic hook stays mounted when user switches to MeshCore; skip GPS work
+    // so we do not overwrite Meshtastic state or call getGpsFix / IP while MeshCore is active.
+    if (getStoredMeshProtocol() !== 'meshtastic') {
+      return null;
+    }
     setGpsLoading(true);
     try {
       const myNode = nodesRef.current.get(myNodeNumRef.current);
