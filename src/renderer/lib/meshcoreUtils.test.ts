@@ -478,6 +478,14 @@ describe('meshcoreManufacturerModelFromDeviceQuery', () => {
     expect(meshcoreManufacturerModelFromDeviceQuery(null)).toBeUndefined();
     expect(meshcoreManufacturerModelFromDeviceQuery({ firmwareVer: 1 })).toBeUndefined();
   });
+
+  it('stops at first null and drops firmware tail from meshcore.js readString() remainder', () => {
+    expect(
+      meshcoreManufacturerModelFromDeviceQuery({
+        manufacturerModel: 'Seeed Wio Tracker L1\u0000\u0000\u0000v1.15.0-dee3e26\u0000\u0000',
+      }),
+    ).toBe('Seeed Wio Tracker L1');
+  });
 });
 
 describe('meshcoreContactTypeFromHwModel', () => {

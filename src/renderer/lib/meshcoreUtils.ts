@@ -150,7 +150,19 @@ const DEVICE_QUERY_MODEL_KEYS = [
 ] as const;
 
 function meshcoreStringFromDeviceQueryField(value: unknown): string | undefined {
-  if (typeof value === 'string' && value.trim()) return value.trim();
+  if (typeof value === 'string') {
+    // meshcore.js readString() decodes the entire DeviceInfo frame remainder, including
+    // null padding and extra null-terminated segments — truncate at first NUL (C-string).
+    const nullIdx = value.indexOf('\u0000');
+    const head = nullIdx >= 0 ? value.slice(0, nullIdx) : value;
+    let printable = '';
+    for (let i = 0; i < head.length; i++) {
+      const c = head.charCodeAt(i);
+      if (c >= 32 && c !== 127) printable += head[i];
+    }
+    const cleaned = printable.trim();
+    return cleaned.length > 0 ? cleaned : undefined;
+  }
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   return undefined;
 }
