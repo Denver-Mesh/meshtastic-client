@@ -1455,6 +1455,86 @@ describe('onMessage — ServiceEnvelope decoding robust handling', () => {
     expect(failedCalls).toHaveLength(0);
   });
 
+  it('successfully decodes ServiceEnvelope with leading null bytes after trim', () => {
+    const nodeId = 0x12345678;
+    const packetId = 123;
+    const packet = create(MeshPacketSchema, {
+      from: nodeId,
+      id: packetId,
+      payloadVariant: {
+        case: 'decoded',
+        value: create(DataSchema, { portnum: PortNum.TEXT_MESSAGE_APP }),
+      },
+    });
+    const envelope = create(ServiceEnvelopeSchema, {
+      packet,
+    });
+    const core = toBinary(ServiceEnvelopeSchema, envelope);
+    const junkBytes = new Uint8Array(core.length + 3);
+    junkBytes.set(core, 3);
+
+    const updates: any[] = [];
+    manager.on('nodeUpdate', (u) => updates.push(u));
+
+    const debugSpy = vi.spyOn(console, 'debug');
+
+    (manager as any).onMessage('msh/US/2/e/LongFast/!12345678', Buffer.from(junkBytes));
+
+    expect(updates).toHaveLength(1);
+    expect(updates[0].node_id).toBe(nodeId);
+
+    const failedCalls = debugSpy.mock.calls.filter(
+      (call) => typeof call[0] === 'string' && call[0].includes('Unknown message format'),
+    );
+    expect(failedCalls).toHaveLength(0);
+    const decodeFailedCalls = debugSpy.mock.calls.filter(
+      (call) => typeof call[0] === 'string' && call[0].includes('ServiceEnvelope decode failed'),
+    );
+    expect(decodeFailedCalls).toHaveLength(0);
+  });
+
+  it('successfully decodes ServiceEnvelope with leading and trailing null bytes', () => {
+    const nodeId = 0xabcdef00;
+    const packetId = 456;
+    const packet = create(MeshPacketSchema, {
+      from: nodeId,
+      id: packetId,
+      payloadVariant: {
+        case: 'decoded',
+        value: create(DataSchema, { portnum: PortNum.TEXT_MESSAGE_APP }),
+      },
+    });
+    const envelope = create(ServiceEnvelopeSchema, {
+      packet,
+    });
+    const core = toBinary(ServiceEnvelopeSchema, envelope);
+    const padded = new Uint8Array(2 + core.length + 4);
+    padded.set(core, 2);
+
+    const updates: any[] = [];
+    manager.on('nodeUpdate', (u) => updates.push(u));
+
+    (manager as any).onMessage('msh/US/2/e/LongFast/!abcdef00', Buffer.from(padded));
+
+    expect(updates).toHaveLength(1);
+    expect(updates[0].node_id).toBe(nodeId);
+  });
+
+  it('all-null payload after trim is ignored without decode failure log', () => {
+    const debugSpy = vi.spyOn(console, 'debug');
+    debugSpy.mockClear();
+    const updates: any[] = [];
+    manager.on('nodeUpdate', (u) => updates.push(u));
+
+    (manager as any).onMessage('msh/US/2/e/LongFast/!12345678', Buffer.alloc(16, 0));
+
+    expect(updates).toHaveLength(0);
+    const decodeFailedCalls = debugSpy.mock.calls.filter(
+      (call) => typeof call[0] === 'string' && call[0].includes('ServiceEnvelope decode failed'),
+    );
+    expect(decodeFailedCalls).toHaveLength(0);
+  });
+
   it('does not over-trim when a null byte is part of a valid field (fixed32 id)', () => {
     // id = 0x11223300 will end in 00 in Little Endian (00 33 22 11)
     // Field 6 (id) starts with tag (6 << 3 | 5) = 0x35.

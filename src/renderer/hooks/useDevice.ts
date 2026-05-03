@@ -701,8 +701,6 @@ export function useDevice() {
         return;
       }
 
-      console.debug(`[useDevice] MQTT node update: nodeId=${nodeUpdate.node_id}`);
-
       // Handle neighbor info from MQTT
       if (nodeUpdate.neighbors && nodeUpdate.neighbors.length > 0) {
         setNeighborInfo((prev) => {
@@ -857,7 +855,6 @@ export function useDevice() {
       }
 
       // Packet ID dedup (catches our own uplink echoes)
-      console.debug(`[useDevice] MQTT message: from=${msg.sender_id} packetId=${packetId}`);
       if (packetId !== 0 && isDuplicate(packetId)) {
         if (getStoredMeshProtocol() === 'meshtastic') {
           useDiagnosticsStore.getState().recordDuplicate(msg.sender_id);

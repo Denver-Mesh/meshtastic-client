@@ -7,7 +7,7 @@ import {
   Portnums,
   Telemetry,
 } from '@meshtastic/protobufs';
-import { createCipheriv, createDecipheriv } from 'crypto';
+import { createCipheriv, createDecipheriv, createHash } from 'crypto';
 import { EventEmitter } from 'events';
 import * as mqtt from 'mqtt';
 
@@ -56,6 +56,18 @@ export function parsePsk(b64: string): Buffer | null {
   const out = Buffer.alloc(16, 0);
   raw.copy(out, 0, 0, Math.min(raw.length, 16));
   return out;
+}
+
+/**
+ * Strip a leading run of 0x00 only (broker padding before JSON `{` or protobuf `0x0a`).
+ * Do not strip trailing 0x00 here — a valid ServiceEnvelope can end with a literal 0x00
+ * on the wire; trailing padding is removed only after a decode failure (see onMessage).
+ */
+function trimLeadingNullRun(bytes: Uint8Array): Uint8Array {
+  let start = 0;
+  while (start < bytes.length && bytes[start] === 0) start++;
+  if (start === 0) return bytes;
+  return bytes.subarray(start);
 }
 
 // Dedup window: 10 minutes
@@ -614,6 +626,13 @@ export class MQTTManager extends EventEmitter {
     return false;
   }
 
+  /** Sampled debug key so unrelated decode failures do not share one suppression bucket. */
+  private serviceEnvelopeDecodeFailureLogKey(topic: string, bytes: Uint8Array): string {
+    const sig = this.signatureFromPayload(topic, bytes);
+    const digest8 = createHash('sha256').update(sig, 'utf8').digest('hex').slice(0, 8);
+    return `service-envelope-decode-failed|${topic}|${bytes.length}|${digest8}`;
+  }
+
   private rememberBadEnvelope(topic: string, bytes: Uint8Array): void {
     const now = Date.now();
     const key = this.signatureFromPayload(topic, bytes);
@@ -647,68 +666,60 @@ export class MQTTManager extends EventEmitter {
   }
 
   private onMessage(topic: string, payload: Buffer | string): void {
-    const cleanBytes = new Uint8Array(Buffer.isBuffer(payload) ? payload : Buffer.from(payload));
-    if (cleanBytes.length === 0) return;
+    const rawBytes = new Uint8Array(Buffer.isBuffer(payload) ? payload : Buffer.from(payload));
+    const bytes = trimLeadingNullRun(rawBytes);
+    if (bytes.length === 0) return;
 
-    if (cleanBytes[0] === 0x7b) {
-      console.debug(
-        `[Meshtastic MQTT] JSON message received, topic=${topic} bytes=${cleanBytes.length}`,
-      ); // log-filter-ok Meshtastic MQTT logs → App log panel
+    if (bytes[0] === 0x7b) {
       try {
-        const parsed = JSON.parse(new TextDecoder().decode(cleanBytes));
+        const parsed = JSON.parse(new TextDecoder().decode(bytes));
         this.handleJsonMessage(parsed, topic);
       } catch {
-        console.debug(
-          `[Meshtastic MQTT] JSON parse failed, topic=${topic} bytes=${cleanBytes.length}`,
-        ); // log-filter-ok Meshtastic MQTT logs → App log panel
+        console.debug(`[Meshtastic MQTT] JSON parse failed, topic=${topic} bytes=${bytes.length}`); // log-filter-ok Meshtastic MQTT logs → App log panel
       }
       return;
     }
 
-    if (cleanBytes[0] !== 0x0a) {
+    if (bytes[0] !== 0x0a) {
       console.debug(
-        `[Meshtastic MQTT] Unknown message format, firstByte=0x${cleanBytes[0].toString(16)} topic=${topic} bytes=${cleanBytes.length}`,
+        `[Meshtastic MQTT] Unknown message format, firstByte=0x${bytes[0].toString(16)} topic=${topic} bytes=${bytes.length}`,
       ); // log-filter-ok Meshtastic MQTT logs → App log panel
       return;
     }
 
-    if (this.shouldSkipKnownBadEnvelope(topic, cleanBytes)) {
+    if (this.shouldSkipKnownBadEnvelope(topic, bytes)) {
       return;
     }
 
     try {
-      this.decodeAndHandleServiceEnvelope(cleanBytes, topic);
+      this.decodeAndHandleServiceEnvelope(bytes, topic);
     } catch (err) {
-      // Some MQTT brokers or clients append trailing null bytes which cause protobuf
-      // decoding to fail with "illegal tag: field no 0 wire type 0".
-      // If we see this, try trimming trailing nulls one by one and retry.
+      // Trailing broker null padding: protobuf treats extra 0x00 as tag 0 (illegal). Only strip
+      // from the end after decode fails — never strip trailing 0x00 preemptively (valid wire).
+      let decodeErr: unknown = err;
       let msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('field no 0') && cleanBytes[cleanBytes.length - 1] === 0) {
-        let currentBytes = cleanBytes;
+      if (msg.includes('field no 0') && bytes[bytes.length - 1] === 0) {
+        let currentBytes = bytes;
         while (currentBytes.length > 0 && currentBytes[currentBytes.length - 1] === 0) {
           currentBytes = currentBytes.subarray(0, currentBytes.length - 1);
           try {
             this.decodeAndHandleServiceEnvelope(currentBytes, topic);
-            return; // Success after trimming some null bytes
+            return;
           } catch (retryErr) {
-            // catch-no-log-ok If retry fails, fall through to original error logging
+            // catch-no-log-ok trim-retry expects protobuf errors until trailing nulls removed; final error logged via logSampledDebug below
+            decodeErr = retryErr;
             msg = retryErr instanceof Error ? retryErr.message : String(retryErr);
-            if (!msg.includes('field no 0')) {
-              // If we got a different error (e.g. "Offset out of bounds"), we trimmed too much.
-              // Break and log the original error or the last retry error.
-              break;
-            }
-            // If still "field no 0", continue trimming
+            if (!msg.includes('field no 0')) break;
           }
         }
       }
 
       // catch-no-log-ok decode failures are sampled via logSampledDebug (avoid duplicate console lines)
-      const finalMsg = err instanceof Error ? err.message : String(err);
+      const finalMsg = decodeErr instanceof Error ? decodeErr.message : String(decodeErr);
       // Identical bytes always decode the same way; skip re-decoding recurring bad broker payloads.
-      this.rememberBadEnvelope(topic, cleanBytes);
+      this.rememberBadEnvelope(topic, bytes);
       this.logSampledDebug(
-        'service-envelope-decode-failed',
+        this.serviceEnvelopeDecodeFailureLogKey(topic, bytes),
         `[Meshtastic MQTT] ServiceEnvelope decode failed: ${sanitizeLogMessage(finalMsg)} | Topic: ${sanitizeLogMessage(topic)}`,
       );
     }
@@ -738,17 +749,11 @@ export class MQTTManager extends EventEmitter {
         portnum?: number;
         payload?: Uint8Array;
       };
-      console.debug(
-        `[Meshtastic MQTT] Decoded payload: portnum=${decoded.portnum} nodeId=0x${nodeId.toString(16)}`,
-      ); // log-filter-ok Meshtastic MQTT logs → App log panel
       this.handleDecoded(nodeId, packetId, decoded, hopsAway);
     } else if (payloadCase === 'encrypted') {
       const encrypted = packet.payloadVariant.value;
       const decodedData = this.tryDecryptAllKeys(encrypted, packetId, nodeId);
       if (decodedData) {
-        console.debug(
-          `[Meshtastic MQTT] Decryption succeeded: portnum=${decodedData.portnum} nodeId=0x${nodeId.toString(16)}`,
-        ); // log-filter-ok Meshtastic MQTT logs → App log panel
         this.handleDecoded(nodeId, packetId, decodedData, hopsAway);
       }
     }
@@ -758,10 +763,6 @@ export class MQTTManager extends EventEmitter {
     if (!parsed || typeof parsed !== 'object') return;
 
     const json = parsed as Record<string, unknown>;
-
-    // Log raw JSON for debugging - truncate if too long
-    const jsonStr = JSON.stringify(json).slice(0, 500);
-    console.debug(`[Meshtastic MQTT] JSON content: ${jsonStr}`); // log-filter-ok Meshtastic MQTT logs → App log panel
 
     const typeRaw = json.type;
     const type = typeof typeRaw === 'string' ? typeRaw.trim() : '';
@@ -883,10 +884,6 @@ export class MQTTManager extends EventEmitter {
     const hwModelNum = userData.hwModel ?? userData.hw_model ?? userData.hardware ?? 0;
     const hwModel = typeof hwModelNum === 'number' ? hwModelNum : 0;
     const role = userData.role as number | undefined;
-
-    console.debug(
-      `[Meshtastic MQTT] JSON nodeinfo: nodeId=0x${nodeId.toString(16)} longName="${longName}" shortName="${shortName}" role=${role}`,
-    ); // log-filter-ok Meshtastic MQTT logs → App log panel
 
     const now = Date.now();
     const processedShortName = meshtasticShortNameAfterClearingDefault(longName, shortName, nodeId);
@@ -1023,10 +1020,6 @@ export class MQTTManager extends EventEmitter {
     const channel_utilization = payload.channel_utilization as number | undefined;
     const uptime_seconds = payload.uptime_seconds as number | undefined;
 
-    console.debug(
-      `[Meshtastic MQTT] JSON telemetry: nodeId=0x${nodeId.toString(16)} battery=${battery_level} voltage=${voltage} air_util_tx=${air_util_tx} channel_util=${channel_utilization} uptime=${uptime_seconds}`,
-    ); // log-filter-ok Meshtastic MQTT logs -> App log panel
-
     const now = Date.now();
 
     this.emit('nodeUpdate', {
@@ -1035,6 +1028,7 @@ export class MQTTManager extends EventEmitter {
       voltage,
       air_util_tx,
       channel_utilization,
+      uptime_seconds,
       last_heard: now,
       from_mqtt: true,
     });
@@ -1059,10 +1053,6 @@ export class MQTTManager extends EventEmitter {
       ); // log-filter-ok
       return;
     }
-
-    console.debug(
-      `[Meshtastic MQTT] JSON neighborinfo: nodeId=0x${nodeId.toString(16)} neighbors=${neighbors.length}`,
-    ); // log-filter-ok Meshtastic MQTT logs -> App log panel
 
     const now = Date.now();
 
@@ -1110,9 +1100,6 @@ export class MQTTManager extends EventEmitter {
           from_mqtt: true,
           ...(hopsAway !== undefined && { hops_away: hopsAway }),
         };
-        console.debug(
-          `[Meshtastic MQTT] NODEINFO_APP: nodeId=0x${nodeId.toString(16)} longName="${long_name}" shortName="${short_name}" role=${user.role} hwModel=${user.hwModel}`,
-        ); // log-filter-ok Meshtastic MQTT logs → App log panel
         this.upsertNodeCache({
           node_id: nodeId,
           long_name: nodeUpdate.long_name,
@@ -1398,9 +1385,6 @@ export class MQTTManager extends EventEmitter {
     from: number,
   ): { portnum?: number; payload?: Uint8Array; emoji?: number; replyId?: number } | null {
     const allKeys = [DEFAULT_PSK, ...this.extraPsks];
-    console.debug(
-      `[Meshtastic MQTT] Decrypt attempt: trying ${allKeys.length} PSKs (1 default + ${this.extraPsks.length} custom) for nodeId=0x${from.toString(16)}`,
-    ); // log-filter-ok Meshtastic MQTT logs → App log panel
     for (const key of allKeys) {
       const raw = this.tryDecryptWithKey(encrypted, packetId, from, key);
       if (!raw) continue;
