@@ -23,6 +23,7 @@ import {
   meshcoreSelfInfoBwToDisplayKhz,
   meshcoreSelfInfoFreqToDisplayHz,
   meshcoreSliceContactOutPathForTrace,
+  meshcoreTelemetryGpsAltitudeMeters,
   meshcoreTracePathLenToHops,
   pubkeyToNodeId,
 } from './meshcoreUtils';
@@ -50,6 +51,25 @@ describe('meshcoreScaledAdvLatLonToDeg', () => {
       lat: null,
       lon: 1e-6,
     });
+  });
+});
+
+describe('meshcoreTelemetryGpsAltitudeMeters', () => {
+  it('returns finite altitude in meters', () => {
+    expect(meshcoreTelemetryGpsAltitudeMeters({ latitude: 1, longitude: 2, altitude: 1600 })).toBe(
+      1600,
+    );
+    expect(meshcoreTelemetryGpsAltitudeMeters({ altitude: 0 })).toBe(0);
+  });
+
+  it('returns undefined when missing or invalid', () => {
+    expect(meshcoreTelemetryGpsAltitudeMeters(undefined)).toBeUndefined();
+    expect(meshcoreTelemetryGpsAltitudeMeters(null)).toBeUndefined();
+    expect(meshcoreTelemetryGpsAltitudeMeters({})).toBeUndefined();
+    expect(meshcoreTelemetryGpsAltitudeMeters({ altitude: Number.NaN })).toBeUndefined();
+    expect(
+      meshcoreTelemetryGpsAltitudeMeters({ altitude: Number.POSITIVE_INFINITY }),
+    ).toBeUndefined();
   });
 });
 

@@ -88,6 +88,7 @@ import {
   meshcoreScaledAdvLatLonToDeg,
   meshcoreSliceContactOutPathForTrace,
   meshcoreSyntheticPlaceholderPubKeyHex,
+  meshcoreTelemetryGpsAltitudeMeters,
   meshcoreTracePathLenToHops,
   minimalMeshcoreChatNode,
   pubkeyToNodeId,
@@ -1183,6 +1184,8 @@ export function useMeshCore() {
   const refreshOurPositionMeshCoreRef = useRef<() => Promise<OurPosition | null>>(() =>
     Promise.resolve(null),
   );
+  /** Post-connect self telemetry (altitude); assigned to {@link requestTelemetry} below. */
+  const requestTelemetryMeshCoreRef = useRef<(nodeId: number) => Promise<void>>(async () => {});
   /** Throttle LetsMesh packet-logger publishes (event 136 can be very frequent). */
   const lastPacketLogAtRef = useRef(0);
   /** Rate-limit debug logs when optional packet-logger IPC publish fails. */
@@ -3153,6 +3156,9 @@ export function useMeshCore() {
           void refreshOurPositionMeshCoreRef.current().catch((e: unknown) => {
             console.debug('[useMeshCore] post-connect refreshOurPosition', e);
           });
+          void requestTelemetryMeshCoreRef.current(myNodeId).catch((e: unknown) => {
+            console.debug('[useMeshCore] post-connect self telemetry (altitude)', e);
+          });
         });
       });
 
@@ -4715,6 +4721,16 @@ export function useMeshCore() {
           };
           setEnvironmentTelemetry((prev) => [...prev, pt].slice(-MAX_ENV_TELEMETRY_POINTS));
         }
+        const altM = meshcoreTelemetryGpsAltitudeMeters(result.gps);
+        if (altM !== undefined) {
+          setNodes((prev) => {
+            const cur = prev.get(nodeId);
+            if (!cur) return prev;
+            const next = new Map(prev);
+            next.set(nodeId, { ...cur, altitude: altM });
+            return next;
+          });
+        }
       });
     } catch (e: unknown) {
       const rawErr = e instanceof Error ? e.message : String(e);
@@ -4733,6 +4749,8 @@ export function useMeshCore() {
       console.warn('[useMeshCore] requestTelemetry error', e);
     }
   }, []);
+
+  requestTelemetryMeshCoreRef.current = requestTelemetry;
 
   const requestNeighbors = useCallback(async (nodeId: number) => {
     const pubKey = pubKeyMapRef.current.get(nodeId);

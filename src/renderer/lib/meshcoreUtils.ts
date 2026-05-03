@@ -252,6 +252,19 @@ export function meshcoreScaledAdvLatLonToDeg(
   return { lat, lon };
 }
 
+/**
+ * Cayenne LPP GPS payloads may include `altitude` in meters for {@link MeshNode.altitude}.
+ * Returns `undefined` when missing or non-finite so callers do not overwrite a prior good value.
+ */
+export function meshcoreTelemetryGpsAltitudeMeters(
+  gps: { altitude?: number; latitude?: number; longitude?: number } | undefined | null,
+): number | undefined {
+  if (gps == null || typeof gps !== 'object') return undefined;
+  const a = gps.altitude;
+  if (typeof a !== 'number' || !Number.isFinite(a)) return undefined;
+  return a;
+}
+
 export function meshcoreContactToMeshNode(contact: MeshCoreContact): MeshNode {
   const nodeId = pubkeyToNodeId(contact.publicKey);
   const { lat, lon } = meshcoreScaledAdvLatLonToDeg(contact.advLat, contact.advLon);
