@@ -13,6 +13,7 @@ import {
   meshcoreContactTypeFromHwModel,
   meshcoreDeriveChannelKeyHexFromName,
   meshcoreGetRepeaterSessionPassword,
+  meshcoreHwModelIsContactTypeLabel,
   meshcoreInferHopsFromOutPath,
   meshcoreIsRepeaterRemoteAuthTouched,
   meshcoreManufacturerModelFromDeviceQuery,
@@ -205,6 +206,22 @@ describe('meshcoreConnectionImpliesUsbPower', () => {
     expect(meshcoreConnectionImpliesUsbPower('ble')).toBe(false);
     expect(meshcoreConnectionImpliesUsbPower('http')).toBe(false);
     expect(meshcoreConnectionImpliesUsbPower(null)).toBe(false);
+  });
+});
+
+describe('meshcoreHwModelIsContactTypeLabel', () => {
+  it('is true for MeshCore contact-type hw_model strings', () => {
+    expect(meshcoreHwModelIsContactTypeLabel('Chat')).toBe(true);
+    expect(meshcoreHwModelIsContactTypeLabel('Repeater')).toBe(true);
+    expect(meshcoreHwModelIsContactTypeLabel('Room')).toBe(true);
+    expect(meshcoreHwModelIsContactTypeLabel('Sensor')).toBe(true);
+  });
+
+  it('is false for None, unset hw_model, and Meshtastic hardware names', () => {
+    expect(meshcoreHwModelIsContactTypeLabel('None')).toBe(false);
+    expect(meshcoreHwModelIsContactTypeLabel(undefined)).toBe(false);
+    expect(meshcoreHwModelIsContactTypeLabel('')).toBe(false);
+    expect(meshcoreHwModelIsContactTypeLabel('T-Echo')).toBe(false);
   });
 });
 

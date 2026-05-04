@@ -208,6 +208,58 @@ describe('MapPanel accessibility', () => {
     expect(decodedSvgs.some((svg) => svg.includes('M1 9l2 2c4.97'))).toBe(false);
   });
 
+  it('filters meshcore room contacts from meshtastic map view', () => {
+    leafletIconMock.mockClear();
+    const nowSec = Math.floor(Date.now() / 1000);
+    const nodes = new Map([
+      [
+        301,
+        {
+          node_id: 301,
+          long_name: 'MeshCore Room',
+          short_name: 'ROOM',
+          hw_model: 'Room',
+          snr: 0,
+          battery: 0,
+          last_heard: nowSec,
+          latitude: 40.22,
+          longitude: -105.12,
+        },
+      ],
+      [
+        404,
+        {
+          node_id: 404,
+          long_name: 'Meshtastic Node',
+          short_name: 'MTST',
+          hw_model: 'T-Echo',
+          snr: 0,
+          battery: 0,
+          last_heard: nowSec,
+          latitude: 40.23,
+          longitude: -105.13,
+        },
+      ],
+    ]);
+
+    render(
+      <MapPanel
+        nodes={nodes}
+        myNodeNum={404}
+        locationFilter={defaultFilter}
+        ourPosition={null}
+        onLocateMe={vi.fn().mockResolvedValue(null)}
+        protocol="meshtastic"
+      />,
+    );
+
+    const iconCalls = leafletIconMock.mock.calls.map((call) => call[0] as { iconUrl?: string });
+    const markerIcons = iconCalls.filter((call) => typeof call.iconUrl === 'string');
+    const decodedSvgs = markerIcons.map((call) => decodeURIComponent(call.iconUrl!));
+    // Room badge path fragment from NODE_BADGE_PATHS.room — must not appear when MeshCore room is filtered out.
+    expect(decodedSvgs.some((svg) => svg.includes('M8,2H16A2,2'))).toBe(false);
+  });
+
   it('renders circle overlays when enabled regardless of node count', () => {
     diagnosticsStoreState.congestionHalosEnabled = true;
     const nowSec = Math.floor(Date.now() / 1000);
