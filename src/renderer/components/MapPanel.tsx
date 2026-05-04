@@ -31,6 +31,7 @@ import { formatCoordPair } from '../lib/coordUtils';
 import { getRoutingRowForNode, routingAnomalyNodeIds } from '../lib/diagnostics/diagnosticRows';
 import { escapeSvgAttr } from '../lib/escapeSvg';
 import type { OurPosition } from '../lib/gpsSource';
+import { meshcoreHwModelIsContactTypeLabel } from '../lib/meshcoreUtils';
 import { NODE_BADGE_PATHS } from '../lib/nodeIcons';
 import { getNodeStatus, haversineDistanceKm } from '../lib/nodeStatus';
 import { useRadioProvider } from '../lib/radio/providerFactory';
@@ -665,7 +666,7 @@ export default function MapPanel({
   }, []);
   const homeNode = nodes.get(myNodeNum) ?? null;
   const { nodeStaleThresholdMs, nodeOfflineThresholdMs } = useRadioProvider(protocol);
-  const excludeMeshcoreRepeaterInMeshtastic = protocol === 'meshtastic';
+  const excludeMeshcoreContactTypesInMeshtastic = protocol === 'meshtastic';
 
   const congestionHalosEnabled = useDiagnosticsStore((s) => s.congestionHalosEnabled);
   const anomalyHalosEnabled = useDiagnosticsStore((s) => s.anomalyHalosEnabled);
@@ -802,10 +803,10 @@ export default function MapPanel({
         let rejectReason: string | null = null;
         if (
           rejectReason === null &&
-          excludeMeshcoreRepeaterInMeshtastic &&
-          n.hw_model === 'Repeater'
+          excludeMeshcoreContactTypesInMeshtastic &&
+          meshcoreHwModelIsContactTypeLabel(n.hw_model)
         ) {
-          rejectReason = 'meshcore_repeater_filtered_for_meshtastic';
+          rejectReason = 'meshcore_contact_type_filtered_for_meshtastic';
         }
         if (
           n.latitude == null ||
@@ -829,7 +830,7 @@ export default function MapPanel({
         return rejectReason === null;
       })
       .sort((a, b) => a.node_id - b.node_id);
-  }, [nodes, myNodeNum, locationFilter, excludeMeshcoreRepeaterInMeshtastic]);
+  }, [nodes, myNodeNum, locationFilter, excludeMeshcoreContactTypesInMeshtastic]);
   const nodesToRender = useMemo(() => {
     const idSet = new Set(nodesWithPosition.map((n) => n.node_id));
     const out: MeshNode[] = [...nodesWithPosition];
@@ -837,7 +838,8 @@ export default function MapPanel({
       if (idSet.has(nodeId)) continue;
       const node = nodes.get(nodeId);
       if (
-        (excludeMeshcoreRepeaterInMeshtastic && node?.hw_model === 'Repeater') ||
+        (excludeMeshcoreContactTypesInMeshtastic &&
+          meshcoreHwModelIsContactTypeLabel(node?.hw_model)) ||
         node?.latitude == null ||
         node.longitude == null ||
         !(Math.abs(node.latitude) > 0.0001 || Math.abs(node.longitude) > 0.0001)
@@ -847,7 +849,7 @@ export default function MapPanel({
       out.push(node);
     }
     return out.sort((a, b) => a.node_id - b.node_id);
-  }, [nodesWithPosition, routingNodeIds, nodes, excludeMeshcoreRepeaterInMeshtastic]);
+  }, [nodesWithPosition, routingNodeIds, nodes, excludeMeshcoreContactTypesInMeshtastic]);
 
   const nodesWithStatus = useMemo(
     () =>
