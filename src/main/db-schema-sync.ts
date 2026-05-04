@@ -390,6 +390,35 @@ function ensureMessagesPacketDedup(db: NodeSqliteDB): void {
   );
 }
 
+/**
+ * Remove duplicate reaction rows before idx_reaction_dedup (historical migration v4).
+ * Same failure mode as packet dedup: CREATE UNIQUE INDEX fails if duplicates exist.
+ * Idempotent when idx_reaction_dedup already exists.
+ */
+function ensureMessagesReactionDedup(db: NodeSqliteDB): void {
+  const idx = db
+    .prepare(`SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_reaction_dedup' LIMIT 1`)
+    .get();
+  if (idx !== undefined) return;
+  if (!tableExists(db, 'messages')) return;
+
+  db.prepare(
+    `DELETE FROM messages
+         WHERE id NOT IN (
+           SELECT MIN(id) FROM messages
+           WHERE emoji IS NOT NULL AND reply_id IS NOT NULL
+           GROUP BY sender_id, reply_id, emoji
+         )
+         AND emoji IS NOT NULL AND reply_id IS NOT NULL`,
+  ).run();
+
+  db.execScript(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_reaction_dedup
+        ON messages(sender_id, reply_id, emoji)
+        WHERE emoji IS NOT NULL AND reply_id IS NOT NULL`,
+  );
+}
+
 /** Rename meshcore_contact_groups → contact_groups and copy rows (historical migration v20). */
 function migrateLegacyContactGroups(db: NodeSqliteDB): void {
   const hasLegacy = db
@@ -493,6 +522,7 @@ function seedAppSettings(db: NodeSqliteDB): void {
 
 function structuralUpgrades(db: NodeSqliteDB): void {
   ensureMessagesPacketDedup(db);
+  ensureMessagesReactionDedup(db);
   ensureMeshcoreMessagesDedupIndex(db);
   migrateLegacyContactGroups(db);
   rebuildMeshcoreTraceHistoryIfNeeded(db);
