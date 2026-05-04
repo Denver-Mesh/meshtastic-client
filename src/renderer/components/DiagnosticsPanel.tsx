@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   diagnosticRowsToRoutingMap,
+  FOREIGN_LORA_RF_CONDITIONS,
   meshHasRoutingAnomaliesFromRows,
 } from '../lib/diagnostics/diagnosticRows';
 import {
@@ -24,6 +25,10 @@ import type { DiagnosticRow, MeshNode, MeshProtocol } from '../lib/types';
 import { routingRowToNodeAnomaly } from '../lib/types';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
 import MeshCongestionAttributionBlock from './MeshCongestionAttributionBlock';
+
+function isForeignLoraRfRow(r: DiagnosticRow): boolean {
+  return r.kind === 'rf' && FOREIGN_LORA_RF_CONDITIONS.has(r.condition);
+}
 
 const CATEGORY_STYLES: Record<string, string> = {
   Configuration: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
@@ -270,7 +275,7 @@ export default function DiagnosticsPanel({
 
   /** Connected node only — same threshold as mesh so small error counts stay attention/orange. */
   const connectedHealth = useMemo(() => {
-    const rows = diagnosticRows.filter((r) => r.nodeId === myNodeNum);
+    const rows = diagnosticRows.filter((r) => r.nodeId === myNodeNum && !isForeignLoraRfRow(r));
     const errors = rows.filter((r) => r.kind === 'routing' && r.severity === 'error').length;
     const warnings =
       rows.filter((r) => r.kind === 'routing' && r.severity === 'warning').length +
@@ -352,7 +357,10 @@ export default function DiagnosticsPanel({
     return order(sevA) - order(sevB);
   });
 
-  const selfRows = anomalyList.filter((r) => r.nodeId === myNodeNum);
+  const selfRows = anomalyList.filter((r) => r.nodeId === myNodeNum && !isForeignLoraRfRow(r));
+  const crossProtocolRows = anomalyList.filter(
+    (r) => r.nodeId === myNodeNum && isForeignLoraRfRow(r),
+  );
   const meshRows = anomalyList.filter((r) => r.nodeId !== myNodeNum);
 
   const errorCount = diagnosticRows.filter(
@@ -1074,6 +1082,30 @@ export default function DiagnosticsPanel({
                     </thead>
                     <tbody className="divide-y divide-gray-700/50">
                       {renderTableBody(selfRows)}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {crossProtocolRows.length > 0 && (
+              <div>
+                <h4 className="mb-2 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+                  On-frequency / other stacks (heard by this radio) ({crossProtocolRows.length})
+                </h4>
+                <div className="overflow-auto rounded-lg border border-amber-500/20 border-gray-700">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-deep-black text-muted sticky top-0 text-left">
+                        <th className="px-4 py-2.5">Node</th>
+                        <th className="px-4 py-2.5">Offense</th>
+                        <th className="px-4 py-2.5 text-right">Hops</th>
+                        <th className="px-4 py-2.5 text-right">Detected</th>
+                        <th className="px-4 py-2.5">Suggested Fix</th>
+                        <th className="px-4 py-2.5 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-700/50">
+                      {renderTableBody(crossProtocolRows)}
                     </tbody>
                   </table>
                 </div>
