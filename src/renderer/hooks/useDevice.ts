@@ -3089,7 +3089,8 @@ export function useDevice() {
       // When a static position is set, don't let device coords override it
       const devLat = staticLat != null ? undefined : myNode?.latitude;
       const devLon = staticLon != null ? undefined : myNode?.longitude;
-      const pos = await resolveOurPosition(devLat, devLon, staticLat, staticLon);
+      const devAlt = staticLat != null ? undefined : myNode?.altitude;
+      const pos = await resolveOurPosition(devLat, devLon, staticLat, staticLon, devAlt);
       setOurPosition(pos);
       if (getStoredMeshProtocol() === 'meshtastic') {
         useDiagnosticsStore.getState().setOurPositionSource(pos?.source ?? null);

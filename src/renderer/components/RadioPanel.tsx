@@ -635,7 +635,10 @@ export default function RadioPanel({
   // String state for position inputs to allow typing negative values (e.g. "-105.06")
   const [latStr, setLatStr] = useState(() => String(ourPosition?.lat ?? 0));
   const [lonStr, setLonStr] = useState(() => String(ourPosition?.lon ?? 0));
-  const [altStr, setAltStr] = useState('0');
+  const [altStr, setAltStr] = useState(() => {
+    const a = ourPosition?.altitudeMeters;
+    return a != null && Number.isFinite(a) ? String(a) : '0';
+  });
   const [gpsMode, setGpsMode] = useState(0);
   const [positionPrecision, setPositionPrecision] = useState(10);
   const [smartPositionEnabled, setSmartPositionEnabled] = useState(false);
@@ -680,6 +683,12 @@ export default function RadioPanel({
       setFixedPosition(deviceFixedPosition);
     }
   }, [deviceFixedPosition]);
+
+  useEffect(() => {
+    const a = ourPosition?.altitudeMeters;
+    if (a == null || !Number.isFinite(a)) return;
+    setAltStr(String(a));
+  }, [ourPosition?.altitudeMeters]);
 
   // ─── Shared state ─────────────────────────────────────────────
   const [status, setStatus] = useState<string | null>(null);
@@ -1516,6 +1525,10 @@ export default function RadioPanel({
                   onClick={() => {
                     setLatStr(String(ourPosition.lat));
                     setLonStr(String(ourPosition.lon));
+                    const a = ourPosition.altitudeMeters;
+                    if (a != null && Number.isFinite(a)) {
+                      setAltStr(String(a));
+                    }
                   }}
                   className="text-brand-green ml-2 underline hover:opacity-80"
                 >

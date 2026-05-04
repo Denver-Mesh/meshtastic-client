@@ -5671,7 +5671,8 @@ export function useMeshCore() {
     // Match useDevice: when a static override exists, do not let device coords win over it.
     const devLat = staticLat != null ? undefined : myNode?.latitude;
     const devLon = staticLon != null ? undefined : myNode?.longitude;
-    const pos = await resolveOurPosition(devLat, devLon, staticLat, staticLon);
+    const devAlt = staticLat != null ? undefined : myNode?.altitude;
+    const pos = await resolveOurPosition(devLat, devLon, staticLat, staticLon, devAlt);
     setOurPosition(pos);
     if (getStoredMeshProtocol() === 'meshcore') {
       useDiagnosticsStore.getState().setOurPositionSource(pos?.source ?? null);
@@ -5685,6 +5686,22 @@ export function useMeshCore() {
   useEffect(() => {
     void refreshOurPositionNoop();
   }, [refreshOurPositionNoop]);
+
+  // Telemetry may populate self-node altitude after the first refreshOurPosition; merge into device GPS.
+  useEffect(() => {
+    if (getStoredMeshProtocol() !== 'meshcore') return;
+    const selfId = state.myNodeNum;
+    if (selfId <= 0) return;
+    const alt = nodes.get(selfId)?.altitude;
+    if (alt == null || !Number.isFinite(alt)) return;
+    queueMicrotask(() => {
+      setOurPosition((prev) => {
+        if (prev?.source !== 'device') return prev;
+        if (prev.altitudeMeters === alt) return prev;
+        return { ...prev, altitudeMeters: alt };
+      });
+    });
+  }, [nodes, state.myNodeNum]);
 
   const getNodes = useCallback(() => nodes, [nodes]);
   const getFullNodeLabel = useCallback(
