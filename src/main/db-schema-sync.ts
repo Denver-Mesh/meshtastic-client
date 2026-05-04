@@ -164,7 +164,12 @@ export const CANONICAL_TABLES_DDL = `
       );
     `;
 
-const INDEX_DDLS: readonly string[] = [
+/**
+ * All `CREATE UNIQUE INDEX` entries need a matching dedupe path in `structuralUpgrades`
+ * (or a proof the table is empty) before the index can be built on legacy data.
+ * @see src/main/db-schema-sync.unique-indexes.test.ts (contract + duplicate-key regressions)
+ */
+export const INDEX_DDLS: readonly string[] = [
   'CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp)',
   'CREATE INDEX IF NOT EXISTS idx_messages_channel_ts ON messages(channel, timestamp DESC)',
   'CREATE INDEX IF NOT EXISTS idx_messages_packet_id ON messages(packet_id)',
@@ -350,9 +355,20 @@ function ensureColumns(db: NodeSqliteDB): void {
   }
 }
 
-/** Legacy meshcore_messages dedup index lacked payload; drop and recreate current definition. */
+/** Legacy meshcore_messages dedup index lacked payload; drop, dedupe, then recreate (historical v17). */
 function ensureMeshcoreMessagesDedupIndex(db: NodeSqliteDB): void {
   db.execScript('DROP INDEX IF EXISTS idx_mc_msg_dedup');
+  if (tableExists(db, 'meshcore_messages')) {
+    db.prepare(
+      `DELETE FROM meshcore_messages
+         WHERE id NOT IN (
+           SELECT MIN(id) FROM meshcore_messages
+           WHERE sender_id IS NOT NULL
+           GROUP BY sender_id, timestamp, channel_idx, payload
+         )
+         AND sender_id IS NOT NULL`,
+    ).run();
+  }
   db.execScript(
     'CREATE UNIQUE INDEX IF NOT EXISTS idx_mc_msg_dedup ' +
       'ON meshcore_messages(sender_id, timestamp, channel_idx, payload) ' +
