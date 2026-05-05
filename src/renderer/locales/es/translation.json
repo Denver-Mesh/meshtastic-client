@@ -449,7 +449,10 @@
   "diagnosticsPanel": {
     "dropRoutingRows": "Filas de enrutamiento de más de {{hours}} horas (1–168)",
     "dismissRow": "Declarar sin lugar",
-    "searchAnomalies": "Buscar anomalías..."
+    "searchAnomalies": "Buscar anomalías...",
+    "meshcoreInterferenceHeading": "Nodos MeshCore escuchados en frecuencia ({{count}})",
+    "meshcoreInterferenceDescription": "Estas entradas identifican la interferencia MeshCore en frecuencia que escucha esta radio. Pueden contribuir a problemas de utilización y reintento, pero no son diagnósticos de fallas de ruta Meshtastic por sí solos.",
+    "otherCrossProtocolHeading": "Otro tráfico en frecuencia/entre pilas ({{count}})"
   },
   "rawPacketLog": {
     "filterPackets": "Filtrar paquetes",

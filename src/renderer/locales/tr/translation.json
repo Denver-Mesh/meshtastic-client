@@ -448,7 +448,10 @@
   "diagnosticsPanel": {
     "dropRoutingRows": "{{hours}} saatten (1-168) daha eski olan yönlendirme satırlarını bırak",
     "dismissRow": "Azletmek",
-    "searchAnomalies": "Arama anormallikleri..."
+    "searchAnomalies": "Arama anormallikleri...",
+    "meshcoreInterferenceHeading": "MeshCore düğümleri frekansta duyuldu ({{count}})",
+    "meshcoreInterferenceDescription": "Bu girişler, bu radyo tarafından duyulan frekanstaki MeshCore girişimini tanımlar. Kullanım ve yeniden deneme sorunlarına katkıda bulunabilirler ancak kendi başlarına Meshtastic rota hatası teşhisi değildirler.",
+    "otherCrossProtocolHeading": "Diğer frekansta/yığınlar arası trafik ({{count}})"
   },
   "rawPacketLog": {
     "filterPackets": "Paketleri filtrele",

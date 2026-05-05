@@ -448,7 +448,10 @@
   "diagnosticsPanel": {
     "dropRoutingRows": "Drop routing rows older than {{hours}} hours (1–168)",
     "dismissRow": "Dismiss",
-    "searchAnomalies": "Search anomalies..."
+    "searchAnomalies": "Search anomalies...",
+    "meshcoreInterferenceHeading": "MeshCore nodes heard on frequency ({{count}})",
+    "meshcoreInterferenceDescription": "These entries identify on-frequency MeshCore interference heard by this radio. They can contribute to utilization and retry issues, but are not Meshtastic route-failure diagnostics by themselves.",
+    "otherCrossProtocolHeading": "Other on-frequency / cross-stack traffic ({{count}})"
   },
   "rawPacketLog": {
     "filterPackets": "Filter packets",

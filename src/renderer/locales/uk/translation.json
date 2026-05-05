@@ -449,7 +449,10 @@
   "diagnosticsPanel": {
     "dropRoutingRows": "Відкиньте рядки маршрутизації, старші за {{hours}} год (1–168)",
     "dismissRow": "Відпустити",
-    "searchAnomalies": "Пошук аномалій..."
+    "searchAnomalies": "Пошук аномалій...",
+    "meshcoreInterferenceHeading": "Вузли MeshCore чути на частоті ({{count}})",
+    "meshcoreInterferenceDescription": "Ці записи ідентифікують перешкоди MeshCore на частоті, які чує це радіо. Вони можуть спричинити проблеми з використанням і повторними спробами, але самі по собі не є діагностикою збою маршруту Meshtastic.",
+    "otherCrossProtocolHeading": "Інший трафік на частоті / перехресний стек ({{count}})"
   },
   "rawPacketLog": {
     "filterPackets": "Фільтрувати пакети",

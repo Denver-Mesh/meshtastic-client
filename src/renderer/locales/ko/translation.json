@@ -448,7 +448,10 @@
   "diagnosticsPanel": {
     "dropRoutingRows": "{{hours}}시간(1~168)보다 오래된 라우팅 행 삭제",
     "dismissRow": "해고하다",
-    "searchAnomalies": "이상 징후 검색..."
+    "searchAnomalies": "이상 징후 검색...",
+    "meshcoreInterferenceHeading": "주파수({{count}})에서 들리는 MeshCore 노드",
+    "meshcoreInterferenceDescription": "이러한 항목은 이 라디오에서 들리는 주파수상의 MeshCore 간섭을 식별합니다. 활용도 및 재시도 문제에 영향을 줄 수 있지만 그 자체로는 Meshtastic 경로 오류 진단이 아닙니다.",
+    "otherCrossProtocolHeading": "기타 온주파수/교차 스택 트래픽({{count}})"
   },
   "rawPacketLog": {
     "filterPackets": "패킷 필터링",

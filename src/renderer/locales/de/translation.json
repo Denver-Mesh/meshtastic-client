@@ -449,7 +449,10 @@
   "diagnosticsPanel": {
     "dropRoutingRows": "Wirf Routingreihen, die älter als {{hours}} Stunden (1-168) sind",
     "dismissRow": "Verwerfen",
-    "searchAnomalies": "Anomalien suchen..."
+    "searchAnomalies": "Anomalien suchen...",
+    "meshcoreInterferenceHeading": "MeshCore-Knoten auf Frequenz ({{count}}) gehört",
+    "meshcoreInterferenceDescription": "Diese Einträge identifizieren MeshCore-Interferenzen auf der Frequenz, die von diesem Funkgerät wahrgenommen werden. Sie können zu Auslastungs- und Wiederholungsproblemen beitragen, stellen jedoch selbst keine Meshtastic-Routenfehlerdiagnose dar.",
+    "otherCrossProtocolHeading": "Sonstiger On-Frequency-/Cross-Stack-Verkehr ({{count}})"
   },
   "rawPacketLog": {
     "filterPackets": "Filterpakete",

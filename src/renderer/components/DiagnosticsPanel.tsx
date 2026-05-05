@@ -31,6 +31,14 @@ function isForeignLoraRfRow(r: DiagnosticRow): boolean {
   return r.kind === 'rf' && FOREIGN_LORA_RF_CONDITIONS.has(r.condition);
 }
 
+function isMeshCoreInterferenceRow(r: DiagnosticRow): boolean {
+  return (
+    r.kind === 'rf' &&
+    (r.condition === 'MeshCore Activity Detected' ||
+      r.condition === 'Potential MeshCore Repeater Conflict')
+  );
+}
+
 const CATEGORY_STYLES: Record<string, string> = {
   Configuration: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
   Physical: 'bg-orange-500/20 text-orange-400 border border-orange-500/30',
@@ -363,6 +371,8 @@ export default function DiagnosticsPanel({
   const crossProtocolRows = anomalyList.filter(
     (r) => r.nodeId === myNodeNum && isForeignLoraRfRow(r),
   );
+  const meshcoreRows = crossProtocolRows.filter(isMeshCoreInterferenceRow);
+  const otherCrossProtocolRows = crossProtocolRows.filter((r) => !isMeshCoreInterferenceRow(r));
   const meshRows = anomalyList.filter((r) => r.nodeId !== myNodeNum);
 
   const errorCount = diagnosticRows.filter(
@@ -1091,10 +1101,41 @@ export default function DiagnosticsPanel({
                 </div>
               </div>
             )}
-            {crossProtocolRows.length > 0 && (
+            {meshcoreRows.length > 0 && (
               <div>
                 <h4 className="mb-2 text-xs font-semibold tracking-wide text-gray-400 uppercase">
-                  On-frequency / other stacks (heard by this radio) ({crossProtocolRows.length})
+                  {t('diagnosticsPanel.meshcoreInterferenceHeading', {
+                    count: meshcoreRows.length,
+                  })}
+                </h4>
+                <p className="mb-3 text-xs text-orange-300/90">
+                  {t('diagnosticsPanel.meshcoreInterferenceDescription')}
+                </p>
+                <div className="overflow-auto rounded-lg border border-amber-500/20 border-gray-700">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-deep-black text-muted sticky top-0 text-left">
+                        <th className="px-4 py-2.5">Node</th>
+                        <th className="px-4 py-2.5">Offense</th>
+                        <th className="px-4 py-2.5 text-right">Hops</th>
+                        <th className="px-4 py-2.5 text-right">Detected</th>
+                        <th className="px-4 py-2.5">Suggested Fix</th>
+                        <th className="px-4 py-2.5 text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-700/50">
+                      {renderTableBody(meshcoreRows)}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+            {otherCrossProtocolRows.length > 0 && (
+              <div>
+                <h4 className="mb-2 text-xs font-semibold tracking-wide text-gray-400 uppercase">
+                  {t('diagnosticsPanel.otherCrossProtocolHeading', {
+                    count: otherCrossProtocolRows.length,
+                  })}
                 </h4>
                 <div className="overflow-auto rounded-lg border border-amber-500/20 border-gray-700">
                   <table className="w-full text-sm">
@@ -1109,7 +1150,7 @@ export default function DiagnosticsPanel({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-700/50">
-                      {renderTableBody(crossProtocolRows)}
+                      {renderTableBody(otherCrossProtocolRows)}
                     </tbody>
                   </table>
                 </div>

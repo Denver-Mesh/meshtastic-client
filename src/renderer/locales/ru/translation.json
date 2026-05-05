@@ -448,7 +448,10 @@
   "diagnosticsPanel": {
     "dropRoutingRows": "Удалить строки маршрутизации старше {{hours}} часов (1–168).",
     "dismissRow": "Увольнять",
-    "searchAnomalies": "Поиск аномалий..."
+    "searchAnomalies": "Поиск аномалий...",
+    "meshcoreInterferenceHeading": "Узлы MeshCore слышны на частоте ({{count}})",
+    "meshcoreInterferenceDescription": "Эти записи идентифицируют помехи MeshCore на частоте, слышимые этой радиостанцией. Они могут способствовать проблемам использования и повторных попыток, но сами по себе не являются Meshtastic диагностикой сбоя маршрута.",
+    "otherCrossProtocolHeading": "Другой частотный/межстековый трафик ({{count}})"
   },
   "rawPacketLog": {
     "filterPackets": "Фильтровать пакеты",

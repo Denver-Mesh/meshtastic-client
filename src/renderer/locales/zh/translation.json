@@ -449,7 +449,10 @@
   "diagnosticsPanel": {
     "dropRoutingRows": "删除早于__ PH0 __小时的路由行(1–168)",
     "dismissRow": "忽略",
-    "searchAnomalies": "搜索异常..."
+    "searchAnomalies": "搜索异常...",
+    "meshcoreInterferenceHeading": "MeshCore 节点在频率 ({{count}}) 上听到",
+    "meshcoreInterferenceDescription": "这些条目标识了该无线电听到的同频 MeshCore 干扰。它们可能会导致利用率和重试问题，但它们本身并不是 Meshtastic 路由故障诊断。",
+    "otherCrossProtocolHeading": "其他同频/跨栈流量 ({{count}})"
   },
   "rawPacketLog": {
     "filterPackets": "过滤数据包",

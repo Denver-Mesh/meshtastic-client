@@ -449,7 +449,10 @@
   "diagnosticsPanel": {
     "dropRoutingRows": "Elimina le righe di routing più vecchie di {{hours}} ore (1–168)",
     "dismissRow": "Congedare",
-    "searchAnomalies": "Cerca anomalie..."
+    "searchAnomalies": "Cerca anomalie...",
+    "meshcoreInterferenceHeading": "Nodi MeshCore ascoltati sulla frequenza ({{count}})",
+    "meshcoreInterferenceDescription": "Queste voci identificano le interferenze MeshCore in frequenza percepite da questa radio. Possono contribuire a problemi di utilizzo e tentativi, ma non costituiscono di per sé una diagnostica degli errori del percorso Meshtastic.",
+    "otherCrossProtocolHeading": "Altro traffico in frequenza/cross-stack ({{count}})"
   },
   "rawPacketLog": {
     "filterPackets": "Filtra i pacchetti",

@@ -449,7 +449,10 @@
   "diagnosticsPanel": {
     "dropRoutingRows": "Vypustit řádky směrování starší než {{hours}} hodin (1–168)",
     "dismissRow": "Propustit",
-    "searchAnomalies": "Hledat anomálie..."
+    "searchAnomalies": "Hledat anomálie...",
+    "meshcoreInterferenceHeading": "Uzly MeshCore slyšet na frekvenci ({{count}})",
+    "meshcoreInterferenceDescription": "Tyto položky identifikují rušení MeshCore na frekvenci, které toto rádio slyší. Mohou přispět k problémům s využitím a opakováním, ale samy o sobě nejsou diagnostikou selhání trasy Meshtastic.",
+    "otherCrossProtocolHeading": "Jiný frekvenční / cross-stack provoz ({{count}})"
   },
   "rawPacketLog": {
     "filterPackets": "Filtrační balíčky",

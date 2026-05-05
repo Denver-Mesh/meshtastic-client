@@ -449,7 +449,10 @@
   "diagnosticsPanel": {
     "dropRoutingRows": "{{hours}} 時間より古いルーティング行を削除 (1 ～ 168)",
     "dismissRow": "却下する",
-    "searchAnomalies": "異常を検索..."
+    "searchAnomalies": "異常を検索...",
+    "meshcoreInterferenceHeading": "MeshCore ノードの周波数 ({{count}}) を聞いた",
+    "meshcoreInterferenceDescription": "これらのエントリは、この無線で聞こえるオン周波数の MeshCore 干渉を識別します。これらは使用率や再試行の問題の原因となる可能性がありますが、それ自体では Meshtastic ルート障害診断にはなりません。",
+    "otherCrossProtocolHeading": "その他のオン周波数/スタック間トラフィック ({{count}})"
   },
   "rawPacketLog": {
     "filterPackets": "パケットをフィルタリングする",

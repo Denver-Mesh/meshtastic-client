@@ -448,7 +448,10 @@
   "diagnosticsPanel": {
     "dropRoutingRows": "Hapus baris perutean yang lebih lama dari {{hours}} jam (1–168)",
     "dismissRow": "Membubarkan",
-    "searchAnomalies": "Anomali penelusuran..."
+    "searchAnomalies": "Anomali penelusuran...",
+    "meshcoreInterferenceHeading": "Node MeshCore terdengar pada frekuensi ({{count}})",
+    "meshcoreInterferenceDescription": "Entri ini mengidentifikasi interferensi MeshCore pada frekuensi yang didengar oleh radio ini. Mereka dapat berkontribusi pada masalah pemanfaatan dan percobaan ulang, namun bukan merupakan diagnostik kegagalan rute Meshtastic saja.",
+    "otherCrossProtocolHeading": "Lalu lintas frekuensi/lintas tumpukan lainnya ({{count}})"
   },
   "rawPacketLog": {
     "filterPackets": "Filter paket",

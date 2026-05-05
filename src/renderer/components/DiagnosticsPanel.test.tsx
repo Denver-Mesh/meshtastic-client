@@ -191,7 +191,7 @@ describe('DiagnosticsPanel node click', () => {
 });
 
 describe('DiagnosticsPanel cross-protocol RF', () => {
-  it('lists foreign LoRa at myNodeNum under on-frequency section, not Connected node (you)', () => {
+  it('lists MeshCore interference at myNodeNum under dedicated MeshCore section, not Connected node (you)', () => {
     const myId = 0xface;
     const foreignRow: RfDiagnosticRow = {
       kind: 'rf',
@@ -221,7 +221,10 @@ describe('DiagnosticsPanel cross-protocol RF', () => {
 
     expect(screen.queryByText(/Connected node \(you\)/)).not.toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: /on-frequency.*other stacks.*heard by this radio/i }),
+      screen.getByRole('heading', { name: /meshcore nodes heard on frequency/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/they can contribute to utilization and retry issues/i),
     ).toBeInTheDocument();
     expect(screen.getByText('MeshCore Activity Detected')).toBeInTheDocument();
   });
