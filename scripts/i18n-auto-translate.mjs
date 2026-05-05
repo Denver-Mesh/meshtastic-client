@@ -2,10 +2,9 @@
 /**
  * Auto-translate missing keys in non-English locale files.
  *
- * Supports backends (checked in order):
+ * Supports backends:
  *   1. LibreTranslate  — set LIBRETRANSLATE_URL + optionally LIBRETRANSLATE_KEY
- *   2. lingva.ml       — free Google Translate proxy; no key needed (default)
- *   3. MyMemory        — fallback; set MYMEMORY_EMAIL for 50 k words/day
+ *   2. MyMemory        — default; set MYMEMORY_EMAIL for 50 k words/day (free, no account)
  *
  * Usage:
  *   node scripts/i18n-auto-translate.mjs
@@ -26,21 +25,21 @@ const MM_EMAIL = process.env.MYMEMORY_EMAIL ?? '';
 
 // Language code mappings for each backend
 const LANG_CODES = [
-  { dir: 'es',    lt: 'es',     lv: 'es',    mm: 'ES' },
-  { dir: 'uk',    lt: 'uk',     lv: 'uk',    mm: 'UK' },
-  { dir: 'de',    lt: 'de',     lv: 'de',    mm: 'DE' },
-  { dir: 'zh',    lt: 'zh-Hans',lv: 'zh',    mm: 'ZH' },
-  { dir: 'pt-BR', lt: 'pt-BR',  lv: 'pt',    mm: 'PT-BR' },
-  { dir: 'fr',    lt: 'fr',     lv: 'fr',    mm: 'FR' },
-  { dir: 'it',    lt: 'it',     lv: 'it',    mm: 'IT' },
-  { dir: 'pl',    lt: 'pl',     lv: 'pl',    mm: 'PL' },
-  { dir: 'cs',    lt: 'cs',     lv: 'cs',    mm: 'CS' },
-  { dir: 'ja',    lt: 'ja',     lv: 'ja',    mm: 'JA' },
-  { dir: 'ru',    lt: 'ru',     lv: 'ru',    mm: 'RU' },
-  { dir: 'nl',    lt: 'nl',     lv: 'nl',    mm: 'NL' },
-  { dir: 'ko',    lt: 'ko',     lv: 'ko',    mm: 'KO' },
-  { dir: 'tr',    lt: 'tr',     lv: 'tr',    mm: 'TR' },
-  { dir: 'id',    lt: 'id',     lv: 'id',    mm: 'ID' },
+  { dir: 'es', lt: 'es', mm: 'ES' },
+  { dir: 'uk', lt: 'uk', mm: 'UK' },
+  { dir: 'de', lt: 'de', mm: 'DE' },
+  { dir: 'zh', lt: 'zh-Hans', mm: 'ZH' },
+  { dir: 'pt-BR', lt: 'pt-BR', mm: 'PT-BR' },
+  { dir: 'fr', lt: 'fr', mm: 'FR' },
+  { dir: 'it', lt: 'it', mm: 'IT' },
+  { dir: 'pl', lt: 'pl', mm: 'PL' },
+  { dir: 'cs', lt: 'cs', mm: 'CS' },
+  { dir: 'ja', lt: 'ja', mm: 'JA' },
+  { dir: 'ru', lt: 'ru', mm: 'RU' },
+  { dir: 'nl', lt: 'nl', mm: 'NL' },
+  { dir: 'ko', lt: 'ko', mm: 'KO' },
+  { dir: 'tr', lt: 'tr', mm: 'TR' },
+  { dir: 'id', lt: 'id', mm: 'ID' },
 ];
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
@@ -117,23 +116,6 @@ async function translateLibreTranslate(text, targetLt) {
   }
   const json = await res.json();
   return restorePlaceholders(json.translatedText ?? stripped, placeholders);
-}
-
-// ── lingva.ml backend (free Google Translate proxy) ───────────────────────────
-
-async function translateLingva(text, targetLv) {
-  const { stripped, placeholders } = stripPlaceholders(text);
-  const encoded = encodeURIComponent(stripped);
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 5000);
-  try {
-    const res = await fetch(`https://lingva.ml/api/v1/en/${targetLv}/${encoded}`, { signal: ctrl.signal });
-    if (!res.ok) throw new Error(`lingva.ml ${res.status}`);
-    const json = await res.json();
-    return restorePlaceholders(json.translation ?? stripped, placeholders);
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 // ── MyMemory backend ──────────────────────────────────────────────────────────
@@ -245,9 +227,11 @@ async function main() {
   return anyKeysFailed;
 }
 
-main().then((hadFailures) => {
-  process.exit(hadFailures ? 1 : 0);
-}).catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+main()
+  .then((hadFailures) => {
+    process.exit(hadFailures ? 1 : 0);
+  })
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
