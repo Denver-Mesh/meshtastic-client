@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import { mergeAppSetting } from '../lib/appSettingsStorage';
 import i18n from '../lib/i18n';
+import { ensureLocaleLoaded } from '../lib/localeResources';
 import { SUPPORTED_LANGUAGES } from '../locales/languages';
 
 export default function LanguageSelector() {
@@ -12,10 +13,11 @@ export default function LanguageSelector() {
 
   // Reconcile DB locale with current i18n locale on mount
   useEffect(() => {
-    void window.electronAPI.appSettings.getAll().then((settings) => {
+    void window.electronAPI.appSettings.getAll().then(async (settings) => {
       const dbLocale = settings.locale;
       if (dbLocale && dbLocale !== i18n.language) {
-        void i18n.changeLanguage(dbLocale);
+        const ok = await ensureLocaleLoaded(i18n, dbLocale);
+        if (ok) await i18n.changeLanguage(dbLocale);
       }
     });
   }, []);
@@ -35,10 +37,17 @@ export default function LanguageSelector() {
   }, [isOpen]);
 
   const handleSelect = (code: string) => {
-    void i18n.changeLanguage(code);
-    mergeAppSetting('locale', code, 'LanguageSelector');
-    void window.electronAPI.appSettings.set('locale', code);
-    setIsOpen(false);
+    void (async () => {
+      const ok = await ensureLocaleLoaded(i18n, code);
+      if (!ok) {
+        setIsOpen(false);
+        return;
+      }
+      await i18n.changeLanguage(code);
+      mergeAppSetting('locale', code, 'LanguageSelector');
+      void window.electronAPI.appSettings.set('locale', code);
+      setIsOpen(false);
+    })();
   };
 
   const currentLabel =

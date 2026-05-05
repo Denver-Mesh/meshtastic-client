@@ -21,6 +21,7 @@ vi.mock('./defaultAppSettings', () => ({
 }));
 
 import { getAppSettingsRaw } from './appSettingsStorage';
+import { ensureLocaleLoaded } from './localeResources';
 
 describe('i18n', () => {
   beforeEach(() => {
@@ -59,6 +60,7 @@ describe('i18n', () => {
     const { default: i18n } = await import('./i18n');
     await i18n.changeLanguage('en');
     const en = i18n.t('common.close');
+    await ensureLocaleLoaded(i18n, 'fr');
     await i18n.changeLanguage('fr');
     // Should return a translated string (or English fallback)
     expect(typeof i18n.t('common.close')).toBe('string');

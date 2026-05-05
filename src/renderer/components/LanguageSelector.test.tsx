@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -41,7 +41,9 @@ describe('LanguageSelector', () => {
     await user.click(screen.getByLabelText(/language/i));
     await user.click(screen.getByRole('button', { name: 'Deutsch' }));
 
-    expect(mergeAppSetting).toHaveBeenCalledWith('locale', 'de', 'LanguageSelector');
+    await waitFor(() => {
+      expect(mergeAppSetting).toHaveBeenCalledWith('locale', 'de', 'LanguageSelector');
+    });
     expect(window.electronAPI.appSettings.set).toHaveBeenCalledWith('locale', 'de');
   });
 });
