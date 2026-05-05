@@ -303,7 +303,13 @@ export default function Sidebar({
               onClick={() => {
                 if (!isDisabled) onChange(i);
               }}
-              title={isDisabled ? t('sidebar.disabledTabTooltip') : collapsed ? translatedName : undefined}
+              title={
+                isDisabled
+                  ? t('sidebar.disabledTabTooltip')
+                  : collapsed
+                    ? translatedName
+                    : undefined
+              }
               className={`relative mx-1 flex items-center gap-3 rounded-sm border-l-2 py-2.5 pr-3 pl-[14px] text-sm font-medium transition-colors ${
                 isDisabled
                   ? 'cursor-not-allowed border-transparent text-gray-600 opacity-40'

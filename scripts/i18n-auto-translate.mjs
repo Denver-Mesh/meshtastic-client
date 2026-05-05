@@ -13,6 +13,7 @@
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -25,21 +26,21 @@ const MM_EMAIL = process.env.MYMEMORY_EMAIL ?? '';
 
 // Language code mappings for each backend
 const LANG_CODES = [
-  { dir: 'es', lt: 'es', mm: 'ES' },
-  { dir: 'uk', lt: 'uk', mm: 'UK' },
-  { dir: 'de', lt: 'de', mm: 'DE' },
-  { dir: 'zh', lt: 'zh-Hans', mm: 'ZH' },
-  { dir: 'pt-BR', lt: 'pt-BR', mm: 'PT-BR' },
-  { dir: 'fr', lt: 'fr', mm: 'FR' },
-  { dir: 'it', lt: 'it', mm: 'IT' },
-  { dir: 'pl', lt: 'pl', mm: 'PL' },
-  { dir: 'cs', lt: 'cs', mm: 'CS' },
-  { dir: 'ja', lt: 'ja', mm: 'JA' },
-  { dir: 'ru', lt: 'ru', mm: 'RU' },
-  { dir: 'nl', lt: 'nl', mm: 'NL' },
-  { dir: 'ko', lt: 'ko', mm: 'KO' },
-  { dir: 'tr', lt: 'tr', mm: 'TR' },
-  { dir: 'id', lt: 'id', mm: 'ID' },
+  { dir: 'es', lt: 'es', mm: 'ES', g: 'es' },
+  { dir: 'uk', lt: 'uk', mm: 'UK', g: 'uk' },
+  { dir: 'de', lt: 'de', mm: 'DE', g: 'de' },
+  { dir: 'zh', lt: 'zh-Hans', mm: 'ZH', g: 'zh-CN' },
+  { dir: 'pt-BR', lt: 'pt-BR', mm: 'PT-BR', g: 'pt-BR' },
+  { dir: 'fr', lt: 'fr', mm: 'FR', g: 'fr' },
+  { dir: 'it', lt: 'it', mm: 'IT', g: 'it' },
+  { dir: 'pl', lt: 'pl', mm: 'PL', g: 'pl' },
+  { dir: 'cs', lt: 'cs', mm: 'CS', g: 'cs' },
+  { dir: 'ja', lt: 'ja', mm: 'JA', g: 'ja' },
+  { dir: 'ru', lt: 'ru', mm: 'RU', g: 'ru' },
+  { dir: 'nl', lt: 'nl', mm: 'NL', g: 'nl' },
+  { dir: 'ko', lt: 'ko', mm: 'KO', g: 'ko' },
+  { dir: 'tr', lt: 'tr', mm: 'TR', g: 'tr' },
+  { dir: 'id', lt: 'id', mm: 'ID', g: 'id' },
 ];
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
@@ -91,8 +92,28 @@ function readJson(path) {
   }
 }
 
+function readJsonFromGit(refPath) {
+  const result = spawnSync('git', ['show', refPath], { encoding: 'utf8' });
+  if (result.status !== 0 || !result.stdout) return null;
+  try {
+    return JSON.parse(result.stdout);
+  } catch {
+    return null;
+  }
+}
+
 // Small delay to be kind to free APIs
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 15_000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 // ── LibreTranslate backend ────────────────────────────────────────────────────
 
@@ -105,7 +126,7 @@ async function translateLibreTranslate(text, targetLt) {
     format: 'text',
     ...(LT_KEY ? { api_key: LT_KEY } : {}),
   };
-  const res = await fetch(`${LT_URL}/translate`, {
+  const res = await fetchWithTimeout(`${LT_URL}/translate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -128,17 +149,13 @@ async function translateMyMemory(text, targetMm) {
     ...(MM_EMAIL ? { de: MM_EMAIL } : {}),
   });
   const url = `https://api.mymemory.translated.net/get?${params.toString()}`;
-  let lastErr;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 2; attempt++) {
     if (attempt > 0) {
-      const wait = attempt === 1 ? 60_000 : 120_000;
-      console.log(`  Rate limited — waiting ${wait / 1000}s before retry ${attempt}…`);
-      await sleep(wait);
+      await sleep(1200);
     }
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url);
     if (res.status === 429) {
-      lastErr = new Error(`MyMemory 429`);
-      continue;
+      throw new Error(`MyMemory 429`);
     }
     if (!res.ok) {
       throw new Error(`MyMemory ${res.status}`);
@@ -154,16 +171,64 @@ async function translateMyMemory(text, targetMm) {
     const translated = json.responseData?.translatedText ?? stripped;
     return restorePlaceholders(translated, placeholders);
   }
-  throw lastErr;
+  throw new Error('MyMemory failed after retry');
+}
+
+// ── Google Translate (public endpoint) fallback ───────────────────────────────
+
+async function translateGoogle(text, targetGoogle) {
+  const { stripped, placeholders } = stripPlaceholders(text);
+  const params = new URLSearchParams({
+    client: 'gtx',
+    sl: 'en',
+    tl: targetGoogle,
+    dt: 't',
+    q: stripped,
+  });
+  const url = `https://translate.googleapis.com/translate_a/single?${params.toString()}`;
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) {
+      await sleep(500 * attempt);
+    }
+    const res = await fetchWithTimeout(url);
+    if (!res.ok) {
+      lastErr = new Error(`GoogleTranslate ${res.status}`);
+      continue;
+    }
+    const json = await res.json();
+    const translated = Array.isArray(json?.[0])
+      ? json[0].map((chunk) => (Array.isArray(chunk) ? (chunk[0] ?? '') : '')).join('')
+      : stripped;
+    return restorePlaceholders(translated || stripped, placeholders);
+  }
+  throw lastErr ?? new Error('GoogleTranslate unknown error');
 }
 
 // ── Router ────────────────────────────────────────────────────────────────────
 
+let myMemoryDisabledForRun = false;
+
 async function translate(text, lang) {
   if (LT_URL) {
-    return translateLibreTranslate(text, lang.lt);
+    try {
+      return await translateLibreTranslate(text, lang.lt);
+    } catch (err) {
+      console.warn(`  LibreTranslate failed (${err.message}), falling back to MyMemory/Google.`);
+    }
   }
-  return translateMyMemory(text, lang.mm);
+  if (!myMemoryDisabledForRun) {
+    try {
+      return await translateMyMemory(text, lang.mm);
+    } catch (err) {
+      console.warn(`  MyMemory failed (${err.message}), falling back to Google Translate.`);
+      if (String(err.message).includes('429')) {
+        myMemoryDisabledForRun = true;
+        console.warn('  MyMemory rate-limited; using Google Translate for the rest of this run.');
+      }
+    }
+  }
+  return translateGoogle(text, lang.g);
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -173,6 +238,18 @@ async function main() {
   const en = readJson(enPath);
   const enFlat = flatten(en);
   const enKeys = Object.keys(enFlat);
+
+  // Fast path for pre-commit: only translate when English introduces new keys.
+  // Existing historical gaps in non-English locales are intentionally ignored here.
+  const enAtHead = readJsonFromGit('HEAD:src/renderer/locales/en/translation.json');
+  if (enAtHead) {
+    const enAtHeadKeys = new Set(Object.keys(flatten(enAtHead)));
+    const addedEnglishKeys = enKeys.filter((key) => !enAtHeadKeys.has(key));
+    if (addedEnglishKeys.length === 0) {
+      console.log('No new English keys; skipping auto-translate.');
+      process.exit(0);
+    }
+  }
 
   let anyMissing = false;
   let anyKeysFailed = false;

@@ -1,12 +1,13 @@
 import '@testing-library/jest-dom';
 import 'vitest-axe/extend-expect';
-import i18next from 'i18next';
-import { initReactI18next } from 'react-i18next';
-import en from './locales/en/translation.json';
 
 import { cleanup } from '@testing-library/react';
+import i18next from 'i18next';
+import { initReactI18next } from 'react-i18next';
 import { afterEach, expect, vi } from 'vitest';
 import * as matchers from 'vitest-axe/matchers';
+
+import en from './locales/en/translation.json';
 
 expect.extend(matchers);
 afterEach(cleanup);

@@ -1,5 +1,4 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
-
 import { useTranslation } from 'react-i18next';
 
 import type {
@@ -659,7 +658,11 @@ export default function RepeatersPanel({
                                   onToggleFavorite(node.node_id, !node.favorited);
                                 }}
                                 className="text-brand-yellow/70 hover:text-brand-yellow text-base leading-none"
-                                aria-label={node.favorited ? t('repeatersPanel.unfavorite') : t('repeatersPanel.favorite')}
+                                aria-label={
+                                  node.favorited
+                                    ? t('repeatersPanel.unfavorite')
+                                    : t('repeatersPanel.favorite')
+                                }
                               >
                                 {node.favorited ? '★' : '☆'}
                               </button>
@@ -728,7 +731,9 @@ export default function RepeatersPanel({
                                     onClick={() => void handlePing(node.node_id)}
                                     disabled
                                     aria-label={
-                                      pingError ? t('repeatersPanel.pingError', { error: pingError }) : t('repeatersPanel.pingTrace')
+                                      pingError
+                                        ? t('repeatersPanel.pingError', { error: pingError })
+                                        : t('repeatersPanel.pingTrace')
                                     }
                                     className={`rounded px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-40 ${
                                       pingError
@@ -779,7 +784,9 @@ export default function RepeatersPanel({
                               disabled={!isConnected || isStatusLoading}
                               title={statusError ?? undefined}
                               aria-label={
-                                statusError ? t('repeatersPanel.statusError', { error: statusError }) : t('repeatersPanel.requestStatus')
+                                statusError
+                                  ? t('repeatersPanel.statusError', { error: statusError })
+                                  : t('repeatersPanel.requestStatus')
                               }
                               className={`rounded px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-40 ${
                                 statusError

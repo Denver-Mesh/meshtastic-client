@@ -106,7 +106,6 @@ const STATUS_COLOR: Record<string, string> = {
   reconnecting: 'bg-orange-500 animate-pulse',
 };
 
-
 const TAB_NAMES = [
   'Connection',
   'Chat',
@@ -1559,7 +1558,11 @@ export default function App() {
             {/* Queue status badge: 0–10 used = green, 11–14 = yellow, 15–16 = red */}
             {queueShowBadge && device.queueStatus && (
               <HelpTooltip
-                text={protocol === 'meshcore' ? t('app.meshcoreQueueTooltip') : t('app.meshtasticQueueTooltip')}
+                text={
+                  protocol === 'meshcore'
+                    ? t('app.meshcoreQueueTooltip')
+                    : t('app.meshtasticQueueTooltip')
+                }
               >
                 <div
                   aria-label={`Q: ${queueUsed}/${device.queueStatus.maxlen}`}
@@ -2549,7 +2552,7 @@ function InactiveProtocolNotifier({
       }
     }
     prevMeshtasticRef.current = count;
-  }, [meshtasticDevice.messages, protocol, addToast]);
+  }, [meshtasticDevice.messages, protocol, addToast, t]);
 
   // Notify when MeshCore (inactive) gets new messages
   useEffect(() => {
@@ -2577,7 +2580,7 @@ function InactiveProtocolNotifier({
       }
     }
     prevMeshcoreRef.current = count;
-  }, [meshcoreDevice.messages, protocol, addToast]);
+  }, [meshcoreDevice.messages, protocol, addToast, t]);
 
   return null;
 }
@@ -2651,7 +2654,7 @@ function FirmwareUpdateNotifier({
     return () => {
       cancelled = true;
     };
-  }, [activeState, protocol, onResult, addToast]);
+  }, [activeState, protocol, onResult, addToast, t]);
 
   useEffect(() => {
     if (activeState.status === 'disconnected') {

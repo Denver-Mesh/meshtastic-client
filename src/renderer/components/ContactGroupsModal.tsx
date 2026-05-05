@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-
 import { useTranslation } from 'react-i18next';
 
 import type { ContactGroup } from '../../shared/electron-api.types';
@@ -138,7 +137,12 @@ export default function ContactGroupsModal({
       setManagingGroup(group);
     } catch (e) {
       console.warn('[ContactGroupsModal] loadMembers failed:', e);
-      addToast(t('contactGroupsModal.failedLoadMembers', { message: e instanceof Error ? e.message : String(e) }), 'error');
+      addToast(
+        t('contactGroupsModal.failedLoadMembers', {
+          message: e instanceof Error ? e.message : String(e),
+        }),
+        'error',
+      );
     }
   }
 
@@ -153,7 +157,12 @@ export default function ContactGroupsModal({
       }
     } catch (e) {
       console.warn('[ContactGroupsModal] toggleMember failed:', e);
-      addToast(t('contactGroupsModal.failedUpdateMember', { message: e instanceof Error ? e.message : String(e) }), 'error');
+      addToast(
+        t('contactGroupsModal.failedUpdateMember', {
+          message: e instanceof Error ? e.message : String(e),
+        }),
+        'error',
+      );
     } finally {
       setBusy(false);
     }

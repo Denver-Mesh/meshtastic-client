@@ -991,52 +991,13 @@ describe('ChatPanel unread watermarks', () => {
     });
   });
 
-  it('clears all channel unread state when the All view is opened', async () => {
-    const user = userEvent.setup();
-    const ts = Date.now();
+  it('does not render the All channel button', () => {
     render(
       <ToastProvider>
-        <ChatPanel
-          {...baseProps}
-          channels={[
-            { index: 2, name: 'Meta' },
-            { index: 0, name: 'General' },
-            { index: 1, name: 'Ops' },
-          ]}
-          messages={[
-            {
-              sender_id: 2,
-              sender_name: 'Alice',
-              payload: 'General unread',
-              channel: 0,
-              timestamp: ts,
-              status: 'acked',
-            },
-            {
-              sender_id: 3,
-              sender_name: 'Bob',
-              payload: 'Ops unread',
-              channel: 1,
-              timestamp: ts + 1_000,
-              status: 'acked',
-            },
-          ]}
-        />
+        <ChatPanel {...baseProps} />
       </ToastProvider>,
     );
-
-    expect(screen.getByRole('button', { name: 'General 1' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Ops 1' })).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'All' }));
-    await user.click(screen.getByRole('button', { name: 'Meta' }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'General' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Ops' })).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'General 1' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Ops 1' })).not.toBeInTheDocument();
-    });
+    expect(screen.queryByRole('button', { name: 'All' })).not.toBeInTheDocument();
   });
 });
 

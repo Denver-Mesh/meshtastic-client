@@ -155,7 +155,9 @@ export default function UpdateStatusIndicator({
           <button
             type="button"
             onClick={useReleasePage ? onViewRelease : onDownload}
-            title={useReleasePage ? t('updateStatus.viewReleaseTitle') : t('updateStatus.downloadTitle')}
+            title={
+              useReleasePage ? t('updateStatus.viewReleaseTitle') : t('updateStatus.downloadTitle')
+            }
             className="rounded border border-amber-600 bg-amber-900/60 px-1.5 py-0.5 text-[10px] font-medium text-amber-200 transition-colors hover:border-amber-500 hover:text-amber-100"
           >
             {useReleasePage ? t('updateStatus.viewRelease') : t('updateStatus.download')}
@@ -179,7 +181,12 @@ export default function UpdateStatusIndicator({
       {phase === 'ready' && (
         <span className="inline-flex min-w-0 items-center gap-1">
           <IconRestart />
-          <button type="button" onClick={onInstall} className={linkBtn} title={t('updateStatus.restartTitle')}>
+          <button
+            type="button"
+            onClick={onInstall}
+            className={linkBtn}
+            title={t('updateStatus.restartTitle')}
+          >
             {t('updateStatus.restart')}
           </button>
         </span>

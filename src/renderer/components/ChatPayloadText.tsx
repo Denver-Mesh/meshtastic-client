@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-
 import { useTranslation } from 'react-i18next';
 
 import { parseChatMentionSegments } from '@/renderer/lib/chatMentionSegments';
@@ -47,7 +46,11 @@ export function ChatPayloadText({ text, query }: ChatPayloadTextProps) {
             key={`m-${i}`}
             className="mx-0.5 inline-flex max-w-full rounded-md border border-cyan-500/35 bg-cyan-500/15 px-1 py-px align-baseline text-[0.92em] leading-snug font-medium text-cyan-100/95 first:ml-0"
             title={seg.label ? `@${seg.label}` : 'Mention'}
-            aria-label={seg.label ? t('chatPayload.mention', { label: seg.label }) : t('chatPayload.emptyMention')}
+            aria-label={
+              seg.label
+                ? t('chatPayload.mention', { label: seg.label })
+                : t('chatPayload.emptyMention')
+            }
           >
             @{highlightCaseInsensitive(seg.label, query)}
           </span>

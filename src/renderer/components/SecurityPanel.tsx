@@ -262,11 +262,16 @@ export default function SecurityPanel({
       addToast(t('securityPanel.keyRegenRequested'), 'success');
     } catch (err) {
       console.warn('[SecurityPanel] handleRegenerate', err);
-      addToast(t('securityPanel.failed', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
+      addToast(
+        t('securityPanel.failed', {
+          message: err instanceof Error ? err.message : 'Unknown error',
+        }),
+        'error',
+      );
     } finally {
       setApplyingRegen(false);
     }
-  }, [applyConfig, addToast]);
+  }, [applyConfig, addToast, t]);
 
   // ── Admin keys apply
   const handleApplyAdminKeys = useCallback(async () => {
@@ -284,11 +289,16 @@ export default function SecurityPanel({
       addToast(t('securityPanel.adminKeysApplied'), 'success');
     } catch (err) {
       console.warn('[SecurityPanel] handleApplyAdminKeys', err);
-      addToast(t('securityPanel.failed', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
+      addToast(
+        t('securityPanel.failed', {
+          message: err instanceof Error ? err.message : 'Unknown error',
+        }),
+        'error',
+      );
     } finally {
       setApplyingAdmin(false);
     }
-  }, [adminKeys, applyConfig, addToast]);
+  }, [adminKeys, applyConfig, addToast, t]);
 
   // ── Administration toggles apply
   const handleApplyToggles = useCallback(async () => {
@@ -298,11 +308,16 @@ export default function SecurityPanel({
       addToast(t('securityPanel.adminSettingsApplied'), 'success');
     } catch (err) {
       console.warn('[SecurityPanel] handleApplyToggles', err);
-      addToast(t('securityPanel.failed', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
+      addToast(
+        t('securityPanel.failed', {
+          message: err instanceof Error ? err.message : 'Unknown error',
+        }),
+        'error',
+      );
     } finally {
       setApplyingToggles(false);
     }
-  }, [isManaged, serialEnabled, debugLogApiEnabled, adminChannelEnabled, applyConfig, addToast]);
+  }, [isManaged, serialEnabled, debugLogApiEnabled, adminChannelEnabled, applyConfig, addToast, t]);
 
   // ── Key backup
   const handleBackup = useCallback(async () => {
@@ -320,11 +335,16 @@ export default function SecurityPanel({
       addToast(t('securityPanel.keysBackedUp'), 'success');
     } catch (err) {
       console.warn('[SecurityPanel] handleBackup', err);
-      addToast(t('securityPanel.backupFailed', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
+      addToast(
+        t('securityPanel.backupFailed', {
+          message: err instanceof Error ? err.message : 'Unknown error',
+        }),
+        'error',
+      );
     } finally {
       setBackupInProgress(false);
     }
-  }, [securityConfig, safeStorageAvailable, addToast]);
+  }, [securityConfig, safeStorageAvailable, addToast, t]);
 
   // ── Key restore
   const handleRestore = useCallback(async () => {
@@ -342,11 +362,16 @@ export default function SecurityPanel({
       addToast(t('securityPanel.keysRestored'), 'success');
     } catch (err) {
       console.warn('[SecurityPanel] handleRestore', err);
-      addToast(t('securityPanel.restoreFailed', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
+      addToast(
+        t('securityPanel.restoreFailed', {
+          message: err instanceof Error ? err.message : 'Unknown error',
+        }),
+        'error',
+      );
     } finally {
       setBackupInProgress(false);
     }
-  }, [safeStorageAvailable, applyConfig, addToast]);
+  }, [safeStorageAvailable, applyConfig, addToast, t]);
 
   // ── MeshCore: Sign data
   const handleSignData = useCallback(async () => {
@@ -364,11 +389,16 @@ export default function SecurityPanel({
       }
     } catch (err) {
       console.warn('[SecurityPanel] handleSignData', err);
-      addToast(t('securityPanel.signFailed', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
+      addToast(
+        t('securityPanel.signFailed', {
+          message: err instanceof Error ? err.message : 'Unknown error',
+        }),
+        'error',
+      );
     } finally {
       setSignInProgress(false);
     }
-  }, [onSignData, signDataInput, addToast]);
+  }, [onSignData, signDataInput, addToast, t]);
 
   // ── MeshCore: Export private key
   const handleExportPrivateKey = useCallback(async () => {
@@ -384,11 +414,16 @@ export default function SecurityPanel({
       }
     } catch (err) {
       console.warn('[SecurityPanel] handleExportPrivateKey', err);
-      addToast(t('securityPanel.exportFailed', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
+      addToast(
+        t('securityPanel.exportFailed', {
+          message: err instanceof Error ? err.message : 'Unknown error',
+        }),
+        'error',
+      );
     } finally {
       setExportInProgress(false);
     }
-  }, [onExportPrivateKey, addToast]);
+  }, [onExportPrivateKey, addToast, t]);
 
   // ── MeshCore: Import private key
   const handleImportPrivateKey = useCallback(async () => {
@@ -405,11 +440,16 @@ export default function SecurityPanel({
       }
     } catch (err) {
       console.warn('[SecurityPanel] handleImportPrivateKey', err);
-      addToast(t('securityPanel.importFailedWithMessage', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
+      addToast(
+        t('securityPanel.importFailedWithMessage', {
+          message: err instanceof Error ? err.message : 'Unknown error',
+        }),
+        'error',
+      );
     } finally {
       setImportInProgress(false);
     }
-  }, [onImportPrivateKey, importKeyInput, addToast]);
+  }, [onImportPrivateKey, importKeyInput, addToast, t]);
 
   const publicKeyB64 = securityConfig ? bytesToBase64(securityConfig.publicKey) : '';
   const privateKeyB64 = securityConfig ? bytesToBase64(securityConfig.privateKey) : '';

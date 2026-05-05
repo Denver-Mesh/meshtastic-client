@@ -432,14 +432,21 @@ export default function ModulePanel({
           .then(() => {})
           .catch((err: unknown) => {
             addToast(
-              t('modulePanel.commitFailed', { message: err instanceof Error ? err.message : 'Unknown error' }),
+              t('modulePanel.commitFailed', {
+                message: err instanceof Error ? err.message : 'Unknown error',
+              }),
               'error',
             );
           });
       })
       .catch((err: unknown) => {
         console.warn('[ModulePanel] apply failed', err);
-        addToast(t('modulePanel.failed', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
+        addToast(
+          t('modulePanel.failed', {
+            message: err instanceof Error ? err.message : 'Unknown error',
+          }),
+          'error',
+        );
       });
     setApplyingSection(null);
   };
@@ -544,7 +551,12 @@ export default function ModulePanel({
             addToast(t('modulePanel.cannedMessagesApplied'), 'success');
           } catch (err) {
             console.warn('[ModulePanel] canned messages failed', err);
-            addToast(t('modulePanel.failed', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
+            addToast(
+              t('modulePanel.failed', {
+                message: err instanceof Error ? err.message : 'Unknown error',
+              }),
+              'error',
+            );
           } finally {
             setApplyingSection(null);
           }
@@ -953,7 +965,12 @@ export default function ModulePanel({
               addToast(t('modulePanel.rtttlSaved'), 'success');
             } catch (err) {
               console.warn('[ModulePanel] RTTTL apply failed', err);
-              addToast(t('modulePanel.failed', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
+              addToast(
+                t('modulePanel.failed', {
+                  message: err instanceof Error ? err.message : 'Unknown error',
+                }),
+                'error',
+              );
             } finally {
               setApplyingSection(null);
             }

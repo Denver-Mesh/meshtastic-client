@@ -295,7 +295,7 @@ export default function AppPanel({
         },
       );
     },
-    [addToast],
+    [addToast, t],
   );
 
   const updateRetentionEnabled = useCallback(
@@ -511,7 +511,12 @@ export default function AppPanel({
       addToast(t('appPanel.actionCompleted', { name: actionName }), 'success');
     } catch (err) {
       console.warn('[AppPanel] pending action failed', err);
-      addToast(t('appPanel.actionFailed', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
+      addToast(
+        t('appPanel.actionFailed', {
+          message: err instanceof Error ? err.message : 'Unknown error',
+        }),
+        'error',
+      );
     }
   }, [pendingAction, addToast, onNodesPruned, onMessagesPruned, t]);
 
@@ -1233,7 +1238,9 @@ export default function AppPanel({
               } catch (err) {
                 console.warn('[AppPanel] export failed', err);
                 addToast(
-                  t('appPanel.exportFailed', { message: err instanceof Error ? err.message : 'Unknown error' }),
+                  t('appPanel.exportFailed', {
+                    message: err instanceof Error ? err.message : 'Unknown error',
+                  }),
                   'error',
                 );
               }
@@ -1251,14 +1258,19 @@ export default function AppPanel({
                 const result = await window.electronAPI.db.importDb();
                 if (result) {
                   addToast(
-                    t('appPanel.dbMerged', { nodesAdded: result.nodesAdded, messagesAdded: result.messagesAdded }),
+                    t('appPanel.dbMerged', {
+                      nodesAdded: result.nodesAdded,
+                      messagesAdded: result.messagesAdded,
+                    }),
                     'success',
                   );
                 }
               } catch (err) {
                 console.warn('[AppPanel] import failed', err);
                 addToast(
-                  t('appPanel.importFailed', { message: err instanceof Error ? err.message : 'Unknown error' }),
+                  t('appPanel.importFailed', {
+                    message: err instanceof Error ? err.message : 'Unknown error',
+                  }),
                   'error',
                 );
               }
@@ -1714,7 +1726,10 @@ export default function AppPanel({
                         const result =
                           await window.electronAPI.db.deleteMeshcoreContactsWithoutPubkey();
                         addToast(
-                          t('appPanel.deletedContactsNoPubkey', { deleted: result.deleted, excludedStubCount: result.excludedStubCount }),
+                          t('appPanel.deletedContactsNoPubkey', {
+                            deleted: result.deleted,
+                            excludedStubCount: result.excludedStubCount,
+                          }),
                           'success',
                         );
                       },

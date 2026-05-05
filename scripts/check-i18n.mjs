@@ -52,8 +52,6 @@ function collectFiles(dir) {
 
 // Match t('some.key') or t("some.key") — only static string literals.
 const T_STATIC_RE = /\bt\(\s*['"]([^'"]+)['"]\s*[),]/g;
-// Match t( followed by something that is NOT a string literal (dynamic key).
-const T_DYNAMIC_RE = /\bt\(\s*[^'")\s]/g;
 
 const en = flatten(readJson(EN_FILE));
 const enKeys = new Set(Object.keys(en));
@@ -64,8 +62,14 @@ let errors = 0;
 function keyExists(key) {
   if (enKeys.has(key)) return true;
   // i18next plural suffixes — any entry matching key_<suffix> counts
-  return [`${key}_one`, `${key}_other`, `${key}_zero`, `${key}_two`, `${key}_few`, `${key}_many`]
-    .some((k) => enKeys.has(k));
+  return [
+    `${key}_one`,
+    `${key}_other`,
+    `${key}_zero`,
+    `${key}_two`,
+    `${key}_few`,
+    `${key}_many`,
+  ].some((k) => enKeys.has(k));
 }
 
 // ── 1. Check call sites ──────────────────────────────────────────────────────
@@ -118,5 +122,8 @@ if (errors > 0) {
   process.exit(1);
 }
 
-const localeStatus = warnings > 0 ? ` (${warnings} locale(s) incomplete — run i18n:auto-translate)` : '';
-console.log(`check:i18n passed — ${enKeys.size} keys, ${localeDirs.length} locale(s) verified${localeStatus}.`);
+const localeStatus =
+  warnings > 0 ? ` (${warnings} locale(s) incomplete — run i18n:auto-translate)` : '';
+console.log(
+  `check:i18n passed — ${enKeys.size} keys, ${localeDirs.length} locale(s) verified${localeStatus}.`,
+);

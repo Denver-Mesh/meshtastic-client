@@ -1,6 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useRef, useState } from 'react';
-
 import { useTranslation } from 'react-i18next';
 
 import type { MeshNode } from '../lib/types';

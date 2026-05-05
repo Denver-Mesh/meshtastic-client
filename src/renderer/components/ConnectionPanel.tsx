@@ -1,6 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/refs */
 import { useCallback, useEffect, useRef, useState } from 'react';
-
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -2223,10 +2222,16 @@ export default function ConnectionPanel({
                   onClick={() => {
                     setShowMqttPassword((v) => !v);
                   }}
-                  aria-label={showMqttPassword ? t('connectionPanel.hidePassword') : t('connectionPanel.showPassword')}
+                  aria-label={
+                    showMqttPassword
+                      ? t('connectionPanel.hidePassword')
+                      : t('connectionPanel.showPassword')
+                  }
                   className="absolute top-1/2 right-2 -translate-y-1/2 text-xs text-gray-500 hover:text-gray-300"
                 >
-                  {showMqttPassword ? t('connectionPanel.hidePassword') : t('connectionPanel.showPassword')}
+                  {showMqttPassword
+                    ? t('connectionPanel.hidePassword')
+                    : t('connectionPanel.showPassword')}
                 </button>
               </div>
             </div>

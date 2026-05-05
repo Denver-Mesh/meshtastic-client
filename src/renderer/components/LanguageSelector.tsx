@@ -76,7 +76,7 @@ export default function LanguageSelector() {
         <ul
           role="listbox"
           aria-label={t('aria.languageSelector')}
-          className="bg-deep-black absolute right-0 top-full z-50 mt-1 max-h-72 w-44 overflow-y-auto rounded-lg border border-gray-700 py-1 shadow-xl"
+          className="bg-deep-black absolute top-full right-0 z-50 mt-1 max-h-72 w-44 overflow-y-auto rounded-lg border border-gray-700 py-1 shadow-xl"
         >
           {SUPPORTED_LANGUAGES.map(({ code, label }) => (
             <li key={code} role="option" aria-selected={i18n.language === code}>

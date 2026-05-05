@@ -1,6 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/refs, react-hooks/purity */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -968,7 +967,9 @@ export default function DiagnosticsPanel({
                   const v = parseInt(e.target.value, 10);
                   if (Number.isFinite(v)) setDiagnosticRowsMaxAgeHours(v);
                 }}
-                aria-label={t('diagnosticsPanel.dropRoutingRows', { hours: diagnosticRowsMaxAgeHours })}
+                aria-label={t('diagnosticsPanel.dropRoutingRows', {
+                  hours: diagnosticRowsMaxAgeHours,
+                })}
                 className="bg-deep-black focus:border-brand-green w-16 rounded border border-gray-600 px-2 py-1 text-right text-sm text-gray-200 focus:outline-none"
               />
               <span className="text-sm text-gray-400">hours (1–168)</span>

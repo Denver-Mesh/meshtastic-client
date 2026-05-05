@@ -23,7 +23,7 @@ vi.mock('./defaultAppSettings', () => ({
 import { getAppSettingsRaw } from './appSettingsStorage';
 
 describe('i18n', () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.resetModules();
     vi.mocked(getAppSettingsRaw).mockReturnValue(null);
   });

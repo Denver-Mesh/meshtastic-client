@@ -197,7 +197,10 @@ export default function NodeListPanel({
       addToast(t('nodeListPanel.contactsRefreshed'), 'success');
     } catch (e) {
       console.warn('[NodeListPanel] refresh failed:', e instanceof Error ? e.message : e);
-      addToast(t('nodeListPanel.refreshFailed', { message: e instanceof Error ? e.message : String(e) }), 'error');
+      addToast(
+        t('nodeListPanel.refreshFailed', { message: e instanceof Error ? e.message : String(e) }),
+        'error',
+      );
     } finally {
       setRefreshLoading(false);
     }
@@ -211,14 +214,24 @@ export default function NodeListPanel({
       if (result.imported === 0 && result.skipped === 0 && result.errors.length === 0) return;
       const msg =
         result.errors.length > 0
-          ? t('nodeListPanel.importResultError', { imported: result.imported, skipped: result.skipped, errors: result.errors.slice(0, 3).join('; ') })
+          ? t('nodeListPanel.importResultError', {
+              imported: result.imported,
+              skipped: result.skipped,
+              errors: result.errors.slice(0, 3).join('; '),
+            })
           : result.skipped > 0
-            ? t('nodeListPanel.importResultSuccessWithSkipped', { count: result.imported, skipped: result.skipped })
+            ? t('nodeListPanel.importResultSuccessWithSkipped', {
+                count: result.imported,
+                skipped: result.skipped,
+              })
             : t('nodeListPanel.importResultSuccess', { count: result.imported });
       addToast(msg, result.errors.length > 0 ? 'error' : 'success');
     } catch (e) {
       console.warn('[NodeListPanel] import failed:', e instanceof Error ? e.message : e);
-      addToast(t('nodeListPanel.importFailed', { message: e instanceof Error ? e.message : String(e) }), 'error');
+      addToast(
+        t('nodeListPanel.importFailed', { message: e instanceof Error ? e.message : String(e) }),
+        'error',
+      );
     } finally {
       setImportLoading(false);
     }
@@ -232,7 +245,10 @@ export default function NodeListPanel({
       addToast(t('nodeListPanel.floodAdvertSent'), 'success');
     } catch (e) {
       console.warn('[NodeListPanel] sendAdvert failed:', e instanceof Error ? e.message : e);
-      addToast(t('nodeListPanel.advertFailed', { message: e instanceof Error ? e.message : String(e) }), 'error');
+      addToast(
+        t('nodeListPanel.advertFailed', { message: e instanceof Error ? e.message : String(e) }),
+        'error',
+      );
     } finally {
       setAdvertLoading(false);
     }

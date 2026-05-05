@@ -1,6 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/refs, react-hooks/purity */
 import { useEffect, useRef, useState } from 'react';
-
 import { useTranslation } from 'react-i18next';
 
 import type {
@@ -461,7 +460,11 @@ export default function NodeDetailModal({
                     onToggleFavorite(node.node_id, !node.favorited);
                   }}
                   className="hover:bg-secondary-dark shrink-0 rounded-lg p-1.5 transition-colors"
-                  aria-label={node.favorited ? t('nodeDetailModal.removeFromFavorites') : t('nodeDetailModal.addToFavorites')}
+                  aria-label={
+                    node.favorited
+                      ? t('nodeDetailModal.removeFromFavorites')
+                      : t('nodeDetailModal.addToFavorites')
+                  }
                   aria-pressed={node.favorited}
                 >
                   <span

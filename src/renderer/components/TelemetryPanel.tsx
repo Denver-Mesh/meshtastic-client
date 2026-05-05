@@ -238,7 +238,9 @@ export default function TelemetryPanel({
           {/* Battery / Voltage Chart */}
           {hasBatteryData && (
             <div className="bg-deep-black rounded-lg p-4">
-              <h3 className="text-muted mb-3 text-sm font-medium">{t('telemetryPanel.sectionBatteryVoltage')}</h3>
+              <h3 className="text-muted mb-3 text-sm font-medium">
+                {t('telemetryPanel.sectionBatteryVoltage')}
+              </h3>
               <ResponsiveContainer width="100%" height={250}>
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -304,7 +306,9 @@ export default function TelemetryPanel({
           {/* Signal Quality Chart */}
           {hasSignalData && (
             <div className="bg-deep-black rounded-lg p-4">
-              <h3 className="text-muted mb-3 text-sm font-medium">{t('telemetryPanel.sectionSignalQuality')}</h3>
+              <h3 className="text-muted mb-3 text-sm font-medium">
+                {t('telemetryPanel.sectionSignalQuality')}
+              </h3>
               <ResponsiveContainer width="100%" height={250}>
                 <LineChart data={signalChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -416,7 +420,11 @@ export default function TelemetryPanel({
                       yAxisId="temp"
                       type="monotone"
                       dataKey="temperature"
-                      name={useFahrenheit ? t('telemetryPanel.seriesTempF') : t('telemetryPanel.seriesTempC')}
+                      name={
+                        useFahrenheit
+                          ? t('telemetryPanel.seriesTempF')
+                          : t('telemetryPanel.seriesTempC')
+                      }
                       stroke="#f59e0b"
                       strokeWidth={2}
                       dot={false}
@@ -443,7 +451,9 @@ export default function TelemetryPanel({
           {/* Barometric Pressure Chart */}
           {showEnvironment && hasPressure && (
             <div className="bg-deep-black rounded-lg p-4">
-              <h3 className="text-muted mb-3 text-sm font-medium">{t('telemetryPanel.sectionBarometricPressure')}</h3>
+              <h3 className="text-muted mb-3 text-sm font-medium">
+                {t('telemetryPanel.sectionBarometricPressure')}
+              </h3>
               <ResponsiveContainer width="100%" height={250}>
                 <LineChart data={envChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -485,7 +495,9 @@ export default function TelemetryPanel({
           {/* Air Quality (IAQ) Chart */}
           {showEnvironment && hasIaq && (
             <div className="bg-deep-black rounded-lg p-4">
-              <h3 className="text-muted mb-3 text-sm font-medium">{t('telemetryPanel.sectionAirQuality')}</h3>
+              <h3 className="text-muted mb-3 text-sm font-medium">
+                {t('telemetryPanel.sectionAirQuality')}
+              </h3>
               <ResponsiveContainer width="100%" height={250}>
                 <LineChart data={envChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
@@ -528,7 +540,9 @@ export default function TelemetryPanel({
           {/* MeshCore Packet Stats Chart */}
           {showPacketStats && (
             <div className="bg-deep-black rounded-lg p-4">
-              <h3 className="text-muted mb-3 text-sm font-medium">{t('telemetryPanel.sectionPacketsMeshCore')}</h3>
+              <h3 className="text-muted mb-3 text-sm font-medium">
+                {t('telemetryPanel.sectionPacketsMeshCore')}
+              </h3>
               <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-cyan-400">{meshcorePacketStats.sent}</div>
@@ -572,7 +586,11 @@ export default function TelemetryPanel({
             {t('telemetryPanel.footerBattery', { count: telemetry.length })} &nbsp;·&nbsp;{' '}
             {t('telemetryPanel.footerSignal', { count: signalTelemetry.length })}
             {environmentTelemetry.length > 0 && (
-              <> &nbsp;·&nbsp; {t('telemetryPanel.footerEnv', { count: environmentTelemetry.length })}</>
+              <>
+                {' '}
+                &nbsp;·&nbsp;{' '}
+                {t('telemetryPanel.footerEnv', { count: environmentTelemetry.length })}
+              </>
             )}{' '}
             {t('telemetryPanel.footerMax')}
           </div>

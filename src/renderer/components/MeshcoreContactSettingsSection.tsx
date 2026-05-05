@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useId, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type { MeshCoreSelfInfo } from '../hooks/useMeshCore';
 import {
@@ -7,8 +8,6 @@ import {
   type MeshcoreAutoaddWireState,
   splitAutoaddConfigByte,
 } from '../lib/meshcoreContactAutoAdd';
-import { useTranslation } from 'react-i18next';
-
 import { useToast } from './Toast';
 
 function parseMaxHopsInput(raw: string): { wire: number; error: string | null } {
@@ -359,7 +358,12 @@ export default function MeshcoreContactSettingsSection({
                   })
                   .catch((e: unknown) => {
                     console.warn('[MeshcoreContactSettingsSection] clear all failed', e);
-                    addToast(e instanceof Error ? e.message : t('meshcoreContactSettings.failedClearContacts'), 'error');
+                    addToast(
+                      e instanceof Error
+                        ? e.message
+                        : t('meshcoreContactSettings.failedClearContacts'),
+                      'error',
+                    );
                   })
                   .finally(() => {
                     setClearingAll(false);

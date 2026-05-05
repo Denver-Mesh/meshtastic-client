@@ -752,7 +752,10 @@ export default function RadioPanel({
       addToast(t('radioPanel.floodAdvertSent'), 'success');
     } catch (e) {
       console.warn('[RadioPanel] sendAdvert failed:', e instanceof Error ? e.message : e);
-      addToast(t('radioPanel.advertFailed', { message: e instanceof Error ? e.message : String(e) }), 'error');
+      addToast(
+        t('radioPanel.advertFailed', { message: e instanceof Error ? e.message : String(e) }),
+        'error',
+      );
     } finally {
       setAdvertLoading(false);
     }
@@ -766,7 +769,10 @@ export default function RadioPanel({
       addToast(t('radioPanel.clockSynced'), 'success');
     } catch (e) {
       console.warn('[RadioPanel] syncClock failed:', e instanceof Error ? e.message : e);
-      addToast(t('radioPanel.syncFailed', { message: e instanceof Error ? e.message : String(e) }), 'error');
+      addToast(
+        t('radioPanel.syncFailed', { message: e instanceof Error ? e.message : String(e) }),
+        'error',
+      );
     } finally {
       setSyncClockLoading(false);
     }
@@ -780,9 +786,14 @@ export default function RadioPanel({
       addToast(t('radioPanel.actionCompleted', { name: pendingAction.name }), 'success');
     } catch (err) {
       console.warn('[RadioPanel] pending action failed', err);
-      addToast(t('radioPanel.actionFailed', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
+      addToast(
+        t('radioPanel.actionFailed', {
+          message: err instanceof Error ? err.message : 'Unknown error',
+        }),
+        'error',
+      );
     }
-  }, [pendingAction, addToast]);
+  }, [pendingAction, addToast, t]);
 
   const handleImportConfig = useCallback(() => {
     const input = document.createElement('input');
@@ -917,8 +928,13 @@ export default function RadioPanel({
           if (notSupported.length > 0) {
             addToast(
               applied.length > 0
-                ? t('radioPanel.configImportedPartialApplied', { applied: applied.join(', '), notSupported: notSupported.join(', ') })
-                : t('radioPanel.configImportedPartialNoApplied', { notSupported: notSupported.join(', ') }),
+                ? t('radioPanel.configImportedPartialApplied', {
+                    applied: applied.join(', '),
+                    notSupported: notSupported.join(', '),
+                  })
+                : t('radioPanel.configImportedPartialNoApplied', {
+                    notSupported: notSupported.join(', '),
+                  }),
               'warning',
             );
           } else if (applied.length > 0) {
@@ -929,7 +945,9 @@ export default function RadioPanel({
         } catch (err) {
           console.error('[RadioPanel] config import error:', err);
           addToast(
-            t('radioPanel.configParseFailed', { message: err instanceof Error ? err.message : 'Invalid JSON' }),
+            t('radioPanel.configParseFailed', {
+              message: err instanceof Error ? err.message : 'Invalid JSON',
+            }),
             'error',
           );
         }
@@ -937,7 +955,7 @@ export default function RadioPanel({
       reader.readAsText(file);
     };
     input.click();
-  }, [addToast, onSetOwner, onApplyLoraParams, shortName, isLicensed, bandwidth, radioFreqHz]);
+  }, [addToast, onSetOwner, onApplyLoraParams, shortName, isLicensed, bandwidth, radioFreqHz, t]);
 
   return (
     <div className="w-full space-y-4">
@@ -1608,8 +1626,12 @@ export default function RadioPanel({
                   console.warn('[RadioPanel] send position to device failed', err);
                   addToast(
                     capabilities?.protocol === 'meshcore'
-                      ? t('radioPanel.meshcoreGpsFailed', { message: err instanceof Error ? err.message : 'unknown' })
-                      : t('radioPanel.actionFailed', { message: err instanceof Error ? err.message : 'Unknown error' }),
+                      ? t('radioPanel.meshcoreGpsFailed', {
+                          message: err instanceof Error ? err.message : 'unknown',
+                        })
+                      : t('radioPanel.actionFailed', {
+                          message: err instanceof Error ? err.message : 'Unknown error',
+                        }),
                     'error',
                   );
                 }

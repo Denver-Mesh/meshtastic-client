@@ -11,7 +11,6 @@ import {
   useRef,
   useState,
 } from 'react';
-
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -179,18 +178,6 @@ function latestMessageTimestamp(messages: readonly ChatMessage[]): number {
     if (msg.timestamp > latest) latest = msg.timestamp;
   }
   return latest;
-}
-
-function latestChannelWatermarks(messages: readonly ChatMessage[]): Map<number, number> {
-  const watermarks = new Map<number, number>();
-  for (const msg of messages) {
-    if (msg.to != null) continue;
-    const prev = watermarks.get(msg.channel) ?? 0;
-    if (msg.timestamp > prev) {
-      watermarks.set(msg.channel, msg.timestamp);
-    }
-  }
-  return watermarks;
 }
 
 function mergeReadWatermarks(
@@ -535,7 +522,7 @@ function ChatPanel({
       );
     }
 
-    return regularMessages.filter((m) => !m.to && (channel === -1 || m.channel === channel));
+    return regularMessages.filter((m) => !m.to && m.channel === channel);
   }, [activeDmNode, channel, isOwnNode, regularMessages, viewMode]);
 
   const filteredMessages = useMemo(() => {
@@ -557,21 +544,6 @@ function ChatPanel({
   const markCurrentViewRead = useCallback(() => {
     if (viewMode === 'dm' && activeDmNode == null) return;
 
-    if (viewKey === 'ch:-1') {
-      const watermarks = latestChannelWatermarks(viewMessages);
-      if (watermarks.size === 0) return;
-      setPersistedLastRead((prev) =>
-        mergeReadWatermarks(
-          prev,
-          Array.from(watermarks.entries(), ([channelIndex, timestamp]) => [
-            `ch:${channelIndex}`,
-            timestamp,
-          ]),
-        ),
-      );
-      return;
-    }
-
     const latest = latestMessageTimestamp(viewMessages);
     if (latest === 0) return;
     setPersistedLastRead((prev) => mergeReadWatermarks(prev, [[viewKey, latest]]));
@@ -579,12 +551,6 @@ function ChatPanel({
 
   // On view switch: snapshot lastRead for divider + arm scroll trigger
   useEffect(() => {
-    if (viewKey === 'ch:-1') {
-      // "All" view: no divider, just scroll to bottom
-      setUnreadDividerTimestamp(0);
-      setTriggerScrollToUnread((n) => n + 1);
-      return;
-    }
     const snapshot = persistedLastReadRef.current[viewKey] ?? 0;
     setUnreadDividerTimestamp(snapshot);
     setTriggerScrollToUnread((n) => n + 1);
@@ -761,7 +727,7 @@ function ChatPanel({
     setChatActionError(null);
     try {
       console.debug('[ChatPanel] handleSend');
-      const sendChannel = channel === -1 ? 0 : channel;
+      const sendChannel = channel;
       const destination = viewMode === 'dm' && activeDmNode != null ? activeDmNode : undefined;
       const replyKey = replyTo ? (replyTo.packetId ?? replyTo.timestamp) : undefined;
       const sendOutcome = onSend(input.trim(), sendChannel, destination, replyKey);
@@ -868,15 +834,15 @@ function ChatPanel({
   }, [filteredMessages]);
 
   // Index of first message from another node newer than unreadDividerTimestamp.
-  // Returns -1 when: All view, search active, timestamp=0, or no qualifying messages.
+  // Returns -1 when: search active, timestamp=0, or no qualifying messages.
   const unreadStartIndex = useMemo(() => {
-    if (channel === -1 || searchQuery.trim() || unreadDividerTimestamp === 0) return -1;
+    if (searchQuery.trim() || unreadDividerTimestamp === 0) return -1;
     for (let i = 0; i < filteredMessages.length; i++) {
       const msg = filteredMessages[i];
       if (!isOwnNode(msg.sender_id) && msg.timestamp > unreadDividerTimestamp) return i;
     }
     return -1;
-  }, [channel, filteredMessages, isOwnNode, searchQuery, unreadDividerTimestamp]);
+  }, [filteredMessages, isOwnNode, searchQuery, unreadDividerTimestamp]);
 
   useEffect(() => {
     const el = emojiPickerRef.current;
@@ -966,20 +932,6 @@ function ChatPanel({
           <span className="text-muted mr-1 shrink-0 text-[10px] font-medium tracking-wider uppercase">
             {t('chatPanel.channels')}
           </span>
-          <button
-            aria-label={t('chatPanel.allChannels')}
-            onClick={() => {
-              setChannel(-1);
-              setViewMode('channels');
-            }}
-            className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-              viewMode === 'channels' && channel === -1
-                ? 'bg-readable-green text-white'
-                : 'bg-secondary-dark text-muted hover:text-gray-200'
-            }`}
-          >
-            All
-          </button>
           {channels.map((ch) => {
             const unread = unreadCounts.get(ch.index) ?? 0;
             const channelUnreadSuffix =
@@ -1277,7 +1229,9 @@ function ChatPanel({
                                   scrollToQuotedParent(msg.replyId!);
                                 }}
                                 className="bg-secondary-dark/50 hover:bg-secondary-dark/80 mb-1.5 flex w-full gap-1.5 rounded-lg border border-gray-600/50 px-2 py-1.5 text-left transition-colors"
-                                aria-label={t('chatPanel.jumpToQuotedMessage', { sender: quotedLabel ?? '' })}
+                                aria-label={t('chatPanel.jumpToQuotedMessage', {
+                                  sender: quotedLabel ?? '',
+                                })}
                               >
                                 <div className="min-h-[2rem] w-0.5 shrink-0 self-stretch rounded-full bg-gray-500" />
                                 <div className="min-w-0 flex-1">
@@ -1643,7 +1597,13 @@ function ChatPanel({
         <button
           onClick={handleSend}
           disabled={!isConnected || !input.trim() || sending}
-          aria-label={sending ? t('chatPanel.sendButtonSending') : isDmMode ? t('chatPanel.sendButtonDm') : t('chatPanel.sendButton')}
+          aria-label={
+            sending
+              ? t('chatPanel.sendButtonSending')
+              : isDmMode
+                ? t('chatPanel.sendButtonDm')
+                : t('chatPanel.sendButton')
+          }
           className={`rounded-xl px-5 py-2.5 font-medium transition-colors ${
             isDmMode
               ? 'disabled:text-muted bg-purple-600 text-white hover:bg-purple-500 disabled:bg-gray-600'
