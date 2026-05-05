@@ -870,9 +870,6 @@ export default function App() {
   const handleDmTargetConsumed = useCallback(() => {
     setPendingDmTarget(null);
   }, []);
-  const handleOpenGlobalSearch = useCallback(() => {
-    setSearchModalOpen(true);
-  }, []);
 
   // ─── Startup pruning based on persisted app settings (protocol-aware) ─────
   const { refreshNodesFromDb } = device;
@@ -1749,7 +1746,6 @@ export default function App() {
                             initialDmTarget={pendingDmTarget}
                             onDmTargetConsumed={handleDmTargetConsumed}
                             isActive={activePanelIndex === 1}
-                            onGlobalSearch={handleOpenGlobalSearch}
                             protocol={protocol}
                             scrollToTopRef={scrollToTopChatRef}
                             outerScrollMetricsRootRef={mainViewportRef}

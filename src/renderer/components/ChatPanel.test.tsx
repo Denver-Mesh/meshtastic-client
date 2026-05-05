@@ -36,6 +36,15 @@ describe('ChatPanel accessibility', () => {
     expect(results).toHaveNoViolations();
   });
 
+  it('does not render the top-right globe global-search button', () => {
+    render(
+      <ToastProvider>
+        <ChatPanel {...defaultProps} />
+      </ToastProvider>,
+    );
+    expect(screen.queryByLabelText('Search all channels')).not.toBeInTheDocument();
+  });
+
   it('emoji picker opens for the correct message when messages have no packetId', async () => {
     // Messages without packetId must use timestamp as picker key so re-renders
     // don't shift the picker to a different message (regression: was using -(i+1)).

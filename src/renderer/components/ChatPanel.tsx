@@ -244,7 +244,6 @@ export interface ChatPanelProps {
   initialDmTarget?: number | null;
   onDmTargetConsumed?: () => void;
   isActive?: boolean;
-  onGlobalSearch?: () => void;
   /** When `meshcore`, show full names, hide redundant RF-only transport badge. */
   protocol?: MeshProtocol;
   /** Ref for scroll-to-top (Chat has its own Top button positioned inside the message list). */
@@ -273,7 +272,6 @@ function ChatPanel({
   initialDmTarget,
   onDmTargetConsumed,
   isActive = true,
-  onGlobalSearch,
   protocol = 'meshtastic',
   scrollToTopRef,
   outerScrollMetricsRootRef,
@@ -990,30 +988,6 @@ function ChatPanel({
             />
           </svg>
         </button>
-        {onGlobalSearch && (
-          <button
-            onClick={onGlobalSearch}
-            aria-label={t('chatPanel.searchAllChannels')}
-            className="text-muted shrink-0 rounded-lg p-1.5 transition-colors hover:text-gray-300"
-            title="Search all channels (Cmd+Shift+F)"
-          >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-              aria-hidden="true"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20M2 12h20"
-              />
-            </svg>
-          </button>
-        )}
       </div>
 
       {/* Row 2 — DM tabs */}

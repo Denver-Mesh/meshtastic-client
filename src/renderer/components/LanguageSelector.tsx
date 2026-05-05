@@ -55,20 +55,23 @@ export default function LanguageSelector() {
         onClick={() => {
           setIsOpen((o) => !o);
         }}
-        className="text-muted hover:bg-secondary-dark flex items-center gap-1 rounded p-1.5 text-xs transition-colors hover:text-gray-200"
+        className={`flex items-center gap-1 rounded-lg p-1.5 text-xs transition-all ${
+          isOpen
+            ? 'bg-secondary-dark text-gray-100 ring-1 ring-cyan-400/50'
+            : 'text-muted hover:bg-secondary-dark hover:text-gray-200'
+        }`}
         title={currentLabel}
       >
-        <svg
-          aria-hidden="true"
-          className="h-4 w-4 shrink-0"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={1.5}
-        >
-          <circle cx="12" cy="12" r="10" />
-          <path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20M2 12h20" />
-          <path d="M2 7h20M2 17h20" />
+        <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="9.5" className="fill-cyan-500/15" />
+          <circle cx="12" cy="12" r="10" className="stroke-cyan-300" strokeWidth={1.5} />
+          <path
+            className="stroke-emerald-300"
+            strokeWidth={1.5}
+            d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20M2 12h20"
+          />
+          <path className="stroke-violet-300" strokeWidth={1.5} d="M2 7h20M2 17h20" />
+          <circle cx="18" cy="6" r="1.5" className="fill-amber-300/90" />
         </svg>
       </button>
 
