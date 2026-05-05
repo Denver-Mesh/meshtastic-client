@@ -10,8 +10,12 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { useConnectionStore } from './connectionStore';
 import { useDiagnosticsStore } from './diagnosticsStore';
+import { useIdentityStore } from './identityStore';
 import { useMapViewportStore } from './mapViewportStore';
+import { useMessageStore } from './messageStore';
+import { useNodeStore } from './nodeStore';
 import { usePositionHistoryStore } from './positionHistoryStore';
 import { useRepeaterSignalStore } from './repeaterSignalStore';
 
@@ -33,6 +37,10 @@ describe('store shape contracts', () => {
     usePositionHistoryStore.setState({ history: new Map() });
     useRepeaterSignalStore.setState({ history: new Map() });
     useMapViewportStore.setState({ viewport: null });
+    useIdentityStore.setState({ identities: {}, activeIdentityId: null });
+    useNodeStore.setState({ nodes: {}, traceRoutes: {}, waypoints: {} });
+    useMessageStore.setState({ messages: {} });
+    useConnectionStore.setState({ connections: {} });
   });
 
   describe('useDiagnosticsStore', () => {
@@ -161,6 +169,73 @@ describe('store shape contracts', () => {
           "setViewport",
         ]
       `);
+    });
+  });
+
+  describe('useIdentityStore', () => {
+    it('data property names are stable', () => {
+      const { data } = stateKeys(useIdentityStore.getState());
+      expect(data).toMatchInlineSnapshot(`
+        [
+          "activeIdentityId",
+          "identities",
+        ]
+      `);
+    });
+
+    it('action method names are stable', () => {
+      const { fns } = stateKeys(useIdentityStore.getState());
+      expect(fns).toMatchInlineSnapshot(`[]`);
+    });
+  });
+
+  describe('useNodeStore', () => {
+    it('data property names are stable', () => {
+      const { data } = stateKeys(useNodeStore.getState());
+      expect(data).toMatchInlineSnapshot(`
+        [
+          "nodes",
+          "traceRoutes",
+          "waypoints",
+        ]
+      `);
+    });
+
+    it('action method names are stable', () => {
+      const { fns } = stateKeys(useNodeStore.getState());
+      expect(fns).toMatchInlineSnapshot(`[]`);
+    });
+  });
+
+  describe('useMessageStore', () => {
+    it('data property names are stable', () => {
+      const { data } = stateKeys(useMessageStore.getState());
+      expect(data).toMatchInlineSnapshot(`
+        [
+          "messages",
+        ]
+      `);
+    });
+
+    it('action method names are stable', () => {
+      const { fns } = stateKeys(useMessageStore.getState());
+      expect(fns).toMatchInlineSnapshot(`[]`);
+    });
+  });
+
+  describe('useConnectionStore', () => {
+    it('data property names are stable', () => {
+      const { data } = stateKeys(useConnectionStore.getState());
+      expect(data).toMatchInlineSnapshot(`
+        [
+          "connections",
+        ]
+      `);
+    });
+
+    it('action method names are stable', () => {
+      const { fns } = stateKeys(useConnectionStore.getState());
+      expect(fns).toMatchInlineSnapshot(`[]`);
     });
   });
 });

@@ -1,8 +1,24 @@
 import type { TAKClientInfo, TAKServerStatus, TAKSettings } from '@/shared/tak-types';
 
+import type { Protocol } from './protocols/Protocol';
+
 export type { TAKClientInfo, TAKServerStatus, TAKSettings };
 
 export type ConnectionType = 'ble' | 'serial' | 'http';
+
+export type IdentityId = string;
+
+export interface Identity {
+  id: IdentityId;
+  selfAddress: string;
+  protocol: Protocol;
+  activeTransports: ConnectionType[];
+  displayName?: string;
+  shortName?: string;
+  hardwareModel?: string;
+  createdAt: number;
+  lastSeenAt: number;
+}
 
 export type MeshProtocol = 'meshtastic' | 'meshcore';
 
