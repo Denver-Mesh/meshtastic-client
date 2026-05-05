@@ -8,9 +8,11 @@ import {
   useRef,
   useState,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import ErrorBoundary from './components/ErrorBoundary';
 import { HelpTooltip } from './components/HelpTooltip';
+import LanguageSelector from './components/LanguageSelector';
 import Sidebar from './components/Sidebar';
 import { LinkIcon } from './components/SignalBars';
 import SignalPropagation from './components/SignalPropagation';
@@ -104,11 +106,6 @@ const STATUS_COLOR: Record<string, string> = {
   reconnecting: 'bg-orange-500 animate-pulse',
 };
 
-/** Header queue badge tooltips. */
-const MESHCORE_QUEUE_TOOLTIP =
-  'Because MeshCore sends messages rapidly, and we poll every 30 seconds, this should always be 0. If not 0, there is congestion.';
-const MESHTASTIC_QUEUE_TOOLTIP =
-  'Transmit queue: packets waiting to be sent. Green = low, amber = filling up, red = congested.';
 
 const TAB_NAMES = [
   'Connection',
@@ -182,26 +179,28 @@ function persistUnread(protocol: 'meshtastic' | 'meshcore', count: number): void
 }
 
 function PanelSkeleton() {
+  const { t } = useTranslation();
   return (
     <div
       className="flex h-full min-h-[12rem] items-center justify-center rounded-xl border border-gray-800 bg-gray-900/50"
       role="status"
       aria-busy="true"
     >
-      <span className="sr-only">Loading panel</span>
+      <span className="sr-only">{t('app.loadingPanel')}</span>
       <div className="h-8 w-8 animate-pulse rounded-full bg-gray-700" aria-hidden />
     </div>
   );
 }
 
 function DialogLazyFallback() {
+  const { t } = useTranslation();
   return (
     <div
       className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40"
       role="status"
       aria-busy="true"
     >
-      <span className="sr-only">Loading dialog</span>
+      <span className="sr-only">{t('app.loadingDialog')}</span>
       <div className="h-10 w-10 animate-pulse rounded-full bg-gray-600" aria-hidden />
     </div>
   );
@@ -338,6 +337,7 @@ function ColoradoMeshWatermarkMark() {
 }
 
 export default function App() {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
     return localStorage.getItem('mesh-client:sidebarCollapsed') === 'true';
@@ -1411,7 +1411,7 @@ export default function App() {
                 <button
                   type="button"
                   className="m-0 inline-flex cursor-pointer appearance-none border-0 bg-transparent p-0"
-                  aria-label="Play mesh signal pulse animation"
+                  aria-label={t('aria.playAnimation')}
                   onClick={handleCollapsedWatermarkActivate}
                 >
                   <ColoradoMeshWatermarkMark />
@@ -1447,13 +1447,13 @@ export default function App() {
             {/* Protocol context switcher — centered in the gap (narrow) or viewport (xl+ grid) */}
             <div
               role="group"
-              aria-label="Protocol switcher"
+              aria-label={t('aria.protocolSwitcher')}
               className="flex shrink-0 items-center overflow-hidden rounded-full border border-gray-600 font-mono text-xs"
             >
               <button
                 type="button"
                 aria-pressed={protocol === 'meshtastic'}
-                aria-label="Switch to Meshtastic"
+                aria-label={t('aria.switchToMeshtastic')}
                 onClick={() => {
                   handleProtocolChange('meshtastic');
                 }}
@@ -1474,7 +1474,7 @@ export default function App() {
               <button
                 type="button"
                 aria-pressed={protocol === 'meshcore'}
-                aria-label="Switch to MeshCore"
+                aria-label={t('aria.switchToMeshCore')}
                 onClick={() => {
                   handleProtocolChange('meshcore');
                 }}
@@ -1559,7 +1559,7 @@ export default function App() {
             {/* Queue status badge: 0–10 used = green, 11–14 = yellow, 15–16 = red */}
             {queueShowBadge && device.queueStatus && (
               <HelpTooltip
-                text={protocol === 'meshcore' ? MESHCORE_QUEUE_TOOLTIP : MESHTASTIC_QUEUE_TOOLTIP}
+                text={protocol === 'meshcore' ? t('app.meshcoreQueueTooltip') : t('app.meshtasticQueueTooltip')}
               >
                 <div
                   aria-label={`Q: ${queueUsed}/${device.queueStatus.maxlen}`}
@@ -1569,6 +1569,7 @@ export default function App() {
                 </div>
               </HelpTooltip>
             )}
+            <LanguageSelector />
           </div>
         </div>
 
@@ -1595,10 +1596,10 @@ export default function App() {
               onClick={() => {
                 setTelemetryNoticeDismissed(true);
               }}
-              aria-label="Dismiss"
+              aria-label={t('common.dismiss')}
               className="shrink-0 rounded border border-gray-600 px-2 py-1 text-xs font-medium text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-300"
             >
-              Dismiss
+              {t('common.dismiss')}
             </button>
           </div>
         )}
@@ -1606,7 +1607,7 @@ export default function App() {
         <div className="flex min-h-0 min-w-0 flex-1">
           {/* Sidebar - collapsible width on left */}
           <nav
-            aria-label="Application panels"
+            aria-label={t('aria.applicationPanels')}
             className={`flex h-full min-h-0 shrink-0 flex-col border-r border-slate-800 transition-[width] duration-300 ${
               sidebarCollapsed ? 'w-16' : 'w-48'
             }`}
@@ -2247,8 +2248,8 @@ export default function App() {
                 type="button"
                 onClick={scrollMainToTop}
                 className="bg-brand-green text-deep-black hover:bg-bright-green fixed right-28 bottom-12 z-50 rounded-full px-3 py-2 text-xs font-bold shadow-lg transition-colors"
-                title="Back to top"
-                aria-label="Back to top"
+                title={t('aria.backToTop')}
+                aria-label={t('aria.backToTop')}
               >
                 ↑ Top
               </button>
@@ -2293,9 +2294,9 @@ export default function App() {
                 onClick={() => {
                   setShowShortcuts(true);
                 }}
-                aria-label="Keyboard shortcuts (?)"
+                aria-label={t('aria.keyboardShortcuts')}
                 aria-haspopup="dialog"
-                title="Keyboard shortcuts (?)"
+                title={t('aria.keyboardShortcuts')}
                 className="inline-flex shrink-0 items-center gap-1 justify-self-center rounded-full border border-slate-700 px-3 py-0.5 font-mono text-[10px] text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-300"
               >
                 Shortcuts
@@ -2515,6 +2516,7 @@ function InactiveProtocolNotifier({
   meshtasticDevice: ReturnType<typeof useDevice>;
   meshcoreDevice: ReturnType<typeof useMeshCore>;
 }) {
+  const { t } = useTranslation();
   const { addToast } = useToast();
   const prevMeshtasticRef = useRef(0);
   const prevMeshcoreRef = useRef(0);
@@ -2540,7 +2542,7 @@ function InactiveProtocolNotifier({
       const realNew = newMsgs.filter((m) => !m.emoji && !m.isHistory);
       if (realNew.length > 0) {
         addToast(
-          `Meshtastic: ${realNew.length} new message${realNew.length > 1 ? 's' : ''}`,
+          t('toasts.newMessages', { protocol: 'Meshtastic', count: realNew.length }),
           'info',
           6000,
         );
@@ -2568,7 +2570,7 @@ function InactiveProtocolNotifier({
       const realNew = newMsgs.filter((m) => !m.emoji && !m.isHistory);
       if (realNew.length > 0) {
         addToast(
-          `MeshCore: ${realNew.length} new message${realNew.length > 1 ? 's' : ''}`,
+          t('toasts.newMessages', { protocol: 'MeshCore', count: realNew.length }),
           'info',
           6000,
         );
@@ -2592,6 +2594,7 @@ function FirmwareUpdateNotifier({
   protocol: MeshProtocol;
   onResult: (r: FirmwareCheckResult) => void;
 }) {
+  const { t } = useTranslation();
   const { addToast } = useToast();
   const toastShownRef = useRef(false);
   const activeState = protocol === 'meshcore' ? meshcoreState : meshtasticState;
@@ -2633,7 +2636,7 @@ function FirmwareUpdateNotifier({
         );
         if (updateAvailable && !toastShownRef.current) {
           toastShownRef.current = true;
-          addToast(`Firmware update available: v${release.version}`, 'warning', 8000);
+          addToast(t('toasts.firmwareAvailable', { version: release.version }), 'warning', 8000);
         }
       })
       .catch((err: unknown) => {

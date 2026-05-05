@@ -1,6 +1,8 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useEffect, useRef, useState } from 'react';
 
+import { useTranslation } from 'react-i18next';
+
 import type { MeshNode } from '../lib/types';
 
 interface SearchResult {
@@ -54,6 +56,7 @@ export default function SearchModal({
   channels,
   onNavigateToChannel,
 }: Props) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -159,7 +162,7 @@ export default function SearchModal({
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-24">
       <button
         type="button"
-        aria-label="Close search"
+        aria-label={t('searchModal.closeSearch')}
         className="absolute inset-0 cursor-pointer border-0 bg-black/60 p-0"
         onClick={onClose}
       />

@@ -12,6 +12,8 @@ import {
   useState,
 } from 'react';
 
+import { useTranslation } from 'react-i18next';
+
 import {
   dismissedDmTabsStorageKey,
   lastReadStorageKey,
@@ -289,6 +291,7 @@ function ChatPanel({
   scrollToTopRef,
   outerScrollMetricsRootRef,
 }: ChatPanelProps) {
+  const { t } = useTranslation();
   const ownNodeIdSet = useMemo(() => {
     const base = ownNodeIds != null && ownNodeIds.length > 0 ? ownNodeIds : [myNodeNum];
     return new Set(base.filter((id) => id > 0));
@@ -961,10 +964,10 @@ function ChatPanel({
       >
         <div className="flex min-w-0 flex-1 items-center gap-2 whitespace-nowrap">
           <span className="text-muted mr-1 shrink-0 text-[10px] font-medium tracking-wider uppercase">
-            Channels
+            {t('chatPanel.channels')}
           </span>
           <button
-            aria-label="All"
+            aria-label={t('chatPanel.allChannels')}
             onClick={() => {
               setChannel(-1);
               setViewMode('channels');
@@ -1014,7 +1017,7 @@ function ChatPanel({
             setShowSearch(!showSearch);
           }}
           aria-pressed={showSearch}
-          aria-label="Search messages"
+          aria-label={t('chatPanel.searchMessages')}
           className={`shrink-0 rounded-lg p-1.5 transition-colors ${
             showSearch ? 'bg-brand-green/20 text-bright-green' : 'text-muted hover:text-gray-300'
           }`}
@@ -1038,7 +1041,7 @@ function ChatPanel({
         {onGlobalSearch && (
           <button
             onClick={onGlobalSearch}
-            aria-label="Search all channels"
+            aria-label={t('chatPanel.searchAllChannels')}
             className="text-muted shrink-0 rounded-lg p-1.5 transition-colors hover:text-gray-300"
             title="Search all channels (Cmd+Shift+F)"
           >
@@ -1104,7 +1107,7 @@ function ChatPanel({
                   onClick={() => {
                     closeDmTab(nodeNum);
                   }}
-                  aria-label="x"
+                  aria-label={t('chatPanel.closeDmTab')}
                   className="text-muted ml-0.5 text-[10px] leading-none hover:text-white"
                   title="Close DM"
                 >
@@ -1131,14 +1134,14 @@ function ChatPanel({
             onChange={(e) => {
               setSearchQuery(e.target.value);
             }}
-            placeholder="Search messages..."
-            aria-label="Search messages..."
+            placeholder={t('chatPanel.searchMessagesPlaceholder')}
+            aria-label={t('chatPanel.searchMessagesPlaceholder')}
             spellCheck={false}
             className="bg-secondary-dark/80 focus:border-brand-green/50 w-full rounded-lg border border-gray-600/50 px-3 py-1.5 text-sm text-gray-200 focus:outline-none"
           />
           {searchQuery && (
             <div className="text-muted mt-1 text-xs">
-              {filteredMessages.length} result{filteredMessages.length !== 1 ? 's' : ''}
+              {t('chatPanel.searchResults', { count: filteredMessages.length })}
             </div>
           )}
         </div>
@@ -1274,7 +1277,7 @@ function ChatPanel({
                                   scrollToQuotedParent(msg.replyId!);
                                 }}
                                 className="bg-secondary-dark/50 hover:bg-secondary-dark/80 mb-1.5 flex w-full gap-1.5 rounded-lg border border-gray-600/50 px-2 py-1.5 text-left transition-colors"
-                                aria-label={`Jump to quoted message from ${quotedLabel ?? ''}`}
+                                aria-label={t('chatPanel.jumpToQuotedMessage', { sender: quotedLabel ?? '' })}
                               >
                                 <div className="min-h-[2rem] w-0.5 shrink-0 self-stretch rounded-full bg-gray-500" />
                                 <div className="min-w-0 flex-1">
@@ -1365,7 +1368,7 @@ function ChatPanel({
                               inputRef.current?.focus();
                             }}
                             className="rounded p-1 text-xs text-gray-600 hover:text-blue-400"
-                            aria-label="Reply to message"
+                            aria-label={t('chatPanel.replyToMessage')}
                             title="Reply"
                           >
                             <svg
@@ -1398,7 +1401,7 @@ function ChatPanel({
                               }
                             }}
                             className="rounded p-1 text-xs text-gray-600 hover:text-gray-300"
-                            aria-label="Add reaction"
+                            aria-label={t('chatPanel.addReaction')}
                             title="React"
                           >
                             <svg
@@ -1627,7 +1630,7 @@ function ChatPanel({
             }
           }}
           disabled={!isConnected || sending}
-          aria-label="😊"
+          aria-label={t('chatPanel.emojiButton')}
           className={`rounded-xl px-2.5 py-2.5 transition-colors disabled:opacity-50 ${
             showComposePicker
               ? 'bg-brand-green/20 text-bright-green'
@@ -1640,7 +1643,7 @@ function ChatPanel({
         <button
           onClick={handleSend}
           disabled={!isConnected || !input.trim() || sending}
-          aria-label={sending ? '...' : isDmMode ? 'DM' : 'Send'}
+          aria-label={sending ? t('chatPanel.sendButtonSending') : isDmMode ? t('chatPanel.sendButtonDm') : t('chatPanel.sendButton')}
           className={`rounded-xl px-5 py-2.5 font-medium transition-colors ${
             isDmMode
               ? 'disabled:text-muted bg-purple-600 text-white hover:bg-purple-500 disabled:bg-gray-600'

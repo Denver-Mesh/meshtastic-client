@@ -7,6 +7,8 @@ import {
   type MeshcoreAutoaddWireState,
   splitAutoaddConfigByte,
 } from '../lib/meshcoreContactAutoAdd';
+import { useTranslation } from 'react-i18next';
+
 import { useToast } from './Toast';
 
 function parseMaxHopsInput(raw: string): { wire: number; error: string | null } {
@@ -51,6 +53,7 @@ export default function MeshcoreContactSettingsSection({
   onClearAllContacts?: () => Promise<void>;
 }) {
   const { addToast } = useToast();
+  const { t } = useTranslation();
   const modeGroupId = useId();
   const [clearingAll, setClearingAll] = useState(false);
   const [autoAddAll, setAutoAddAll] = useState(!selfInfo.manualAddContacts);
@@ -247,7 +250,7 @@ export default function MeshcoreContactSettingsSection({
             }}
             disabled={disabled || applying}
             className="h-4 w-4 shrink-0"
-            aria-label="Overwrite oldest non-favourite contacts when full"
+            aria-label={t('meshcoreContactSettings.overwriteOldest')}
           />
         </div>
 
@@ -309,7 +312,7 @@ export default function MeshcoreContactSettingsSection({
               }}
               disabled={disabled || applying}
               className="h-4 w-4 shrink-0"
-              aria-label="Show refresh control on contacts list"
+              aria-label={t('meshcoreContactSettings.showRefreshControl')}
             />
           </div>
           <div className="flex items-center justify-between gap-3">
@@ -327,7 +330,7 @@ export default function MeshcoreContactSettingsSection({
               }}
               disabled={disabled || applying}
               className="h-4 w-4 shrink-0"
-              aria-label="Show public keys in contacts list"
+              aria-label={t('meshcoreContactSettings.showPublicKeys')}
             />
           </div>
         </div>
@@ -352,18 +355,18 @@ export default function MeshcoreContactSettingsSection({
                 setClearingAll(true);
                 void onClearAllContacts()
                   .then(() => {
-                    addToast('All contacts cleared.', 'success');
+                    addToast(t('meshcoreContactSettings.allContactsCleared'), 'success');
                   })
                   .catch((e: unknown) => {
                     console.warn('[MeshcoreContactSettingsSection] clear all failed', e);
-                    addToast(e instanceof Error ? e.message : 'Failed to clear contacts.', 'error');
+                    addToast(e instanceof Error ? e.message : t('meshcoreContactSettings.failedClearContacts'), 'error');
                   })
                   .finally(() => {
                     setClearingAll(false);
                   });
               }}
               className="rounded-lg border border-red-700 bg-red-950/40 px-4 py-2 text-sm font-medium text-red-200 hover:bg-red-900/50 disabled:opacity-50"
-              aria-label="Clear all MeshCore contacts"
+              aria-label={t('meshcoreContactSettings.clearAllContacts')}
             >
               {clearingAll ? 'Clearing…' : 'Clear all contacts'}
             </button>

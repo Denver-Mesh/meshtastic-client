@@ -14,6 +14,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Circle,
   CircleMarker,
@@ -482,6 +483,7 @@ function LocateMeControl({
   const [loading, setLoading] = useState(false);
   const [locatedPos, setLocatedPos] = useState<[number, number] | null>(null);
   const { addToast } = useToast();
+  const { t } = useTranslation();
 
   const handleLocate = async () => {
     setLoading(true);
@@ -493,7 +495,7 @@ function LocateMeControl({
           setLocatedPos(coords);
           map.flyTo(coords, 16);
         } else {
-          addToast('Location unavailable.', 'error');
+          addToast(t('mapPanel.locationUnavailable'), 'error');
         }
         return;
       }
@@ -505,8 +507,8 @@ function LocateMeControl({
       if ('error' in result) {
         addToast(
           result.code === 'NO_FIX'
-            ? 'GPS hardware not available.'
-            : `Location error: ${result.error}`,
+            ? t('mapPanel.gpsHardwareUnavailable')
+            : t('mapPanel.locationError', { error: result.error }),
           'error',
         );
         return;
@@ -516,7 +518,7 @@ function LocateMeControl({
       map.flyTo(coords, 16);
     } catch (e) {
       console.error('[LocateMeControl] getGpsFix failed:', e);
-      addToast('Location request failed.', 'error');
+      addToast(t('mapPanel.locationRequestFailed'), 'error');
     } finally {
       setLoading(false);
     }
@@ -531,8 +533,8 @@ function LocateMeControl({
         >
           <button
             type="button"
-            title="Show my location"
-            aria-label="Show my location"
+            title={t('mapPanel.showMyLocation')}
+            aria-label={t('mapPanel.showMyLocation')}
             aria-busy={loading}
             className={`leaflet-bar-part cursor-pointer border-0 bg-white p-0 ${loading ? 'locating' : ''}`}
             onClick={handleLocate}
@@ -630,6 +632,7 @@ export default function MapPanel({
   onNodeClick,
   protocol = 'meshtastic',
 }: Props) {
+  const { t } = useTranslation();
   const toNodeRenderSignature = useCallback((node: MeshNode): string => {
     return [
       node.node_id,
@@ -993,7 +996,7 @@ export default function MapPanel({
   return (
     <div
       className="relative h-full min-h-[500px] overflow-hidden rounded-lg border border-gray-700/50"
-      aria-label="Network map showing node positions"
+      aria-label={t('mapPanel.networkMap')}
     >
       {/* Controls overlay — top right */}
       <div className="absolute top-3 right-3 z-[1000] flex items-center gap-2">
@@ -1009,7 +1012,7 @@ export default function MapPanel({
                 : 'border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200'
             }`}
             title="Toggle route weight lines"
-            aria-label="Toggle route weight lines"
+            aria-label={t('mapPanel.toggleRouteWeightLines')}
           >
             Route weights
           </button>

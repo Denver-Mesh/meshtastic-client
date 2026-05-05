@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import {
   type MeshCoreContactRaw,
@@ -164,6 +165,7 @@ function ContactCountBadge() {
   const [contactCount, setContactCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const { addToast } = useToast();
+  const { t } = useTranslation();
 
   useEffect(() => {
     let cancelled = false;
@@ -187,10 +189,10 @@ function ContactCountBadge() {
     try {
       const count = await window.electronAPI.db.offloadAllMeshcoreContacts();
       setContactCount((prev) => (prev !== null ? 0 : prev));
-      addToast(`Offloaded ${count} contacts to database.`, 'success');
+      addToast(t('radioPanel.offloadedContacts', { count }), 'success');
     } catch (e) {
       console.warn('[RadioPanel] offloadAllMeshcoreContacts error', e);
-      addToast('Failed to offload contacts.', 'error');
+      addToast(t('radioPanel.failedOffloadContacts'), 'error');
     } finally {
       setLoading(false);
     }
@@ -462,11 +464,12 @@ function ConfirmModal({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <button
         type="button"
-        aria-label="Cancel"
+        aria-label={t('common.cancel')}
         className="absolute inset-0 cursor-pointer border-0 bg-black/60 p-0 backdrop-blur-sm"
         onClick={onCancel}
       />
@@ -697,6 +700,7 @@ export default function RadioPanel({
   // ─── Device command confirmation ──────────────────────────────
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const { addToast } = useToast();
+  const { t } = useTranslation();
   const [applyingMeshcoreTelemetryPrivacy, setApplyingMeshcoreTelemetryPrivacy] = useState(false);
   const [applyingMeshcoreContactMgmt, setApplyingMeshcoreContactMgmt] = useState(false);
   const [advertLoading, setAdvertLoading] = useState(false);
@@ -745,10 +749,10 @@ export default function RadioPanel({
     setAdvertLoading(true);
     try {
       await onSendAdvert();
-      addToast('Flood advert sent', 'success');
+      addToast(t('radioPanel.floodAdvertSent'), 'success');
     } catch (e) {
       console.warn('[RadioPanel] sendAdvert failed:', e instanceof Error ? e.message : e);
-      addToast(`Advert failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
+      addToast(t('radioPanel.advertFailed', { message: e instanceof Error ? e.message : String(e) }), 'error');
     } finally {
       setAdvertLoading(false);
     }
@@ -759,10 +763,10 @@ export default function RadioPanel({
     setSyncClockLoading(true);
     try {
       await onSyncClock();
-      addToast('Clock synced', 'success');
+      addToast(t('radioPanel.clockSynced'), 'success');
     } catch (e) {
       console.warn('[RadioPanel] syncClock failed:', e instanceof Error ? e.message : e);
-      addToast(`Sync failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
+      addToast(t('radioPanel.syncFailed', { message: e instanceof Error ? e.message : String(e) }), 'error');
     } finally {
       setSyncClockLoading(false);
     }
@@ -773,10 +777,10 @@ export default function RadioPanel({
     setPendingAction(null);
     try {
       await pendingAction.action();
-      addToast(`${pendingAction.name} completed successfully.`, 'success');
+      addToast(t('radioPanel.actionCompleted', { name: pendingAction.name }), 'success');
     } catch (err) {
       console.warn('[RadioPanel] pending action failed', err);
-      addToast(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+      addToast(t('radioPanel.actionFailed', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
     }
   }, [pendingAction, addToast]);
 
@@ -911,21 +915,21 @@ export default function RadioPanel({
           }
 
           if (notSupported.length > 0) {
-            const parts = ['Config imported.'];
-            if (applied.length > 0) {
-              parts.push(` Applied to device: ${applied.join(', ')}.`);
-            }
-            parts.push(` Not supported by this device: ${notSupported.join(', ')}.`);
-            addToast(parts.join(''), 'warning');
+            addToast(
+              applied.length > 0
+                ? t('radioPanel.configImportedPartialApplied', { applied: applied.join(', '), notSupported: notSupported.join(', ') })
+                : t('radioPanel.configImportedPartialNoApplied', { notSupported: notSupported.join(', ') }),
+              'warning',
+            );
           } else if (applied.length > 0) {
-            addToast('Config imported and applied successfully.', 'success');
+            addToast(t('radioPanel.configImported'), 'success');
           } else {
-            addToast('Config imported. No device changes to apply.', 'success');
+            addToast(t('radioPanel.configImportedNoChanges'), 'success');
           }
         } catch (err) {
           console.error('[RadioPanel] config import error:', err);
           addToast(
-            `Failed to parse config: ${err instanceof Error ? err.message : 'Invalid JSON'}`,
+            t('radioPanel.configParseFailed', { message: err instanceof Error ? err.message : 'Invalid JSON' }),
             'error',
           );
         }
@@ -1031,11 +1035,11 @@ export default function RadioPanel({
                 if (onRefreshMeshcoreAutoaddFromDevice) {
                   await onRefreshMeshcoreAutoaddFromDevice();
                 }
-                addToast('Contact management updated.', 'success');
+                addToast(t('radioPanel.contactManagementUpdated'), 'success');
               } catch (e) {
                 console.warn('[RadioPanel] meshcore contact management apply failed', e);
                 addToast(
-                  e instanceof Error ? e.message : 'Failed to update contact management.',
+                  e instanceof Error ? e.message : t('radioPanel.contactMgmtFailed'),
                   'error',
                 );
               } finally {
@@ -1594,18 +1598,18 @@ export default function RadioPanel({
                 const lon = parseFloat(lonStr);
                 const alt = parseFloat(altStr);
                 if (!isFinite(lat) || !isFinite(lon)) {
-                  addToast('Invalid coordinates — enter valid lat/lon values.', 'error');
+                  addToast(t('radioPanel.invalidCoordinates'), 'error');
                   return;
                 }
                 try {
                   await onSendPositionToDevice(lat, lon, isFinite(alt) ? alt : 0);
-                  addToast('Position sent to device.', 'success');
+                  addToast(t('radioPanel.positionSent'), 'success');
                 } catch (err) {
                   console.warn('[RadioPanel] send position to device failed', err);
                   addToast(
                     capabilities?.protocol === 'meshcore'
-                      ? `Device GPS set failed (${err instanceof Error ? err.message : 'unknown'}). Using App Location (static/browser/IP) for map position.`
-                      : `Failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+                      ? t('radioPanel.meshcoreGpsFailed', { message: err instanceof Error ? err.message : 'unknown' })
+                      : t('radioPanel.actionFailed', { message: err instanceof Error ? err.message : 'Unknown error' }),
                     'error',
                   );
                 }
@@ -1730,11 +1734,11 @@ export default function RadioPanel({
               setApplyingMeshcoreTelemetryPrivacy(true);
               try {
                 await onApplyMeshcoreTelemetryPrivacy(modes);
-                addToast('Telemetry privacy updated.', 'success');
+                addToast(t('radioPanel.telemetryPrivacyUpdated'), 'success');
               } catch (e) {
                 console.warn('[RadioPanel] meshcore telemetry privacy apply failed', e);
                 addToast(
-                  e instanceof Error ? e.message : 'Failed to update telemetry privacy.',
+                  e instanceof Error ? e.message : t('radioPanel.telemetryPrivacyFailed'),
                   'error',
                 );
               } finally {

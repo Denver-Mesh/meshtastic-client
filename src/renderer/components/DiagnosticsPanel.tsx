@@ -1,6 +1,8 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/refs, react-hooks/purity */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
+import { useTranslation } from 'react-i18next';
+
 import {
   diagnosticRowsToRoutingMap,
   FOREIGN_LORA_RF_CONDITIONS,
@@ -112,6 +114,7 @@ export default function DiagnosticsPanel({
   capabilities,
   protocol,
 }: Props) {
+  const { t } = useTranslation();
   const showMqttControls = capabilities?.hasMqttHybrid !== false;
   const diagnosticRows = useDiagnosticsStore((s) => s.diagnosticRows);
   const diagnosticRowsRestoredAt = useDiagnosticsStore((s) => s.diagnosticRowsRestoredAt);
@@ -965,7 +968,7 @@ export default function DiagnosticsPanel({
                   const v = parseInt(e.target.value, 10);
                   if (Number.isFinite(v)) setDiagnosticRowsMaxAgeHours(v);
                 }}
-                aria-label={`Drop routing rows older than ${diagnosticRowsMaxAgeHours} hours (1–168)`}
+                aria-label={t('diagnosticsPanel.dropRoutingRows', { hours: diagnosticRowsMaxAgeHours })}
                 className="bg-deep-black focus:border-brand-green w-16 rounded border border-gray-600 px-2 py-1 text-right text-sm text-gray-200 focus:outline-none"
               />
               <span className="text-sm text-gray-400">hours (1–168)</span>
@@ -995,7 +998,7 @@ export default function DiagnosticsPanel({
                     onClick={() => {
                       setNodeMqttIgnored(nodeId, false);
                     }}
-                    aria-label="✕"
+                    aria-label={t('diagnosticsPanel.dismissRow')}
                     className="ml-0.5 leading-none hover:text-yellow-100"
                     title="Remove per-node MQTT filter"
                   >
@@ -1049,8 +1052,8 @@ export default function DiagnosticsPanel({
             onChange={(e) => {
               setSearch(e.target.value);
             }}
-            placeholder="Search anomalies..."
-            aria-label="Search anomalies..."
+            placeholder={t('diagnosticsPanel.searchAnomalies')}
+            aria-label={t('diagnosticsPanel.searchAnomalies')}
             className="bg-secondary-dark/80 focus:border-brand-green/50 w-48 rounded-lg border border-gray-600/50 px-3 py-1.5 text-sm text-gray-200 focus:outline-none"
           />
         </div>

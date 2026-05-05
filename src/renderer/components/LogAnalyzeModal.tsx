@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 
+import { useTranslation } from 'react-i18next';
+
 import {
   analyzeLogs,
   dedupeRecommendations,
@@ -23,6 +25,7 @@ export default function LogAnalyzeModal({
   entries,
   protocol,
 }: LogAnalyzeModalProps) {
+  const { t } = useTranslation();
   const dialogRef = useRef<HTMLDivElement>(null);
 
   const result = analyzeLogs(entries, protocol);
@@ -88,7 +91,7 @@ export default function LogAnalyzeModal({
     <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4">
       <button
         type="button"
-        aria-label="Close dialog"
+        aria-label={t('aria.closeDialog')}
         className="absolute inset-0 cursor-pointer border-0 bg-black/50 p-0 backdrop-blur-sm"
         onClick={onClose}
       />
@@ -105,7 +108,7 @@ export default function LogAnalyzeModal({
           </h2>
           <button
             onClick={onClose}
-            aria-label="Close dialog"
+            aria-label={t('aria.closeDialog')}
             className="hover:bg-secondary-dark text-muted rounded-lg p-1.5 transition-colors hover:text-gray-200"
           >
             <svg

@@ -6,6 +6,8 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
+import { useTranslation } from 'react-i18next';
+
 import { formatLogTimeOfDay } from '../../shared/formatLogTimestamp';
 import { parseMeshCoreRfPacket } from '../../shared/meshcoreRfPacketParse';
 import {
@@ -224,6 +226,7 @@ type Props = MeshcoreProps | MeshtasticProps;
 
 export default function RawPacketLogPanel(props: Props) {
   const { variant, packets, onClear, getNodeLabel, onNodeClick } = props;
+  const { t } = useTranslation();
   const [filter, setFilter] = useState('');
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -289,7 +292,7 @@ export default function RawPacketLogPanel(props: Props) {
           onChange={(e) => {
             setFilter(e.target.value);
           }}
-          aria-label="Filter packets"
+          aria-label={t('rawPacketLog.filterPackets')}
           className="min-w-0 flex-1 rounded border border-gray-600 bg-slate-800 px-2 py-1 font-mono text-xs text-gray-200 placeholder-gray-500 focus:border-blue-500 focus:outline-none"
         />
         <span className="text-muted shrink-0 text-[10px]">{filtered.length}</span>
@@ -297,10 +300,10 @@ export default function RawPacketLogPanel(props: Props) {
           type="button"
           onClick={handleClear}
           disabled={packets.length === 0}
-          aria-label="Clear packet log"
+          aria-label={t('rawPacketLog.clearPacketLog')}
           className="shrink-0 rounded border border-gray-600 bg-slate-800 px-2 py-1 text-xs text-gray-300 hover:bg-slate-700 disabled:opacity-40"
         >
-          Clear
+          {t('common.clear')}
         </button>
       </div>
 
@@ -395,6 +398,7 @@ function MeshcoreRow({
   getNodeLabel: (nodeId: number) => string;
   onNodeClick?: (nodeId: number) => void;
 }) {
+  const { t } = useTranslation();
   const routeLabel =
     p.routeTypeString != null ? (ROUTE_LABEL[p.routeTypeString] ?? p.routeTypeString) : '?';
   const payloadLabel = p.payloadTypeString ?? '?';
@@ -408,7 +412,7 @@ function MeshcoreRow({
             type="button"
             className="block w-full min-w-0 truncate text-left text-cyan-200/90 underline-offset-2 hover:underline"
             title={senderLine ?? undefined}
-            aria-label={`Open node details for ${senderLine ?? p.fromNodeId}`}
+            aria-label={t('rawPacketLog.openNodeDetails', { name: senderLine ?? p.fromNodeId })}
             onClick={(e) => {
               e.stopPropagation();
               onNodeClick(p.fromNodeId!);
@@ -467,6 +471,7 @@ function MeshtasticRow({
   getNodeLabel: (nodeId: number) => string;
   onNodeClick?: (nodeId: number) => void;
 }) {
+  const { t } = useTranslation();
   const label = p.fromNodeId != null ? getNodeLabel(p.fromNodeId) : null;
   const name =
     p.fromNodeId != null ? (
@@ -476,7 +481,7 @@ function MeshtasticRow({
             type="button"
             className="block w-full min-w-0 truncate text-left text-cyan-200/90 underline-offset-2 hover:underline"
             title={label ?? undefined}
-            aria-label={`Open node details for ${label ?? p.fromNodeId}`}
+            aria-label={t('rawPacketLog.openNodeDetails', { name: label ?? p.fromNodeId })}
             onClick={(e) => {
               e.stopPropagation();
               onNodeClick(p.fromNodeId!);

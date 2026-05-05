@@ -2437,6 +2437,7 @@ const APP_SETTINGS_ALLOWED_KEYS: ReadonlySet<string> = new Set([
   'meshtasticMessageRetentionCount',
   'meshcoreMessageRetentionEnabled',
   'meshcoreMessageRetentionCount',
+  'locale',
 ]);
 const APP_SETTINGS_MAX_VALUE_LENGTH = 256;
 

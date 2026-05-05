@@ -1,5 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 
+import { useTranslation } from 'react-i18next';
+
 import type {
   CliHistoryEntry,
   MeshCoreNeighborResult,
@@ -202,6 +204,7 @@ export default function RepeatersPanel({
   onToggleFavorite,
 }: Props) {
   const { addToast } = useToast();
+  const { t } = useTranslation();
   const { ensureConfigured, RemoteAuthModal } = useMeshcoreRepeaterRemoteAuth();
   const [, setRemoteAuthEpoch] = useState(0);
   const bumpRemoteAuthEpoch = useCallback(() => {
@@ -495,7 +498,7 @@ export default function RepeatersPanel({
               setSearchQuery(e.target.value);
             }}
             placeholder="Search repeaters…"
-            aria-label="Search repeaters"
+            aria-label={t('repeatersPanel.searchRepeaters')}
             className="bg-secondary-dark/80 focus:border-brand-green/50 max-w-[20rem] min-w-[8rem] flex-1 rounded-lg border border-gray-600/50 px-3 py-1.5 text-sm text-gray-200 focus:outline-none"
           />
         </div>
@@ -656,7 +659,7 @@ export default function RepeatersPanel({
                                   onToggleFavorite(node.node_id, !node.favorited);
                                 }}
                                 className="text-brand-yellow/70 hover:text-brand-yellow text-base leading-none"
-                                aria-label={node.favorited ? 'Unfavorite' : 'Favorite'}
+                                aria-label={node.favorited ? t('repeatersPanel.unfavorite') : t('repeatersPanel.favorite')}
                               >
                                 {node.favorited ? '★' : '☆'}
                               </button>
@@ -725,7 +728,7 @@ export default function RepeatersPanel({
                                     onClick={() => void handlePing(node.node_id)}
                                     disabled
                                     aria-label={
-                                      pingError ? `Ping error: ${pingError}` : 'Ping trace'
+                                      pingError ? t('repeatersPanel.pingError', { error: pingError }) : t('repeatersPanel.pingTrace')
                                     }
                                     className={`rounded px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-40 ${
                                       pingError
@@ -749,7 +752,7 @@ export default function RepeatersPanel({
                                   <button
                                     type="button"
                                     onClick={() => void handlePing(node.node_id)}
-                                    aria-label={`Ping error: ${pingError}`}
+                                    aria-label={t('repeatersPanel.pingError', { error: pingError })}
                                     className="rounded border border-red-700 bg-red-900/60 px-2 py-0.5 text-xs font-medium text-red-300 transition-colors hover:bg-red-800/60"
                                   >
                                     Error
@@ -760,7 +763,7 @@ export default function RepeatersPanel({
                               <button
                                 type="button"
                                 onClick={() => void handlePing(node.node_id)}
-                                aria-label="Ping trace"
+                                aria-label={t('repeatersPanel.pingTrace')}
                                 className="rounded border border-blue-700 bg-blue-900/60 px-2 py-0.5 text-xs font-medium text-blue-300 transition-colors hover:bg-blue-800/60"
                               >
                                 {isPingLoading ? (
@@ -776,7 +779,7 @@ export default function RepeatersPanel({
                               disabled={!isConnected || isStatusLoading}
                               title={statusError ?? undefined}
                               aria-label={
-                                statusError ? `Status error: ${statusError}` : 'Request status'
+                                statusError ? t('repeatersPanel.statusError', { error: statusError }) : t('repeatersPanel.requestStatus')
                               }
                               className={`rounded px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-40 ${
                                 statusError
@@ -800,8 +803,8 @@ export default function RepeatersPanel({
                                 title={neighborError ?? undefined}
                                 aria-label={
                                   neighborError && !isNeighborsExpanded
-                                    ? `Neighbors error: ${neighborError}`
-                                    : 'Repeater neighbors'
+                                    ? t('repeatersPanel.neighborsError', { error: neighborError })
+                                    : t('repeatersPanel.repeaterNeighbors')
                                 }
                                 className={`rounded px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-40 ${
                                   neighborError && !isNeighborsExpanded
@@ -826,7 +829,7 @@ export default function RepeatersPanel({
                                 onClick={() => void handleTelemetry(node.node_id)}
                                 disabled={!isConnected || isTelemetryLoading}
                                 title="Cayenne LPP sensor payload (not advert GPS on the map)"
-                                aria-label="Sensor telemetry LPP"
+                                aria-label={t('repeatersPanel.sensorTelemetryLpp')}
                                 className={`rounded px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-40 ${
                                   isTelemetryExpanded
                                     ? 'border border-amber-700 bg-amber-900/60 text-amber-300'
@@ -848,7 +851,7 @@ export default function RepeatersPanel({
                                 }}
                                 disabled={!isConnected}
                                 title="Open CLI interface"
-                                aria-label="CLI interface"
+                                aria-label={t('repeatersPanel.cliInterface')}
                                 className={`rounded px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-40 ${
                                   isCliExpanded
                                     ? 'border border-cyan-700 bg-cyan-900/60 text-cyan-300'
@@ -1048,7 +1051,7 @@ export default function RepeatersPanel({
                                   placeholder="Enter command..."
                                   disabled={!isConnected || isCliLoading}
                                   className="min-w-[200px] flex-1 rounded border border-gray-600 bg-gray-800 px-2 py-1 text-sm text-gray-200 focus:border-cyan-500 focus:outline-none disabled:opacity-40"
-                                  aria-label="CLI command input"
+                                  aria-label={t('repeatersPanel.cliInput')}
                                 />
                                 <button
                                   type="button"

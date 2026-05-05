@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { useToast } from './Toast';
 
@@ -172,6 +173,7 @@ export default function SecurityPanel({
   onImportPrivateKey,
 }: Props) {
   const { addToast } = useToast();
+  const { t } = useTranslation();
   const disabled = !isConnected;
 
   // ── Admin keys section state
@@ -257,10 +259,10 @@ export default function SecurityPanel({
         publicKey: new Uint8Array(32),
         privateKey: new Uint8Array(32),
       });
-      addToast('Key regeneration requested. Device will generate new keys.', 'success');
+      addToast(t('securityPanel.keyRegenRequested'), 'success');
     } catch (err) {
       console.warn('[SecurityPanel] handleRegenerate', err);
-      addToast(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+      addToast(t('securityPanel.failed', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
     } finally {
       setApplyingRegen(false);
     }
@@ -279,10 +281,10 @@ export default function SecurityPanel({
     try {
       const parsed = adminKeys.filter((k) => k.trim() !== '').map((k) => base64ToBytes(k.trim()));
       await applyConfig({ adminKey: parsed });
-      addToast('Admin keys applied.', 'success');
+      addToast(t('securityPanel.adminKeysApplied'), 'success');
     } catch (err) {
       console.warn('[SecurityPanel] handleApplyAdminKeys', err);
-      addToast(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+      addToast(t('securityPanel.failed', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
     } finally {
       setApplyingAdmin(false);
     }
@@ -293,10 +295,10 @@ export default function SecurityPanel({
     setApplyingToggles(true);
     try {
       await applyConfig({ isManaged, serialEnabled, debugLogApiEnabled, adminChannelEnabled });
-      addToast('Administration settings applied.', 'success');
+      addToast(t('securityPanel.adminSettingsApplied'), 'success');
     } catch (err) {
       console.warn('[SecurityPanel] handleApplyToggles', err);
-      addToast(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+      addToast(t('securityPanel.failed', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
     } finally {
       setApplyingToggles(false);
     }
@@ -315,10 +317,10 @@ export default function SecurityPanel({
       if (!encrypted) throw new Error('Encryption failed');
       localStorage.setItem(KEY_BACKUP_STORAGE_KEY, encrypted);
       setBackupAvailable(true);
-      addToast('Keys backed up to system keychain.', 'success');
+      addToast(t('securityPanel.keysBackedUp'), 'success');
     } catch (err) {
       console.warn('[SecurityPanel] handleBackup', err);
-      addToast(`Backup failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+      addToast(t('securityPanel.backupFailed', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
     } finally {
       setBackupInProgress(false);
     }
@@ -337,10 +339,10 @@ export default function SecurityPanel({
       const publicKey = base64ToBytes(parsed.publicKey);
       const privateKey = base64ToBytes(parsed.privateKey);
       await applyConfig({ publicKey, privateKey });
-      addToast('Keys restored from backup.', 'success');
+      addToast(t('securityPanel.keysRestored'), 'success');
     } catch (err) {
       console.warn('[SecurityPanel] handleRestore', err);
-      addToast(`Restore failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+      addToast(t('securityPanel.restoreFailed', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
     } finally {
       setBackupInProgress(false);
     }
@@ -356,13 +358,13 @@ export default function SecurityPanel({
       const signature = await onSignData(dataBytes);
       if (signature) {
         setSignDataResult(bytesToBase64(signature));
-        addToast('Data signed successfully.', 'success');
+        addToast(t('securityPanel.dataSigned'), 'success');
       } else {
-        addToast('Sign operation returned no result.', 'error');
+        addToast(t('securityPanel.signNoResult'), 'error');
       }
     } catch (err) {
       console.warn('[SecurityPanel] handleSignData', err);
-      addToast(`Sign failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+      addToast(t('securityPanel.signFailed', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
     } finally {
       setSignInProgress(false);
     }
@@ -376,13 +378,13 @@ export default function SecurityPanel({
       const key = await onExportPrivateKey();
       if (key) {
         setExportedPrivateKey(bytesToBase64(key));
-        addToast('Private key exported.', 'success');
+        addToast(t('securityPanel.privateKeyExported'), 'success');
       } else {
-        addToast('Export returned no key.', 'error');
+        addToast(t('securityPanel.exportNoKey'), 'error');
       }
     } catch (err) {
       console.warn('[SecurityPanel] handleExportPrivateKey', err);
-      addToast(`Export failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+      addToast(t('securityPanel.exportFailed', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
     } finally {
       setExportInProgress(false);
     }
@@ -396,14 +398,14 @@ export default function SecurityPanel({
       const keyBytes = base64ToBytes(importKeyInput.trim());
       const success = await onImportPrivateKey(keyBytes);
       if (success) {
-        addToast('Private key imported. Restart may be required.', 'success');
+        addToast(t('securityPanel.privateKeyImported'), 'success');
         setImportKeyInput('');
       } else {
-        addToast('Import failed.', 'error');
+        addToast(t('securityPanel.importFailed'), 'error');
       }
     } catch (err) {
       console.warn('[SecurityPanel] handleImportPrivateKey', err);
-      addToast(`Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+      addToast(t('securityPanel.importFailedWithMessage', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
     } finally {
       setImportInProgress(false);
     }
@@ -499,7 +501,7 @@ export default function SecurityPanel({
                   disabled={disabled}
                   placeholder="Base64-encoded 32-byte public key"
                   className="bg-secondary-dark focus:border-brand-green flex-1 rounded-lg border border-gray-600 px-3 py-2 font-mono text-xs text-gray-200 focus:outline-none disabled:opacity-50"
-                  aria-label={`Admin key ${i + 1}`}
+                  aria-label={t('securityPanel.adminKeyLabel', { number: i + 1 })}
                 />
                 <button
                   type="button"
@@ -509,7 +511,7 @@ export default function SecurityPanel({
                   }}
                   disabled={disabled}
                   className="px-2 py-2 text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
-                  aria-label={`Remove admin key ${i + 1}`}
+                  aria-label={t('securityPanel.removeAdminKey', { number: i + 1 })}
                 >
                   Remove
                 </button>

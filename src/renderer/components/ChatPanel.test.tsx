@@ -1067,7 +1067,7 @@ describe('ChatPanel compose emoji picker', () => {
         <ChatPanel {...defaultProps} />
       </ToastProvider>,
     );
-    const emojiBtn = screen.getByRole('button', { name: '😊' });
+    const emojiBtn = screen.getByRole('button', { name: 'Emoji' });
     await user.click(emojiBtn);
     expect(document.querySelector('emoji-picker')).toBeInTheDocument();
     expect(window.electronAPI.showEmojiPanel).not.toHaveBeenCalled();
@@ -1081,7 +1081,7 @@ describe('ChatPanel compose emoji picker', () => {
         <ChatPanel {...defaultProps} />
       </ToastProvider>,
     );
-    const emojiBtn = screen.getByRole('button', { name: '😊' });
+    const emojiBtn = screen.getByRole('button', { name: 'Emoji' });
     await user.click(emojiBtn);
     expect(window.electronAPI.showEmojiPanel).toHaveBeenCalledOnce();
     expect(document.querySelector('emoji-picker')).not.toBeInTheDocument();
@@ -1095,7 +1095,7 @@ describe('ChatPanel compose emoji picker', () => {
         <ChatPanel {...defaultProps} />
       </ToastProvider>,
     );
-    const emojiBtn = screen.getByRole('button', { name: '😊' });
+    const emojiBtn = screen.getByRole('button', { name: 'Emoji' });
     await user.click(emojiBtn);
     expect(window.electronAPI.showEmojiPanel).toHaveBeenCalledOnce();
     expect(document.querySelector('emoji-picker')).not.toBeInTheDocument();

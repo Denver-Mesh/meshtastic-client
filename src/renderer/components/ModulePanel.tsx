@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import {
   MESHTASTIC_DEVICE_METRICS_HELP_TOOLTIP,
@@ -296,6 +297,7 @@ export default function ModulePanel({
   ipTunnelMessages,
 }: Props) {
   const { addToast } = useToast();
+  const { t } = useTranslation();
   const disabled = !isConnected;
   const [applyingSection, setApplyingSection] = useState<string | null>(null);
 
@@ -425,19 +427,19 @@ export default function ModulePanel({
     const setPromise = onSetModuleConfig({ payloadVariant: { case: moduleCase, value } });
     void setPromise
       .then(() => {
-        addToast(`${sectionName} sent. Device may briefly reboot.`, 'success');
+        addToast(t('modulePanel.sectionSent', { name: sectionName }), 'success');
         return onCommit()
           .then(() => {})
           .catch((err: unknown) => {
             addToast(
-              `Commit failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+              t('modulePanel.commitFailed', { message: err instanceof Error ? err.message : 'Unknown error' }),
               'error',
             );
           });
       })
       .catch((err: unknown) => {
         console.warn('[ModulePanel] apply failed', err);
-        addToast(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+        addToast(t('modulePanel.failed', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
       });
     setApplyingSection(null);
   };
@@ -539,10 +541,10 @@ export default function ModulePanel({
               },
             });
             await onCommit();
-            addToast('Canned Messages applied.', 'success');
+            addToast(t('modulePanel.cannedMessagesApplied'), 'success');
           } catch (err) {
             console.warn('[ModulePanel] canned messages failed', err);
-            addToast(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+            addToast(t('modulePanel.failed', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
           } finally {
             setApplyingSection(null);
           }
@@ -948,10 +950,10 @@ export default function ModulePanel({
             try {
               await onSetRingtone(ringtoneText);
               await onCommit();
-              addToast('RTTTL ringtone saved.', 'success');
+              addToast(t('modulePanel.rtttlSaved'), 'success');
             } catch (err) {
               console.warn('[ModulePanel] RTTTL apply failed', err);
-              addToast(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
+              addToast(t('modulePanel.failed', { message: err instanceof Error ? err.message : 'Unknown error' }), 'error');
             } finally {
               setApplyingSection(null);
             }

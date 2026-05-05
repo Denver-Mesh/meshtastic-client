@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
+import { useTranslation } from 'react-i18next';
+
 import type { ContactGroup } from '../../shared/electron-api.types';
 import { isMeshcoreContactEligibleForUserGroup } from '../lib/meshcoreUtils';
 import { isMeshtasticContactEligibleForUserGroup } from '../lib/meshtasticContactGroupUtils';
@@ -37,6 +39,7 @@ export default function ContactGroupsModal({
 }: ContactGroupsModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const { addToast } = useToast();
+  const { t } = useTranslation();
 
   // Group list state
   const [newGroupName, setNewGroupName] = useState('');
@@ -135,7 +138,7 @@ export default function ContactGroupsModal({
       setManagingGroup(group);
     } catch (e) {
       console.warn('[ContactGroupsModal] loadMembers failed:', e);
-      addToast(`Failed to load members: ${e instanceof Error ? e.message : String(e)}`, 'error');
+      addToast(t('contactGroupsModal.failedLoadMembers', { message: e instanceof Error ? e.message : String(e) }), 'error');
     }
   }
 
@@ -150,7 +153,7 @@ export default function ContactGroupsModal({
       }
     } catch (e) {
       console.warn('[ContactGroupsModal] toggleMember failed:', e);
-      addToast(`Failed to update member: ${e instanceof Error ? e.message : String(e)}`, 'error');
+      addToast(t('contactGroupsModal.failedUpdateMember', { message: e instanceof Error ? e.message : String(e) }), 'error');
     } finally {
       setBusy(false);
     }
@@ -168,7 +171,7 @@ export default function ContactGroupsModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
         type="button"
-        aria-label="Close dialog"
+        aria-label={t('aria.closeDialog')}
         className="absolute inset-0 cursor-pointer border-0 bg-black/50 p-0 backdrop-blur-sm"
         onClick={onClose}
       />
@@ -188,7 +191,7 @@ export default function ContactGroupsModal({
                 onClick={() => {
                   setManagingGroup(null);
                 }}
-                aria-label="Back to groups"
+                aria-label={t('contactGroupsModal.backToGroups')}
                 className="hover:bg-secondary-dark text-muted shrink-0 rounded p-1 transition-colors hover:text-gray-200"
               >
                 <svg
@@ -212,7 +215,7 @@ export default function ContactGroupsModal({
           )}
           <button
             onClick={onClose}
-            aria-label="Close dialog"
+            aria-label={t('aria.closeDialog')}
             className="hover:bg-secondary-dark text-muted shrink-0 rounded-lg p-1.5 transition-colors hover:text-gray-200"
           >
             <svg
@@ -325,7 +328,7 @@ export default function ContactGroupsModal({
                             type="button"
                             onClick={() => void handleRenameSubmit(group.group_id)}
                             disabled={!editingName.trim() || busy}
-                            aria-label="Save name"
+                            aria-label={t('contactGroupsModal.saveName')}
                             className="hover:bg-secondary-dark text-brand-green rounded p-1 transition-colors disabled:opacity-40"
                           >
                             <svg
@@ -347,7 +350,7 @@ export default function ContactGroupsModal({
                             onClick={() => {
                               setEditingGroupId(null);
                             }}
-                            aria-label="Cancel rename"
+                            aria-label={t('contactGroupsModal.cancelRename')}
                             className="hover:bg-secondary-dark text-muted rounded p-1 transition-colors hover:text-gray-200"
                           >
                             <svg
@@ -418,7 +421,7 @@ export default function ContactGroupsModal({
                                 type="button"
                                 onClick={() => void handleDelete(group.group_id)}
                                 disabled={busy}
-                                aria-label="Confirm delete"
+                                aria-label={t('contactGroupsModal.confirmDelete')}
                                 className="rounded bg-red-600/30 px-2 py-0.5 text-xs text-red-400 transition-colors hover:bg-red-600/50 disabled:opacity-40"
                               >
                                 Delete?
@@ -428,7 +431,7 @@ export default function ContactGroupsModal({
                                 onClick={() => {
                                   setDeleteConfirmId(null);
                                 }}
-                                aria-label="Cancel delete"
+                                aria-label={t('contactGroupsModal.cancelDelete')}
                                 className="hover:bg-secondary-dark text-muted rounded p-1 transition-colors hover:text-gray-200"
                               >
                                 <svg

@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+
 interface SidebarProps {
   tabs: string[];
   active: number;
@@ -267,6 +269,7 @@ export default function Sidebar({
   collapsed,
   onToggle,
 }: SidebarProps) {
+  const { t } = useTranslation();
   const safeActive = tabs.length === 0 ? 0 : Math.max(0, Math.min(active, tabs.length - 1));
 
   return (
@@ -274,7 +277,7 @@ export default function Sidebar({
       {/* Nav items */}
       <div
         role="tablist"
-        aria-label="Application panels"
+        aria-label={t('aria.applicationPanels')}
         aria-orientation="vertical"
         className="relative z-10 flex flex-1 flex-col gap-0.5 overflow-x-hidden overflow-y-auto py-2"
       >
@@ -282,9 +285,10 @@ export default function Sidebar({
           const isActive = safeActive === i;
           const isDisabled = disabledTabs?.has(i) ?? false;
           const showChatBadge = name === 'Chat' && chatUnread > 0;
+          const translatedName = t(`tabs.${name.toLowerCase()}`, { defaultValue: name });
           const tabAriaLabel = showChatBadge
-            ? `${name} ${chatUnread > 99 ? '99+' : chatUnread} unread`
-            : name;
+            ? `${translatedName} ${chatUnread > 99 ? '99+' : chatUnread} unread`
+            : translatedName;
 
           return (
             <button
@@ -299,7 +303,7 @@ export default function Sidebar({
               onClick={() => {
                 if (!isDisabled) onChange(i);
               }}
-              title={isDisabled ? 'Not available in this mode' : collapsed ? name : undefined}
+              title={isDisabled ? t('sidebar.disabledTabTooltip') : collapsed ? translatedName : undefined}
               className={`relative mx-1 flex items-center gap-3 rounded-sm border-l-2 py-2.5 pr-3 pl-[14px] text-sm font-medium transition-colors ${
                 isDisabled
                   ? 'cursor-not-allowed border-transparent text-gray-600 opacity-40'
@@ -317,7 +321,7 @@ export default function Sidebar({
                   </span>
                 )}
               </span>
-              {!collapsed && <span className="truncate">{name}</span>}
+              {!collapsed && <span className="truncate">{translatedName}</span>}
             </button>
           );
         })}
@@ -327,7 +331,7 @@ export default function Sidebar({
       <button
         type="button"
         onClick={onToggle}
-        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        aria-label={collapsed ? t('aria.expandSidebar') : t('aria.collapseSidebar')}
         aria-expanded={!collapsed}
         className="text-muted hover:bg-secondary-dark relative z-10 flex h-9 shrink-0 items-center justify-center border-t border-slate-800 transition-colors hover:text-gray-200"
       >

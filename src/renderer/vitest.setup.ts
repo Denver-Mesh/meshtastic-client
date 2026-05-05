@@ -1,5 +1,8 @@
 import '@testing-library/jest-dom';
 import 'vitest-axe/extend-expect';
+import i18next from 'i18next';
+import { initReactI18next } from 'react-i18next';
+import en from './locales/en/translation.json';
 
 import { cleanup } from '@testing-library/react';
 import { afterEach, expect, vi } from 'vitest';
@@ -37,6 +40,14 @@ window.HTMLElement.prototype.scrollTo = vi.fn();
 
 // jsdom doesn't implement canvas
 HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue(null);
+
+// Initialise i18next with English translations so t() resolves to real strings in tests.
+void i18next.use(initReactI18next).init({
+  lng: 'en',
+  fallbackLng: 'en',
+  resources: { en: { translation: en } },
+  interpolation: { escapeValue: false },
+});
 
 import type { ElectronAPI } from '@/shared/electron-api.types';
 

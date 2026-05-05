@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/purity */
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import type { ContactGroup } from '../../shared/electron-api.types';
 import type { LocationFilter } from '../App';
@@ -169,6 +170,7 @@ export default function NodeListPanel({
   meshcorePublicKeyHexByNodeId,
 }: Props) {
   const { addToast } = useToast();
+  const { t } = useTranslation();
   const { nodeStaleThresholdMs, nodeOfflineThresholdMs } = useRadioProvider(mode);
   const coordinateFormat = useCoordFormatStore((s) => s.coordinateFormat);
   const diagnosticRows = useDiagnosticsStore((s) => s.diagnosticRows);
@@ -192,10 +194,10 @@ export default function NodeListPanel({
     setRefreshLoading(true);
     try {
       await onRefreshContacts();
-      addToast('Contacts refreshed.', 'success');
+      addToast(t('nodeListPanel.contactsRefreshed'), 'success');
     } catch (e) {
       console.warn('[NodeListPanel] refresh failed:', e instanceof Error ? e.message : e);
-      addToast(`Refresh failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
+      addToast(t('nodeListPanel.refreshFailed', { message: e instanceof Error ? e.message : String(e) }), 'error');
     } finally {
       setRefreshLoading(false);
     }
@@ -209,12 +211,14 @@ export default function NodeListPanel({
       if (result.imported === 0 && result.skipped === 0 && result.errors.length === 0) return;
       const msg =
         result.errors.length > 0
-          ? `Imported ${result.imported}, skipped ${result.skipped}. Errors: ${result.errors.slice(0, 3).join('; ')}`
-          : `Imported ${result.imported} contact${result.imported !== 1 ? 's' : ''}${result.skipped > 0 ? `, skipped ${result.skipped}` : ''}.`;
+          ? t('nodeListPanel.importResultError', { imported: result.imported, skipped: result.skipped, errors: result.errors.slice(0, 3).join('; ') })
+          : result.skipped > 0
+            ? t('nodeListPanel.importResultSuccessWithSkipped', { count: result.imported, skipped: result.skipped })
+            : t('nodeListPanel.importResultSuccess', { count: result.imported });
       addToast(msg, result.errors.length > 0 ? 'error' : 'success');
     } catch (e) {
       console.warn('[NodeListPanel] import failed:', e instanceof Error ? e.message : e);
-      addToast(`Import failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
+      addToast(t('nodeListPanel.importFailed', { message: e instanceof Error ? e.message : String(e) }), 'error');
     } finally {
       setImportLoading(false);
     }
@@ -225,10 +229,10 @@ export default function NodeListPanel({
     setAdvertLoading(true);
     try {
       await onSendAdvert();
-      addToast('Flood advert sent', 'success');
+      addToast(t('nodeListPanel.floodAdvertSent'), 'success');
     } catch (e) {
       console.warn('[NodeListPanel] sendAdvert failed:', e instanceof Error ? e.message : e);
-      addToast(`Advert failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
+      addToast(t('nodeListPanel.advertFailed', { message: e instanceof Error ? e.message : String(e) }), 'error');
     } finally {
       setAdvertLoading(false);
     }
@@ -462,7 +466,7 @@ export default function NodeListPanel({
                 void handleRefreshContacts();
               }}
               disabled={refreshLoading}
-              aria-label="Refresh contacts from radio"
+              aria-label={t('nodeListPanel.refreshContacts')}
               className="flex w-full items-center justify-center gap-2 rounded border border-purple-600 px-3 py-1.5 text-sm font-medium text-purple-400 transition-colors hover:bg-purple-900/30 hover:text-purple-300 disabled:opacity-50 min-[480px]:w-auto"
             >
               {refreshLoading ? (
@@ -478,7 +482,7 @@ export default function NodeListPanel({
                 void handleSendAdvert();
               }}
               disabled={!meshcoreRadioOperational || advertLoading}
-              aria-label="Send flood advert"
+              aria-label={t('nodeListPanel.sendFloodAdvert')}
               className="bg-brand-green/20 text-brand-green border-brand-green/30 hover:bg-brand-green/30 flex w-full items-center justify-center gap-2 rounded border px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-40 min-[480px]:w-auto"
             >
               {advertLoading ? (
@@ -519,7 +523,7 @@ export default function NodeListPanel({
               const val = e.target.value;
               onGroupChange?.(val === '' ? null : Number(val));
             }}
-            aria-label="Filter by contact group"
+            aria-label={t('nodeListPanel.filterByContactGroup')}
             className="bg-secondary-dark/80 focus:border-brand-green/50 flex-1 rounded-lg border border-gray-600/50 px-3 py-1.5 text-sm text-gray-200 focus:outline-none"
           >
             <option value="">{mode === 'meshcore' ? 'All contacts' : 'All nodes'}</option>
@@ -543,7 +547,7 @@ export default function NodeListPanel({
           <button
             type="button"
             onClick={onManageGroups}
-            aria-label="Manage contact groups"
+            aria-label={t('nodeListPanel.manageContactGroups')}
             title="Manage groups"
             className="hover:bg-secondary-dark text-muted shrink-0 rounded-lg p-1.5 transition-colors hover:text-gray-200"
           >

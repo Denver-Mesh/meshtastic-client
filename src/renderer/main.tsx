@@ -2,9 +2,11 @@
 import './styles.css';
 
 import { createRoot } from 'react-dom/client';
+import { I18nextProvider } from 'react-i18next';
 
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
+import i18n from './lib/i18n';
 
 if (import.meta.env.DEV) {
   void import('react').then((React) =>
@@ -15,7 +17,9 @@ if (import.meta.env.DEV) {
 }
 
 createRoot(document.getElementById('root')!).render(
-  <ErrorBoundary>
-    <App />
-  </ErrorBoundary>,
+  <I18nextProvider i18n={i18n}>
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  </I18nextProvider>,
 );

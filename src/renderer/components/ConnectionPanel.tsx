@@ -1,6 +1,8 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/refs */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { useTranslation } from 'react-i18next';
+
 import {
   MQTT_DEFAULT_RECONNECT_ATTEMPTS,
   MQTT_MAX_RECONNECT_ATTEMPTS,
@@ -539,6 +541,7 @@ export default function ConnectionPanel({
   firmwareCheckState,
   onOpenFirmwareReleases,
 }: Props) {
+  const { t } = useTranslation();
   const [connectionType, setConnectionType] = useState<ConnectionType>('ble');
   const [httpAddress, setHttpAddress] = useState(() => {
     const last = loadLastConnection(protocol);
@@ -1840,7 +1843,7 @@ export default function ConnectionPanel({
             <input
               id="mqtt-max-retries-when-connected"
               type="number"
-              aria-label="Max MQTT reconnect attempts"
+              aria-label={t('connectionPanel.maxReconnectAttempts')}
               min={1}
               max={MQTT_MAX_RECONNECT_ATTEMPTS}
               value={activeMqttSettings.maxRetries ?? MQTT_DEFAULT_RECONNECT_ATTEMPTS}
@@ -2019,7 +2022,7 @@ export default function ConnectionPanel({
                 <div
                   className="flex flex-wrap items-center gap-2 pt-1"
                   role="group"
-                  aria-label="LetsMesh region"
+                  aria-label={t('connectionPanel.letsMeshRegion')}
                 >
                   <span className="text-muted text-xs">Region</span>
                   <button
@@ -2220,10 +2223,10 @@ export default function ConnectionPanel({
                   onClick={() => {
                     setShowMqttPassword((v) => !v);
                   }}
-                  aria-label={showMqttPassword ? 'hide' : 'show'}
+                  aria-label={showMqttPassword ? t('connectionPanel.hidePassword') : t('connectionPanel.showPassword')}
                   className="absolute top-1/2 right-2 -translate-y-1/2 text-xs text-gray-500 hover:text-gray-300"
                 >
-                  {showMqttPassword ? 'hide' : 'show'}
+                  {showMqttPassword ? t('connectionPanel.hidePassword') : t('connectionPanel.showPassword')}
                 </button>
               </div>
             </div>

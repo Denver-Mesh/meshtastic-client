@@ -1,6 +1,8 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/refs, react-hooks/purity */
 import { useEffect, useRef, useState } from 'react';
 
+import { useTranslation } from 'react-i18next';
+
 import type {
   MeshCoreNeighborResult,
   MeshCoreNodeTelemetry,
@@ -105,6 +107,7 @@ export default function NodeDetailModal({
   meshcoreManufacturerModel,
   positionHistory,
 }: NodeDetailModalProps) {
+  const { t } = useTranslation();
   const { ensureConfigured, RemoteAuthModal } = useMeshcoreRepeaterRemoteAuth();
   const coordinateFormat = useCoordFormatStore((s) => s.coordinateFormat);
   const [actionStatus, setActionStatus] = useState<string | null>(null);
@@ -347,7 +350,7 @@ export default function NodeDetailModal({
       <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
         <button
           type="button"
-          aria-label="Close dialog"
+          aria-label={t('aria.closeDialog')}
           className="absolute inset-0 cursor-pointer border-0 bg-black/50 p-0"
           onClick={onClose}
         />
@@ -458,7 +461,7 @@ export default function NodeDetailModal({
                     onToggleFavorite(node.node_id, !node.favorited);
                   }}
                   className="hover:bg-secondary-dark shrink-0 rounded-lg p-1.5 transition-colors"
-                  aria-label={node.favorited ? 'Remove from favorites' : 'Add to favorites'}
+                  aria-label={node.favorited ? t('nodeDetailModal.removeFromFavorites') : t('nodeDetailModal.addToFavorites')}
                   aria-pressed={node.favorited}
                 >
                   <span
@@ -471,7 +474,7 @@ export default function NodeDetailModal({
                 <button
                   ref={closeButtonRef}
                   onClick={onClose}
-                  aria-label="Close dialog"
+                  aria-label={t('aria.closeDialog')}
                   className="hover:bg-secondary-dark text-muted shrink-0 rounded-lg p-1.5 transition-colors hover:text-gray-200"
                 >
                   <svg
@@ -1130,7 +1133,7 @@ export default function NodeDetailModal({
                 <button
                   type="button"
                   title="Cayenne LPP sensor payload (not advert GPS on the map)"
-                  aria-label="Sensor telemetry LPP"
+                  aria-label={t('nodeDetailModal.sensorTelemetryLpp')}
                   onClick={async () => {
                     if (!(await ensureConfigured())) return;
                     setTelemetryPending(true);
