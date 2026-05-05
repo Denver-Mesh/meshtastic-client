@@ -34,7 +34,10 @@
     "contacts": "Kontakte",
     "messages": "Nachrichten",
     "connect": "Verbinden",
-    "disconnect": "Trennen"
+    "disconnect": "Trennen",
+    "discord": "Zwietracht",
+    "github": "GitHub",
+    "website": "Webseite"
   },
   "aria": {
     "closeDialog": "Schließen Dialog",
@@ -178,7 +181,9 @@
     "channelsMeshcore": "Kanäle (MeshCore)",
     "channelRoleDisabled": "Deaktiviert",
     "channelRoleSecondary": "Sekundär",
-    "noChannels": "Keine Kanäle konfiguriert."
+    "noChannels": "Keine Kanäle konfiguriert.",
+    "channelRolePrimary": "Primär",
+    "channelN": "Kanal {{num}}"
   },
   "securityPanel": {
     "keyRegenRequested": "Schlüsselregeneration angefordert. Das Gerät generiert neue Schlüssel.",
@@ -208,7 +213,8 @@
     "cannedMessagesApplied": "Eingestellte Nachrichten angewendet.",
     "rtttlSaved": "RTTTL-Klingelton gespeichert.",
     "title": "Modulkonfiguration",
-    "readOnly": "Schreibgeschützt"
+    "readOnly": "Schreibgeschützt",
+    "connectToDevice": "Stellen Sie eine Verbindung zu einem Gerät her, um die Modulkonfiguration zu ändern."
   },
   "appPanel": {
     "failedSaveRetention": "Die Einstellung für die Nachrichtenaufbewahrung konnte nicht gespeichert werden.",
@@ -306,7 +312,9 @@
     "messagesSection": "Nachrichten",
     "channelLabel": "Kanal:",
     "allChannelsOption": "Alle Kanäle",
-    "clearMessagesCount": "Klare Nachrichten ({{count}})"
+    "clearMessagesCount": "Klare Nachrichten ({{count}})",
+    "latLabel": "Breite:",
+    "lonLabel": "Lon:"
   },
   "nodeListPanel": {
     "contactsRefreshed": "Kontakte aktualisiert.",
@@ -444,7 +452,32 @@
     "hintMeshcoreHttp": "Geben Sie den Hostnamen oder die IP-Adresse Ihres MeshCore-Begleitradios ein. Es muss über Port 5000 erreichbar sein.",
     "stageLinuxUnpaired": "Das gespeicherte Gerät ist nicht mit Linux Bluetooth gekoppelt – wählen Sie es unten aus, um die PIN einzugeben und eine Verbindung herzustellen.",
     "liamServerNote": "Liams Server ist nur Uplink – Ihr Knoten wird auf seiner Karte angezeigt, Sie erhalten jedoch keine Nachrichten von ihm.",
-    "connectButton": "Verbinden"
+    "connectButton": "Verbinden",
+    "mqttStatusConnected": "verbunden",
+    "mqttStatusConnecting": "verbinden",
+    "mqttStatusError": "Fehler",
+    "mqttStatusDisconnected": "getrennt",
+    "stageSelectDevice": "Wählen Sie unten Ihr Gerät aus",
+    "stageSelectSerial": "Wählen Sie unten einen seriellen Port aus",
+    "stageConnectingLast": "Verbindung zum letzten Bluetooth-Gerät wird hergestellt…",
+    "stagePleaseWait": "Bitte warten…",
+    "stageConfiguring": "Gerät wird konfiguriert…",
+    "stageConnecting": "Verbindung zum Gerät wird hergestellt…",
+    "stageScanning": "Scannen – Wählen Sie Ihr Gerät aus, wenn es unten angezeigt wird",
+    "stageConnectingSaved": "Verbindung mit gespeichertem Bluetooth-Gerät wird hergestellt…",
+    "stageSelectBluetooth": "Wählen Sie unten Ihr Bluetooth-Gerät aus",
+    "stageEnterPin": "Geben Sie die auf Ihrem Gerät angezeigte PIN ein",
+    "stageEnterPinPair": "Geben Sie die PIN ein, um das Gerät zu koppeln",
+    "stagePairingBluetooth": "Kopplung mit PIN (bluetoothctl)…",
+    "stageRemoving": "Gerät wird entfernt…",
+    "stagePairingPin": "Mit PIN koppeln…",
+    "stagePairing": "Paarung…",
+    "stageSelectBluetoothDots": "Wählen Sie Ihr Bluetooth-Gerät aus…",
+    "stagePairingFailed": "Die Kopplung ist fehlgeschlagen. Bitte koppeln Sie Ihr Gerät erneut.",
+    "stageCheckingPairing": "Bluetooth-Kopplung wird überprüft…",
+    "stageEnterPinLinux": "Geben Sie die auf Ihrem Gerät angezeigte PIN ein (zuerst mit Linux koppeln).",
+    "stageScanningLast": "Suche nach dem letzten Bluetooth-Gerät…",
+    "stageReconnecting": "Verbindung zum letzten Bluetooth-Gerät wird wiederhergestellt…"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Wirf Routingreihen, die älter als {{hours}} Stunden (1-168) sind",

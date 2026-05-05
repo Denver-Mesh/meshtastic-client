@@ -442,12 +442,6 @@ function keySizeDefaultPsk(size: KeySize): Uint8Array {
   }
 }
 
-const CHANNEL_ROLES = [
-  { value: 0, label: 'Disabled' },
-  { value: 1, label: 'Primary' },
-  { value: 2, label: 'Secondary' },
-];
-
 // ─── Confirmation Modal ─────────────────────────────────────────
 function ConfirmModal({
   title,
@@ -959,7 +953,7 @@ export default function RadioPanel({
 
   return (
     <div className="w-full space-y-4">
-      <h2 className="text-xl font-semibold text-gray-200">Radio Configuration</h2>
+      <h2 className="text-xl font-semibold text-gray-200">{t('radioPanel.title')}</h2>
 
       {capabilities?.protocol === 'meshcore' && (
         <div className="flex justify-end">
@@ -1248,7 +1242,7 @@ export default function RadioPanel({
               disabled={disabled || applyingSection !== null}
               className="bg-secondary-dark focus:border-brand-green w-36 rounded-lg border border-gray-600 px-3 py-2 text-gray-200 focus:outline-none disabled:opacity-50"
             />
-            <p className="text-muted text-xs">Operating frequency. Check local regulations.</p>
+            <p className="text-muted text-xs">{t('radioPanel.frequencyHint')}</p>
           </div>
           <div className="space-y-4 border-l border-gray-700 pl-3">
             <ConfigSelect
@@ -1830,7 +1824,7 @@ export default function RadioPanel({
               placeholder="0.pool.ntp.org"
               className="bg-secondary-dark focus:border-brand-green w-full rounded-lg border border-gray-600 px-3 py-2 text-gray-200 focus:outline-none disabled:opacity-50"
             />
-            <p className="text-muted text-xs">Leave empty for default NTP server.</p>
+            <p className="text-muted text-xs">{t('radioPanel.ntpHint')}</p>
           </div>
           <ConfigToggle
             label="Ethernet enabled"
@@ -1860,13 +1854,13 @@ export default function RadioPanel({
       {/* Info */}
       <div className="bg-deep-black text-muted space-y-1 rounded-lg p-4 text-sm">
         <p>Changes are written to the device's flash memory and persist across reboots.</p>
-        <p>The device may briefly restart after applying new LoRa or device settings.</p>
+        <p>{t('radioPanel.restartWarning')}</p>
       </div>
 
       {/* Device Actions (MeshCore) — non-destructive commands */}
       {(onSendAdvert || onSyncClock || capabilities?.protocol === 'meshcore') && (
         <div className="space-y-3">
-          <h3 className="text-muted text-sm font-medium">Device Actions</h3>
+          <h3 className="text-muted text-sm font-medium">{t('radioPanel.deviceActions')}</h3>
           <div className="flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-800/50 px-3 py-2">
             {onSendAdvert && (
               <button
@@ -1903,7 +1897,7 @@ export default function RadioPanel({
 
       {/* Device Commands — keep at bottom of Radio panel, directly above Danger Zone; do not reorder */}
       <div className="space-y-3">
-        <h3 className="text-sm font-medium text-orange-400">Device Commands</h3>
+        <h3 className="text-sm font-medium text-orange-400">{t('radioPanel.deviceCommands')}</h3>
         <div className="space-y-2 rounded-lg border border-orange-900 p-4">
           <p className="text-xs text-orange-400/80">
             These actions affect the connected device immediately (reboot, shutdown, firmware modes,
@@ -2012,7 +2006,7 @@ export default function RadioPanel({
       {/* Danger Zone — keep at bottom of Radio panel after Device Commands; do not reorder */}
       {capabilities?.hasFactoryReset !== false && (
         <div className="space-y-3">
-          <h3 className="text-sm font-medium text-red-400">Danger Zone</h3>
+          <h3 className="text-sm font-medium text-red-400">{t('radioPanel.dangerZone')}</h3>
           <div className="space-y-2 rounded-lg border border-red-900 p-4">
             <p className="text-xs text-red-400/80">
               These actions are permanent and cannot be undone.
@@ -2156,6 +2150,7 @@ function ChannelSection({
   disabled: boolean;
   setStatus: (s: string) => void;
 }) {
+  const { t } = useTranslation();
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const [editRole, setEditRole] = useState<number>(0);
@@ -2271,7 +2266,7 @@ function ChannelSection({
   return (
     <details className="group bg-deep-black/50 rounded-lg border border-gray-700">
       <summary className="flex cursor-pointer items-center justify-between rounded-lg px-4 py-3 font-medium text-gray-200 transition-colors hover:bg-gray-800">
-        <span>Channels</span>
+        <span>{t('radioPanel.channels')}</span>
         <svg
           className="text-muted h-4 w-4 transition-transform group-open:rotate-180"
           fill="none"
@@ -2312,7 +2307,12 @@ function ChannelSection({
                 <span
                   className={`flex-1 text-sm ${role !== 0 ? 'text-gray-200' : 'text-muted italic'}`}
                 >
-                  {cfg?.name || (i === 0 ? 'Primary' : role !== 0 ? `Channel ${i}` : 'Disabled')}
+                  {cfg?.name ||
+                    (i === 0
+                      ? t('radioPanel.channelRolePrimary')
+                      : role !== 0
+                        ? t('radioPanel.channelN', { num: i })
+                        : t('radioPanel.channelRoleDisabled'))}
                 </span>
                 {/* Role badge */}
                 <span
@@ -2324,7 +2324,11 @@ function ChannelSection({
                         : 'text-muted bg-gray-800'
                   }`}
                 >
-                  {CHANNEL_ROLES.find((r) => r.value === role)?.label ?? 'Disabled'}
+                  {role === 1
+                    ? t('radioPanel.channelRolePrimary')
+                    : role === 2
+                      ? t('radioPanel.channelRoleSecondary')
+                      : t('radioPanel.channelRoleDisabled')}
                 </span>
                 {/* Security indicator */}
                 {secLevel && <SecurityIcon level={secLevel} />}
@@ -2375,8 +2379,8 @@ function ChannelSection({
                   disabled={disabled}
                   className="bg-secondary-dark focus:border-brand-green w-full rounded border border-gray-600 px-2 py-1.5 text-sm text-gray-200 focus:outline-none disabled:opacity-50"
                 >
-                  <option value={0}>Disabled</option>
-                  <option value={2}>Secondary</option>
+                  <option value={0}>{t('radioPanel.channelRoleDisabled')}</option>
+                  <option value={2}>{t('radioPanel.channelRoleSecondary')}</option>
                 </select>
               </div>
             )}
@@ -2547,6 +2551,7 @@ function MeshcoreChannelSection({
   onDeleteChannel: (idx: number) => Promise<void>;
   disabled: boolean;
 }) {
+  const { t } = useTranslation();
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [editName, setEditName] = useState('');
   const [editKeyHex, setEditKeyHex] = useState('');
@@ -2649,7 +2654,7 @@ function MeshcoreChannelSection({
   return (
     <details ref={detailsRef} className="group bg-deep-black/50 rounded-lg border border-gray-700">
       <summary className="flex cursor-pointer items-center justify-between rounded-lg px-4 py-3 font-medium text-gray-200 transition-colors hover:bg-gray-800">
-        <span>Channels (MeshCore)</span>
+        <span>{t('radioPanel.channelsMeshcore')}</span>
         <svg
           className="text-muted h-4 w-4 transition-transform group-open:rotate-180"
           fill="none"
@@ -2663,7 +2668,7 @@ function MeshcoreChannelSection({
         {/* ── Channel List ── */}
         <div className="space-y-1">
           {channels.length === 0 && (
-            <p className="text-muted text-xs italic">No channels configured.</p>
+            <p className="text-muted text-xs italic">{t('radioPanel.noChannels')}</p>
           )}
           {channels.map((ch) => {
             const revealed = revealedIdx.has(ch.index);

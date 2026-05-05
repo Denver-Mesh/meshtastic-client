@@ -34,7 +34,10 @@
     "contacts": "łączność",
     "messages": "wiadomości",
     "connect": "Łączyć",
-    "disconnect": "Odłączyć"
+    "disconnect": "Odłączyć",
+    "discord": "Niezgoda",
+    "github": "GitHub",
+    "website": "Strona internetowa"
   },
   "aria": {
     "closeDialog": "Zamknij okno dialogowe",
@@ -178,7 +181,9 @@
     "channelsMeshcore": "Kanały (MeshCore)",
     "channelRoleDisabled": "Wyłączony",
     "channelRoleSecondary": "Wtórny",
-    "noChannels": "Nie skonfigurowano żadnych kanałów."
+    "noChannels": "Nie skonfigurowano żadnych kanałów.",
+    "channelRolePrimary": "Podstawowy",
+    "channelN": "Kanał {{num}}"
   },
   "securityPanel": {
     "keyRegenRequested": "Wymagana regeneracja kluczy. Urządzenie wygeneruje nowe klucze.",
@@ -208,7 +213,8 @@
     "cannedMessagesApplied": "Zastosowano komunikaty w puszkach.",
     "rtttlSaved": "Zapisano dzwonek RTTTL.",
     "title": "Konfiguracja modułu",
-    "readOnly": "Tylko do odczytu"
+    "readOnly": "Tylko do odczytu",
+    "connectToDevice": "Połącz się z urządzeniem, aby zmodyfikować konfigurację modułu."
   },
   "appPanel": {
     "failedSaveRetention": "Nie udało się zapisać ustawienia przechowywania wiadomości.",
@@ -306,7 +312,9 @@
     "messagesSection": "Wiadomości",
     "channelLabel": "Kanał:",
     "allChannelsOption": "Wszystkie kanały",
-    "clearMessagesCount": "Wyczyść wiadomości ({{count}})"
+    "clearMessagesCount": "Wyczyść wiadomości ({{count}})",
+    "latLabel": "łac.:",
+    "lonLabel": "Lon:"
   },
   "nodeListPanel": {
     "refreshFailed": "Odświeżanie nie powiodło się: {{message}}",
@@ -444,7 +452,32 @@
     "hintMeshcoreHttp": "Wprowadź nazwę hosta lub adres IP swojego radia towarzyszącego MeshCore. Musi być osiągalny na porcie 5000.",
     "stageLinuxUnpaired": "Zapisane urządzenie nie jest sparowane z systemem Linux Bluetooth — wybierz je poniżej, aby wprowadzić kod PIN i połączyć się.",
     "liamServerNote": "Serwer Liama ​​obsługuje tylko łącze nadrzędne — Twój węzeł pojawia się na jego mapie, ale nie będziesz otrzymywać od niego wiadomości.",
-    "connectButton": "Łączyć"
+    "connectButton": "Łączyć",
+    "mqttStatusConnected": "połączony",
+    "mqttStatusConnecting": "złączony",
+    "mqttStatusError": "błąd",
+    "mqttStatusDisconnected": "bezładny",
+    "stageSelectDevice": "Wybierz poniżej swoje urządzenie",
+    "stageSelectSerial": "Wybierz port szeregowy poniżej",
+    "stageConnectingLast": "Łączę z ostatnim urządzeniem Bluetooth…",
+    "stagePleaseWait": "Proszę czekać…",
+    "stageConfiguring": "Konfiguruję urządzenie…",
+    "stageConnecting": "Łączę z urządzeniem…",
+    "stageScanning": "Skanowanie — wybierz swoje urządzenie, gdy pojawi się poniżej",
+    "stageConnectingSaved": "Łączę z zapisanym urządzeniem Bluetooth…",
+    "stageSelectBluetooth": "Wybierz poniżej swoje urządzenie Bluetooth",
+    "stageEnterPin": "Wprowadź kod PIN wyświetlony na urządzeniu",
+    "stageEnterPinPair": "Wprowadź PIN, aby sparować urządzenie",
+    "stagePairingBluetooth": "Parowanie z PIN-em (bluetoothctl)…",
+    "stageRemoving": "Usuwam urządzenie…",
+    "stagePairingPin": "Parowanie z PIN-em…",
+    "stagePairing": "Łączenie w pary…",
+    "stageSelectBluetoothDots": "Wybierz swoje urządzenie Bluetooth…",
+    "stagePairingFailed": "Parowanie nie powiodło się. Proszę ponownie sparować urządzenie.",
+    "stageCheckingPairing": "Sprawdzam parowanie Bluetooth…",
+    "stageEnterPinLinux": "Wprowadź PIN widoczny na Twoim urządzeniu (najpierw sparuj z Linuksem)",
+    "stageScanningLast": "Skanowanie w poszukiwaniu ostatniego urządzenia Bluetooth…",
+    "stageReconnecting": "Ponowne łączenie z ostatnim urządzeniem Bluetooth…"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Usuń wiersze routingu starsze niż {{hours}} godzin (1–168)",

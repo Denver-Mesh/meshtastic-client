@@ -547,7 +547,7 @@ export default function App() {
     (id: number) => nodeLabelForRawPacket(nodesForUi.get(id), id, protocol),
     [nodesForUi, protocol],
   );
-  const nodeCountLabel = protocol === 'meshcore' ? 'contacts' : 'nodes';
+  const nodeCountLabel = protocol === 'meshcore' ? t('common.contacts') : t('common.nodes');
 
   const meshcorePublicKeyHexByNodeId = useMemo(() => {
     const m = new Map<number, string>();
@@ -1495,17 +1495,27 @@ export default function App() {
               <div className="mr-3 flex items-center gap-1.5 border-r border-gray-700 pr-3">
                 <TakStatusIcon running={takStatus.running} />
                 <span
-                  aria-label={`TAK server ${takStatus.running ? 'running' : 'stopped'}`}
+                  aria-label={
+                    takStatus.running ? t('app.takServerRunning') : t('app.takServerStopped')
+                  }
                   className={`text-xs ${takStatus.running ? 'text-brand-green' : 'text-gray-400'}`}
                 >
-                  TAK {takStatus.running ? 'running' : 'stopped'}
+                  {takStatus.running ? t('app.takRunning') : t('app.takStopped')}
                 </span>
               </div>
             )}
             <div className="mr-3 flex items-center gap-1.5 border-r border-gray-700 pr-3">
               <MqttGlobeIcon status={device.mqttStatus ?? 'disconnected'} />
               <span
-                aria-label={`MQTT ${device.mqttStatus ?? 'disconnected'}`}
+                aria-label={
+                  device.mqttStatus === 'connected'
+                    ? t('app.mqttConnected')
+                    : device.mqttStatus === 'connecting'
+                      ? t('app.mqttConnecting')
+                      : device.mqttStatus === 'error'
+                        ? t('app.mqttError')
+                        : t('app.mqttDisconnected')
+                }
                 className={`text-xs ${
                   device.mqttStatus === 'connected'
                     ? 'text-brand-green'
@@ -1516,7 +1526,13 @@ export default function App() {
                         : 'text-gray-400'
                 }`}
               >
-                MQTT {device.mqttStatus ?? 'disconnected'}
+                {device.mqttStatus === 'connected'
+                  ? t('app.mqttConnected')
+                  : device.mqttStatus === 'connecting'
+                    ? t('app.mqttConnecting')
+                    : device.mqttStatus === 'error'
+                      ? t('app.mqttError')
+                      : t('app.mqttDisconnected')}
               </span>
             </div>
             {isConnectedOrOperational && <LinkIcon className="h-4 w-4" aria-hidden="true" />}
@@ -2257,7 +2273,7 @@ export default function App() {
             {/* Footer - fixed height at bottom of Content Wrapper */}
             <footer className="text-muted flex h-8 shrink-0 items-center justify-between border-t border-slate-800 bg-slate-900 px-4 text-[10px]">
               <span className="min-w-0">
-                For everyone, everywhere. Join us:{' '}
+                {t('app.footerSlogan')}{' '}
                 <a
                   href="https://discord.com/invite/McChKR5NpS"
                   title="Colorado Mesh Discord"
@@ -2265,7 +2281,7 @@ export default function App() {
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  Discord
+                  {t('common.discord')}
                 </a>
                 {' • '}
                 <a
@@ -2275,7 +2291,7 @@ export default function App() {
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  GitHub
+                  {t('common.github')}
                 </a>
                 {' • '}
                 <a
@@ -2285,7 +2301,7 @@ export default function App() {
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  Website
+                  {t('common.website')}
                 </a>
               </span>
               <button
@@ -2298,14 +2314,18 @@ export default function App() {
                 title={t('aria.keyboardShortcuts')}
                 className="inline-flex shrink-0 items-center gap-1 justify-self-center rounded-full border border-slate-700 px-3 py-0.5 font-mono text-[10px] text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-300"
               >
-                Shortcuts
+                {t('app.shortcuts')}
                 <span className="font-mono text-[10px] text-gray-400" aria-hidden="true">
                   ?
                 </span>
               </button>
               <span className="inline-flex flex-wrap items-center justify-end gap-2 justify-self-end text-right font-mono text-[10px] whitespace-nowrap tabular-nums">
                 <span>
-                  {nodesForUi.size} {nodeCountLabel} | {device.messages.length} messages
+                  {t('app.footerStats', {
+                    nodeCount: nodesForUi.size,
+                    nodeLabel: nodeCountLabel,
+                    messageCount: device.messages.length,
+                  })}
                 </span>
                 <UpdateStatusIndicator
                   updateState={updateState}

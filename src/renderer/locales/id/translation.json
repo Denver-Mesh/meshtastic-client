@@ -34,7 +34,10 @@
     "contacts": "kontak",
     "messages": "pesan",
     "connect": "Menghubungkan",
-    "disconnect": "Memutuskan"
+    "disconnect": "Memutuskan",
+    "discord": "Perselisihan",
+    "github": "GitHub",
+    "website": "Situs web"
   },
   "aria": {
     "closeDialog": "Tutup dialog",
@@ -178,12 +181,14 @@
     "channelsMeshcore": "Saluran (MeshCore)",
     "channelRoleDisabled": "Dengan disabilitas",
     "channelRoleSecondary": "Sekunder",
-    "noChannels": "Tidak ada saluran yang dikonfigurasi."
+    "noChannels": "Tidak ada saluran yang dikonfigurasi.",
+    "channelRolePrimary": "Utama",
+    "channelN": "Saluran {{num}}"
   },
   "securityPanel": {
     "keyRegenRequested": "Regenerasi kunci diminta. Perangkat akan menghasilkan kunci baru.",
     "failed": "Gagal: {{message}}",
-    "adminKeysApplied": "Kunci Admin diterapkan.",
+    "adminKeysApplied": "Kunci admin diterapkan.",
     "adminSettingsApplied": "Pengaturan administrasi diterapkan.",
     "keysBackedUp": "Kunci dicadangkan ke gantungan kunci sistem.",
     "backupFailed": "Pencadangan gagal: {{message}}",
@@ -198,7 +203,7 @@
     "privateKeyImported": "Kunci pribadi diimpor. Mulai ulang mungkin diperlukan.",
     "importFailed": "Impor gagal.",
     "importFailedWithMessage": "Impor gagal: {{message}}",
-    "adminKeyLabel": "Kunci admin {{number}}",
+    "adminKeyLabel": "Kunci Admin {{number}}",
     "removeAdminKey": "Hapus kunci admin {{number}}"
   },
   "modulePanel": {
@@ -208,7 +213,8 @@
     "cannedMessagesApplied": "Pesan Kalengan diterapkan.",
     "rtttlSaved": "Nada dering RTTTL disimpan.",
     "title": "Konfigurasi Modul",
-    "readOnly": "Hanya baca"
+    "readOnly": "Hanya baca",
+    "connectToDevice": "Hubungkan ke perangkat untuk mengubah konfigurasi modul."
   },
   "appPanel": {
     "failedSaveRetention": "Gagal menyimpan setelan retensi pesan.",
@@ -306,7 +312,9 @@
     "messagesSection": "Pesan",
     "channelLabel": "Saluran:",
     "allChannelsOption": "Semua Saluran",
-    "clearMessagesCount": "Hapus Pesan ({{count}})"
+    "clearMessagesCount": "Hapus Pesan ({{count}})",
+    "latLabel": "Latin:",
+    "lonLabel": "Lon:"
   },
   "nodeListPanel": {
     "contactsRefreshed": "Kontak disegarkan.",
@@ -364,7 +372,8 @@
     "emojiButton": "emoji",
     "sendButton": "Mengirim",
     "sendButtonDm": "DM",
-    "sendButtonSending": "..."
+    "sendButtonSending": "...",
+    "allChannels": "Semua"
   },
   "connectionPanel": {
     "maxReconnectAttempts": "Upaya penyambungan kembali MQTT maks",
@@ -443,7 +452,32 @@
     "hintMeshcoreHttp": "Masukkan nama host atau alamat IP radio pendamping MeshCore Anda. Itu harus dapat dijangkau pada port 5000.",
     "stageLinuxUnpaired": "Perangkat yang disimpan tidak dipasangkan di Linux Bluetooth — pilih di bawah untuk memasukkan PIN dan menghubungkan.",
     "liamServerNote": "Server Liam hanya uplink — node Anda muncul di petanya tetapi Anda tidak akan menerima pesan darinya.",
-    "connectButton": "Menghubungkan"
+    "connectButton": "Menghubungkan",
+    "mqttStatusConnected": "terhubung",
+    "mqttStatusConnecting": "menghubungkan",
+    "mqttStatusError": "kesalahan",
+    "mqttStatusDisconnected": "terputus",
+    "stageSelectDevice": "Pilih perangkat Anda di bawah",
+    "stageSelectSerial": "Pilih port serial di bawah ini",
+    "stageConnectingLast": "Menghubungkan ke perangkat Bluetooth terakhir…",
+    "stagePleaseWait": "Harap tunggu…",
+    "stageConfiguring": "Mengonfigurasi perangkat…",
+    "stageConnecting": "Menghubungkan ke perangkat…",
+    "stageScanning": "Memindai — pilih perangkat Anda ketika muncul di bawah",
+    "stageConnectingSaved": "Menghubungkan ke perangkat Bluetooth yang disimpan…",
+    "stageSelectBluetooth": "Pilih perangkat Bluetooth Anda di bawah",
+    "stageEnterPin": "Masukkan PIN yang ditampilkan pada perangkat Anda",
+    "stageEnterPinPair": "Masukkan PIN untuk memasangkan perangkat",
+    "stagePairingBluetooth": "Memasangkan dengan PIN (bluetoothctl)…",
+    "stageRemoving": "Menghapus perangkat…",
+    "stagePairingPin": "Memasangkan dengan PIN…",
+    "stagePairing": "Memasangkan…",
+    "stageSelectBluetoothDots": "Pilih perangkat Bluetooth Anda…",
+    "stagePairingFailed": "Penyandingan gagal. Harap pasangkan kembali perangkat Anda.",
+    "stageCheckingPairing": "Memeriksa penyandingan Bluetooth…",
+    "stageEnterPinLinux": "Masukkan PIN yang ditampilkan pada perangkat Anda (pasangkan dengan Linux terlebih dahulu)",
+    "stageScanningLast": "Memindai perangkat Bluetooth terakhir…",
+    "stageReconnecting": "Menyambungkan kembali ke perangkat Bluetooth terakhir…"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Hapus baris perutean yang lebih lama dari {{hours}} jam (1–168)",

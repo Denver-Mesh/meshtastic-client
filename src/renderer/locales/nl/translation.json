@@ -34,7 +34,10 @@
     "contacts": "contacten",
     "messages": "berichten",
     "connect": "Verbinden",
-    "disconnect": "Verbreek de verbinding"
+    "disconnect": "Verbreek de verbinding",
+    "discord": "Meningsverschil",
+    "github": "GitHub",
+    "website": "Website"
   },
   "aria": {
     "closeDialog": "Dialoogvenster sluiten",
@@ -178,7 +181,9 @@
     "channelsMeshcore": "Kanalen (MeshCore)",
     "channelRoleDisabled": "Gehandicapt",
     "channelRoleSecondary": "Secundair",
-    "noChannels": "Geen kanalen geconfigureerd."
+    "noChannels": "Geen kanalen geconfigureerd.",
+    "channelRolePrimary": "Primair",
+    "channelN": "Kanaal {{num}}"
   },
   "securityPanel": {
     "keyRegenRequested": "Sleutelregeneratie aangevraagd. Apparaat genereert nieuwe sleutels.",
@@ -208,7 +213,8 @@
     "cannedMessagesApplied": "Standaardberichten toegepast.",
     "rtttlSaved": "RTTTL-beltoon opgeslagen.",
     "title": "Moduleconfiguratie",
-    "readOnly": "Alleen-lezen"
+    "readOnly": "Alleen-lezen",
+    "connectToDevice": "Maak verbinding met een apparaat om de moduleconfiguratie te wijzigen."
   },
   "appPanel": {
     "failedSaveRetention": "Kan de instelling voor het bewaren van berichten niet opslaan.",
@@ -306,7 +312,9 @@
     "messagesSection": "Berichten",
     "channelLabel": "Kanaal:",
     "allChannelsOption": "Alle kanalen",
-    "clearMessagesCount": "Berichten wissen ({{count}})"
+    "clearMessagesCount": "Berichten wissen ({{count}})",
+    "latLabel": "Lat:",
+    "lonLabel": "Lon:"
   },
   "nodeListPanel": {
     "contactsRefreshed": "Contacten vernieuwd.",
@@ -444,7 +452,32 @@
     "hintMeshcoreHttp": "Voer de hostnaam of het IP-adres van uw MeshCore begeleidende radio in. Het moet bereikbaar zijn op poort 5000.",
     "stageLinuxUnpaired": "Het opgeslagen apparaat is niet gekoppeld in Linux Bluetooth. Selecteer het hieronder om de pincode in te voeren en verbinding te maken.",
     "liamServerNote": "De server van Liam is alleen uplink - uw knooppunt verschijnt op zijn kaart, maar u ontvangt er geen berichten van.",
-    "connectButton": "Verbinden"
+    "connectButton": "Verbinden",
+    "mqttStatusConnected": "aangesloten",
+    "mqttStatusConnecting": "verbinden",
+    "mqttStatusError": "fout",
+    "mqttStatusDisconnected": "losgekoppeld",
+    "stageSelectDevice": "Selecteer hieronder uw apparaat",
+    "stageSelectSerial": "Selecteer hieronder een seriële poort",
+    "stageConnectingLast": "Verbinding maken met het laatste Bluetooth-apparaat…",
+    "stagePleaseWait": "Even geduld a.u.b....",
+    "stageConfiguring": "Apparaat configureren…",
+    "stageConnecting": "Verbinding maken met apparaat…",
+    "stageScanning": "Scannen — selecteer uw apparaat wanneer het hieronder verschijnt",
+    "stageConnectingSaved": "Verbinding maken met opgeslagen Bluetooth-apparaat…",
+    "stageSelectBluetooth": "Selecteer hieronder uw Bluetooth-apparaat",
+    "stageEnterPin": "Voer de pincode in die op uw apparaat wordt weergegeven",
+    "stageEnterPinPair": "Voer de pincode in om het apparaat te koppelen",
+    "stagePairingBluetooth": "Koppelen met pincode (Bluetoothctl)…",
+    "stageRemoving": "Apparaat verwijderen…",
+    "stagePairingPin": "Koppelen met pincode…",
+    "stagePairing": "Koppelen…",
+    "stageSelectBluetoothDots": "Selecteer uw Bluetooth-apparaat…",
+    "stagePairingFailed": "Koppelen is mislukt. Koppel uw apparaat opnieuw.",
+    "stageCheckingPairing": "Bluetooth-koppeling controleren…",
+    "stageEnterPinLinux": "Voer de pincode in die op uw apparaat wordt weergegeven (eerst koppelen met Linux)",
+    "stageScanningLast": "Scannen naar het laatste Bluetooth-apparaat...",
+    "stageReconnecting": "Opnieuw verbinding maken met het laatste Bluetooth-apparaat…"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Rijen voor droprouting die ouder zijn dan {{hours}} uur (1–168)",

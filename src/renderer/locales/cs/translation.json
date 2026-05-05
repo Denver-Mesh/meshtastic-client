@@ -34,7 +34,10 @@
     "contacts": "kontakty",
     "messages": "zprávy",
     "connect": "Připojit",
-    "disconnect": "Odpojit"
+    "disconnect": "Odpojit",
+    "discord": "Svár",
+    "github": "GitHub",
+    "website": "webové stránky"
   },
   "aria": {
     "closeDialog": "Zavřít dialog",
@@ -178,7 +181,9 @@
     "channelsMeshcore": "Kanály (MeshCore)",
     "channelRoleDisabled": "Zakázáno",
     "channelRoleSecondary": "Sekundární",
-    "noChannels": "Nejsou nakonfigurovány žádné kanály."
+    "noChannels": "Nejsou nakonfigurovány žádné kanály.",
+    "channelRolePrimary": "Primární",
+    "channelN": "Kanál {{num}}"
   },
   "securityPanel": {
     "keyRegenRequested": "Požadována regenerace klíče. Zařízení vygeneruje nové klíče.",
@@ -208,7 +213,8 @@
     "cannedMessagesApplied": "Byly použity předpřipravené zprávy.",
     "rtttlSaved": "RTTTL vyzváněcí tón uložen.",
     "title": "Konfigurace modulu",
-    "readOnly": "Pouze pro čtení"
+    "readOnly": "Pouze pro čtení",
+    "connectToDevice": "Chcete-li upravit konfiguraci modulu, připojte se k zařízení."
   },
   "appPanel": {
     "failedSaveRetention": "Nastavení uchovávání zpráv se nepodařilo uložit.",
@@ -306,7 +312,9 @@
     "messagesSection": "Zprávy",
     "channelLabel": "Kanál:",
     "allChannelsOption": "Všechny kanály",
-    "clearMessagesCount": "Vymazat zprávy ({{count}})"
+    "clearMessagesCount": "Vymazat zprávy ({{count}})",
+    "latLabel": "Šířka:",
+    "lonLabel": "Lon:"
   },
   "nodeListPanel": {
     "contactsRefreshed": "Kontakty byly obnoveny.",
@@ -444,7 +452,32 @@
     "hintMeshcoreHttp": "Zadejte název hostitele nebo IP adresu vašeho doprovodného rádia MeshCore. Musí být dosažitelný na portu 5000.",
     "stageLinuxUnpaired": "Uložené zařízení není spárováno v Linuxu Bluetooth – vyberte jej níže, zadejte PIN a připojte se.",
     "liamServerNote": "Liamův server je pouze uplink – váš uzel se objeví na jeho mapě, ale nebudete od něj dostávat zprávy.",
-    "connectButton": "Připojit"
+    "connectButton": "Připojit",
+    "mqttStatusConnected": "připojeno",
+    "mqttStatusConnecting": "spojovací",
+    "mqttStatusError": "chyba",
+    "mqttStatusDisconnected": "odpojeno",
+    "stageSelectDevice": "Níže vyberte své zařízení",
+    "stageSelectSerial": "Níže vyberte sériový port",
+    "stageConnectingLast": "Připojování k poslednímu zařízení Bluetooth…",
+    "stagePleaseWait": "Čekejte prosím…",
+    "stageConfiguring": "Konfigurace zařízení…",
+    "stageConnecting": "Připojování k zařízení…",
+    "stageScanning": "Skenování – vyberte své zařízení, když se zobrazí níže",
+    "stageConnectingSaved": "Připojování k uloženému zařízení Bluetooth…",
+    "stageSelectBluetooth": "Níže vyberte své zařízení Bluetooth",
+    "stageEnterPin": "Zadejte PIN zobrazený na vašem zařízení",
+    "stageEnterPinPair": "Pro spárování zařízení zadejte PIN",
+    "stagePairingBluetooth": "Párování pomocí PIN (bluetoothctl)…",
+    "stageRemoving": "Odebírání zařízení…",
+    "stagePairingPin": "Párování s PIN…",
+    "stagePairing": "Párování…",
+    "stageSelectBluetoothDots": "Vyberte své zařízení Bluetooth…",
+    "stagePairingFailed": "Párování se nezdařilo. Prosím znovu spárujte své zařízení.",
+    "stageCheckingPairing": "Kontrola párování Bluetooth…",
+    "stageEnterPinLinux": "Zadejte PIN zobrazený na vašem zařízení (nejprve spárujte s Linuxem)",
+    "stageScanningLast": "Vyhledávání posledního zařízení Bluetooth…",
+    "stageReconnecting": "Opětovné připojování k poslednímu zařízení Bluetooth…"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Vypustit řádky směrování starší než {{hours}} hodin (1–168)",

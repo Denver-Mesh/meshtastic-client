@@ -271,11 +271,12 @@ function ModuleStatus({
 }
 
 function StatusOnlySection({ title, children }: { title: string; children: React.ReactNode }) {
+  const { t } = useTranslation();
   return (
     <details className="group bg-deep-black/50 rounded-lg border border-gray-700">
       <summary className="flex cursor-pointer items-center justify-between rounded-lg px-4 py-3 font-medium text-gray-200 transition-colors hover:bg-gray-800">
         <span>{title}</span>
-        <span className="text-xs text-gray-500">Read-only</span>
+        <span className="text-xs text-gray-500">{t('modulePanel.readOnly')}</span>
       </summary>
       <div className="space-y-3 px-4 pb-4">{children}</div>
     </details>
@@ -453,11 +454,11 @@ export default function ModulePanel({
 
   return (
     <div className="w-full space-y-4">
-      <h2 className="text-xl font-semibold text-gray-200">Module Configuration</h2>
+      <h2 className="text-xl font-semibold text-gray-200">{t('modulePanel.title')}</h2>
 
       {!isConnected && (
         <div className="rounded-lg border border-yellow-700 bg-yellow-900/30 px-4 py-2 text-sm text-yellow-300">
-          Connect to a device to modify module configuration.
+          {t('modulePanel.connectToDevice')}
         </div>
       )}
 

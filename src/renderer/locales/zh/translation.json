@@ -34,7 +34,10 @@
     "contacts": "联系人",
     "messages": "消息",
     "connect": "连接",
-    "disconnect": "断开"
+    "disconnect": "断开",
+    "discord": "不和谐",
+    "github": "GitHub",
+    "website": "网站"
   },
   "aria": {
     "closeDialog": "关闭对话框",
@@ -178,7 +181,9 @@
     "channelsMeshcore": "通道（网格核心）",
     "channelRoleDisabled": "残疾人",
     "channelRoleSecondary": "中学",
-    "noChannels": "未配置通道。"
+    "noChannels": "未配置通道。",
+    "channelRolePrimary": "基本的",
+    "channelN": "频道 {{num}}"
   },
   "securityPanel": {
     "keyRegenRequested": "已请求密钥重新生成。设备将生成新密钥。",
@@ -208,7 +213,8 @@
     "cannedMessagesApplied": "已应用罐装邮件。",
     "rtttlSaved": "RTTTL铃声已保存。",
     "title": "模块配置",
-    "readOnly": "只读"
+    "readOnly": "只读",
+    "connectToDevice": "连接到设备以修改模块配置。"
   },
   "appPanel": {
     "failedSaveRetention": "无法保存邮件保留设置。",
@@ -306,7 +312,9 @@
     "channelLabel": "渠道：",
     "allChannelsOption": "所有频道",
     "clearMessagesCount": "清除消息 ({{count}})",
-    "coordFormatMgrs": "MGRS"
+    "coordFormatMgrs": "MGRS",
+    "latLabel": "纬度：",
+    "lonLabel": "朗："
   },
   "nodeListPanel": {
     "contactsRefreshed": "联系人已刷新。",
@@ -444,7 +452,32 @@
     "stageLinuxUnpaired": "保存的设备未在 Linux 蓝牙中配对 - 在下面选择它以输入 PIN 码并连接。",
     "liamServerNote": "利亚姆的服务器仅限上行链路 - 您的节点出现在他的地图上，但您不会收到来自它的消息。",
     "connectButton": "连接",
-    "manualContactApprovalDesc": "新联系人出现之前需要手动批准"
+    "manualContactApprovalDesc": "新联系人出现之前需要手动批准",
+    "mqttStatusConnected": "已连接",
+    "mqttStatusConnecting": "连接",
+    "mqttStatusError": "错误",
+    "mqttStatusDisconnected": "断开连接",
+    "stageSelectDevice": "在下面选择您的设备",
+    "stageSelectSerial": "选择下面的串口",
+    "stageConnectingLast": "正在连接到最后一个蓝牙设备...",
+    "stagePleaseWait": "请稍等…",
+    "stageConfiguring": "配置设备...",
+    "stageConnecting": "正在连接到设备...",
+    "stageScanning": "扫描 — 当下面出现时选择您的设备",
+    "stageConnectingSaved": "正在连接到已保存的蓝牙设备...",
+    "stageSelectBluetooth": "在下面选择您的蓝牙设备",
+    "stageEnterPin": "输入您设备上显示的 PIN",
+    "stageEnterPinPair": "输入 PIN 码以配对设备",
+    "stagePairingBluetooth": "与 PIN 码 (bluetoothctl) 配对...",
+    "stageRemoving": "正在删除设备...",
+    "stagePairingPin": "正在与 PIN 码配对...",
+    "stagePairing": "配对…",
+    "stageSelectBluetoothDots": "选择您的蓝牙设备...",
+    "stagePairingFailed": "配对失败。请重新配对您的设备。",
+    "stageCheckingPairing": "正在检查蓝牙配对...",
+    "stageEnterPinLinux": "输入设备上显示的 PIN（首先与 Linux 配对）",
+    "stageScanningLast": "正在扫描最后一个蓝牙设备...",
+    "stageReconnecting": "正在重新连接到最后一个蓝牙设备..."
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "删除早于__ PH0 __小时的路由行(1–168)",

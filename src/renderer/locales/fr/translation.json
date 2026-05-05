@@ -34,7 +34,10 @@
     "contacts": "contacts",
     "messages": "messages",
     "connect": "Connecter",
-    "disconnect": "Déconnecter"
+    "disconnect": "Déconnecter",
+    "discord": "Discorde",
+    "github": "GitHub",
+    "website": "Site web"
   },
   "aria": {
     "closeDialog": "Fermer la boîte de dialogue",
@@ -178,7 +181,9 @@
     "channelsMeshcore": "Canaux (MeshCore)",
     "channelRoleDisabled": "Désactivé",
     "channelRoleSecondary": "Secondaire",
-    "noChannels": "Aucun canal configuré."
+    "noChannels": "Aucun canal configuré.",
+    "channelRolePrimary": "Primaire",
+    "channelN": "Canal {{num}}"
   },
   "securityPanel": {
     "keyRegenRequested": "Régénération de clé demandée. L'appareil générera de nouvelles clés.",
@@ -208,7 +213,8 @@
     "cannedMessagesApplied": "Messages en conserve appliqués.",
     "rtttlSaved": "Sonnerie RTTTL enregistrée.",
     "title": "Configuration des modules",
-    "readOnly": "Lecture seule"
+    "readOnly": "Lecture seule",
+    "connectToDevice": "Connectez-vous à un appareil pour modifier la configuration du module."
   },
   "appPanel": {
     "failedSaveRetention": "Impossible d'enregistrer le paramètre de rétention des messages.",
@@ -306,7 +312,9 @@
     "allChannelsOption": "Toutes les chaînes",
     "clearMessagesCount": "Effacer les messages ({{count}})",
     "autoRefreshInterval": "Intervalle d'actualisation automatique :",
-    "gpsIntervalManual": "Manuel uniquement"
+    "gpsIntervalManual": "Manuel uniquement",
+    "latLabel": "Latitude :",
+    "lonLabel": "Lon :"
   },
   "nodeListPanel": {
     "contactsRefreshed": "Contacts actualisés.",
@@ -444,7 +452,32 @@
     "stageLinuxUnpaired": "L'appareil enregistré n'est pas couplé sous Linux Bluetooth — sélectionnez-le ci-dessous pour saisir le code PIN et vous connecter.",
     "liamServerNote": "Le serveur de Liam est uniquement en liaison montante : votre nœud apparaît sur sa carte mais vous n'en recevrez aucun message.",
     "connectButton": "Connecter",
-    "hintMeshcoreBle2": "Cliquez sur Connecter pour rechercher les appareils MeshCore à proximité."
+    "hintMeshcoreBle2": "Cliquez sur Connecter pour rechercher les appareils MeshCore à proximité.",
+    "mqttStatusConnected": "connecté",
+    "mqttStatusConnecting": "de liaison",
+    "mqttStatusError": "erreur",
+    "mqttStatusDisconnected": "déconnecté",
+    "stageSelectDevice": "Sélectionnez votre appareil ci-dessous",
+    "stageSelectSerial": "Sélectionnez un port série ci-dessous",
+    "stageConnectingLast": "Connexion au dernier appareil Bluetooth…",
+    "stagePleaseWait": "S'il vous plaît, attendez…",
+    "stageConfiguring": "Configuration de l'appareil…",
+    "stageConnecting": "Connexion à l'appareil…",
+    "stageScanning": "Numérisation : sélectionnez votre appareil lorsqu'il apparaît ci-dessous",
+    "stageConnectingSaved": "Connexion à un appareil Bluetooth enregistré…",
+    "stageSelectBluetooth": "Sélectionnez votre appareil Bluetooth ci-dessous",
+    "stageEnterPin": "Entrez le code PIN affiché sur votre appareil",
+    "stageEnterPinPair": "Entrez le code PIN pour associer l'appareil",
+    "stagePairingBluetooth": "Couplage avec code PIN (bluetoothctl)…",
+    "stageRemoving": "Suppression de l'appareil…",
+    "stagePairingPin": "Couplage avec le code PIN…",
+    "stagePairing": "Jumelage…",
+    "stageSelectBluetoothDots": "Sélectionnez votre appareil Bluetooth…",
+    "stagePairingFailed": "Le couplage a échoué. Veuillez réassocier votre appareil.",
+    "stageCheckingPairing": "Vérification du couplage Bluetooth…",
+    "stageEnterPinLinux": "Entrez le code PIN affiché sur votre appareil (appairez-le d'abord avec Linux)",
+    "stageScanningLast": "Recherche du dernier appareil Bluetooth…",
+    "stageReconnecting": "Reconnexion au dernier appareil Bluetooth…"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Collectez lignes de routage de plus de {{hours}} heures (1–168)",

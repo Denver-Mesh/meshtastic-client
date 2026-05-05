@@ -34,7 +34,10 @@
     "contacts": "콘택트 렌즈",
     "messages": "메시지",
     "connect": "연결하다",
-    "disconnect": "연결 끊기"
+    "disconnect": "연결 끊기",
+    "discord": "불화",
+    "github": "GitHub",
+    "website": "웹사이트"
   },
   "aria": {
     "closeDialog": "대화상자 닫기",
@@ -178,7 +181,9 @@
     "channelsMeshcore": "채널(메시코어)",
     "channelRoleDisabled": "장애가 있는",
     "channelRoleSecondary": "반성",
-    "noChannels": "구성된 채널이 없습니다."
+    "noChannels": "구성된 채널이 없습니다.",
+    "channelRolePrimary": "주요한",
+    "channelN": "채널 {{num}}"
   },
   "securityPanel": {
     "keyRegenRequested": "키 재생성을 요청했습니다. 장치가 새 키를 생성합니다.",
@@ -208,7 +213,8 @@
     "cannedMessagesApplied": "미리 준비된 메시지가 적용되었습니다.",
     "rtttlSaved": "RTTTL 벨소리가 저장되었습니다.",
     "title": "모듈 구성",
-    "readOnly": "읽기 전용"
+    "readOnly": "읽기 전용",
+    "connectToDevice": "모듈 구성을 수정하려면 장치에 연결하세요."
   },
   "appPanel": {
     "failedSaveRetention": "메시지 보관 설정을 저장하지 못했습니다.",
@@ -306,7 +312,9 @@
     "messagesSection": "메시지",
     "channelLabel": "채널:",
     "allChannelsOption": "모든 채널",
-    "clearMessagesCount": "메시지 지우기({{count}})"
+    "clearMessagesCount": "메시지 지우기({{count}})",
+    "latLabel": "위도:",
+    "lonLabel": "론:"
   },
   "nodeListPanel": {
     "contactsRefreshed": "연락처가 새로 고쳐졌습니다.",
@@ -444,12 +452,40 @@
     "hintMeshcoreHttp": "MeshCore 컴패니언 라디오의 호스트 이름이나 IP 주소를 입력하세요. 포트 5000에서 연결할 수 있어야 합니다.",
     "stageLinuxUnpaired": "저장된 장치는 Linux Bluetooth에 페어링되어 있지 않습니다. 아래에서 선택하여 PIN을 입력하고 연결하세요.",
     "liamServerNote": "Liam의 서버는 업링크 전용입니다. 귀하의 노드가 Liam의 지도에 표시되지만 그로부터 메시지를 받을 수는 없습니다.",
-    "connectButton": "연결하다"
+    "connectButton": "연결하다",
+    "mqttStatusConnected": "연결됨",
+    "mqttStatusConnecting": "연결",
+    "mqttStatusError": "오류",
+    "mqttStatusDisconnected": "연결이 끊어진",
+    "stageSelectDevice": "아래에서 기기를 선택하세요.",
+    "stageSelectSerial": "아래에서 직렬 포트를 선택하세요.",
+    "stageConnectingLast": "마지막 블루투스 기기에 연결 중…",
+    "stagePleaseWait": "기다리세요…",
+    "stageConfiguring": "장치 구성 중…",
+    "stageConnecting": "기기에 연결 중…",
+    "stageScanning": "스캔 중 - 아래에 장치가 나타나면 장치를 선택하세요",
+    "stageConnectingSaved": "저장된 블루투스 기기에 연결하는 중…",
+    "stageSelectBluetooth": "아래에서 블루투스 장치를 선택하세요",
+    "stageEnterPin": "기기에 표시된 PIN을 입력하세요.",
+    "stageEnterPinPair": "장치를 페어링하려면 PIN을 입력하세요.",
+    "stagePairingBluetooth": "PIN(bluetoothctl)과 페어링 중…",
+    "stageRemoving": "기기 삭제 중…",
+    "stagePairingPin": "PIN과 페어링 중…",
+    "stagePairing": "편성…",
+    "stageSelectBluetoothDots": "블루투스 장치를 선택하세요…",
+    "stagePairingFailed": "페어링에 실패했습니다. 장치를 다시 페어링하십시오.",
+    "stageCheckingPairing": "블루투스 페어링 확인 중…",
+    "stageEnterPinLinux": "장치에 표시된 PIN을 입력하세요(먼저 Linux와 페어링).",
+    "stageScanningLast": "마지막 블루투스 기기 검색 중…",
+    "stageReconnecting": "마지막 블루투스 기기에 다시 연결하는 중…"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "{{hours}}시간(1~168)보다 오래된 라우팅 행 삭제",
     "dismissRow": "해고하다",
-    "searchAnomalies": "이상 징후 검색..."
+    "searchAnomalies": "이상 징후 검색...",
+    "meshcoreInterferenceHeading": "주파수({{count}})에서 들리는 MeshCore 노드",
+    "meshcoreInterferenceDescription": "이러한 항목은 이 라디오에서 들리는 주파수상의 MeshCore 간섭을 식별합니다. 활용도 및 재시도 문제에 영향을 줄 수 있지만 그 자체로는 Meshtastic 경로 오류 진단이 아닙니다.",
+    "otherCrossProtocolHeading": "기타 온주파수/교차 스택 트래픽({{count}})"
   },
   "rawPacketLog": {
     "filterPackets": "패킷 필터링",

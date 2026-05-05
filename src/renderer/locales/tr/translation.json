@@ -34,7 +34,10 @@
     "contacts": "kişiler",
     "messages": "mesajlar",
     "connect": "Bağlamak",
-    "disconnect": "Bağlantıyı kes"
+    "disconnect": "Bağlantıyı kes",
+    "discord": "Anlaşmazlık",
+    "github": "GitHub",
+    "website": "Web sitesi"
   },
   "aria": {
     "closeDialog": "İletişim kutusunu kapat",
@@ -95,7 +98,7 @@
     "allFiltersOff": "Tüm seviye filtreleri kapalı. Gösteri düzeyleri altında en az birini etkinleştirin.",
     "noAppLines": "Henüz uygulama günlüğü satırı yok.",
     "noDeviceLines": "Henüz cihaz günlük satırı yok.",
-    "noAppLinesMatch": "Geçerli filtrelerle eşleşen uygulama satırı yok.",
+    "noAppLinesMatch": "Mevcut filtrelerle eşleşen uygulama satırı yok.",
     "noDeviceLinesMatch": "Mevcut filtrelerle eşleşen cihaz hattı yok.",
     "source": "Kaynak",
     "analyze": "Analiz et",
@@ -178,7 +181,9 @@
     "channelsMeshcore": "Kanallar (MeshCore)",
     "channelRoleDisabled": "Engelli",
     "channelRoleSecondary": "İkincil",
-    "noChannels": "Hiçbir kanal yapılandırılmadı."
+    "noChannels": "Hiçbir kanal yapılandırılmadı.",
+    "channelRolePrimary": "Öncelik",
+    "channelN": "Kanal {{num}}"
   },
   "securityPanel": {
     "keyRegenRequested": "Anahtarın yenilenmesi talep edildi. Cihaz yeni anahtarlar oluşturacaktır.",
@@ -208,7 +213,8 @@
     "cannedMessagesApplied": "Hazır Mesajlar uygulandı.",
     "rtttlSaved": "RTTTL zil sesi kaydedildi.",
     "title": "Modül Yapılandırması",
-    "readOnly": "Salt okunur"
+    "readOnly": "Salt okunur",
+    "connectToDevice": "Modül yapılandırmasını değiştirmek için bir cihaza bağlanın."
   },
   "appPanel": {
     "failedSaveRetention": "Mesaj saklama ayarı kaydedilemedi.",
@@ -306,7 +312,9 @@
     "channelLabel": "Kanal:",
     "allChannelsOption": "Tüm Kanallar",
     "clearMessagesCount": "Mesajları Temizle ({{count}})",
-    "floodAdvertScheduleLabel": "Bir programa göre otomatik olarak bir sel reklamı gönderin:"
+    "floodAdvertScheduleLabel": "Bir programa göre otomatik olarak bir sel reklamı gönderin:",
+    "latLabel": "Enlem:",
+    "lonLabel": "Lon:"
   },
   "nodeListPanel": {
     "contactsRefreshed": "Kişiler yenilendi.",
@@ -364,7 +372,8 @@
     "emojiButton": "Emoji",
     "sendButton": "Göndermek",
     "sendButtonDm": "DM",
-    "sendButtonSending": "..."
+    "sendButtonSending": "...",
+    "allChannels": "Tüm"
   },
   "connectionPanel": {
     "maxReconnectAttempts": "Maksimum MQTT yeniden bağlanma denemesi",
@@ -443,7 +452,32 @@
     "hintMeshcoreHttp": "MeshCore yardımcı radyonuzun ana bilgisayar adını veya IP adresini girin. 5000 numaralı bağlantı noktasından ulaşılabilir olması gerekir.",
     "stageLinuxUnpaired": "Kaydedilen cihaz Linux Bluetooth'ta eşleştirilmemiş; PIN'i girmek ve bağlanmak için aşağıdan seçin.",
     "liamServerNote": "Liam'ın sunucusu yalnızca yukarı bağlantıya yöneliktir; düğümünüz onun haritasında görünür ancak ondan mesaj almazsınız.",
-    "connectButton": "Bağlamak"
+    "connectButton": "Bağlamak",
+    "mqttStatusConnected": "bağlı",
+    "mqttStatusConnecting": "bağlanıyor",
+    "mqttStatusError": "hata",
+    "mqttStatusDisconnected": "bağlantısı kesildi",
+    "stageSelectDevice": "Aşağıdan cihazınızı seçin",
+    "stageSelectSerial": "Aşağıdan bir seri bağlantı noktası seçin",
+    "stageConnectingLast": "Son Bluetooth cihazına bağlanılıyor…",
+    "stagePleaseWait": "Lütfen bekleyin…",
+    "stageConfiguring": "Cihaz yapılandırılıyor…",
+    "stageConnecting": "Cihaza bağlanılıyor…",
+    "stageScanning": "Taranıyor — aşağıda göründüğünde cihazınızı seçin",
+    "stageConnectingSaved": "Kayıtlı Bluetooth cihazına bağlanılıyor…",
+    "stageSelectBluetooth": "Aşağıdan Bluetooth cihazınızı seçin",
+    "stageEnterPin": "Cihazınızda gösterilen PIN'i girin",
+    "stageEnterPinPair": "Cihazı eşleştirmek için PIN'i girin",
+    "stagePairingBluetooth": "PIN (bluetoothctl) ile eşleştiriliyor…",
+    "stageRemoving": "Cihaz kaldırılıyor…",
+    "stagePairingPin": "PIN ile eşleniyor…",
+    "stagePairing": "Eşleştiriliyor…",
+    "stageSelectBluetoothDots": "Bluetooth cihazınızı seçin…",
+    "stagePairingFailed": "Eşleştirme başarısız oldu. Lütfen cihazınızı yeniden eşleştirin.",
+    "stageCheckingPairing": "Bluetooth eşleşmesi kontrol ediliyor…",
+    "stageEnterPinLinux": "Cihazınızda gösterilen PIN'i girin (önce Linux ile eşleştirin)",
+    "stageScanningLast": "Son Bluetooth cihazı taranıyor…",
+    "stageReconnecting": "Son Bluetooth cihazına yeniden bağlanılıyor…"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "{{hours}} saatten (1-168) daha eski olan yönlendirme satırlarını bırak",

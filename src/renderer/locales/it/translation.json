@@ -34,7 +34,10 @@
     "contacts": "contatti",
     "messages": "messaggi",
     "connect": "Collegare",
-    "disconnect": "Disconnetti"
+    "disconnect": "Disconnetti",
+    "discord": "Discordia",
+    "github": "GitHub",
+    "website": "Sito web"
   },
   "aria": {
     "closeDialog": "Chiudi finestra",
@@ -178,7 +181,9 @@
     "channelsMeshcore": "Canali (MeshCore)",
     "channelRoleDisabled": "Disabilitato",
     "channelRoleSecondary": "Secondario",
-    "noChannels": "Nessun canale configurato."
+    "noChannels": "Nessun canale configurato.",
+    "channelRolePrimary": "Primario",
+    "channelN": "Canale {{num}}"
   },
   "securityPanel": {
     "keyRegenRequested": "Rigenerazione chiave richiesta. Il dispositivo genererà nuove chiavi.",
@@ -208,7 +213,8 @@
     "cannedMessagesApplied": "Messaggi in scatola applicati.",
     "rtttlSaved": "Suoneria RTTTL salvata.",
     "title": "Configurazione del modulo",
-    "readOnly": "Sola lettura"
+    "readOnly": "Sola lettura",
+    "connectToDevice": "Connettersi a un dispositivo per modificare la configurazione del modulo."
   },
   "appPanel": {
     "failedSaveRetention": "Impossibile salvare l'impostazione di conservazione dei messaggi.",
@@ -306,7 +312,9 @@
     "messagesSection": "Messaggi",
     "channelLabel": "Canale:",
     "allChannelsOption": "Tutti i canali",
-    "clearMessagesCount": "Cancella messaggi ({{count}})"
+    "clearMessagesCount": "Cancella messaggi ({{count}})",
+    "latLabel": "Latitudine:",
+    "lonLabel": "Lon:"
   },
   "nodeListPanel": {
     "contactsRefreshed": "Contatti aggiornati.",
@@ -444,7 +452,32 @@
     "hintMeshcoreHttp": "Inserisci il nome host o l'indirizzo IP della radio complementare MeshCore. Deve essere raggiungibile sulla porta 5000.",
     "stageLinuxUnpaired": "Il dispositivo salvato non è accoppiato in Linux Bluetooth: selezionalo di seguito per inserire il PIN e connetterti.",
     "liamServerNote": "Il server di Liam è solo uplink: il tuo nodo appare sulla sua mappa ma non riceverai messaggi da esso.",
-    "connectButton": "Collegare"
+    "connectButton": "Collegare",
+    "mqttStatusConnected": "collegato",
+    "mqttStatusConnecting": "collegamento",
+    "mqttStatusError": "errore",
+    "mqttStatusDisconnected": "disconnesso",
+    "stageSelectDevice": "Seleziona il tuo dispositivo qui sotto",
+    "stageSelectSerial": "Seleziona una porta seriale di seguito",
+    "stageConnectingLast": "Connessione all'ultimo dispositivo Bluetooth…",
+    "stagePleaseWait": "Attendere prego…",
+    "stageConfiguring": "Configurazione del dispositivo…",
+    "stageConnecting": "Connessione al dispositivo…",
+    "stageScanning": "Scansione: seleziona il tuo dispositivo quando appare di seguito",
+    "stageConnectingSaved": "Connessione al dispositivo Bluetooth salvato…",
+    "stageSelectBluetooth": "Seleziona il tuo dispositivo Bluetooth qui sotto",
+    "stageEnterPin": "Inserisci il PIN mostrato sul tuo dispositivo",
+    "stageEnterPinPair": "Inserisci il PIN per associare il dispositivo",
+    "stagePairingBluetooth": "Associazione con PIN (bluetoothctl)...",
+    "stageRemoving": "Rimozione del dispositivo…",
+    "stagePairingPin": "Associazione con PIN...",
+    "stagePairing": "Associazione…",
+    "stageSelectBluetoothDots": "Seleziona il tuo dispositivo Bluetooth...",
+    "stagePairingFailed": "Associazione non riuscita. Riassocia il tuo dispositivo.",
+    "stageCheckingPairing": "Verifica dell'accoppiamento Bluetooth in corso...",
+    "stageEnterPinLinux": "Inserisci il PIN mostrato sul tuo dispositivo (associalo prima a Linux)",
+    "stageScanningLast": "Ricerca dell'ultimo dispositivo Bluetooth in corso...",
+    "stageReconnecting": "Riconnessione all'ultimo dispositivo Bluetooth…"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Elimina le righe di routing più vecchie di {{hours}} ore (1–168)",

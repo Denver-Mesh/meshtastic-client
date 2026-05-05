@@ -34,7 +34,10 @@
     "contacts": "контакти",
     "messages": "повідомлення",
     "connect": "Підключитися",
-    "disconnect": "Відключити"
+    "disconnect": "Відключити",
+    "discord": "Розбрат",
+    "github": "GitHub",
+    "website": "Веб-сайт"
   },
   "aria": {
     "closeDialog": "Закрити діалог",
@@ -178,7 +181,9 @@
     "channelsMeshcore": "Канали (MeshCore)",
     "channelRoleDisabled": "Вимкнено",
     "channelRoleSecondary": "Вторинний",
-    "noChannels": "Канали не налаштовано."
+    "noChannels": "Канали не налаштовано.",
+    "channelRolePrimary": "Первинний",
+    "channelN": "Канал {{num}}"
   },
   "securityPanel": {
     "keyRegenRequested": "Запит на регенерацію ключа. Пристрій генеруватиме нові ключі.",
@@ -208,7 +213,8 @@
     "cannedMessagesApplied": "Застосовано консервовані повідомлення.",
     "rtttlSaved": "Мелодію дзвінка RTTTL збережено.",
     "title": "Конфігурація модуля",
-    "readOnly": "Тільки для читання"
+    "readOnly": "Тільки для читання",
+    "connectToDevice": "Підключіться до пристрою, щоб змінити конфігурацію модуля."
   },
   "appPanel": {
     "failedSaveRetention": "Не вдалося зберегти налаштування збереження повідомлень.",
@@ -306,7 +312,9 @@
     "messagesSection": "Повідомлення",
     "channelLabel": "канал:",
     "allChannelsOption": "Усі канали",
-    "clearMessagesCount": "Очистити повідомлення ({{count}})"
+    "clearMessagesCount": "Очистити повідомлення ({{count}})",
+    "latLabel": "широта:",
+    "lonLabel": "довгота:"
   },
   "nodeListPanel": {
     "contactsRefreshed": "Контакти оновлено.",
@@ -444,7 +452,32 @@
     "hintMeshcoreHttp": "Введіть ім’я хоста або IP-адресу вашого радіо-супутника MeshCore. Він має бути доступним через порт 5000.",
     "stageLinuxUnpaired": "Збережений пристрій не сполучено в Linux Bluetooth — виберіть його нижче, щоб ввести PIN-код і підключитися.",
     "liamServerNote": "Сервер Ліама працює лише з висхідним зв’язком — ваш вузол відображається на його карті, але ви не отримуватимете з нього повідомлення.",
-    "connectButton": "Підключитися"
+    "connectButton": "Підключитися",
+    "mqttStatusConnected": "підключений",
+    "mqttStatusConnecting": "підключення",
+    "mqttStatusError": "помилка",
+    "mqttStatusDisconnected": "відключений",
+    "stageSelectDevice": "Виберіть свій пристрій нижче",
+    "stageSelectSerial": "Виберіть послідовний порт нижче",
+    "stageConnectingLast": "Підключення до останнього пристрою Bluetooth…",
+    "stagePleaseWait": "Зачекайте...",
+    "stageConfiguring": "Налаштування пристрою…",
+    "stageConnecting": "Підключення до пристрою…",
+    "stageScanning": "Сканування — виберіть свій пристрій, коли він з’явиться нижче",
+    "stageConnectingSaved": "Підключення до збереженого пристрою Bluetooth…",
+    "stageSelectBluetooth": "Виберіть свій пристрій Bluetooth нижче",
+    "stageEnterPin": "Введіть PIN-код, який відображається на вашому пристрої",
+    "stageEnterPinPair": "Введіть PIN-код, щоб з’єднати пристрій",
+    "stagePairingBluetooth": "Сполучення за допомогою PIN-коду (bluetoothctl)…",
+    "stageRemoving": "Видалення пристрою…",
+    "stagePairingPin": "Сполучення з PIN-кодом…",
+    "stagePairing": "Створення пари…",
+    "stageSelectBluetoothDots": "Виберіть свій пристрій Bluetooth…",
+    "stagePairingFailed": "Не вдалося створити пару. Підключіть пристрій повторно.",
+    "stageCheckingPairing": "Перевірка з’єднання Bluetooth…",
+    "stageEnterPinLinux": "Введіть PIN-код, який відображається на вашому пристрої (спочатку з’єднайте з Linux)",
+    "stageScanningLast": "Пошук останнього пристрою Bluetooth…",
+    "stageReconnecting": "Повторне підключення до останнього пристрою Bluetooth…"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Відкиньте рядки маршрутизації, старші за {{hours}} год (1–168)",

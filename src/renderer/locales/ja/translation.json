@@ -34,7 +34,10 @@
     "contacts": "連絡先",
     "messages": "メッセージ",
     "connect": "接続する",
-    "disconnect": "切断する"
+    "disconnect": "切断する",
+    "discord": "不和",
+    "github": "GitHub",
+    "website": "Webサイト"
   },
   "aria": {
     "closeDialog": "ダイアログを閉じる",
@@ -178,7 +181,9 @@
     "channelsMeshcore": "チャンネル (メッシュコア)",
     "channelRoleDisabled": "無効",
     "channelRoleSecondary": "二次",
-    "noChannels": "チャネルが設定されていません。"
+    "noChannels": "チャネルが設定されていません。",
+    "channelRolePrimary": "主要な",
+    "channelN": "チャンネル {{num}}"
   },
   "securityPanel": {
     "keyRegenRequested": "キーの再生成が要求されました。デバイスは新しいキーを生成します。",
@@ -208,7 +213,8 @@
     "cannedMessagesApplied": "定型メッセージが適用されました。",
     "rtttlSaved": "RTTTL 着信音が保存されました。",
     "title": "モジュール構成",
-    "readOnly": "読み取り専用"
+    "readOnly": "読み取り専用",
+    "connectToDevice": "デバイスに接続してモジュール構成を変更します。"
   },
   "appPanel": {
     "failedSaveRetention": "メッセージ保持設定の保存に失敗しました。",
@@ -306,7 +312,9 @@
     "messagesSection": "メッセージ",
     "channelLabel": "チャネル：",
     "allChannelsOption": "すべてのチャンネル",
-    "clearMessagesCount": "メッセージをクリア ({{count}})"
+    "clearMessagesCount": "メッセージをクリア ({{count}})",
+    "latLabel": "緯度:",
+    "lonLabel": "ロン："
   },
   "nodeListPanel": {
     "contactsRefreshed": "連絡先が更新されました。",
@@ -444,7 +452,32 @@
     "hintMeshcoreHttp": "MeshCore コンパニオン無線のホスト名または IP アドレスを入力します。ポート 5000 で到達可能である必要があります。",
     "stageLinuxUnpaired": "保存されたデバイスは Linux Bluetooth でペアリングされていません。下で選択して PIN を入力し、接続します。",
     "liamServerNote": "リアムのサーバーはアップリンク専用です。あなたのノードは彼のマップ上に表示されますが、そこからメッセージを受信することはありません。",
-    "connectButton": "接続する"
+    "connectButton": "接続する",
+    "mqttStatusConnected": "接続された",
+    "mqttStatusConnecting": "接続する",
+    "mqttStatusError": "エラー",
+    "mqttStatusDisconnected": "切断された",
+    "stageSelectDevice": "以下からデバイスを選択してください",
+    "stageSelectSerial": "以下のシリアルポートを選択してください",
+    "stageConnectingLast": "最後の Bluetooth デバイスに接続中…",
+    "stagePleaseWait": "お待ちください…",
+    "stageConfiguring": "デバイスを構成中…",
+    "stageConnecting": "デバイスに接続中…",
+    "stageScanning": "スキャン中 — 下に表示されたらデバイスを選択します",
+    "stageConnectingSaved": "保存されている Bluetooth デバイスに接続中…",
+    "stageSelectBluetooth": "以下から Bluetooth デバイスを選択してください",
+    "stageEnterPin": "デバイスに表示されている PIN を入力してください",
+    "stageEnterPinPair": "PINを入力してデバイスをペアリングします",
+    "stagePairingBluetooth": "PIN (bluetoothctl) でペアリング中…",
+    "stageRemoving": "デバイスを削除しています…",
+    "stagePairingPin": "PIN でペアリング中…",
+    "stagePairing": "ペアリング中…",
+    "stageSelectBluetoothDots": "Bluetooth デバイスを選択してください…",
+    "stagePairingFailed": "ペアリングに失敗しました。デバイスを再度ペアリングしてください。",
+    "stageCheckingPairing": "Bluetooth のペアリングを確認しています…",
+    "stageEnterPinLinux": "デバイスに表示されている PIN を入力します (最初に Linux とペアリングします)",
+    "stageScanningLast": "最後の Bluetooth デバイスをスキャンしています…",
+    "stageReconnecting": "最後の Bluetooth デバイスに再接続しています…"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "{{hours}} 時間より古いルーティング行を削除 (1 ～ 168)",

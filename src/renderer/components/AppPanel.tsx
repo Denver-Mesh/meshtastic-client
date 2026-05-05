@@ -522,12 +522,12 @@ export default function AppPanel({
 
   return (
     <div className="w-full space-y-6">
-      <h2 className="text-xl font-semibold text-gray-200">App Settings</h2>
+      <h2 className="text-xl font-semibold text-gray-200">{t('appPanel.title')}</h2>
 
       {/* Log panel visibility */}
       {onLogPanelVisibleChange && (
         <div className="space-y-2">
-          <h3 className="text-muted text-sm font-medium">Log panel</h3>
+          <h3 className="text-muted text-sm font-medium">{t('appPanel.logPanelSection')}</h3>
           <div className="bg-secondary-dark rounded-lg p-4">
             <div className="flex items-center gap-2">
               <input
@@ -558,10 +558,10 @@ export default function AppPanel({
       {/* Flood Advert schedule (MeshCore only) */}
       {protocol === 'meshcore' && (
         <div className="space-y-2">
-          <h3 className="text-muted text-sm font-medium">Flood Advert</h3>
+          <h3 className="text-muted text-sm font-medium">{t('appPanel.floodAdvertSection')}</h3>
           <div className="bg-secondary-dark space-y-2 rounded-lg p-4">
             <label htmlFor="flood-advert-interval" className="text-sm text-gray-300">
-              Automatically send a flood advert on a schedule:
+              {t('appPanel.floodAdvertScheduleLabel')}
             </label>
             <select
               id="flood-advert-interval"
@@ -573,9 +573,9 @@ export default function AppPanel({
               }}
               className="bg-deep-black focus:border-brand-green w-full rounded-lg border border-gray-600 px-3 py-2 text-sm text-gray-200 focus:outline-none"
             >
-              <option value={0}>Disabled</option>
-              <option value={12}>Every 12 hours</option>
-              <option value={24}>Every 24 hours</option>
+              <option value={0}>{t('common.disabled')}</option>
+              <option value={12}>{t('appPanel.floodAdvertEvery12h')}</option>
+              <option value={24}>{t('appPanel.floodAdvertEvery24h')}</option>
             </select>
             <p className="text-muted text-xs">
               Sends a flood advert when connected and repeats at the chosen interval to keep your
@@ -587,30 +587,35 @@ export default function AppPanel({
 
       {/* GPS / Location */}
       <div className="space-y-3">
-        <h3 className="text-muted text-sm font-medium">GPS / Location</h3>
+        <h3 className="text-muted text-sm font-medium">{t('appPanel.gpsSection')}</h3>
         <div className="bg-secondary-dark space-y-4 rounded-lg p-4">
           {ourPosition && (
             <p className="text-brand-green text-xs">
               {ourPosition.source === 'device'
-                ? `Device GPS: ${formatCoordPair(ourPosition.lat, ourPosition.lon, coordinateFormat)}`
+                ? t('appPanel.gpsSourceDevice', {
+                    coords: formatCoordPair(ourPosition.lat, ourPosition.lon, coordinateFormat),
+                  })
                 : ourPosition.source === 'static'
-                  ? `Static position: ${formatCoordPair(ourPosition.lat, ourPosition.lon, coordinateFormat)}`
+                  ? t('appPanel.gpsSourceStatic', {
+                      coords: formatCoordPair(ourPosition.lat, ourPosition.lon, coordinateFormat),
+                    })
                   : ourPosition.source === 'browser'
-                    ? `Browser location: ${formatCoordPair(ourPosition.lat, ourPosition.lon, coordinateFormat)}`
-                    : `IP location (city-level): ${formatCoordPair(ourPosition.lat, ourPosition.lon, coordinateFormat)}`}
+                    ? t('appPanel.gpsSourceBrowser', {
+                        coords: formatCoordPair(ourPosition.lat, ourPosition.lon, coordinateFormat),
+                      })
+                    : t('appPanel.gpsSourceIp', {
+                        coords: formatCoordPair(ourPosition.lat, ourPosition.lon, coordinateFormat),
+                      })}
             </p>
           )}
-          {!ourPosition && <p className="text-muted text-xs">No GPS position resolved yet.</p>}
+          {!ourPosition && <p className="text-muted text-xs">{t('appPanel.noGpsPositionYet')}</p>}
 
           {/* Static position override */}
           <div className="space-y-2 border-t border-gray-700 pt-1">
-            <p className="text-muted text-xs leading-relaxed">
-              Set a precise static position. When saved, this overrides browser and IP-based
-              location.
-            </p>
+            <p className="text-muted text-xs leading-relaxed">{t('appPanel.staticPositionDesc')}</p>
             <div className="flex items-center gap-2">
               <label htmlFor="apppanel-static-lat" className="w-8 text-sm text-gray-300">
-                Lat:
+                {t('appPanel.latLabel')}
               </label>
               <input
                 id="apppanel-static-lat"
@@ -623,11 +628,11 @@ export default function AppPanel({
                   setStaticLatInput(e.target.value);
                 }}
                 placeholder="e.g. 40.12345"
-                aria-label={`Lat: ${staticLatInput || 'e.g. 40.12345'}`}
+                aria-label={`${t('appPanel.latLabel')} ${staticLatInput || 'e.g. 40.12345'}`}
                 className="bg-deep-black focus:border-brand-green flex-1 rounded border border-gray-600 px-2 py-1 text-sm text-gray-200 focus:outline-none"
               />
               <label htmlFor="apppanel-static-lon" className="w-8 text-sm text-gray-300">
-                Lon:
+                {t('appPanel.lonLabel')}
               </label>
               <input
                 id="apppanel-static-lon"
@@ -640,7 +645,7 @@ export default function AppPanel({
                   setStaticLonInput(e.target.value);
                 }}
                 placeholder="e.g. -105.12345"
-                aria-label={`Lon: ${staticLonInput || 'e.g. -105.12345'}`}
+                aria-label={`${t('appPanel.lonLabel')} ${staticLonInput || 'e.g. -105.12345'}`}
                 className="bg-deep-black focus:border-brand-green flex-1 rounded border border-gray-600 px-2 py-1 text-sm text-gray-200 focus:outline-none"
               />
             </div>
@@ -650,7 +655,7 @@ export default function AppPanel({
                 aria-label={t('appPanel.saveStaticPosition')}
                 className="bg-brand-green/20 text-brand-green hover:bg-brand-green/30 border-brand-green/40 flex-1 rounded border px-3 py-1.5 text-sm font-medium transition-colors"
               >
-                Save Static Position
+                {t('appPanel.saveStaticPosition')}
               </button>
               {hasStaticPosition && (
                 <button
@@ -675,24 +680,22 @@ export default function AppPanel({
                 handleGpsIntervalChange(Number(e.target.value));
               }}
               disabled={hasStaticPosition}
-              aria-label={`Auto-refresh interval: ${GPS_REFRESH_INTERVAL_LABELS[gpsRefreshInterval] ?? gpsRefreshInterval}`}
+              aria-label={`${t('appPanel.autoRefreshInterval')} ${GPS_REFRESH_INTERVAL_LABELS[gpsRefreshInterval] ?? gpsRefreshInterval}`}
               className={`bg-deep-black focus:border-brand-green rounded border border-gray-600 px-2 py-1 text-sm text-gray-200 focus:outline-none ${hasStaticPosition ? 'cursor-not-allowed opacity-40' : ''}`}
             >
-              <option value={0}>Manual only</option>
-              <option value={900}>Every 15 min</option>
-              <option value={1800}>Every 30 min</option>
-              <option value={3600}>Every hour</option>
-              <option value={7200}>Every 2 hours</option>
+              <option value={0}>{t('appPanel.gpsIntervalManual')}</option>
+              <option value={900}>{t('appPanel.gpsInterval15min')}</option>
+              <option value={1800}>{t('appPanel.gpsInterval30min')}</option>
+              <option value={3600}>{t('appPanel.gpsIntervalHour')}</option>
+              <option value={7200}>{t('appPanel.gpsInterval2hours')}</option>
             </select>
           </div>
           {hasStaticPosition && (
-            <p className="text-muted text-xs">
-              Auto-refresh is disabled while a static position is active.
-            </p>
+            <p className="text-muted text-xs">{t('appPanel.autoRefreshDisabledStatic')}</p>
           )}
           <div className="flex items-center gap-2">
             <label htmlFor="apppanel-coord-format" className="flex-1 text-sm text-gray-300">
-              Coordinate format:
+              {t('appPanel.coordinateFormat')}
             </label>
             <select
               id="apppanel-coord-format"
@@ -702,32 +705,29 @@ export default function AppPanel({
                 updateSetting('coordinateFormat', fmt);
                 useCoordFormatStore.getState().setCoordinateFormat(fmt);
               }}
-              aria-label={`Coordinate format: ${settings.coordinateFormat === 'mgrs' ? 'MGRS' : 'Decimal Degrees'}`}
+              aria-label={`${t('appPanel.coordinateFormat')} ${settings.coordinateFormat === 'mgrs' ? t('appPanel.coordFormatMgrs') : t('appPanel.coordFormatDecimal')}`}
               className="bg-deep-black focus:border-brand-green rounded border border-gray-600 px-2 py-1 text-sm text-gray-200 focus:outline-none"
             >
-              <option value="decimal">Decimal Degrees</option>
-              <option value="mgrs">MGRS</option>
+              <option value="decimal">{t('appPanel.coordFormatDecimal')}</option>
+              <option value="mgrs">{t('appPanel.coordFormatMgrs')}</option>
             </select>
           </div>
           <button
             onClick={() => onRefreshGps?.()}
             disabled={gpsLoading}
-            aria-label={gpsLoading ? 'Refreshing...' : 'Refresh Now'}
+            aria-label={gpsLoading ? t('appPanel.gpsRefreshing') : t('appPanel.gpsRefreshNow')}
             className={`bg-secondary-dark rounded-lg px-4 py-2 text-sm font-medium text-gray-300 transition-colors ${gpsLoading ? 'cursor-not-allowed opacity-50' : 'hover:bg-gray-600'}`}
           >
-            {gpsLoading ? 'Refreshing...' : 'Refresh Now'}
+            {gpsLoading ? t('appPanel.gpsRefreshing') : t('appPanel.gpsRefreshNow')}
           </button>
         </div>
       </div>
 
       {/* Map & Node Filtering */}
       <div className="space-y-3">
-        <h3 className="text-muted text-sm font-medium">Map &amp; Node Filtering</h3>
+        <h3 className="text-muted text-sm font-medium">{t('appPanel.mapFilterSection')}</h3>
         <div className="bg-secondary-dark space-y-4 rounded-lg p-4">
-          <p className="text-muted text-xs leading-relaxed">
-            Hides nodes beyond a set distance from your device. Filtering is display-only — nodes
-            remain in the database.
-          </p>
+          <p className="text-muted text-xs leading-relaxed">{t('appPanel.mapFilterDesc')}</p>
           <div className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -786,11 +786,11 @@ export default function AppPanel({
                 homeNode.longitude !== 0;
               return !homeHasLocation ? (
                 <p className="rounded border border-yellow-700 bg-yellow-900/30 px-2 py-1.5 text-xs text-yellow-300">
-                  Your device has no GPS fix — filter is enabled but all nodes are shown.
+                  {t('appPanel.noGpsFix')}
                 </p>
               ) : null;
             })()}
-          <p className="text-muted text-xs">Note: Requires your device to have a valid GPS fix.</p>
+          <p className="text-muted text-xs">{t('appPanel.requiresGpsFix')}</p>
           <div className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -1220,11 +1220,8 @@ export default function AppPanel({
 
       {/* Data Management */}
       <div className="space-y-3">
-        <h3 className="text-muted text-sm font-medium">Data Management</h3>
-        <p className="text-muted text-xs">
-          Export your local database (messages &amp; nodes) as a .db file, or import/merge another
-          user's database into yours.
-        </p>
+        <h3 className="text-muted text-sm font-medium">{t('appPanel.dataManagementSection')}</h3>
+        <p className="text-muted text-xs">{t('appPanel.dataManagementDesc')}</p>
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           <button
             aria-label={t('appPanel.exportDatabase')}
@@ -1284,10 +1281,10 @@ export default function AppPanel({
 
       {/* Appearance — collapsible; preset-only colors (no text input — Electron macOS menu warnings). */}
       <div className="space-y-2">
-        <h3 className="text-muted text-sm font-medium">Appearance</h3>
+        <h3 className="text-muted text-sm font-medium">{t('appPanel.appearanceSection')}</h3>
         <details className="group bg-secondary-dark rounded-lg border border-gray-700">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-lg px-4 py-3 text-sm font-medium text-gray-200 hover:bg-gray-800/40 [&::-webkit-details-marker]:hidden">
-            <span>Color scheme</span>
+            <span>{t('appPanel.colorScheme')}</span>
             <svg
               className="text-muted h-4 w-4 shrink-0 transition-transform group-open:rotate-180"
               fill="none"
@@ -1375,10 +1372,10 @@ export default function AppPanel({
 
       {/* Danger Zone — collapsible; same pattern as Appearance → Color scheme */}
       <div className="space-y-2">
-        <h3 className="text-sm font-medium text-red-400">Danger Zone</h3>
+        <h3 className="text-sm font-medium text-red-400">{t('appPanel.dangerZoneSection')}</h3>
         <details className="group rounded-lg border border-red-900 bg-red-950/20">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-lg px-4 py-3 text-sm font-medium text-red-300 hover:bg-red-950/40 [&::-webkit-details-marker]:hidden">
-            <span>Destructive actions</span>
+            <span>{t('appPanel.destructiveActions')}</span>
             <svg
               className="text-muted h-4 w-4 shrink-0 transition-transform group-open:rotate-180"
               fill="none"
