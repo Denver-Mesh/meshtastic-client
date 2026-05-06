@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { LocationFilter } from '../App';
@@ -44,14 +44,6 @@ const GPS_REFRESH_INTERVAL_LABELS: Record<number, string> = {
 
 /** Sentinel for "clear all channels" so MeshCore DM (`channel_idx === -1`) does not collide with "All". */
 const CLEAR_ALL_CHANNELS_VALUE = -999_999;
-
-const HISTORY_WINDOW_LABELS: Record<number, string> = {
-  1: '1 hour',
-  4: '4 hours',
-  24: '24 hours',
-  72: '3 days',
-  168: '7 days',
-};
 
 // ─── Confirmation Modal ─────────────────────────────────────────
 function ConfirmModal({
@@ -201,6 +193,16 @@ export default function AppPanel({
   const setHistoryWindow = usePositionHistoryStore((s) => s.setHistoryWindow);
   const clearHistory = usePositionHistoryStore((s) => s.clearHistory);
   const coordinateFormat = useCoordFormatStore((s) => s.coordinateFormat);
+
+  const historyWindowOptionLabels = useMemo((): Record<number, string> => {
+    return {
+      1: t('appPanel.historyWindow1h'),
+      4: t('appPanel.historyWindow4h'),
+      24: t('appPanel.historyWindow24h'),
+      72: t('appPanel.historyWindow3d'),
+      168: t('appPanel.historyWindow7d'),
+    };
+  }, [t]);
 
   const { nodeStaleThresholdMs, nodeOfflineThresholdMs } = useRadioProvider(protocol);
 
@@ -760,7 +762,7 @@ export default function AppPanel({
               className="bg-deep-black focus:border-brand-green w-24 rounded border border-gray-600 px-2 py-1 text-right text-sm text-gray-200 focus:outline-none disabled:opacity-40"
             />
             <label htmlFor="apppanel-distance-unit" className="text-sm text-gray-300">
-              Unit:
+              {t('appPanel.unitLabel')}
             </label>
             <select
               id="apppanel-distance-unit"
@@ -772,8 +774,8 @@ export default function AppPanel({
               aria-label={`Unit: ${settings.distanceUnit}`}
               className="bg-deep-black focus:border-brand-green rounded border border-gray-600 px-2 py-1 text-sm text-gray-200 focus:outline-none disabled:opacity-40"
             >
-              <option value="miles">miles</option>
-              <option value="km">km</option>
+              <option value="miles">{t('appPanel.distanceUnitMiles')}</option>
+              <option value="km">{t('appPanel.distanceUnitKm')}</option>
             </select>
           </div>
           {settings.distanceFilterEnabled &&
@@ -803,7 +805,7 @@ export default function AppPanel({
               className="accent-brand-green"
             />
             <label htmlFor="filterMqttOnly" className="cursor-pointer text-sm text-gray-300">
-              Hide MQTT-only nodes from map and node list
+              {t('appPanel.hideMqttOnlyNodes')}
             </label>
           </div>
           <div className="flex items-center gap-2">
@@ -818,12 +820,12 @@ export default function AppPanel({
               className="accent-brand-green"
             />
             <label htmlFor="showMovementPaths" className="cursor-pointer text-sm text-gray-300">
-              Show movement paths
+              {t('appPanel.showMovementPaths')}
             </label>
           </div>
           <div className="flex items-center gap-2">
             <label htmlFor="apppanel-history-window" className="shrink-0 text-sm text-gray-400">
-              Position history window:
+              {t('appPanel.positionHistoryWindowLabel')}
             </label>
             <select
               id="apppanel-history-window"
@@ -831,14 +833,14 @@ export default function AppPanel({
               onChange={(e) => {
                 setHistoryWindow(Number(e.target.value));
               }}
-              aria-label={`Position history window: ${HISTORY_WINDOW_LABELS[historyWindowHours] ?? historyWindowHours}`}
+              aria-label={`${t('appPanel.positionHistoryWindowLabel')} ${historyWindowOptionLabels[historyWindowHours] ?? historyWindowHours}`}
               className="bg-deep-black focus:border-brand-green rounded border border-gray-600 px-2 py-1 text-sm text-gray-200 focus:outline-none"
             >
-              <option value={1}>1 hour</option>
-              <option value={4}>4 hours</option>
-              <option value={24}>24 hours</option>
-              <option value={72}>3 days</option>
-              <option value={168}>7 days</option>
+              <option value={1}>{t('appPanel.historyWindow1h')}</option>
+              <option value={4}>{t('appPanel.historyWindow4h')}</option>
+              <option value={24}>{t('appPanel.historyWindow24h')}</option>
+              <option value={72}>{t('appPanel.historyWindow3d')}</option>
+              <option value={168}>{t('appPanel.historyWindow7d')}</option>
             </select>
           </div>
         </div>
@@ -846,7 +848,7 @@ export default function AppPanel({
 
       {/* Retention & limits (config only — destructive actions are in Danger Zone below) */}
       <div className="space-y-3">
-        <h3 className="text-muted text-sm font-medium">Retention &amp; limits</h3>
+        <h3 className="text-muted text-sm font-medium">{t('appPanel.retentionLimitsHeading')}</h3>
 
         {/* Meshtastic node retention */}
         {protocol !== 'meshcore' && (
@@ -1760,7 +1762,9 @@ export default function AppPanel({
                   aria-label={t('common.channel')}
                   className="bg-deep-black flex-1 rounded-lg border border-red-800/60 px-3 py-1.5 text-sm text-gray-200 focus:border-red-500 focus:outline-none"
                 >
-                  <option value={CLEAR_ALL_CHANNELS_VALUE}>All Channels</option>
+                  <option value={CLEAR_ALL_CHANNELS_VALUE}>
+                    {t('appPanel.allChannelsOption')}
+                  </option>
                   {msgChannels.map((ch) => (
                     <option key={ch} value={ch}>
                       {getChannelLabel(ch)}

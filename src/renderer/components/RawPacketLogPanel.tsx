@@ -62,6 +62,7 @@ function toSignedI8(byte: number): number {
 }
 
 function MeshcoreExpandedDetails({ p }: { p: RxPacketEntry }) {
+  const { t } = useTranslation();
   if (!p.parseOk) return null;
   const reparsed = parseMeshCoreRfPacket(p.raw);
   const innerWords =
@@ -135,7 +136,7 @@ function MeshcoreExpandedDetails({ p }: { p: RxPacketEntry }) {
         </p>
       )}
       {innerWords != null && (
-        <p title="First four bytes after path prefix; not a node id. Meaning depends on payload type.">
+        <p title={t('rawPacketLog.hashColumnTooltip')}>
           <span className="text-muted">Inner first u32 (debug):</span>{' '}
           {`BE 0x${innerWords.be} · LE 0x${innerWords.le}`}
         </p>
@@ -279,14 +280,12 @@ export default function RawPacketLogPanel(props: Props) {
     onClear();
   }, [onClear]);
 
-  const emptyMessage = 'No new mesh packets received yet. Please wait...';
-
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 items-center gap-2 border-b border-gray-700 px-3 py-2">
         <input
           type="search"
-          placeholder="Filter by type, name, or hex..."
+          placeholder={t('rawPacketLog.filterPlaceholder')}
           value={filter}
           onChange={(e) => {
             setFilter(e.target.value);
@@ -308,11 +307,11 @@ export default function RawPacketLogPanel(props: Props) {
 
       {packets.length === 0 ? (
         <div className="text-muted flex flex-1 items-center justify-center text-xs">
-          {emptyMessage}
+          {t('rawPacketLog.emptyWaiting')}
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-muted flex flex-1 items-center justify-center text-xs">
-          No packets match the current filter.
+          {t('rawPacketLog.noPacketsMatchFilter')}
         </div>
       ) : (
         <div
@@ -374,7 +373,9 @@ export default function RawPacketLogPanel(props: Props) {
                       {variant === 'meshcore' && (
                         <MeshcoreExpandedDetails p={(filtered as RxPacketEntry[])[vi.index]} />
                       )}
-                      <p className="text-muted mb-1 text-[10px]">Raw hex ({byteLen} bytes):</p>
+                      <p className="text-muted mb-1 text-[10px]">
+                        {t('rawPacketLog.rawHexLabel', { bytes: byteLen })}
+                      </p>
                       <p className="text-[10px] break-all text-gray-400">{hexRaw}</p>
                     </div>
                   )}

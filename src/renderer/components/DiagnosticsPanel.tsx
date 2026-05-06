@@ -8,7 +8,6 @@ import {
   meshHasRoutingAnomaliesFromRows,
 } from '../lib/diagnostics/diagnosticRows';
 import {
-  MESH_ROUTING_ANOMALY_LINE,
   meshCongestionDetailLines,
   summarizeMeshCongestionAttribution,
   summarizeRfDuplicateOriginators,
@@ -663,7 +662,7 @@ export default function DiagnosticsPanel({
                       setNodeMqttIgnored(anomaly.nodeId, false);
                     }}
                     className="inline-flex items-center gap-1 rounded-full border border-yellow-500/30 bg-yellow-500/20 px-2 py-0.5 text-[10px] whitespace-nowrap text-yellow-300 transition-colors hover:bg-yellow-500/30"
-                    title="Click to stop ignoring MQTT for this node"
+                    title={t('diagnosticsPanel.stopIgnoringMqtt')}
                   >
                     MQTT Ignored ✕
                   </button>
@@ -673,7 +672,7 @@ export default function DiagnosticsPanel({
                       setNodeMqttIgnored(anomaly.nodeId, true);
                     }}
                     className="bg-secondary-dark text-muted rounded px-2 py-0.5 text-[10px] whitespace-nowrap transition-colors hover:bg-gray-600 hover:text-gray-300"
-                    title="Exclude this node's MQTT data from diagnostics"
+                    title={t('diagnosticsPanel.excludeMqttData')}
                   >
                     Ignore MQTT
                   </button>
@@ -994,7 +993,9 @@ export default function DiagnosticsPanel({
       {/* Per-Node MQTT Filters */}
       {showMqttControls && mqttIgnoredNodes.size > 0 && (
         <div className="bg-secondary-dark rounded-lg p-3">
-          <h3 className="text-muted mb-2 text-xs font-medium">Per-Node MQTT Filters</h3>
+          <h3 className="text-muted mb-2 text-xs font-medium">
+            {t('diagnosticsPanel.perNodeMqttFilters')}
+          </h3>
           <div className="flex flex-wrap gap-1.5">
             {[...mqttIgnoredNodes].map((nodeId) => {
               const n = nodes.get(nodeId);
@@ -1011,7 +1012,7 @@ export default function DiagnosticsPanel({
                     }}
                     aria-label={t('diagnosticsPanel.dismissRow')}
                     className="ml-0.5 leading-none hover:text-yellow-100"
-                    title="Remove per-node MQTT filter"
+                    title={t('diagnosticsPanel.removeMqttFilter')}
                   >
                     ✕
                   </button>
@@ -1026,7 +1027,7 @@ export default function DiagnosticsPanel({
       {showRoutingAnomalyBanner && (
         <div className="flex items-start gap-2.5 rounded-lg border border-orange-500/40 bg-orange-500/10 px-4 py-3 text-sm text-orange-200">
           <AlertTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-orange-400" />
-          <span>{MESH_ROUTING_ANOMALY_LINE}</span>
+          <span>{t('meshCongestion.routingAnomalies')}</span>
         </div>
       )}
 
@@ -1036,7 +1037,7 @@ export default function DiagnosticsPanel({
           lines={meshCongestionBlock.lines}
           originators={meshCongestionBlock.originators}
           nodes={nodes}
-          scopeSubtitle="Observed at this client — path mix is from packets heard at this connected node."
+          scopeSubtitle={t('diagnosticsPanel.scopeSubtitle')}
           className=""
         />
       )}
@@ -1045,18 +1046,16 @@ export default function DiagnosticsPanel({
       {ourPosition?.source === 'ip' && (
         <div className="flex items-start gap-2.5 rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-300">
           <AlertTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-yellow-400" />
-          <span>
-            Using city-level IP geolocation — distance-based thresholds are doubled to reduce false
-            positives. For accurate routing analysis, connect a device with GPS or set a static
-            position.
-          </span>
+          <span>{t('diagnosticsPanel.ipGeolocationBanner')}</span>
         </div>
       )}
 
       {/* Anomaly Table */}
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="text-muted text-sm font-medium">Diagnostics ({diagnosticRows.length})</h3>
+          <h3 className="text-muted text-sm font-medium">
+            {t('diagnosticsPanel.diagnosticsHeading', { count: diagnosticRows.length })}
+          </h3>
           <input
             type="text"
             value={search}

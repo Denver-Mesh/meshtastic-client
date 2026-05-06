@@ -1,4 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/refs */
+import type { TFunction } from 'i18next';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -63,52 +64,64 @@ function lastConnectionKey(p: MeshProtocol) {
   return `mesh-client:lastConnection:${p}`;
 }
 
-function humanizeSerialError(err: unknown): string {
+function humanizeSerialError(err: unknown, t: TFunction): string {
   const msg = err instanceof Error ? err.message : String(err);
   const isWindows = navigator.userAgent.toLowerCase().includes('windows');
   if (/access denied|permission|not allowed/i.test(msg)) {
-    if (isWindows) {
-      return `${msg} — Ensure the correct USB driver is installed (CH340, CP210x, or FTDI). Check Device Manager for a yellow warning on the COM port.`;
-    }
-    return `${msg} — On Linux, add your user to the dialout group: sudo usermod -aG dialout $USER (then log out and back in)`;
+    const hint = isWindows
+      ? t('connectionPanel.humanize.serial.accessDeniedWindowsHint')
+      : t('connectionPanel.humanize.serial.accessDeniedLinuxHint');
+    return t('connectionPanel.humanize.prefixedHint', { message: msg, hint });
   }
   if (/no port|not found|disconnected|device not found/i.test(msg)) {
-    return `${msg} — Ensure the USB cable is connected and the device is powered on.`;
+    return t('connectionPanel.humanize.prefixedHint', {
+      message: msg,
+      hint: t('connectionPanel.humanize.serial.disconnectedHint'),
+    });
   }
   if (/timed out/i.test(msg)) {
-    return `${msg} — If the port appeared briefly, try reconnecting the USB cable.`;
+    return t('connectionPanel.humanize.prefixedHint', {
+      message: msg,
+      hint: t('connectionPanel.humanize.serial.timeoutHint'),
+    });
   }
   return msg;
 }
 
-function humanizeHttpError(address: string, err: unknown): string {
+function humanizeHttpError(address: string, err: unknown, t: TFunction): string {
   const msg = err instanceof Error ? err.message : String(err);
   const isMdns = address.toLowerCase().includes('meshtastic.local');
   const isWindows = navigator.userAgent.toLowerCase().includes('windows');
   if (/timed out|timeout|aborted/i.test(msg)) {
     const hint = isMdns
       ? isWindows
-        ? "On Windows, meshtastic.local requires Bonjour (installed with iTunes). Use the device's IP address instead."
-        : "mDNS may not resolve — try the device's IP address instead."
-      : 'Ensure the device is powered on and reachable.';
-    return `${msg} — ${hint}`;
+        ? t('connectionPanel.humanize.http.timeoutMdnsWindows')
+        : t('connectionPanel.humanize.http.timeoutMdnsNonWindows')
+      : t('connectionPanel.humanize.http.timeoutGeneric');
+    return t('connectionPanel.humanize.prefixedHint', { message: msg, hint });
   }
   if (/401|403|unauthorized/i.test(msg)) {
-    return `${msg} — Check device authentication settings.`;
+    return t('connectionPanel.humanize.prefixedHint', {
+      message: msg,
+      hint: t('connectionPanel.humanize.http.unauthorizedHint'),
+    });
   }
   if (/econnrefused|connection refused|failed to fetch|network/i.test(msg)) {
-    return `${msg} — Ensure the device is powered on and connected to the same network.`;
+    return t('connectionPanel.humanize.prefixedHint', {
+      message: msg,
+      hint: t('connectionPanel.humanize.http.econnrefusedHint'),
+    });
   }
   if (isMdns) {
     const suffix = isWindows
-      ? "On Windows, meshtastic.local requires Bonjour (installed with iTunes). Use the device's IP address instead."
-      : "mDNS may not resolve on your network; try the device's IP address instead.";
-    return `${msg} — ${suffix}`;
+      ? t('connectionPanel.humanize.http.suffixMdnsWindows')
+      : t('connectionPanel.humanize.http.suffixMdnsNonWindows');
+    return t('connectionPanel.humanize.prefixedHint', { message: msg, hint: suffix });
   }
   return msg;
 }
 
-function humanizeBleError(err: unknown): string {
+function humanizeBleError(err: unknown, t: TFunction): string {
   if (
     err instanceof DOMException &&
     err.name === 'AbortError' &&
@@ -132,69 +145,72 @@ function humanizeBleError(err: unknown): string {
   const isWindows = navigator.userAgent.toLowerCase().includes('windows');
   const isLinux = navigator.userAgent.toLowerCase().includes('linux');
   if (msg.includes('Bluetooth adapter not found') || msg.includes('adapter is not available')) {
-    if (isWindows) {
-      return `${msg} — Check Settings > Bluetooth & devices. If Bluetooth is on but unavailable, update your Bluetooth driver in Device Manager.`;
-    }
-    if (isLinux) {
-      return `${msg} — Make sure Bluetooth is enabled and the Web Bluetooth experimental flag is set. Try: systemctl status bluetooth`;
-    }
-    return `${msg} — Make sure Bluetooth is enabled. On Linux, run: systemctl status bluetooth`;
+    const hint = isWindows
+      ? t('connectionPanel.humanize.ble.adapterWindowsHint')
+      : isLinux
+        ? t('connectionPanel.humanize.ble.adapterLinuxHint')
+        : t('connectionPanel.humanize.ble.adapterGenericHint');
+    return t('connectionPanel.humanize.prefixedHint', { message: msg, hint });
   }
   if (msg.includes('SecurityError') || msg.includes('not allowed to access')) {
-    return `${msg} — Bluetooth permission denied. Ensure the app has access to the Bluetooth device.`;
+    return t('connectionPanel.humanize.prefixedHint', {
+      message: msg,
+      hint: t('connectionPanel.humanize.ble.securityPermissionHint'),
+    });
   }
   if (msg.includes('GATT Server is disconnected')) {
-    return `${msg} — GATT connection dropped. Try moving closer to the device and reconnecting.`;
+    return t('connectionPanel.humanize.prefixedHint', {
+      message: msg,
+      hint: t('connectionPanel.humanize.ble.gattDisconnectedHint'),
+    });
   }
   // Web Bluetooth on Linux: "GATT Error: Not supported" means the device requires pairing
   // before GATT operations are allowed. This is common with Meshtastic devices.
   if (msg.includes('GATT Error: Not supported')) {
-    let enhanced = `${msg} The device requires pairing before connecting. Use the "Remove & Re-pair Device" button to re-initiate pairing.`;
+    let enhanced = `${msg} ${t('connectionPanel.humanize.ble.gattNotSupportedBase')}`;
     if (isLinux) {
-      enhanced += ` For Meshtastic use PIN 123456. For MeshCore the PIN is shown on the device display.`;
+      enhanced += t('connectionPanel.humanize.ble.gattNotSupportedLinuxPin');
     }
     return enhanced;
   }
   // Check error.name directly for DOMException types that indicate pairing issues
   if (err instanceof DOMException) {
     if (err.name === 'SecurityError') {
-      let enhanced = `Bluetooth authentication failed (${err.message}). The device may not be properly paired. Use the "Remove & Re-pair Device" button.`;
+      let enhanced = t('connectionPanel.humanize.ble.authFailedBase', { message: err.message });
       if (isLinux) {
-        enhanced += ` For Meshtastic use PIN 123456.`;
+        enhanced += t('connectionPanel.humanize.ble.authFailedLinuxPin');
       }
       return enhanced;
     }
     if (err.name === 'NetworkError') {
-      let enhanced = `Bluetooth connection failed (${err.message}). The device may not be properly paired.`;
+      let enhanced = t('connectionPanel.humanize.ble.networkFailedBase', { message: err.message });
       if (isLinux) {
-        enhanced += ` Use the "Remove & Re-pair Device" button or manage pairings via 'bluetoothctl'.`;
+        enhanced += t('connectionPanel.humanize.ble.networkFailedLinuxHint');
       } else {
-        enhanced += ` Remove the device from Bluetooth settings and re-pair.`;
+        enhanced += t('connectionPanel.humanize.ble.networkFailedNonLinuxHint');
       }
       return enhanced;
     }
   }
   // Web Bluetooth on Linux: connection failed often means device not paired properly
   if (msg.includes('Connection Error: Connection attempt failed')) {
-    let enhanced = `${msg} The device may not be paired with your computer. Remove the device from Bluetooth settings, then re-pair it. For Meshtastic use PIN 123456. For MeshCore the PIN is randomly generated and displayed on the device.`;
+    let enhanced = `${msg} ${t('connectionPanel.humanize.ble.connectionAttemptFailedBase')}`;
     if (isLinux) {
-      enhanced += ` On Linux, you can manage pairings via the system Bluetooth settings or 'bluetoothctl' tool.`;
+      enhanced += t('connectionPanel.humanize.ble.connectionAttemptFailedLinuxHint');
     }
     return enhanced;
   }
   if (/Bluetooth connected but MeshCore protocol handshake did not complete/i.test(msg)) {
-    let enhanced = `${msg} Ensure your MeshCore device is in Bluetooth Companion mode and paired with your computer using a PIN. Remove any existing pairing and re-pair if connection issues persist.`;
+    let enhanced = `${msg} ${t('connectionPanel.humanize.ble.meshcoreHandshakeHint')}`;
     if (isWindows) {
-      enhanced +=
-        ' On Windows, toggle Bluetooth off/on and update the adapter driver in Device Manager if disconnects persist.';
+      enhanced += t('connectionPanel.humanize.ble.meshcoreHandshakeWindowsExtra');
     }
     return enhanced;
   }
   if (/Bluetooth connection timed out while opening MeshCore over Noble IPC/i.test(msg)) {
-    let enhanced = `${msg} Ensure your MeshCore device is in Bluetooth Companion mode and paired with your computer using a PIN. Remove any existing pairing and re-pair if connection issues persist.`;
+    let enhanced = `${msg} ${t('connectionPanel.humanize.ble.meshcoreHandshakeHint')}`;
     if (isWindows) {
-      enhanced +=
-        ' On Windows, toggle Bluetooth off/on and update the adapter driver in Device Manager if disconnects persist.';
+      enhanced += t('connectionPanel.humanize.ble.meshcoreHandshakeWindowsExtra');
     }
     return enhanced;
   }
@@ -847,7 +863,7 @@ export default function ConnectionPanel({
           onConnect('ble', undefined, device.deviceId).catch((err: unknown) => {
             isAutoConnectingRef.current = false;
             setIsAutoConnecting(false);
-            const bleErrMsg = humanizeBleError(err);
+            const bleErrMsg = humanizeBleError(err, t);
             if (bleErrMsg) setError(bleErrMsg);
             setConnecting(false);
             setConnectionStage('');
@@ -860,7 +876,7 @@ export default function ConnectionPanel({
         setConnectionStage('connectionPanel.stageScanning');
       }
     });
-  }, [lastConnection, onConnect, protocol]); // isAutoConnecting intentionally omitted — ref handles it
+  }, [lastConnection, onConnect, protocol, t]); // isAutoConnecting intentionally omitted — ref handles it
 
   // Listen for Bluetooth devices discovered by main process (Linux Web Bluetooth)
   useEffect(() => {
@@ -954,7 +970,7 @@ export default function ConnectionPanel({
     const mac = lastSelectedBleMacRef.current;
     if (!mac) {
       console.debug('[ConnectionPanel] handleRePair: no MAC available');
-      setError('No device MAC address available for re-pairing');
+      setError(t('connectionPanel.error.noMacRePair'));
       return;
     }
 
@@ -968,14 +984,14 @@ export default function ConnectionPanel({
     setConnectionStage('connectionPanel.stageEnterPinPair');
     pinPromptSeenSinceRePairRef.current = false;
     console.debug('[ConnectionPanel] handleRePair END');
-  }, [protocol]);
+  }, [protocol, t]);
 
   // Handle PIN submission for pairing
   const handlePinSubmit = useCallback(async () => {
     stopPinCountdown();
     const normalizedPin = normalizePairingPin(pinInputValue);
     if (!normalizedPin) {
-      setError('PIN must be 1–6 digits (use the code shown on the device).');
+      setError(t('connectionPanel.error.pinFormat'));
       return;
     }
     const pendingWbMac = pendingMeshcoreLinuxWbMacRef.current;
@@ -998,7 +1014,7 @@ export default function ConnectionPanel({
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.warn('[ConnectionPanel] MeshCore pre-connect pair failed:', err);
-        setError(`Pairing failed: ${msg}`);
+        setError(t('connectionPanel.error.pairingFailed', { msg }));
         setConnectionStage('connectionPanel.stageEnterPin');
         setConnecting(false);
       }
@@ -1055,14 +1071,12 @@ export default function ConnectionPanel({
         setShowRePairButton(false);
         setConnecting(false);
         setConnectionStage('');
-        setError(
-          'PIN accepted. Pairing completed. Press Connect and select your device to finish connecting.',
-        );
+        setError(t('connectionPanel.error.pinAcceptedNext'));
         return;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.warn('[ConnectionPanel] manual pair failed:', err);
-        setError(`PIN pairing failed: ${msg}`);
+        setError(t('connectionPanel.error.pinPairingFailed', { msg }));
         setShowRePairButton(true);
         setConnecting(false);
         setConnectionStage('');
@@ -1082,7 +1096,7 @@ export default function ConnectionPanel({
     setConnectionStage('connectionPanel.stagePairing');
     setShowPinPrompt(false);
     setPinInputValue('');
-  }, [pinInputValue, manualPairingFallback, isLinux, protocol, stopPinCountdown]);
+  }, [pinInputValue, manualPairingFallback, isLinux, protocol, stopPinCountdown, t]);
 
   // Handle PIN prompt cancel
   const handlePinCancel = useCallback(() => {
@@ -1162,7 +1176,7 @@ export default function ConnectionPanel({
           return;
         } catch (err) {
           // catch-no-log-ok -- error is humanized and surfaced via setError
-          const bleErrMsg = humanizeBleError(err);
+          const bleErrMsg = humanizeBleError(err, t);
           const mac = lastSelectedBleMacRef.current;
           if (mac) {
             try {
@@ -1196,7 +1210,7 @@ export default function ConnectionPanel({
         await window.electronAPI.startNobleBleScanning(protocol);
       } catch (err) {
         console.warn('[ConnectionPanel] startNobleBleScanning failed:', err);
-        const bleErrMsg = humanizeBleError(err);
+        const bleErrMsg = humanizeBleError(err, t);
         if (bleErrMsg) setError(bleErrMsg);
         setConnecting(false);
         setConnectionStage('');
@@ -1211,17 +1225,17 @@ export default function ConnectionPanel({
       console.warn('[ConnectionPanel] handleConnect failed', err);
       let errorMsg: string;
       if (connectionType === 'serial') {
-        errorMsg = humanizeSerialError(err);
+        errorMsg = humanizeSerialError(err, t);
       } else if (connectionType === 'http') {
-        errorMsg = humanizeHttpError(activeHostAddress, err);
+        errorMsg = humanizeHttpError(activeHostAddress, err, t);
       } else {
-        errorMsg = err instanceof Error ? err.message : 'Connection failed';
+        errorMsg = err instanceof Error ? err.message : t('connectionPanel.error.connectionFailed');
       }
       setError(errorMsg);
       setConnecting(false);
       setConnectionStage('');
     }
-  }, [connectionType, activeHostAddress, onConnect, protocol, isLinux]);
+  }, [connectionType, activeHostAddress, onConnect, protocol, isLinux, t]);
 
   const handleCancelConnection = useCallback(async () => {
     isAutoConnectingRef.current = false;
@@ -1322,14 +1336,14 @@ export default function ConnectionPanel({
         // Trigger the actual connection with the peripheral ID
         onConnect('ble', undefined, deviceId).catch((err: unknown) => {
           console.warn('[ConnectionPanel] BLE connect after selection failed', err);
-          const bleErrMsg = humanizeBleError(err);
+          const bleErrMsg = humanizeBleError(err, t);
           if (bleErrMsg) setError(bleErrMsg);
           setConnecting(false);
           setConnectionStage('');
         });
       }
     },
-    [bleDevices, isLinux, onConnect, protocol],
+    [bleDevices, isLinux, onConnect, protocol, t],
   );
 
   const handleSelectSerialPort = useCallback((portId: string) => {
@@ -1356,7 +1370,7 @@ export default function ConnectionPanel({
         console.warn('[ConnectionPanel] auto-connect timed out after 30s');
         isAutoConnectingRef.current = false;
         setIsAutoConnecting(false);
-        setError('Auto-connect timed out.');
+        setError(t('connectionPanel.error.autoConnectTimeout'));
         setConnecting(false);
         setConnectionStage('');
       }, 30_000);
@@ -1369,7 +1383,7 @@ export default function ConnectionPanel({
       }
       isAutoConnectingRef.current = false;
       setIsAutoConnecting(false);
-      setError(err instanceof Error ? err.message : 'Auto-connect failed');
+      setError(err instanceof Error ? err.message : t('connectionPanel.error.autoConnectFailed'));
       setConnecting(false);
       setConnectionStage('');
     };
@@ -1399,7 +1413,7 @@ export default function ConnectionPanel({
       }
     }
     // HTTP: do not auto-trigger — show one-click reconnect card instead
-  }, [protocol, isLinux]);
+  }, [protocol, isLinux, t]);
 
   // Cleanup timeout on unmount
   useEffect(
@@ -1432,7 +1446,7 @@ export default function ConnectionPanel({
           void onConnect('ble', undefined).catch((err: unknown) => {
             isAutoConnectingRef.current = false;
             setIsAutoConnecting(false);
-            const bleErrMsg = humanizeBleError(err);
+            const bleErrMsg = humanizeBleError(err, t);
             if (bleErrMsg) setError(bleErrMsg);
             const isPairingRelatedError = shouldShowLinuxRePairFromBleError(err, bleErrMsg);
             if (isPairingRelatedError) {
@@ -1461,7 +1475,7 @@ export default function ConnectionPanel({
             console.warn('[ConnectionPanel] auto-connect timed out after 30s');
             isAutoConnectingRef.current = false;
             setIsAutoConnecting(false);
-            setError('Auto-connect timed out.');
+            setError(t('connectionPanel.error.autoConnectTimeout'));
             setConnecting(false);
             setConnectionStage('');
           }, 30_000);
@@ -1472,7 +1486,7 @@ export default function ConnectionPanel({
             }
             isAutoConnectingRef.current = false;
             setIsAutoConnecting(false);
-            const bleErrMsg = humanizeBleError(err);
+            const bleErrMsg = humanizeBleError(err, t);
             if (bleErrMsg) setError(bleErrMsg);
             setConnecting(false);
             setConnectionStage('');
@@ -1495,7 +1509,7 @@ export default function ConnectionPanel({
       setShowSerialPicker(false);
       setConnectionStage('connectionPanel.stagePleaseWait');
       onConnect('http', addr).catch((err: unknown) => {
-        setError(humanizeHttpError(addr, err));
+        setError(humanizeHttpError(addr, err, t));
         setConnecting(false);
         setConnectionStage('');
       });
@@ -1508,12 +1522,12 @@ export default function ConnectionPanel({
       onAutoConnect('serial', undefined, lastConnection.serialPortId).catch((err: unknown) => {
         isAutoConnectingRef.current = false;
         setIsAutoConnecting(false);
-        setError(humanizeSerialError(err));
+        setError(humanizeSerialError(err, t));
         setConnecting(false);
         setConnectionStage('');
       });
     }
-  }, [lastConnection, onConnect, onAutoConnect, httpAddress, protocol, tcpHost, isLinux]);
+  }, [lastConnection, onConnect, onAutoConnect, httpAddress, protocol, tcpHost, isLinux, t]);
 
   const isConnected =
     state.status === 'connected' ||
@@ -1716,7 +1730,7 @@ export default function ConnectionPanel({
                 onChange={(e) => {
                   setPinInputValue(e.target.value.replace(/\D/g, '').slice(0, 6));
                 }}
-                placeholder="PIN"
+                placeholder={t('connectionPanel.pinPlaceholder')}
                 className="flex-1 rounded border border-gray-600 bg-gray-800 px-3 py-1.5 text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
                 maxLength={6}
                 inputMode="numeric"
@@ -2664,7 +2678,7 @@ export default function ConnectionPanel({
                 onChange={(e) => {
                   setPinInputValue(e.target.value.replace(/\D/g, '').slice(0, 6));
                 }}
-                placeholder="PIN"
+                placeholder={t('connectionPanel.pinPlaceholder')}
                 className="flex-1 rounded border border-gray-600 bg-gray-800 px-3 py-1.5 text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none"
                 maxLength={6}
                 inputMode="numeric"

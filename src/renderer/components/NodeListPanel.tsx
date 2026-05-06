@@ -564,7 +564,7 @@ export default function NodeListPanel({
             type="button"
             onClick={onManageGroups}
             aria-label={t('nodeListPanel.manageContactGroups')}
-            title="Manage groups"
+            title={t('nodeListPanel.manageGroups')}
             className="hover:bg-secondary-dark text-muted shrink-0 rounded-lg p-1.5 transition-colors hover:text-gray-200"
           >
             <svg
@@ -650,7 +650,7 @@ export default function NodeListPanel({
               <th scope="col" className="w-8 px-3 py-2">
                 <span className="sr-only">Status</span>
               </th>
-              <th scope="col" className="w-6 px-2 py-2" title="Favorites">
+              <th scope="col" className="w-6 px-2 py-2" title={t('nodeListPanel.favoritesColumn')}>
                 <span className="sr-only">Favorite</span>
               </th>
               <th
@@ -713,7 +713,7 @@ export default function NodeListPanel({
                   onClick={() => {
                     handleSort('hw_model');
                   }}
-                  title="MeshCore contact / advert type"
+                  title={t('nodeListPanel.meshcoreContactType')}
                 >
                   Type <SortIcon field="hw_model" sortField={sortField} sortAsc={sortAsc} />
                 </th>
@@ -805,7 +805,7 @@ export default function NodeListPanel({
                     onClick={() => {
                       handleSort('snr');
                     }}
-                    title="SNR in dB — only meaningful for direct (0-hop) RF neighbors"
+                    title={t('nodeListPanel.snrTooltip')}
                   >
                     SNR <SortIcon field="snr" sortField={sortField} sortAsc={sortAsc} />
                   </th>
@@ -887,7 +887,7 @@ export default function NodeListPanel({
                     onClick={() => {
                       handleSort('redundancy');
                     }}
-                    title="Echoes: same packet received via multiple paths (e.g. RF + MQTT or multiple RF hops). Higher means better mesh redundancy."
+                    title={t('nodeListPanel.echoesTooltip')}
                   >
                     Redund. <SortIcon field="redundancy" sortField={sortField} sortAsc={sortAsc} />
                   </th>
@@ -958,7 +958,7 @@ export default function NodeListPanel({
                         {isSelf && (
                           <span
                             className="text-bright-green text-[10px] font-bold"
-                            title="This is your node"
+                            title={t('nodeListPanel.yourNodeTooltip')}
                           >
                             ★
                           </span>
@@ -1112,11 +1112,17 @@ export default function NodeListPanel({
                     {mode !== 'meshcore' && (
                       <td className="px-3 py-2 text-center text-xs text-gray-300">
                         {node.heard_via_mqtt_only ? (
-                          <span title="Heard only via MQTT" className="text-blue-400">
+                          <span
+                            title={t('nodeListPanel.mqttHeardOnlyTooltip')}
+                            className="text-blue-400"
+                          >
                             🌐
                           </span>
                         ) : isSelf && mqttConnected ? (
-                          <span title="Connected via MQTT" className="text-blue-400">
+                          <span
+                            title={t('nodeListPanel.mqttConnectedTooltip')}
+                            className="text-blue-400"
+                          >
                             🌐
                           </span>
                         ) : meshtasticNodeShowsHybridMqttPath(node) ? (
@@ -1156,7 +1162,7 @@ export default function NodeListPanel({
                             ) : (
                               <span
                                 className="text-muted text-xs"
-                                title="Signal bars (RSSI) only for direct (0-hop) RF neighbors"
+                                title={t('nodeListPanel.signalBarsTooltip')}
                               >
                                 —
                               </span>

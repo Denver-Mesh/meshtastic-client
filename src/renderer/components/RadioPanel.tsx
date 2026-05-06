@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/set-state-in-effect */
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -16,10 +16,6 @@ import {
   meshcoreSelfInfoBwToDisplayKhz,
   meshcoreSelfInfoFreqToDisplayHz,
 } from '../lib/meshcoreUtils';
-import {
-  MESHTASTIC_DEVICE_METRICS_HELP_TOOLTIP,
-  MESHTASTIC_RADIO_DEVICE_METRICS_DESCRIPTION,
-} from '../lib/meshtasticTelemetryLocalClientCopy';
 import type { ProtocolCapabilities } from '../lib/radio/BaseRadioProvider';
 import { HelpTooltip } from './HelpTooltip';
 import MeshcoreContactSettingsSection from './MeshcoreContactSettingsSection';
@@ -204,7 +200,9 @@ function ContactCountBadge() {
     <div className="flex items-center gap-2">
       <span
         className={`font-mono text-xs ${isNearCapacity ? 'text-red-400' : 'text-gray-400'}`}
-        title={`${contactCount ?? '?'} / ${MESHCORE_MAX_CONTACTS} contacts on radio`}
+        title={t('radioPanel.contactsOnRadioBadgeTitle', {
+          part: `${contactCount ?? '?'} / ${MESHCORE_MAX_CONTACTS}`,
+        })}
       >
         {contactCount ?? '?'}/{MESHCORE_MAX_CONTACTS}
       </span>
@@ -214,9 +212,9 @@ function ContactCountBadge() {
           onClick={handleOffload}
           disabled={loading}
           className="rounded border border-yellow-700 bg-yellow-900/30 px-2 py-0.5 text-xs font-medium text-yellow-300 transition-colors hover:bg-yellow-800/50 disabled:opacity-40"
-          title="Remove all contacts from radio, keep in database"
+          title={t('radioPanel.removeAllContactsTitle')}
         >
-          {loading ? '...' : 'Offload'}
+          {loading ? '...' : t('radioPanel.offloadContacts')}
         </button>
       )}
     </div>
@@ -500,12 +498,13 @@ function WifiPasswordField({
   onChange: (v: string) => void;
   disabled: boolean;
 }) {
+  const { t } = useTranslation();
   const [show, setShow] = useState(false);
   const wifiPwdId = useId();
   return (
     <div className="space-y-1">
       <label htmlFor={wifiPwdId} className="text-muted text-sm">
-        WiFi Password
+        {t('radioPanel.wifiPasswordLabel')}
       </label>
       <div className="flex items-center gap-1">
         <input
@@ -516,7 +515,7 @@ function WifiPasswordField({
             onChange(e.target.value);
           }}
           disabled={disabled}
-          placeholder="Password"
+          placeholder={t('radioPanel.wifiPasswordPlaceholder')}
           maxLength={64}
           className="bg-secondary-dark focus:border-brand-green flex-1 rounded-lg border border-gray-600 px-3 py-2 text-gray-200 focus:outline-none disabled:opacity-50"
         />
@@ -526,9 +525,10 @@ function WifiPasswordField({
             setShow((s) => !s);
           }}
           disabled={disabled}
+          aria-label={show ? t('common.hide') : t('common.show')}
           className="text-muted px-2 py-2 text-xs hover:text-gray-300 disabled:opacity-50"
         >
-          {show ? 'Hide' : 'Show'}
+          {show ? t('common.hide') : t('common.show')}
         </button>
       </div>
     </div>
@@ -695,6 +695,23 @@ export default function RadioPanel({
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const { addToast } = useToast();
   const { t } = useTranslation();
+  const deviceRoleOptions = useMemo(
+    () =>
+      DEVICE_ROLES.map((r) => ({
+        value: r.value,
+        label: t(`radioPanel.deviceRoles.${r.value}.label`),
+        description: t(`radioPanel.deviceRoles.${r.value}.description`),
+      })),
+    [t],
+  );
+  const displayUnitOptions = useMemo(
+    () =>
+      DISPLAY_UNITS.map((u) => ({
+        value: u.value,
+        label: t(`radioPanel.displayUnits.${u.value}.label`),
+      })),
+    [t],
+  );
   const [applyingMeshcoreTelemetryPrivacy, setApplyingMeshcoreTelemetryPrivacy] = useState(false);
   const [applyingMeshcoreContactMgmt, setApplyingMeshcoreContactMgmt] = useState(false);
   const [advertLoading, setAdvertLoading] = useState(false);
@@ -962,21 +979,21 @@ export default function RadioPanel({
             onClick={handleImportConfig}
             className="bg-secondary-dark rounded-lg border border-gray-600 px-3 py-1.5 text-sm text-gray-300 transition-colors hover:bg-gray-700"
           >
-            Import Config JSON
+            {t('radioPanel.importConfigJson')}
           </button>
         </div>
       )}
 
       {!isConnected && (
         <div className="rounded-lg border border-yellow-700 bg-yellow-900/30 px-4 py-2 text-sm text-yellow-300">
-          Connect to a device to modify configuration.
+          {t('radioPanel.connectToConfigure')}
         </div>
       )}
 
       {/* ═══ Bluetooth ═══ */}
       {capabilities?.hasBluetoothConfig !== false && (
         <ConfigSection
-          title="Bluetooth"
+          title={t('radioPanel.sectionBluetooth')}
           onApply={() =>
             applyConfig('Bluetooth', 'bluetooth', {
               enabled: btEnabled,
@@ -987,20 +1004,20 @@ export default function RadioPanel({
           disabled={disabled}
         >
           <ConfigToggle
-            label="Bluetooth Enabled"
+            label={t('radioPanel.bluetoothEnabled')}
             checked={btEnabled}
             onChange={setBtEnabled}
             disabled={disabled || applyingSection !== null}
-            description="Toggle Bluetooth radio on the device."
+            description={t('radioPanel.bluetoothToggleDesc')}
           />
           <ConfigNumber
-            label="Pairing PIN"
+            label={t('radioPanel.pairingPin')}
             value={btFixedPin}
             onChange={setBtFixedPin}
             disabled={disabled || applyingSection !== null || !btEnabled}
             min={100000}
             max={999999}
-            description="6-digit fixed PIN for Bluetooth pairing. Default: 123456."
+            description={t('radioPanel.pairingPinDesc')}
           />
         </ConfigSection>
       )}
@@ -1073,10 +1090,10 @@ export default function RadioPanel({
           <ConfigSelect
             label="Role"
             value={deviceRole}
-            options={DEVICE_ROLES}
+            options={deviceRoleOptions}
             onChange={setDeviceRole}
             disabled={disabled || applyingSection !== null}
-            description={DEVICE_ROLES.find((r) => r.value === deviceRole)?.description}
+            description={deviceRoleOptions.find((r) => r.value === deviceRole)?.description}
           />
         </ConfigSection>
       )}
@@ -1186,7 +1203,7 @@ export default function RadioPanel({
           <ConfigSelect
             label="Display Units"
             value={displayUnits}
-            options={DISPLAY_UNITS}
+            options={displayUnitOptions}
             onChange={setDisplayUnits}
             disabled={disabled || applyingSection !== null}
           />
@@ -1731,8 +1748,8 @@ export default function RadioPanel({
             min={0}
             max={86400}
             unit="seconds"
-            description={MESHTASTIC_RADIO_DEVICE_METRICS_DESCRIPTION}
-            tooltip={MESHTASTIC_DEVICE_METRICS_HELP_TOOLTIP}
+            description={t('radioPanel.deviceMetricsDescription')}
+            tooltip={t('radioPanel.deviceMetricsTooltip')}
           />
         </ConfigSection>
       )}
@@ -1965,18 +1982,17 @@ export default function RadioPanel({
                 type="button"
                 onClick={() => {
                   executeWithConfirmation({
-                    name: 'Reset NodeDB',
-                    title: 'Reset Node Database',
-                    message:
-                      "This will clear the device's internal node database. The device will re-discover nodes over time.",
-                    confirmLabel: 'Reset NodeDB',
+                    name: t('radioPanel.resetNodeDbName'),
+                    title: t('radioPanel.resetNodeDbTitle'),
+                    message: t('radioPanel.resetNodeDbMessage'),
+                    confirmLabel: t('radioPanel.resetNodeDbConfirm'),
                     action: () => onResetNodeDb(),
                   });
                 }}
                 disabled={!isConnected}
                 className="rounded-lg border border-orange-800/60 bg-orange-900/30 px-4 py-3 text-sm font-medium text-orange-200 transition-colors hover:bg-orange-900/50 disabled:opacity-50"
               >
-                Reset NodeDB
+                {t('radioPanel.resetNodeDbButton')}
               </button>
             )}
 
@@ -1985,18 +2001,17 @@ export default function RadioPanel({
                 type="button"
                 onClick={() => {
                   executeWithConfirmation({
-                    name: 'Shutdown',
-                    title: 'Shutdown Device',
-                    message:
-                      'This will power off the connected device. You will need to physically power it back on.',
-                    confirmLabel: 'Shutdown',
+                    name: t('radioPanel.shutdownName'),
+                    title: t('radioPanel.shutdownTitle'),
+                    message: t('radioPanel.shutdownMessage'),
+                    confirmLabel: t('radioPanel.shutdownConfirm'),
                     action: () => onShutdown(2),
                   });
                 }}
                 disabled={!isConnected}
                 className="rounded-lg border border-orange-800/60 bg-orange-900/30 px-4 py-3 text-sm font-medium text-orange-200 transition-colors hover:bg-orange-900/50 disabled:opacity-50"
               >
-                Shutdown
+                {t('radioPanel.shutdownButton')}
               </button>
             )}
           </div>
@@ -2008,18 +2023,15 @@ export default function RadioPanel({
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-red-400">{t('radioPanel.dangerZone')}</h3>
           <div className="space-y-2 rounded-lg border border-red-900 p-4">
-            <p className="text-xs text-red-400/80">
-              These actions are permanent and cannot be undone.
-            </p>
+            <p className="text-xs text-red-400/80">{t('radioPanel.dangerZonePermanent')}</p>
             <button
               type="button"
               onClick={() => {
                 executeWithConfirmation({
-                  name: 'Factory Reset Config',
-                  title: '⚠ Factory Reset Config',
-                  message:
-                    'This will reset device configuration to factory defaults, but preserves your node database. Settings will need to be reconfigured.',
-                  confirmLabel: 'Reset Config',
+                  name: t('radioPanel.factoryResetConfigName'),
+                  title: t('radioPanel.factoryResetConfigTitle'),
+                  message: t('radioPanel.factoryResetConfigMessage'),
+                  confirmLabel: t('radioPanel.factoryResetConfigConfirm'),
                   danger: true,
                   action: () => onFactoryResetConfig?.() ?? Promise.resolve(),
                 });
@@ -2027,17 +2039,16 @@ export default function RadioPanel({
               disabled={!isConnected || !onFactoryResetConfig}
               className="w-full rounded-lg border border-red-800/60 bg-red-900/40 px-4 py-3 text-sm font-medium text-red-300 transition-colors hover:bg-red-900/60 disabled:opacity-50"
             >
-              Factory Reset Config Only
+              {t('radioPanel.factoryResetConfigButton')}
             </button>
             <button
               type="button"
               onClick={() => {
                 executeWithConfirmation({
-                  name: 'Factory Reset',
-                  title: '⚠ Factory Reset',
-                  message:
-                    'This will erase ALL device settings and restore factory defaults. All channels, configuration, and stored data on the device will be permanently lost. This action CANNOT be undone.',
-                  confirmLabel: 'Factory Reset',
+                  name: t('radioPanel.factoryResetName'),
+                  title: t('radioPanel.factoryResetTitle'),
+                  message: t('radioPanel.factoryResetMessage'),
+                  confirmLabel: t('radioPanel.factoryResetConfirm'),
                   danger: true,
                   action: () => onFactoryReset(),
                 });
@@ -2045,7 +2056,7 @@ export default function RadioPanel({
               disabled={!isConnected}
               className="w-full rounded-lg border border-red-800 bg-red-900/50 px-4 py-3 text-sm font-medium text-red-300 transition-colors hover:bg-red-900/70 disabled:opacity-50"
             >
-              Factory Reset Device
+              {t('radioPanel.factoryResetButton')}
             </button>
           </div>
         </div>
@@ -2080,9 +2091,13 @@ function getSecurityLevel(cfg: ChannelConfig): SecurityLevel {
 }
 
 function SecurityIcon({ level }: { level: SecurityLevel }) {
+  const { t } = useTranslation();
   if (level === 'encrypted') {
     return (
-      <span title="AES encrypted" className="flex items-center text-green-400">
+      <span
+        title={t('radioPanel.aesEncryptedTooltip')}
+        className="flex items-center text-green-400"
+      >
         <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path
             strokeLinecap="round"
@@ -2096,10 +2111,10 @@ function SecurityIcon({ level }: { level: SecurityLevel }) {
   }
   const tooltip =
     level === 'open-location-uplink'
-      ? 'Unencrypted location sent to internet via MQTT'
+      ? t('radioPanel.securityOpenLocationUplinkTooltip')
       : level === 'open-location'
-        ? 'Unencrypted + location data'
-        : 'No encryption';
+        ? t('radioPanel.securityOpenLocationTooltip')
+        : t('radioPanel.securityNoEncryptionTooltip');
   return (
     <span title={tooltip} className="flex items-center gap-0.5 text-yellow-500">
       <svg
@@ -2197,11 +2212,11 @@ function ChannelSection({
     setValidationError(null);
     const psk = base64ToPsk(editPskB64);
     if (editKeySize === 'aes128' && psk.length !== 16) {
-      setValidationError('AES-128 key must be exactly 16 bytes (24 base64 chars)');
+      setValidationError(t('radioPanel.validationAes128'));
       return;
     }
     if (editKeySize === 'aes256' && psk.length !== 32) {
-      setValidationError('AES-256 key must be exactly 32 bytes (44 base64 chars)');
+      setValidationError(t('radioPanel.validationAes256'));
       return;
     }
     setSaving(true);
@@ -2218,10 +2233,14 @@ function ChannelSection({
         },
       });
       await onCommit();
-      setStatus(`Channel ${selectedIndex} saved!`);
+      setStatus(t('radioPanel.channelSavedStatus', { index: selectedIndex }));
     } catch (err) {
       console.warn('[RadioPanel] save channel failed', err);
-      setStatus(`Failed: ${err instanceof Error ? err.message : 'Unknown'}`);
+      setStatus(
+        t('radioPanel.channelSaveFailed', {
+          message: err instanceof Error ? err.message : t('common.unknown'),
+        }),
+      );
     } finally {
       setSaving(false);
     }
@@ -2359,7 +2378,11 @@ function ChannelSection({
                 }}
                 maxLength={11}
                 disabled={disabled}
-                placeholder={selectedIndex === 0 ? 'Primary' : 'Channel name'}
+                placeholder={
+                  selectedIndex === 0
+                    ? t('radioPanel.channelNamePrimary')
+                    : t('radioPanel.channelNameSecondary')
+                }
                 className="bg-secondary-dark focus:border-brand-green w-full rounded border border-gray-600 px-2 py-1.5 text-sm text-gray-200 focus:outline-none disabled:opacity-50"
               />
             </div>
@@ -2389,9 +2412,9 @@ function ChannelSection({
             <div className="space-y-1">
               <div className="flex items-center gap-1.5">
                 <label htmlFor="radio-mt-ch-key-size" className="text-muted text-xs">
-                  Key Size
+                  {t('radioPanel.keySizeLabel')}
                 </label>
-                <HelpTooltip text="None = no encryption. Simple = default Meshtastic key (shared by all default-config devices — not private). AES-128/256 = custom private key. All nodes on this channel must use the same key." />
+                <HelpTooltip text={t('radioPanel.keySizeTooltip')} />
               </div>
               <select
                 id="radio-mt-ch-key-size"
@@ -2402,10 +2425,10 @@ function ChannelSection({
                 disabled={disabled}
                 className="bg-secondary-dark focus:border-brand-green w-full rounded border border-gray-600 px-2 py-1.5 text-sm text-gray-200 focus:outline-none disabled:opacity-50"
               >
-                <option value="none">None (no encryption)</option>
-                <option value="simple">Simple (default Meshtastic key)</option>
-                <option value="aes128">AES-128</option>
-                <option value="aes256">AES-256</option>
+                <option value="none">{t('radioPanel.encryptionNone')}</option>
+                <option value="simple">{t('radioPanel.encryptionSimple')}</option>
+                <option value="aes128">{t('radioPanel.encryptionAes128')}</option>
+                <option value="aes256">{t('radioPanel.encryptionAes256')}</option>
               </select>
             </div>
 
@@ -2413,9 +2436,9 @@ function ChannelSection({
             <div className="space-y-1">
               <div className="flex items-center gap-1.5">
                 <label htmlFor="radio-mt-ch-psk" className="text-muted text-xs">
-                  Encryption Key (base64)
+                  {t('radioPanel.encryptionKeyLabel')}
                 </label>
-                <HelpTooltip text="Base64-encoded encryption key. AES-128 = 16 bytes (24 base64 chars). AES-256 = 32 bytes (44 base64 chars). Use 'Generate' for a random key, or paste a shared key from another node." />
+                <HelpTooltip text={t('radioPanel.encryptionKeyTooltip')} />
               </div>
               <div className="flex items-center gap-2">
                 <input
@@ -2428,7 +2451,7 @@ function ChannelSection({
                   }}
                   disabled={disabled || !isAesKey}
                   readOnly={!isAesKey}
-                  placeholder="base64..."
+                  placeholder={t('radioPanel.pskBase64Placeholder')}
                   className="bg-secondary-dark focus:border-brand-green flex-1 rounded border border-gray-600 px-2 py-1.5 font-mono text-xs text-gray-200 read-only:opacity-60 focus:outline-none disabled:opacity-50"
                 />
                 {isAesKey && (
@@ -2440,9 +2463,9 @@ function ChannelSection({
                     }}
                     disabled={disabled}
                     className="bg-secondary-dark text-muted rounded border border-gray-600 px-2 py-1.5 text-xs whitespace-nowrap hover:text-gray-200 disabled:opacity-50"
-                    title="Generate random key"
+                    title={t('radioPanel.generateRandomKey')}
                   >
-                    Regenerate
+                    {t('radioPanel.regeneratePsk')}
                   </button>
                 )}
               </div>
@@ -2499,7 +2522,11 @@ function ChannelSection({
                 onClick={resetChannel}
                 disabled={disabled || saving}
                 className="rounded bg-gray-700 px-3 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:bg-gray-600 disabled:opacity-50"
-                title={selectedIndex === 0 ? 'Reset to defaults' : 'Disable channel'}
+                title={
+                  selectedIndex === 0
+                    ? t('radioPanel.resetChannelDefaults')
+                    : t('radioPanel.disableChannel')
+                }
               >
                 Reset
               </button>
@@ -2696,7 +2723,7 @@ function MeshcoreChannelSection({
                     });
                   }}
                   className="text-muted px-1 text-xs hover:text-gray-300"
-                  title={revealed ? 'Hide key' : 'Reveal key'}
+                  title={revealed ? t('radioPanel.hideKey') : t('radioPanel.revealKey')}
                 >
                   {revealed ? 'Hide' : 'Show'}
                 </button>
@@ -2777,7 +2804,7 @@ function MeshcoreChannelSection({
 
             <div className="space-y-1">
               <label htmlFor="radio-mc-ch-name" className="text-muted text-xs">
-                Name
+                {t('radioPanel.meshcoreChannelNameLabel')}
               </label>
               <input
                 id="radio-mc-ch-name"
@@ -2795,7 +2822,7 @@ function MeshcoreChannelSection({
             <div className="space-y-1">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <label htmlFor="radio-mc-ch-key" className="text-muted text-xs">
-                  Key (32 hex chars = 16 bytes)
+                  {t('radioPanel.meshcoreChannelKeyLabel')}
                 </label>
                 <div className="flex gap-2">
                   <button
@@ -2805,16 +2832,18 @@ function MeshcoreChannelSection({
                     }}
                     disabled={disabled || deriveKeyBusy || !editName.trim()}
                     className="text-brand-green hover:text-bright-green px-1 text-xs disabled:opacity-50"
-                    title="Set key from SHA-256(name) first 16 bytes (MeshCore #channels)"
+                    title={t('radioPanel.meshcoreSha256KeyTitle')}
                   >
-                    {deriveKeyBusy ? 'Deriving…' : 'Derive from name'}
+                    {deriveKeyBusy
+                      ? t('radioPanel.meshcoreDeriving')
+                      : t('radioPanel.meshcoreDeriveFromName')}
                   </button>
                   <button
                     type="button"
                     onClick={generateKey}
                     className="text-xs text-blue-400 hover:text-blue-300"
                   >
-                    Generate random
+                    {t('radioPanel.meshcoreGenerateRandomKey')}
                   </button>
                 </div>
               </div>
@@ -2826,7 +2855,7 @@ function MeshcoreChannelSection({
                   setEditKeyHex(e.target.value.toLowerCase());
                 }}
                 maxLength={32}
-                placeholder="00000000000000000000000000000000"
+                placeholder={t('radioPanel.meshcorePskHexPlaceholder')}
                 disabled={disabled}
                 className={`bg-secondary-dark w-full rounded border px-2 py-1.5 font-mono text-sm focus:outline-none disabled:opacity-50 ${
                   editKeyHex.length > 0 && !isValidHex

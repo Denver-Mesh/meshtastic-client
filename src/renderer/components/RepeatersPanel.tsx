@@ -496,7 +496,7 @@ export default function RepeatersPanel({
             onChange={(e) => {
               setSearchQuery(e.target.value);
             }}
-            placeholder="Search repeaters…"
+            placeholder={t('repeatersPanel.searchRepeatersPlaceholder')}
             aria-label={t('repeatersPanel.searchRepeaters')}
             className="bg-secondary-dark/80 focus:border-brand-green/50 max-w-[20rem] min-w-[8rem] flex-1 rounded-lg border border-gray-600/50 px-3 py-1.5 text-sm text-gray-200 focus:outline-none"
           />
@@ -525,16 +525,18 @@ export default function RepeatersPanel({
 
         {repeaters.length === 0 ? (
           <div className="mt-8 text-center text-sm text-gray-400">
-            <p>No repeaters discovered yet.</p>
+            <p>{t('repeatersPanel.noRepeatersYet')}</p>
             <p className="mt-1 text-gray-500">
-              Repeaters appear when contacts with type &ldquo;Repeater&rdquo; advertise. Use{' '}
-              <strong>Import Contacts</strong> on the <strong>Nodes</strong> tab to pre-load
-              nicknames.
+              {t('repeatersPanel.noRepeatersHintPre')}
+              <strong>{t('repeatersPanel.importContacts')}</strong>
+              {t('repeatersPanel.noRepeatersHintMid')}
+              <strong>Nodes</strong>
+              {t('repeatersPanel.noRepeatersHintSuffix')}
             </p>
           </div>
         ) : repeatersFiltered.length === 0 ? (
           <div className="mt-4 text-center text-sm text-gray-400">
-            No repeaters match your search.
+            {t('repeatersPanel.noRepeatersMatch')}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -544,22 +546,13 @@ export default function RepeatersPanel({
                   <th className="py-2 pr-4 font-medium">Status</th>
                   <th className="py-2 pr-4 font-medium">Name</th>
                   <th className="py-2 pr-4 font-medium">Last Heard</th>
-                  <th
-                    className="py-2 pr-4 font-medium"
-                    title="dB — from Request Status when available, else contact list"
-                  >
+                  <th className="py-2 pr-4 font-medium" title={t('repeatersPanel.snrDbTooltip')}>
                     SNR
                   </th>
-                  <th
-                    className="py-2 pr-4 font-medium"
-                    title="dBm — from Request Status when available, else contact list"
-                  >
+                  <th className="py-2 pr-4 font-medium" title={t('repeatersPanel.rssiDbmTooltip')}>
                     RSSI
                   </th>
-                  <th
-                    className="py-2 pr-4 font-medium"
-                    title="Hop count from last Ping trace (repeaters between you and this node)"
-                  >
+                  <th className="py-2 pr-4 font-medium" title={t('repeatersPanel.hopCountTooltip')}>
                     Hops
                   </th>
                   <th className="py-2 pr-4 font-medium">Uptime</th>
@@ -708,7 +701,7 @@ export default function RepeatersPanel({
                                 togglePath(node.node_id);
                               }}
                               className="text-left text-blue-400 underline decoration-dotted hover:text-blue-300"
-                              title="Hops from last Ping trace (repeaters between you and this node)"
+                              title={t('repeatersPanel.hopCountTooltip')}
                             >
                               {meshcoreTracePathLenToHops(traceResult.pathLen)}
                             </button>
@@ -835,7 +828,7 @@ export default function RepeatersPanel({
                                 type="button"
                                 onClick={() => void handleTelemetry(node.node_id)}
                                 disabled={!isConnected || isTelemetryLoading}
-                                title="Cayenne LPP sensor payload (not advert GPS on the map)"
+                                title={t('repeatersPanel.cayenneLppTooltip')}
                                 aria-label={t('repeatersPanel.sensorTelemetryLpp')}
                                 className={`rounded px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-40 ${
                                   isTelemetryExpanded
@@ -846,7 +839,7 @@ export default function RepeatersPanel({
                                 {isTelemetryLoading ? (
                                   <span className="inline-block h-3 w-3 animate-spin rounded-full border border-gray-400 border-t-transparent" />
                                 ) : (
-                                  'Sensor (LPP)'
+                                  t('repeatersPanel.sensorLppButton')
                                 )}
                               </button>
                             )}
@@ -857,7 +850,7 @@ export default function RepeatersPanel({
                                   toggleCli(node.node_id);
                                 }}
                                 disabled={!isConnected}
-                                title="Open CLI interface"
+                                title={t('repeatersPanel.openCliInterface')}
                                 aria-label={t('repeatersPanel.cliInterface')}
                                 className={`rounded px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-40 ${
                                   isCliExpanded
@@ -947,7 +940,8 @@ export default function RepeatersPanel({
                                       <span className="text-gray-300">[{name}]</span>
                                       <SnrIndicator snr={nb.snr} />
                                       <span className="text-gray-500">
-                                        Heard: {formatSecondsAgo(nb.heardSecondsAgo)}
+                                        {t('repeatersPanel.heardPrefix')}
+                                        {formatSecondsAgo(nb.heardSecondsAgo, t)}
                                       </span>
                                     </div>
                                   );
@@ -1005,12 +999,9 @@ export default function RepeatersPanel({
                                   telemetryData.barometricPressure == null &&
                                   !telemetryData.gps && (
                                     <div className="flex flex-col gap-1 text-gray-500">
-                                      <span>No LPP sensor data in this response.</span>
+                                      <span>{t('repeatersPanel.noLppData')}</span>
                                       {node.latitude != null && node.longitude != null ? (
-                                        <span>
-                                          Map position comes from advert/contact data, not this
-                                          sensor request.
-                                        </span>
+                                        <span>{t('repeatersPanel.mapPositionFromAdvert')}</span>
                                       ) : null}
                                     </div>
                                   )}
@@ -1021,13 +1012,12 @@ export default function RepeatersPanel({
                                   <p className="text-red-400">{telemetryError}</p>
                                 ) : (
                                   <p className="text-gray-500">
-                                    No telemetry response yet. Try Sensor (LPP) again.
+                                    {t('repeatersPanel.noTelemetryResponse')}
                                   </p>
                                 )}
                                 {node.latitude != null && node.longitude != null ? (
                                   <p className="text-gray-500">
-                                    Map position comes from advert/contact data, not sensor
-                                    telemetry.
+                                    {t('repeatersPanel.mapPositionFromTelemetry')}
                                   </p>
                                 ) : null}
                               </div>
@@ -1055,7 +1045,7 @@ export default function RepeatersPanel({
                                   onKeyDown={(e) => {
                                     handleCliKeyDown(e, node.node_id);
                                   }}
-                                  placeholder="Enter command..."
+                                  placeholder={t('repeatersPanel.enterCommand')}
                                   disabled={!isConnected || isCliLoading}
                                   className="min-w-[200px] flex-1 rounded border border-gray-600 bg-gray-800 px-2 py-1 text-sm text-gray-200 focus:border-cyan-500 focus:outline-none disabled:opacity-40"
                                   aria-label={t('repeatersPanel.cliInput')}
@@ -1119,7 +1109,7 @@ export default function RepeatersPanel({
                                     }}
                                     className="h-3 w-3"
                                   />
-                                  <span>Use saved path</span>
+                                  <span>{t('repeatersPanel.useSavedPath')}</span>
                                 </label>
                                 <button
                                   type="button"

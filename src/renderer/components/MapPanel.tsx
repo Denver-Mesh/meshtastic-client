@@ -1011,7 +1011,7 @@ export default function MapPanel({
                 ? 'border-brand-green text-brand-green'
                 : 'border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200'
             }`}
-            title="Toggle route weight lines"
+            title={t('mapPanel.toggleRouteWeightLines')}
             aria-label={t('mapPanel.toggleRouteWeightLines')}
           >
             Route weights

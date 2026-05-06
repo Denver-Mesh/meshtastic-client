@@ -1,10 +1,7 @@
+import type { TFunction } from 'i18next';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import {
-  MESHTASTIC_DEVICE_METRICS_HELP_TOOLTIP,
-  MESHTASTIC_MODULE_DEVICE_METRICS_DESCRIPTION,
-} from '@/renderer/lib/meshtasticTelemetryLocalClientCopy';
 import { MS_PER_MINUTE } from '@/renderer/lib/timeConstants';
 
 import { HelpTooltip } from './HelpTooltip';
@@ -137,6 +134,7 @@ function ConfigText({
   description?: string;
   password?: boolean;
 }) {
+  const { t } = useTranslation();
   const [show, setShow] = useState(false);
   return (
     <div className="space-y-1">
@@ -159,7 +157,7 @@ function ConfigText({
             }}
             className="text-muted px-2 py-2 text-xs hover:text-gray-300"
           >
-            {show ? 'Hide' : 'Show'}
+            {show ? t('common.hide') : t('common.show')}
           </button>
         )}
       </div>
@@ -181,6 +179,7 @@ function ModuleSection({
   applying: boolean;
   disabled: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <details className="group bg-deep-black/50 rounded-lg border border-gray-700">
       <summary className="flex cursor-pointer items-center justify-between rounded-lg px-4 py-3 font-medium text-gray-200 transition-colors hover:bg-gray-800">
@@ -197,11 +196,14 @@ function ModuleSection({
       <div className="space-y-4 px-4 pb-4">
         {children}
         <button
+          type="button"
           onClick={onApply}
           disabled={disabled || applying}
           className="bg-readable-green hover:bg-readable-green/90 disabled:text-muted w-full rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors disabled:bg-gray-600"
         >
-          {applying ? 'Applying...' : `Apply ${title}`}
+          {applying
+            ? t('modulePanel.applyingButton')
+            : t('modulePanel.applySection', { section: title })}
         </button>
       </div>
     </details>
@@ -235,11 +237,11 @@ function isValidRtttl(s: string): boolean {
   );
 }
 
-function formatTimeAgo(ts: number): string {
+function formatTimeAgo(ts: number, t: TFunction): string {
   if (!ts) return '—';
   const diff = Date.now() - ts;
-  if (diff < MS_PER_MINUTE) return 'Just now';
-  return `${Math.floor(diff / MS_PER_MINUTE)}m ago`;
+  if (diff < MS_PER_MINUTE) return t('common.justNow');
+  return t('common.minutesAgo', { count: Math.floor(diff / MS_PER_MINUTE) });
 }
 
 function ModuleStatus({
@@ -249,10 +251,11 @@ function ModuleStatus({
   packets?: Map<number, { from: number; data: Uint8Array; timestamp: number }[]>;
   label: string;
 }) {
+  const { t } = useTranslation();
   if (!packets || packets.size === 0) {
     return (
       <div className="rounded bg-gray-800/50 px-3 py-2 text-xs">
-        <span className="text-gray-500">{label}: No packets received</span>
+        <span className="text-gray-500">{t('modulePanel.statusNoPackets', { label })}</span>
       </div>
     );
   }
@@ -260,11 +263,16 @@ function ModuleStatus({
   const latest = Math.max(
     ...Array.from(packets.values()).flatMap((arr) => arr.map((p) => p.timestamp)),
   );
+  const lastSeen = formatTimeAgo(latest, t);
   return (
     <div className="rounded bg-gray-800/50 px-3 py-2 text-xs">
       <span className="text-gray-400">
-        {label}: {total} packets from {packets.size} node{packets.size !== 1 ? 's' : ''} (last{' '}
-        {formatTimeAgo(latest)})
+        {t('modulePanel.statusLine', {
+          count: packets.size,
+          label,
+          total,
+          lastSeen,
+        })}
       </span>
     </div>
   );
@@ -464,13 +472,13 @@ export default function ModulePanel({
 
       {Object.keys(moduleConfigs).length === 0 && isConnected && (
         <div className="bg-deep-black/50 text-muted rounded-lg border border-gray-700 px-4 py-3 text-sm">
-          Waiting for module config from device…
+          {t('modulePanel.waitingForModuleConfig')}
         </div>
       )}
 
       {/* ═══ Ambient Lighting Module ═══ */}
       <ModuleSection
-        title="Ambient Lighting Module"
+        title={t('modulePanel.sectionAmbientLighting')}
         onApply={() => {
           applyModule('Ambient Lighting', 'ambientLighting', {
             ledState: ambientLedState,
@@ -484,15 +492,15 @@ export default function ModulePanel({
         disabled={disabled}
       >
         <ConfigToggle
-          label="LED enabled"
+          label={t('modulePanel.fields.ledEnabled')}
           checked={ambientLedState}
           onChange={setAmbientLedState}
           disabled={disabled}
-          description="Turn the onboard RGB LED on or off."
+          description={t('modulePanel.fields.ledEnabledDesc')}
         />
         <div className="space-y-1">
           <label htmlFor="module-ambient-color" className="text-muted text-sm">
-            Color
+            {t('modulePanel.fields.color')}
           </label>
           <div className="flex items-center gap-3">
             <input
@@ -513,7 +521,7 @@ export default function ModulePanel({
         </div>
         <div className="space-y-1">
           <label htmlFor="module-ambient-current" className="text-muted text-sm">
-            Brightness / current: {ambientCurrent}
+            {t('modulePanel.fields.brightnessCurrent', { value: ambientCurrent })}
           </label>
           <input
             id="module-ambient-current"
@@ -527,13 +535,13 @@ export default function ModulePanel({
             disabled={disabled || !ambientLedState}
             className="accent-readable-green w-full disabled:opacity-50"
           />
-          <p className="text-muted text-xs">LED drive current (0–31). Higher = brighter.</p>
+          <p className="text-muted text-xs">{t('modulePanel.fields.brightnessHint')}</p>
         </div>
       </ModuleSection>
 
       {/* ═══ Canned Messages ═══ */}
       <ModuleSection
-        title="Canned Messages"
+        title={t('modulePanel.sectionCannedMessages')}
         onApply={async () => {
           setApplyingSection('Canned Messages');
           try {
@@ -566,14 +574,14 @@ export default function ModulePanel({
         disabled={disabled}
       >
         <ConfigToggle
-          label="Canned messages enabled"
+          label={t('modulePanel.fields.cannedMessagesEnabled')}
           checked={cannedEnabled}
           onChange={setCannedEnabled}
           disabled={disabled}
         />
         <div className="space-y-1">
           <label htmlFor="module-canned-messages" className="text-muted text-sm">
-            Messages (one per line, max 30 chars each)
+            {t('modulePanel.fields.messagesOnePerLine')}
           </label>
           <textarea
             id="module-canned-messages"
@@ -583,19 +591,17 @@ export default function ModulePanel({
             }}
             disabled={disabled || !cannedEnabled}
             rows={6}
-            placeholder={'Hello\nOK\nOn my way\nNeed help'}
+            placeholder={t('modulePanel.fields.cannedMessagesPlaceholder')}
             spellCheck={false}
             className="bg-secondary-dark focus:border-brand-green w-full resize-y rounded-lg border border-gray-600 px-3 py-2 font-mono text-xs text-gray-200 focus:outline-none disabled:opacity-50"
           />
-          <p className="text-muted text-xs">
-            Enter one message per line. Used with the input peripheral buttons.
-          </p>
+          <p className="text-muted text-xs">{t('modulePanel.fields.cannedMessagesHint')}</p>
         </div>
       </ModuleSection>
 
       {/* ═══ Detection Sensor Module ═══ */}
       <ModuleSection
-        title="Detection Sensor Module"
+        title={t('modulePanel.sectionDetectionSensor')}
         onApply={() => {
           applyModule('Detection Sensor', 'detectionSensor', {
             enabled: detectEnabled,
@@ -608,42 +614,42 @@ export default function ModulePanel({
         disabled={disabled}
       >
         <ConfigToggle
-          label="Detection sensor enabled"
+          label={t('modulePanel.fields.detectionSensorEnabled')}
           checked={detectEnabled}
           onChange={setDetectEnabled}
           disabled={disabled}
-          description="Broadcast detection events (PIR, door sensor, etc.) to the mesh."
+          description={t('modulePanel.fields.detectionSensorDesc')}
         />
         <ConfigText
-          label="Sensor name"
+          label={t('modulePanel.fields.sensorName')}
           value={detectName}
           onChange={setDetectName}
           disabled={disabled || !detectEnabled}
-          description="Shown in detection alert messages."
+          description={t('modulePanel.fields.sensorNameDesc')}
         />
         <ConfigNumber
-          label="Minimum broadcast interval"
+          label={t('modulePanel.fields.minBroadcastInterval')}
           value={detectMinBroadcast}
           onChange={setDetectMinBroadcast}
           disabled={disabled || !detectEnabled}
           min={0}
           unit="seconds"
-          description="Minimum seconds between broadcasts even if repeatedly triggered."
+          description={t('modulePanel.fields.minBroadcastIntervalDesc')}
         />
         <ConfigNumber
-          label="State broadcast interval"
+          label={t('modulePanel.fields.stateBroadcastInterval')}
           value={detectStateBroadcast}
           onChange={setDetectStateBroadcast}
           disabled={disabled || !detectEnabled}
           min={0}
           unit="seconds"
-          description="How often to broadcast the current state even without a change."
+          description={t('modulePanel.fields.stateBroadcastIntervalDesc')}
         />
       </ModuleSection>
 
       {/* ═══ External Notification Module ═══ */}
       <ModuleSection
-        title="External Notification Module"
+        title={t('modulePanel.sectionExternalNotification')}
         onApply={() => {
           applyModule('External Notification', 'externalNotification', {
             enabled: extEnabled,
@@ -667,136 +673,133 @@ export default function ModulePanel({
         disabled={disabled}
       >
         <ConfigToggle
-          label="Module enabled"
+          label={t('modulePanel.fields.extNotifModuleEnabled')}
           checked={extEnabled}
           onChange={setExtEnabled}
           disabled={disabled}
-          description="Enable GPIO-based external alerts for buzzers, vibration motors, and LEDs."
+          description={t('modulePanel.fields.extNotifModuleDesc')}
         />
         <ConfigToggle
-          label="Active high"
+          label={t('modulePanel.fields.activeHigh')}
           checked={extActive}
           onChange={setExtActive}
           disabled={disabled || !extEnabled}
-          description="GPIO active level. On = active high (3.3 V triggers output); Off = active low."
+          description={t('modulePanel.fields.activeHighDesc')}
         />
         <ConfigNumber
-          label="Primary output GPIO"
+          label={t('modulePanel.fields.primaryOutputGpio')}
           value={extOutput}
           onChange={setExtOutput}
           disabled={disabled || !extEnabled}
           min={0}
           max={48}
-          description="GPIO pin for primary notification output. 0 = unset."
+          description={t('modulePanel.fields.primaryOutputGpioDesc')}
         />
         <ConfigNumber
-          label="Buzzer GPIO"
+          label={t('modulePanel.fields.buzzerGpio')}
           value={extOutputBuzzer}
           onChange={setExtOutputBuzzer}
           disabled={disabled || !extEnabled}
           min={0}
           max={48}
-          description="GPIO pin for buzzer. 0 = unset."
+          description={t('modulePanel.fields.buzzerGpioDesc')}
         />
         <ConfigNumber
-          label="Vibration motor GPIO"
+          label={t('modulePanel.fields.vibrationGpio')}
           value={extOutputVibra}
           onChange={setExtOutputVibra}
           disabled={disabled || !extEnabled}
           min={0}
           max={48}
-          description="GPIO pin for vibration motor. 0 = unset."
+          description={t('modulePanel.fields.vibrationGpioDesc')}
         />
         <ConfigNumber
-          label="Output duration"
+          label={t('modulePanel.fields.outputDuration')}
           value={extOutputMs}
           onChange={setExtOutputMs}
           disabled={disabled || !extEnabled}
           min={0}
           max={32767}
           unit="ms"
-          description="How long to keep the output active per alert (milliseconds)."
+          description={t('modulePanel.fields.outputDurationDesc')}
         />
         <ConfigNumber
-          label="Nag timeout"
+          label={t('modulePanel.fields.nagTimeout')}
           value={extNagTimeout}
           onChange={setExtNagTimeout}
           disabled={disabled || !extEnabled}
           min={0}
           max={32767}
           unit="seconds"
-          description="Keep repeating the alert for this many seconds. 0 = single trigger only."
+          description={t('modulePanel.fields.nagTimeoutDesc')}
         />
         <ConfigToggle
-          label="Alert on message"
+          label={t('modulePanel.fields.alertOnMessage')}
           checked={extAlertMessage}
           onChange={setExtAlertMessage}
           disabled={disabled || !extEnabled}
-          description="Trigger primary output GPIO when a text message is received."
+          description={t('modulePanel.fields.alertOnMessageDesc')}
         />
         <ConfigToggle
-          label="Buzzer on message"
+          label={t('modulePanel.fields.buzzerOnMessage')}
           checked={extAlertMessageBuzzer}
           onChange={setExtAlertMessageBuzzer}
           disabled={disabled || !extEnabled || !extAlertMessage}
-          description="Also trigger buzzer GPIO on incoming messages."
+          description={t('modulePanel.fields.buzzerOnMessageDesc')}
         />
         <ConfigToggle
-          label="Vibration on message"
+          label={t('modulePanel.fields.vibrationOnMessage')}
           checked={extAlertMessageVibra}
           onChange={setExtAlertMessageVibra}
           disabled={disabled || !extEnabled || !extAlertMessage}
-          description="Also trigger vibration GPIO on incoming messages."
+          description={t('modulePanel.fields.vibrationOnMessageDesc')}
         />
         <ConfigToggle
-          label="Alert on bell"
+          label={t('modulePanel.fields.alertOnBell')}
           checked={extAlertBell}
           onChange={setExtAlertBell}
           disabled={disabled || !extEnabled}
-          description="Trigger primary output GPIO on bell / tapback signals."
+          description={t('modulePanel.fields.alertOnBellDesc')}
         />
         <ConfigToggle
-          label="Buzzer on bell"
+          label={t('modulePanel.fields.buzzerOnBell')}
           checked={extAlertBellBuzzer}
           onChange={setExtAlertBellBuzzer}
           disabled={disabled || !extEnabled || !extAlertBell}
-          description="Also trigger buzzer GPIO on bell signals."
+          description={t('modulePanel.fields.buzzerOnBellDesc')}
         />
         <ConfigToggle
-          label="Vibration on bell"
+          label={t('modulePanel.fields.vibrationOnBell')}
           checked={extAlertBellVibra}
           onChange={setExtAlertBellVibra}
           disabled={disabled || !extEnabled || !extAlertBell}
-          description="Also trigger vibration GPIO on bell signals."
+          description={t('modulePanel.fields.vibrationOnBellDesc')}
         />
         <ConfigToggle
-          label="Use PWM buzzer mode"
+          label={t('modulePanel.fields.usePwmBuzzer')}
           checked={extUsePwm}
           onChange={setExtUsePwm}
           disabled={disabled || !extEnabled}
-          description="Use PWM frequency for tone-capable buzzers (e.g. RAK buzzer)."
+          description={t('modulePanel.fields.usePwmBuzzerDesc')}
         />
         <ConfigToggle
-          label="Use I2S as buzzer"
+          label={t('modulePanel.fields.useI2sBuzzer')}
           checked={extUseI2sAsBuzzer}
           onChange={setExtUseI2sAsBuzzer}
           disabled={disabled || !extEnabled}
-          description="Use I2S audio output as buzzer (T-Watch S3, T-Deck with speaker)."
+          description={t('modulePanel.fields.useI2sBuzzerDesc')}
         />
       </ModuleSection>
 
       {/* ═══ IP Tunnel ═══ */}
-      <StatusOnlySection title="IP Tunnel">
-        <ModuleStatus packets={ipTunnelMessages} label="IP Tunnel" />
-        <p className="text-muted text-xs">
-          IP Tunnel packets forward network traffic through the mesh. Configure tunnel settings in
-          the device network configuration.
-        </p>
+      <StatusOnlySection title={t('modulePanel.sectionIpTunnel')}>
+        <ModuleStatus packets={ipTunnelMessages} label={t('modulePanel.statusLabels.ipTunnel')} />
+        <p className="text-muted text-xs">{t('modulePanel.fields.ipTunnelHint')}</p>
       </StatusOnlySection>
 
       {/* ═══ MQTT Relay Module ═══ */}
       <ModuleSection
-        title="MQTT Relay (Device-Side)"
+        title={t('modulePanel.sectionMqttRelay')}
         onApply={() => {
           applyModule('MQTT Relay', 'mqtt', {
             enabled: mqttEnabled,
@@ -814,71 +817,71 @@ export default function ModulePanel({
         disabled={disabled}
       >
         <ConfigToggle
-          label="MQTT relay enabled"
+          label={t('modulePanel.fields.mqttRelayEnabled')}
           checked={mqttEnabled}
           onChange={setMqttEnabled}
           disabled={disabled}
-          description="Enable the device to relay packets to/from an MQTT broker."
+          description={t('modulePanel.fields.mqttRelayEnabledDesc')}
         />
         <ConfigText
-          label="Server address"
+          label={t('modulePanel.fields.serverAddress')}
           value={mqttAddress}
           onChange={setMqttAddress}
           disabled={disabled || !mqttEnabled}
-          description="Leave empty to use default mqtt.meshtastic.org"
+          description={t('modulePanel.fields.serverAddressDesc')}
         />
         <ConfigText
-          label="Username"
+          label={t('modulePanel.fields.username')}
           value={mqttUsername}
           onChange={setMqttUsername}
           disabled={disabled || !mqttEnabled}
         />
         <ConfigText
-          label="Password"
+          label={t('modulePanel.fields.password')}
           value={mqttPassword}
           onChange={setMqttPassword}
           disabled={disabled || !mqttEnabled}
           password
         />
         <ConfigText
-          label="Root topic"
+          label={t('modulePanel.fields.rootTopic')}
           value={mqttRoot}
           onChange={setMqttRoot}
           disabled={disabled || !mqttEnabled}
-          description="Topic prefix (e.g. 'msh/US'). Leave empty for default."
+          description={t('modulePanel.fields.rootTopicDesc')}
         />
         <ConfigToggle
-          label="Encryption enabled"
+          label={t('modulePanel.fields.encryptionEnabled')}
           checked={mqttEncryption}
           onChange={setMqttEncryption}
           disabled={disabled || !mqttEnabled}
-          description="Encrypt packets before publishing to MQTT."
+          description={t('modulePanel.fields.encryptionEnabledDesc')}
         />
         <ConfigToggle
-          label="JSON output enabled"
+          label={t('modulePanel.fields.jsonOutputEnabled')}
           checked={mqttJson}
           onChange={setMqttJson}
           disabled={disabled || !mqttEnabled}
-          description="Also publish decoded JSON payloads alongside protobuf."
+          description={t('modulePanel.fields.jsonOutputEnabledDesc')}
         />
         <ConfigToggle
-          label="TLS enabled"
+          label={t('modulePanel.fields.tlsEnabled')}
           checked={mqttTls}
           onChange={setMqttTls}
           disabled={disabled || !mqttEnabled}
         />
         <ConfigToggle
-          label="Map reporting enabled"
+          label={t('modulePanel.fields.mapReportingEnabled')}
           checked={mqttMapReporting}
           onChange={setMqttMapReporting}
           disabled={disabled || !mqttEnabled}
-          description="Periodically publish node position to the Meshtastic map."
+          description={t('modulePanel.fields.mapReportingEnabledDesc')}
         />
       </ModuleSection>
 
       {/* ═══ Pax Counter Module ═══ */}
       <ModuleSection
-        title="Pax Counter Module"
+        title={t('modulePanel.sectionPaxCounter')}
         onApply={() => {
           applyModule('Pax Counter', 'paxcounter', {
             enabled: paxEnabled,
@@ -889,35 +892,32 @@ export default function ModulePanel({
         disabled={disabled}
       >
         <ConfigToggle
-          label="Pax counter enabled"
+          label={t('modulePanel.fields.paxCounterEnabled')}
           checked={paxEnabled}
           onChange={setPaxEnabled}
           disabled={disabled}
-          description="Count nearby Bluetooth and WiFi devices as a crowd density metric."
+          description={t('modulePanel.fields.paxCounterEnabledDesc')}
         />
         <ConfigNumber
-          label="Update interval"
+          label={t('modulePanel.fields.paxUpdateInterval')}
           value={paxInterval}
           onChange={setPaxInterval}
           disabled={disabled || !paxEnabled}
           min={0}
           unit="seconds"
-          description="How often to broadcast pax counter readings. 0 = use default."
+          description={t('modulePanel.fields.paxUpdateIntervalDesc')}
         />
       </ModuleSection>
 
       {/* ═══ Remote Hardware ═══ */}
-      <StatusOnlySection title="Remote Hardware">
-        <ModuleStatus packets={remoteHardwareMessages} label="GPIO" />
-        <p className="text-muted text-xs">
-          GPIO messages are received automatically when enabled on the device. Configure GPIO pins
-          in the device hardware settings.
-        </p>
+      <StatusOnlySection title={t('modulePanel.sectionRemoteHardware')}>
+        <ModuleStatus packets={remoteHardwareMessages} label={t('modulePanel.statusLabels.gpio')} />
+        <p className="text-muted text-xs">{t('modulePanel.fields.remoteHardwareHint')}</p>
       </StatusOnlySection>
 
       {/* ═══ Range Test Module ═══ */}
       <ModuleSection
-        title="Range Test Module"
+        title={t('modulePanel.sectionRangeTest')}
         onApply={() => {
           applyModule('Range Test', 'rangeTest', {
             enabled: rangeEnabled,
@@ -928,36 +928,36 @@ export default function ModulePanel({
         applying={applyingSection === 'Range Test'}
         disabled={disabled}
       >
-        <ModuleStatus packets={rangeTestPackets} label="Range test" />
+        <ModuleStatus packets={rangeTestPackets} label={t('modulePanel.statusLabels.rangeTest')} />
         <ConfigToggle
-          label="Range test enabled"
+          label={t('modulePanel.fields.rangeTestEnabled')}
           checked={rangeEnabled}
           onChange={setRangeEnabled}
           disabled={disabled}
         />
         <ConfigNumber
-          label="Sender interval"
+          label={t('modulePanel.fields.senderInterval')}
           value={rangeSenderInterval}
           onChange={setRangeSenderInterval}
           disabled={disabled || !rangeEnabled}
           min={0}
           max={3600}
           unit="seconds"
-          description="How often this node sends range test packets. 0 = receiver only."
+          description={t('modulePanel.fields.senderIntervalDesc')}
         />
         <ConfigToggle
-          label="Save results to file"
+          label={t('modulePanel.fields.saveResultsToFile')}
           checked={rangeSave}
           onChange={setRangeSave}
           disabled={disabled || !rangeEnabled}
-          description="Log range test results to the device filesystem."
+          description={t('modulePanel.fields.saveResultsToFileDesc')}
         />
       </ModuleSection>
 
       {/* ═══ RTTTL Ringtone ═══ */}
       {onSetRingtone && (
         <ModuleSection
-          title="RTTTL Ringtone"
+          title={t('modulePanel.sectionRtttlRingtone')}
           onApply={async () => {
             setApplyingSection('RTTTL Ringtone');
             try {
@@ -981,7 +981,7 @@ export default function ModulePanel({
         >
           <div className="space-y-1">
             <label htmlFor="module-rtttl-preset" className="text-muted text-sm">
-              Load preset
+              {t('modulePanel.fields.loadPreset')}
             </label>
             <select
               id="module-rtttl-preset"
@@ -992,7 +992,7 @@ export default function ModulePanel({
                 if (e.target.value) setRingtoneText(e.target.value);
               }}
             >
-              <option value="">Select a preset…</option>
+              <option value="">{t('modulePanel.selectPreset')}</option>
               {RTTTL_PRESETS.map((p) => (
                 <option key={p.name} value={p.value}>
                   {p.name}
@@ -1002,7 +1002,7 @@ export default function ModulePanel({
           </div>
           <div className="space-y-1">
             <label htmlFor="module-rtttl-ringtone" className="text-muted text-sm">
-              Ringtone string (RTTTL format)
+              {t('modulePanel.fields.ringtoneStringLabel')}
             </label>
             <textarea
               id="module-rtttl-ringtone"
@@ -1012,16 +1012,14 @@ export default function ModulePanel({
               }}
               disabled={disabled}
               rows={4}
-              placeholder="Name:d=4,o=5,b=120:notes..."
+              placeholder={t('modulePanel.fields.rtttlPlaceholder')}
               spellCheck={false}
               className="bg-secondary-dark focus:border-brand-green w-full resize-y rounded-lg border border-gray-600 px-3 py-2 font-mono text-xs text-gray-200 focus:outline-none disabled:opacity-50"
             />
             <div className="text-muted flex justify-between text-xs">
               <span>
                 {ringtoneText.length > 0 && !isValidRtttl(ringtoneText) && (
-                  <span className="text-red-400">
-                    Invalid RTTTL — expected Name:d=N,o=N,b=N:notes
-                  </span>
+                  <span className="text-red-400">{t('modulePanel.fields.invalidRtttl')}</span>
                 )}
               </span>
               <span>{ringtoneText.length}/230</span>
@@ -1032,7 +1030,7 @@ export default function ModulePanel({
 
       {/* ═══ Serial Module ═══ */}
       <ModuleSection
-        title="Serial Module"
+        title={t('modulePanel.sectionSerialModule')}
         onApply={() => {
           applyModule('Serial Module', 'serial', {
             enabled: serialEnabled,
@@ -1043,24 +1041,24 @@ export default function ModulePanel({
         applying={applyingSection === 'Serial Module'}
         disabled={disabled}
       >
-        <ModuleStatus packets={serialMessages} label="Serial" />
+        <ModuleStatus packets={serialMessages} label={t('modulePanel.statusLabels.serial')} />
         <ConfigToggle
-          label="Serial module enabled"
+          label={t('modulePanel.fields.serialModuleEnabled')}
           checked={serialEnabled}
           onChange={setSerialEnabled}
           disabled={disabled}
-          description="Enable serial port data forwarding via the mesh."
+          description={t('modulePanel.fields.serialModuleEnabledDesc')}
         />
         <ConfigToggle
-          label="Echo mode"
+          label={t('modulePanel.fields.echoMode')}
           checked={serialEcho}
           onChange={setSerialEcho}
           disabled={disabled || !serialEnabled}
-          description="Echo received serial data back to sender."
+          description={t('modulePanel.fields.serialEchoDesc')}
         />
         <div className="space-y-1">
           <label htmlFor="module-serial-baud" className="text-muted text-sm">
-            Baud rate
+            {t('modulePanel.fields.baudRate')}
           </label>
           <select
             id="module-serial-baud"
@@ -1082,7 +1080,7 @@ export default function ModulePanel({
 
       {/* ═══ Store & Forward Module ═══ */}
       <ModuleSection
-        title="Store & Forward Module"
+        title={t('modulePanel.sectionStoreForward')}
         onApply={() => {
           applyModule('Store & Forward', 'storeForward', {
             enabled: sfEnabled,
@@ -1095,52 +1093,55 @@ export default function ModulePanel({
         applying={applyingSection === 'Store & Forward'}
         disabled={disabled}
       >
-        <ModuleStatus packets={storeForwardMessages} label="Received S&F" />
+        <ModuleStatus
+          packets={storeForwardMessages}
+          label={t('modulePanel.statusLabels.storeForward')}
+        />
         <ConfigToggle
-          label="Store & Forward enabled"
+          label={t('modulePanel.fields.storeForwardEnabled')}
           checked={sfEnabled}
           onChange={setSfEnabled}
           disabled={disabled}
-          description="Buffer messages for nodes that rejoin the mesh."
+          description={t('modulePanel.fields.sfEnabledDesc')}
         />
         <ConfigToggle
-          label="Send heartbeat"
+          label={t('modulePanel.fields.sendHeartbeat')}
           checked={sfHeartbeat}
           onChange={setSfHeartbeat}
           disabled={disabled || !sfEnabled}
-          description="Periodically broadcast presence so clients know S&F is available."
+          description={t('modulePanel.fields.sfHeartbeatDesc')}
         />
         <ConfigNumber
-          label="Max stored records"
+          label={t('modulePanel.fields.maxStoredRecords')}
           value={sfNumRecords}
           onChange={setSfNumRecords}
           disabled={disabled || !sfEnabled}
           min={0}
-          description="Maximum messages to store. 0 = use default."
+          description={t('modulePanel.fields.sfNumRecordsDesc')}
         />
         <ConfigNumber
-          label="History return max"
+          label={t('modulePanel.fields.historyReturnMax')}
           value={sfHistoryMax}
           onChange={setSfHistoryMax}
           disabled={disabled || !sfEnabled}
           min={1}
           max={300}
-          description="Max messages to return when a node requests history."
+          description={t('modulePanel.fields.historyReturnMaxDesc')}
         />
         <ConfigNumber
-          label="History return window"
+          label={t('modulePanel.fields.historyReturnWindow')}
           value={sfHistoryWindow}
           onChange={setSfHistoryWindow}
           disabled={disabled || !sfEnabled}
           min={0}
           unit="seconds"
-          description="How far back in time to return messages (seconds)."
+          description={t('modulePanel.fields.historyReturnWindowDesc')}
         />
       </ModuleSection>
 
       {/* ═══ Telemetry Module ═══ */}
       <ModuleSection
-        title="Telemetry Module"
+        title={t('modulePanel.sectionTelemetryModule')}
         onApply={() => {
           applyModule('Telemetry Module', 'telemetry', {
             deviceUpdateInterval: telDeviceInterval,
@@ -1154,40 +1155,40 @@ export default function ModulePanel({
         disabled={disabled}
       >
         <ConfigNumber
-          label="Device metrics interval"
+          label={t('modulePanel.fields.telDeviceInterval')}
           value={telDeviceInterval}
           onChange={setTelDeviceInterval}
           disabled={disabled}
           min={0}
           max={86400}
           unit="seconds"
-          description={MESHTASTIC_MODULE_DEVICE_METRICS_DESCRIPTION}
-          tooltip={MESHTASTIC_DEVICE_METRICS_HELP_TOOLTIP}
+          description={t('modulePanel.telemetryDeviceMetricsDescription')}
+          tooltip={t('modulePanel.telemetryDeviceMetricsTooltip')}
         />
         <ConfigNumber
-          label="Environment metrics interval"
+          label={t('modulePanel.fields.telEnvInterval')}
           value={telEnvInterval}
           onChange={setTelEnvInterval}
           disabled={disabled}
           min={0}
           max={86400}
           unit="seconds"
-          description="How often to send temperature/humidity/pressure. 0 = disabled."
+          description={t('modulePanel.fields.telEnvIntervalDesc')}
         />
         <ConfigToggle
-          label="Environment measurement enabled"
+          label={t('modulePanel.fields.telEnvEnabled')}
           checked={telEnvEnabled}
           onChange={setTelEnvEnabled}
           disabled={disabled}
         />
         <ConfigToggle
-          label="Power measurement enabled"
+          label={t('modulePanel.fields.telPowerEnabled')}
           checked={telPowerEnabled}
           onChange={setTelPowerEnabled}
           disabled={disabled}
         />
         <ConfigToggle
-          label="Air quality enabled"
+          label={t('modulePanel.fields.telAirQualityEnabled')}
           checked={telAirQualityEnabled}
           onChange={setTelAirQualityEnabled}
           disabled={disabled}

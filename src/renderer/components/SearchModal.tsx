@@ -189,7 +189,7 @@ export default function SearchModal({
             onChange={(e) => {
               setQuery(e.target.value);
             }}
-            placeholder="Search all messages… (user:name, channel:name)"
+            placeholder={t('searchModal.placeholder')}
             spellCheck={false}
             className="flex-1 bg-transparent text-sm text-gray-200 placeholder-gray-500 focus:outline-none"
           />

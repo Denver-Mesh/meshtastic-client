@@ -374,7 +374,7 @@ export default function NodeDetailModal({
                 {isIncomplete && (
                   <span
                     className="shrink-0 rounded border border-blue-500/30 bg-blue-500/20 px-1.5 py-0.5 text-[10px] font-medium text-blue-300"
-                    title="Node data incomplete - waiting for full NodeInfo packet"
+                    title={t('nodeDetailModal.nodeIncomplete')}
                   >
                     Loading...
                   </span>
@@ -401,7 +401,7 @@ export default function NodeDetailModal({
                 {protocol === 'meshcore' && contactPubkey && (
                   <span
                     className="shrink-0 rounded border border-green-500/30 bg-green-500/20 px-1.5 py-0.5 text-[10px] font-medium text-green-300"
-                    title="Has public key - can send DMs"
+                    title={t('nodeDetailModal.hasPublicKey')}
                   >
                     🔑 DM
                   </span>
@@ -411,7 +411,7 @@ export default function NodeDetailModal({
                   node.node_id <= MESHCORE_CHAT_STUB_ID_MAX && (
                     <span
                       className="shrink-0 rounded border border-blue-500/30 bg-blue-500/20 px-1.5 py-0.5 text-[10px] font-medium text-blue-300"
-                      title="Chat-only node (no public key)"
+                      title={t('nodeDetailModal.chatOnlyNode')}
                     >
                       📢 Chat
                     </span>
@@ -419,7 +419,7 @@ export default function NodeDetailModal({
                 {protocol === 'meshcore' && contactOnRadio === false && contactPubkey && (
                   <span
                     className="shrink-0 rounded border border-orange-500/30 bg-orange-500/20 px-1.5 py-0.5 text-[10px] font-medium text-orange-300"
-                    title="Contact stored in database only, not on radio"
+                    title={t('nodeDetailModal.dbOnlyContact')}
                   >
                     Only in DB
                   </span>
@@ -427,7 +427,7 @@ export default function NodeDetailModal({
                 {protocol === 'meshcore' && contactOnRadio === true && contactPubkey && (
                   <span
                     className="shrink-0 rounded border border-green-500/30 bg-green-500/20 px-1.5 py-0.5 text-[10px] font-medium text-green-300"
-                    title="Contact synced: stored in database and on radio"
+                    title={t('nodeDetailModal.syncedContact')}
                   >
                     Synced
                   </span>
@@ -435,7 +435,7 @@ export default function NodeDetailModal({
                 {protocol === 'meshcore' && contactOnRadio === true && !contactPubkey && (
                   <span
                     className="shrink-0 rounded border border-blue-500/30 bg-blue-500/20 px-1.5 py-0.5 text-[10px] font-medium text-blue-300"
-                    title="Contact on radio but not yet fully stored in database"
+                    title={t('nodeDetailModal.radioOnlyContact')}
                   >
                     On Radio
                   </span>
@@ -493,7 +493,7 @@ export default function NodeDetailModal({
               </div>
               <span
                 className={`flex items-center gap-1 text-[11px] font-medium ${nodeStatusUi.textClass}`}
-                title="Current node status"
+                title={t('nodeDetailModal.currentNodeStatus')}
               >
                 <span className={`inline-block h-2 w-2 rounded-full ${nodeStatusUi.dotClass}`} />
                 {nodeStatusUi.label}
@@ -675,7 +675,7 @@ export default function NodeDetailModal({
                           <div>
                             <span className="text-gray-300">{label}</span>
                             <span className="text-muted ml-2">
-                              {formatSecondsAgo(nb.heardSecondsAgo)}
+                              {formatSecondsAgo(nb.heardSecondsAgo, t)}
                             </span>
                           </div>
                           <SnrIndicator snr={nb.snr} />
@@ -863,6 +863,7 @@ export default function NodeDetailModal({
                             <span className="text-xs text-gray-500">
                               {formatSecondsAgo(
                                 Math.max(0, Math.floor(Date.now() / 1000 - nb.lastRxTime)),
+                                t,
                               )}
                             </span>
                             <SnrIndicator snr={nb.snr} />
@@ -947,6 +948,7 @@ export default function NodeDetailModal({
                       <div className="font-mono text-gray-200">
                         {formatSecondsAgo(
                           Math.max(0, Math.floor((Date.now() - paxData.timestamp) / 1000)),
+                          t,
                         )}
                       </div>
                     </div>
@@ -971,6 +973,7 @@ export default function NodeDetailModal({
                       <div className="font-mono text-gray-200">
                         {formatSecondsAgo(
                           Math.max(0, Math.floor((Date.now() - latestEvent.timestamp) / 1000)),
+                          t,
                         )}
                       </div>
                       <div className="text-muted">Data Size</div>
@@ -1001,6 +1004,7 @@ export default function NodeDetailModal({
                       <div className="font-mono text-gray-200">
                         {formatSecondsAgo(
                           Math.max(0, Math.floor((Date.now() - mapReport.timestamp) / 1000)),
+                          t,
                         )}
                       </div>
                       <div className="text-muted">Data</div>
@@ -1135,7 +1139,7 @@ export default function NodeDetailModal({
               {protocol === 'meshcore' && onRequestTelemetry && (
                 <button
                   type="button"
-                  title="Cayenne LPP sensor payload (not advert GPS on the map)"
+                  title={t('nodeDetailModal.cayenneLppTitle')}
                   aria-label={t('nodeDetailModal.sensorTelemetryLpp')}
                   onClick={async () => {
                     if (!(await ensureConfigured())) return;

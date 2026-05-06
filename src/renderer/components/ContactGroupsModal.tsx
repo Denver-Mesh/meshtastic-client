@@ -282,7 +282,7 @@ export default function ContactGroupsModal({
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') void handleCreate();
                   }}
-                  placeholder="New group name…"
+                  placeholder={t('contactGroupsModal.newGroupNamePlaceholder')}
                   maxLength={100}
                   disabled={busy}
                   className="bg-secondary-dark/80 focus:border-brand-green/50 flex-1 rounded-lg border border-gray-600/50 px-3 py-1.5 text-sm text-gray-200 focus:outline-none disabled:opacity-50"
@@ -383,7 +383,7 @@ export default function ContactGroupsModal({
                             type="button"
                             onClick={() => void handleOpenMembers(group)}
                             aria-label={`Manage members of ${group.name}`}
-                            title="Manage members"
+                            title={t('contactGroupsModal.manageMembers')}
                             className="hover:bg-secondary-dark text-muted rounded p-1 transition-colors hover:text-gray-200"
                           >
                             <svg
@@ -407,7 +407,7 @@ export default function ContactGroupsModal({
                               setEditingName(group.name);
                             }}
                             aria-label={`Rename ${group.name}`}
-                            title="Rename"
+                            title={t('contactGroupsModal.rename')}
                             className="hover:bg-secondary-dark text-muted rounded p-1 transition-colors hover:text-gray-200"
                           >
                             <svg
@@ -465,7 +465,7 @@ export default function ContactGroupsModal({
                                 setDeleteConfirmId(group.group_id);
                               }}
                               aria-label={`Delete ${group.name}`}
-                              title="Delete group"
+                              title={t('contactGroupsModal.deleteGroup')}
                               className="hover:bg-secondary-dark text-muted rounded p-1 transition-colors hover:text-red-400"
                             >
                               <svg

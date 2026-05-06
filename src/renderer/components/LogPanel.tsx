@@ -404,7 +404,7 @@ export default function LogPanel({
             <button
               type="button"
               onClick={narrow}
-              aria-label="−"
+              aria-label={t('logPanel.narrowLogPanel')}
               className="rounded border border-gray-600 bg-slate-800 px-2 py-1 text-xs text-gray-300 hover:bg-slate-700"
             >
               −
@@ -412,7 +412,7 @@ export default function LogPanel({
             <button
               type="button"
               onClick={widen}
-              aria-label="+"
+              aria-label={t('logPanel.widenLogPanel')}
               className="rounded border border-gray-600 bg-slate-800 px-2 py-1 text-xs text-gray-300 hover:bg-slate-700"
             >
               +

@@ -89,6 +89,7 @@ function StatusBadge({
 }
 
 function TransportBadge({ via }: { via: 'rf' | 'mqtt' | 'both' }) {
+  const { t } = useTranslation();
   const rfIcon = (
     <svg
       className="h-3 w-3 text-blue-400"
@@ -99,7 +100,7 @@ function TransportBadge({ via }: { via: 'rf' | 'mqtt' | 'both' }) {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <title>Received via RF</title>
+      <title>{t('chatPanel.receivedViaRf')}</title>
       <path d="M5 12.55a11 11 0 0 1 14.08 0" />
       <path d="M1.42 9a16 16 0 0 1 21.16 0" />
       <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
@@ -116,7 +117,7 @@ function TransportBadge({ via }: { via: 'rf' | 'mqtt' | 'both' }) {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <title>Received via MQTT</title>
+      <title>{t('chatPanel.receivedViaMqtt')}</title>
       <circle cx="12" cy="12" r="10" />
       <path d="M2 12h20" />
       <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
@@ -125,7 +126,10 @@ function TransportBadge({ via }: { via: 'rf' | 'mqtt' | 'both' }) {
 
   if (via === 'both') {
     return (
-      <span className="flex flex-col items-center gap-px" title="Received via RF + MQTT">
+      <span
+        className="flex flex-col items-center gap-px"
+        title={t('chatPanel.receivedViaRfAndMqtt')}
+      >
         {rfIcon}
         {mqttIcon}
       </span>
@@ -971,7 +975,7 @@ function ChatPanel({
           className={`shrink-0 rounded-lg p-1.5 transition-colors ${
             showSearch ? 'bg-brand-green/20 text-bright-green' : 'text-muted hover:text-gray-300'
           }`}
-          title="Search messages (Cmd+F)"
+          title={t('chatPanel.searchButton')}
         >
           <svg
             className="h-4 w-4"
@@ -1035,7 +1039,7 @@ function ChatPanel({
                   }}
                   aria-label={t('chatPanel.closeDmTab')}
                   className="text-muted ml-0.5 text-[10px] leading-none hover:text-white"
-                  title="Close DM"
+                  title={t('chatPanel.closeDm')}
                 >
                   x
                 </button>
@@ -1246,7 +1250,7 @@ function ChatPanel({
                                   onResend(msg);
                                 }}
                                 className="text-gray-500 transition-colors hover:text-gray-300"
-                                title="Resend message"
+                                title={t('chatPanel.resendMessage')}
                               >
                                 <svg
                                   className="h-3.5 w-3.5"
@@ -1297,7 +1301,7 @@ function ChatPanel({
                             }}
                             className="rounded p-1 text-xs text-gray-600 hover:text-blue-400"
                             aria-label={t('chatPanel.replyToMessage')}
-                            title="Reply"
+                            title={t('chatPanel.replyButton')}
                           >
                             <svg
                               className="h-3.5 w-3.5"
@@ -1330,7 +1334,7 @@ function ChatPanel({
                             }}
                             className="rounded p-1 text-xs text-gray-600 hover:text-gray-300"
                             aria-label={t('chatPanel.addReaction')}
-                            title="React"
+                            title={t('chatPanel.reactButton')}
                           >
                             <svg
                               className="h-3.5 w-3.5"
@@ -1353,7 +1357,7 @@ function ChatPanel({
                                 openDmTo(msg.sender_id);
                               }}
                               className="rounded p-1 text-xs text-gray-600 hover:text-purple-400"
-                              title={`Direct message ${msg.sender_name}`}
+                              title={t('chatPanel.directMessage', { name: msg.sender_name })}
                             >
                               <svg
                                 className="h-3.5 w-3.5"
@@ -1504,7 +1508,7 @@ function ChatPanel({
               setReplyTo(null);
             }}
             className="text-muted ml-1 leading-none hover:text-gray-200"
-            title="Cancel reply"
+            title={t('chatPanel.cancelReply')}
           >
             ×
           </button>
@@ -1564,7 +1568,7 @@ function ChatPanel({
               ? 'bg-brand-green/20 text-bright-green'
               : 'bg-secondary-dark/80 text-muted border border-gray-600/50 hover:text-gray-300'
           }`}
-          title="Insert emoji"
+          title={t('chatPanel.insertEmoji')}
         >
           😊
         </button>
