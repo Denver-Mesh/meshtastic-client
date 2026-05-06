@@ -64,6 +64,7 @@ import {
 import { pubkeyToNodeId } from './lib/meshcoreUtils';
 import { meshNodeStubForDetailModal } from './lib/meshNodeStubForDetail';
 import { MESHTASTIC_OFFICIAL_PRESET_DEFAULTS } from './lib/meshtasticMqttTlsMigration';
+import { fetchMessageRetention } from './lib/messageRetention';
 import { nodeLabelForRawPacket } from './lib/nodeLongNameOrHex';
 import { parseStoredJson } from './lib/parseStoredJson';
 import type { ProtocolCapabilities } from './lib/radio/BaseRadioProvider';
@@ -963,6 +964,37 @@ export default function App() {
       }
     }
 
+    // Issue #387: DB-backed message retention. Two independent caps; prune
+    // both tables on startup since both protocols may have data even if the
+    // user is currently in the other one. Failures are best-effort: log and
+    // continue so a transient DB lock doesn't block app startup.
+    ops.push(
+      fetchMessageRetention()
+        .then((r) => {
+          const innerOps: Promise<unknown>[] = [];
+          if (r.meshtasticEnabled) {
+            innerOps.push(
+              window.electronAPI.db.pruneMessagesByCount(r.meshtasticCount).catch((e: unknown) => {
+                console.warn('[App] startup pruneMessagesByCount failed', e);
+              }),
+            );
+          }
+          if (r.meshcoreEnabled) {
+            innerOps.push(
+              window.electronAPI.db
+                .pruneMeshcoreMessagesByCount(r.meshcoreCount)
+                .catch((e: unknown) => {
+                  console.warn('[App] startup pruneMeshcoreMessagesByCount failed', e);
+                }),
+            );
+          }
+          return Promise.all(innerOps);
+        })
+        .catch((e: unknown) => {
+          console.warn('[App] startup message retention prune failed', e);
+        }),
+    );
+
     if (ops.length > 0) {
       void Promise.all(ops).then(() => {
         refreshNodesFromDb();
@@ -1347,7 +1379,12 @@ export default function App() {
         onResult={handleFirmwareResult}
       />
       {signalPulseKey !== null && (
-        <SignalPropagation key={signalPulseKey} onComplete={handleSignalPulseComplete} />
+        <SignalPropagation
+          key={signalPulseKey}
+          phraseSeed={signalPulseKey}
+          protocol={protocol}
+          onComplete={handleSignalPulseComplete}
+        />
       )}
       <div className="flex h-screen w-screen min-w-0 flex-col overflow-hidden bg-slate-950">
         {/* Header - full width; sidebar + main start below */}
@@ -2209,7 +2246,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={scrollMainToTop}
-                className="bg-brand-green text-deep-black hover:bg-bright-green fixed right-6 bottom-12 z-50 rounded-full px-3 py-2 text-xs font-bold shadow-lg transition-colors"
+                className="bg-brand-green text-deep-black hover:bg-bright-green fixed right-28 bottom-12 z-50 rounded-full px-3 py-2 text-xs font-bold shadow-lg transition-colors"
                 title="Back to top"
                 aria-label="Back to top"
               >
@@ -2220,17 +2257,7 @@ export default function App() {
             {/* Footer - fixed height at bottom of Content Wrapper */}
             <footer className="text-muted flex h-8 shrink-0 items-center justify-between border-t border-slate-800 bg-slate-900 px-4 text-[10px]">
               <span className="min-w-0">
-                A Project by{' '}
-                <a
-                  href="https://coloradomesh.org/"
-                  title="Colorado Mesh"
-                  className="text-slate-400 underline decoration-slate-600/80 underline-offset-2 transition-colors hover:text-slate-300"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Colorado Mesh
-                </a>
-                . Join us on{' '}
+                For everyone, everywhere. Join us:{' '}
                 <a
                   href="https://discord.com/invite/McChKR5NpS"
                   title="Colorado Mesh Discord"
@@ -2240,7 +2267,7 @@ export default function App() {
                 >
                   Discord
                 </a>
-                . Code on{' '}
+                {' • '}
                 <a
                   href="https://github.com/Colorado-Mesh/mesh-client"
                   title="Colorado Mesh on GitHub"
@@ -2250,7 +2277,16 @@ export default function App() {
                 >
                   GitHub
                 </a>
-                .
+                {' • '}
+                <a
+                  href="https://coloradomesh.org/"
+                  title="Colorado Mesh website"
+                  className="text-slate-400 underline decoration-slate-600/80 underline-offset-2 transition-colors hover:text-slate-300"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Website
+                </a>
               </span>
               <button
                 type="button"
