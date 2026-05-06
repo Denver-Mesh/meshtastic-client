@@ -8,14 +8,21 @@
  *
  * Usage:
  *   node scripts/i18n-auto-translate.mjs
+ *   node scripts/i18n-auto-translate.mjs --all
+ *   I18N_TRANSLATE_ALL=1 node scripts/i18n-auto-translate.mjs
  *   LIBRETRANSLATE_URL=https://lt.example.com LIBRETRANSLATE_KEY=xxx node scripts/i18n-auto-translate.mjs
  *   MYMEMORY_EMAIL=you@example.com node scripts/i18n-auto-translate.mjs
+ *
+ * By default (with git), only keys that are new in en/translation.json vs HEAD are translated
+ * for each locale. Use --all or I18N_TRANSLATE_ALL=1 to backfill every key missing from a locale.
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { filterMissingKeysToTranslate } from './i18n-auto-translate-lib.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const LOCALES_DIR = join(__dirname, '../src/renderer/locales');
@@ -208,6 +215,15 @@ async function translateGoogle(text, targetGoogle) {
 // ── Router ────────────────────────────────────────────────────────────────────
 
 let myMemoryDisabledForRun = false;
+let googleFallbackAnnounced = false;
+
+function noteGoogleFallbackActive(reason) {
+  if (googleFallbackAnnounced) return;
+  googleFallbackAnnounced = true;
+  console.warn(
+    `  Active backend for remaining strings: Google Translate (public endpoint). ${reason}`,
+  );
+}
 
 async function translate(text, lang) {
   if (LT_URL) {
@@ -224,7 +240,7 @@ async function translate(text, lang) {
       console.warn(`  MyMemory failed (${err.message}), falling back to Google Translate.`);
       if (String(err.message).includes('429')) {
         myMemoryDisabledForRun = true;
-        console.warn('  MyMemory rate-limited; using Google Translate for the rest of this run.');
+        noteGoogleFallbackActive('MyMemory returned HTTP 429 (rate limit).');
       }
     }
   }
@@ -234,14 +250,16 @@ async function translate(text, lang) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
+  const translateAllGaps = process.argv.includes('--all') || process.env.I18N_TRANSLATE_ALL === '1';
+
   const enPath = join(LOCALES_DIR, 'en/translation.json');
   const en = readJson(enPath);
   const enFlat = flatten(en);
   const enKeys = Object.keys(enFlat);
 
-  // Fast path for pre-commit: only translate when English introduces new keys.
-  // Existing historical gaps in non-English locales are intentionally ignored here.
   const enAtHead = readJsonFromGit('HEAD:src/renderer/locales/en/translation.json');
+  const hasGitBaseline = Boolean(enAtHead);
+  let addedEnglishKeysSet = null;
   if (enAtHead) {
     const enAtHeadKeys = new Set(Object.keys(flatten(enAtHead)));
     const addedEnglishKeys = enKeys.filter((key) => !enAtHeadKeys.has(key));
@@ -249,6 +267,7 @@ async function main() {
       console.log('No new English keys; skipping auto-translate.');
       process.exit(0);
     }
+    addedEnglishKeysSet = new Set(addedEnglishKeys);
   }
 
   let anyMissing = false;
@@ -256,7 +275,10 @@ async function main() {
   const missingByLang = new Map();
   for (const lang of LANG_CODES) {
     const existing = flatten(readJson(join(LOCALES_DIR, `${lang.dir}/translation.json`)));
-    const missing = enKeys.filter((k) => !(k in existing));
+    const missing = filterMissingKeysToTranslate(enKeys, existing, addedEnglishKeysSet, {
+      translateAllGaps,
+      hasGitBaseline,
+    });
     if (missing.length > 0) {
       anyMissing = true;
       missingByLang.set(lang, { existing, missing });
@@ -268,22 +290,37 @@ async function main() {
     process.exit(0);
   }
 
-  const backend = LT_URL ? `LibreTranslate (${LT_URL})` : 'MyMemory';
-  console.log(`Using backend: ${backend}`);
+  if (LT_URL) {
+    console.log(
+      `Primary backend: LibreTranslate (${LT_URL}); fallback: MyMemory → Google Translate`,
+    );
+  } else {
+    console.log('Primary backend: MyMemory; fallback: Google Translate (public endpoint)');
+  }
 
   for (const [lang, { missing }] of missingByLang) {
     const target = readJson(join(LOCALES_DIR, `${lang.dir}/translation.json`));
 
-    console.log(`Translating ${missing.length} key(s) for ${lang.dir}…`);
+    const keysToTranslate = missing.filter((k) => typeof enFlat[k] === 'string');
+    const totalKeys = keysToTranslate.length;
+    console.log(`Translating ${totalKeys} key(s) for ${lang.dir}…`);
+
     let count = 0;
     let failed = 0;
-    for (const key of missing) {
+    const progressEvery = totalKeys <= 30 ? 1 : 25;
+    const truncateKey = (k) => (k.length > 64 ? `${k.slice(0, 61)}…` : k);
+
+    let keyIndex = 0;
+    for (const key of keysToTranslate) {
+      keyIndex++;
       const englishValue = enFlat[key];
-      if (typeof englishValue !== 'string') continue;
       try {
         const translated = await translate(englishValue, lang);
         setDeep(target, key, translated);
         count++;
+        if (keyIndex === 1 || keyIndex === totalKeys || keyIndex % progressEvery === 0) {
+          console.log(`  [${lang.dir}] ${keyIndex}/${totalKeys} ${truncateKey(key)}`);
+        }
         await sleep(300);
       } catch (err) {
         console.error(`  Error translating "${key}" for ${lang.dir}: ${err.message}`);
