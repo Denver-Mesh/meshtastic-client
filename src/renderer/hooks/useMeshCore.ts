@@ -93,6 +93,7 @@ import {
 import { MeshcoreWebBluetoothConnection } from '../lib/meshcoreWebBluetoothConnection';
 import { lastHeardToUnixSeconds, mergeMeshcoreLastHeardFromAdvert } from '../lib/nodeStatus';
 import { parseStoredJson } from '../lib/parseStoredJson';
+import type { RxPacketEntry } from '../lib/protocols/MeshCoreProtocol';
 import { MAX_RAW_PACKET_LOG_ENTRIES } from '../lib/rawPacketLogConstants';
 import { emojiDisplayChar } from '../lib/reactions';
 import {
@@ -840,26 +841,7 @@ const INITIAL_STATE: DeviceState = {
 
 const MAX_DEVICE_LOGS = 500;
 
-export interface RxPacketEntry {
-  ts: number;
-  snr: number;
-  rssi: number;
-  raw: Uint8Array;
-  routeTypeString: string | null;
-  payloadTypeString: string | null;
-  hopCount: number;
-  /** Resolved when Meshtastic frame or MeshCore payload prefix matches a known contact */
-  fromNodeId: number | null;
-  /** CRC-32 fingerprint (8 hex chars), same as optional DB `rx_packet_fingerprint` on messages */
-  messageFingerprintHex: string | null;
-  transportScopeCode: number | null;
-  transportReturnCode: number | null;
-  advertName: string | null;
-  advertLat: number | null;
-  advertLon: number | null;
-  advertTimestampSec: number | null;
-  parseOk: boolean;
-}
+export type { RxPacketEntry } from '../lib/protocols/MeshCoreProtocol';
 
 /** Repeater RPCs (tracePath, getStatus, getTelemetry, sendBinaryRequest neighbours). */
 const MESHCORE_REPEATER_RPC_TIMEOUT_MS = 120_000;

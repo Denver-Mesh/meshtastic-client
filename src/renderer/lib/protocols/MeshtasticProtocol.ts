@@ -1,6 +1,6 @@
-import { create } from '@bufbuild/protobuf';
+import { create, toBinary } from '@bufbuild/protobuf';
 import type { MeshDevice } from '@meshtastic/core';
-import { Mesh } from '@meshtastic/protobufs';
+import { Admin, Channel as ProtobufChannel, Mesh, Portnums } from '@meshtastic/protobufs';
 
 import { meshtasticHwModelName } from '../hardwareModels';
 import type { ProtocolCapabilities } from '../radio/BaseRadioProvider';
@@ -10,8 +10,21 @@ import type {
   SendMessageOptions,
   SendPositionOptions,
   SendWaypointOptions,
+  SetChannelOptions,
+  SetOwnerOptions,
 } from './Protocol';
 import { Protocol } from './Protocol';
+
+export interface MeshtasticRawPacketEntry {
+  ts: number;
+  snr: number;
+  rssi: number;
+  raw: Uint8Array;
+  fromNodeId: number | null;
+  portLabel: string;
+  viaMqtt: boolean;
+  isLocal?: boolean;
+}
 
 export type MeshtasticRawEvent =
   | { kind: 'text_message'; raw: unknown }
@@ -248,5 +261,116 @@ export class MeshtasticProtocol extends Protocol {
       0xffffffff,
       0,
     );
+  }
+
+  // --- Device lifecycle ---
+
+  async reboot(delay = 2): Promise<void> {
+    await this.device.reboot(delay);
+  }
+
+  async shutdown(delay = 2): Promise<void> {
+    await this.device.shutdown(delay);
+  }
+
+  async factoryReset(): Promise<void> {
+    await this.device.factoryResetDevice();
+  }
+
+  async resetNodeDb(): Promise<void> {
+    await this.device.resetNodes();
+  }
+
+  async rebootOta(delay = 2): Promise<void> {
+    await this.device.rebootOta(delay);
+  }
+
+  async enterDfuMode(): Promise<void> {
+    await this.device.enterDfuMode();
+  }
+
+  async factoryResetConfig(): Promise<void> {
+    await this.device.factoryResetConfig();
+  }
+
+  async requestRefresh(): Promise<void> {
+    await this.device.configure();
+  }
+
+  // --- Config ---
+
+  async setConfig(config: unknown): Promise<void> {
+    await this.device.setConfig(config as any);
+  }
+
+  async commitConfig(): Promise<void> {
+    await this.device.commitEditSettings();
+  }
+
+  async setChannel(opts: SetChannelOptions): Promise<void> {
+    const channel = create(ProtobufChannel.ChannelSchema, {
+      index: opts.index,
+      role: opts.role,
+      settings: create(ProtobufChannel.ChannelSettingsSchema, {
+        name: opts.settings.name,
+        psk: opts.settings.psk,
+        uplinkEnabled: opts.settings.uplinkEnabled,
+        downlinkEnabled: opts.settings.downlinkEnabled,
+        moduleSettings: create(ProtobufChannel.ModuleSettingsSchema, {
+          positionPrecision: opts.settings.positionPrecision,
+        }),
+      }),
+    }) as Parameters<MeshDevice['setChannel']>[0];
+    await this.device.setChannel(channel);
+  }
+
+  async clearChannel(index: number): Promise<void> {
+    await this.device.clearChannel(index);
+  }
+
+  async setOwner(opts: SetOwnerOptions): Promise<void> {
+    const user = create(Mesh.UserSchema, {
+      longName: opts.longName,
+      shortName: opts.shortName,
+      isLicensed: opts.isLicensed,
+    }) as Parameters<MeshDevice['setOwner']>[0];
+    await this.device.setOwner(user);
+  }
+
+  async setModuleConfig(config: unknown): Promise<void> {
+    await (this.device as any).setModuleConfig(config);
+  }
+
+  async setCannedMessages(messages: string[]): Promise<void> {
+    await (this.device as any).setCannedMessages({ messages: messages.join('\n') });
+  }
+
+  async setRingtone(ringtone: string): Promise<void> {
+    const msg = create(Admin.AdminMessageSchema, {
+      payloadVariant: { case: 'setRingtoneMessage', value: ringtone },
+    });
+
+    await (this.device as any).sendPacket(
+      toBinary(Admin.AdminMessageSchema, msg),
+      Portnums.PortNum.ADMIN_APP,
+      'self',
+    );
+  }
+
+  // --- GPS / position ---
+
+  async sendPositionToDevice(lat: number, lon: number, alt?: number): Promise<void> {
+    await this.device.setPosition(
+      create(Mesh.PositionSchema, {
+        latitudeI: Math.round(lat * 1e7),
+        longitudeI: Math.round(lon * 1e7),
+        altitude: alt ?? 0,
+        time: Math.floor(Date.now() / 1000),
+      }) as Parameters<MeshDevice['setPosition']>[0],
+    );
+  }
+
+  async requestPosition(nodeId: number): Promise<void> {
+    await this.device.requestPosition(nodeId);
   }
 }

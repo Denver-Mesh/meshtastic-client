@@ -10,14 +10,4 @@ export const MESHCORE_PAYLOAD_TYPE_ADVERT = 4;
 /** Ed25519 public key length in ADVERT inner payload (same as contact / `pubkeyToNodeId`). */
 export const MESHCORE_ADVERT_PUBKEY_BYTE_LEN = 32;
 
-/** Meshtastic row for the raw packet log (protobuf-serialized mesh packet). */
-export interface MeshtasticRawPacketEntry {
-  ts: number;
-  snr: number;
-  rssi: number;
-  raw: Uint8Array;
-  fromNodeId: number | null;
-  portLabel: string;
-  viaMqtt: boolean;
-  isLocal?: boolean;
-}
+export type { MeshtasticRawPacketEntry } from './protocols/MeshtasticProtocol';

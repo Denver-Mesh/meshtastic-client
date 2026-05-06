@@ -13,6 +13,26 @@ import { Protocol } from './Protocol';
 
 const MESHCORE_COORD_SCALE = 1e6;
 
+export interface RxPacketEntry {
+  ts: number;
+  snr: number;
+  rssi: number;
+  raw: Uint8Array;
+  fromNodeId: number | null;
+  routeTypeString: string | null;
+  payloadTypeString: string | null;
+  hopCount: number;
+  /** CRC-32 fingerprint (8 hex chars), same as optional DB `rx_packet_fingerprint` on messages */
+  messageFingerprintHex: string | null;
+  transportScopeCode: number | null;
+  transportReturnCode: number | null;
+  advertName: string | null;
+  advertLat: number | null;
+  advertLon: number | null;
+  advertTimestampSec: number | null;
+  parseOk: boolean;
+}
+
 export type MeshCoreRawEvent =
   | { kind: 'advert'; raw: unknown }
   | { kind: 'direct_message'; raw: unknown }
