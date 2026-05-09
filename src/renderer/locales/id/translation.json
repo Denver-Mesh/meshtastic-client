@@ -455,7 +455,8 @@
     "rebootOtaTitle": "Mulai ulang ke OTA",
     "rebootOtaMessage": "Ini akan mem-boot ulang perangkat ke mode pembaruan firmware OTA (Over The Air).",
     "rebootOtaConfirm": "Mulai ulang ke OTA",
-    "rebootOtaButton": "Mulai ulang ke OTA"
+    "rebootOtaButton": "Mulai ulang ke OTA",
+    "directMessages": "Pesan langsung"
   },
   "securityPanel": {
     "keyRegenRequested": "Regenerasi kunci diminta. Perangkat akan menghasilkan kunci baru.",

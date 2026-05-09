@@ -1,4 +1,4 @@
-import { useCallback, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -93,6 +93,15 @@ export function useMeshcoreRepeaterRemoteAuth() {
   const [modalOpen, setModalOpen] = useState(false);
   const resolverRef = useRef<((ok: boolean) => void) | null>(null);
   const passwordId = useId();
+
+  useEffect(() => {
+    return () => {
+      if (resolverRef.current) {
+        resolverRef.current(false);
+        resolverRef.current = null;
+      }
+    };
+  }, []);
 
   const ensureConfigured = useCallback((): Promise<boolean> => {
     if (meshcoreIsRepeaterRemoteAuthTouched()) return Promise.resolve(true);

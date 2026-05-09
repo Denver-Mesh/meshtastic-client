@@ -479,11 +479,11 @@ export default function AppPanel({
 
   const getChannelLabel = useCallback(
     (ch: number) => {
-      if (ch === -1) return 'Direct messages';
+      if (ch === -1) return t('radioPanel.directMessages');
       const named = channels.find((c) => c.index === ch);
       return named ? `Channel ${ch} — ${named.name}` : `Channel ${ch}`;
     },
-    [channels],
+    [channels, t],
   );
 
   // ─── Confirmation flow ──────────────────────────────────────

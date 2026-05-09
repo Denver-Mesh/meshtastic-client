@@ -1328,7 +1328,8 @@ export function useDevice() {
       // ─── Node info packets ─────────────────────────────────────
       const unsub5 = device.events.onNodeInfoPacket.subscribe((packet) => {
         touchLastData();
-        const rfNodeId = (packet as any).num ?? (packet as any).from;
+        const rfPayload = packet as { num?: number; from?: number };
+        const rfNodeId = rfPayload.num ?? rfPayload.from;
         if (rfNodeId != null) rfHeardNodeIds.current.add(rfNodeId);
         const info = packet as {
           num?: number;
@@ -1465,7 +1466,8 @@ export function useDevice() {
           }
         }
         if (type === 'ble' && nodeNum === myNodeNumRef.current) {
-          const btDevice = (device.transport as any)?.__bluetoothDevice;
+          const btDevice = (device.transport as { __bluetoothDevice?: { id?: string } })
+            ?.__bluetoothDevice;
           const shortName = preferNonEmptyTrimmedString(info.user?.shortName, '') || null;
           if (btDevice?.id && shortName) {
             try {
@@ -2859,6 +2861,8 @@ export function useDevice() {
 
   const setConfig = useCallback(async (config: unknown) => {
     if (!deviceRef.current) return;
+    // `config` is typed as `unknown` at the call site; cast required to satisfy the SDK's
+    // setConfig overload. `as any` keeps the React Compiler memoization analysis intact.
     await deviceRef.current.setConfig(config as any);
   }, []);
 
@@ -3029,6 +3033,9 @@ export function useDevice() {
 
   const setModuleConfig = useCallback(async (config: unknown) => {
     if (!deviceRef.current) return;
+    // setModuleConfig/setCannedMessages/sendPacket exist at runtime but are not in @meshtastic/js
+    // SDK types; `as any` is required because `as unknown as T` breaks the React Compiler's
+    // memoization analysis inside useCallback.
     await (deviceRef.current as any).setModuleConfig(config);
   }, []);
 

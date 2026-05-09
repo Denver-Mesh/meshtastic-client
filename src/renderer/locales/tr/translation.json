@@ -455,7 +455,8 @@
     "rebootOtaTitle": "OTA'yı yeniden başlat",
     "rebootOtaMessage": "Bu, cihazı OTA (Kablosuz) ürün yazılımı güncelleme moduna yeniden başlatacaktır.",
     "rebootOtaConfirm": "OTA'yı yeniden başlat",
-    "rebootOtaButton": "OTA'yı yeniden başlat"
+    "rebootOtaButton": "OTA'yı yeniden başlat",
+    "directMessages": "Doğrudan mesajlar"
   },
   "securityPanel": {
     "keyRegenRequested": "Anahtarın yenilenmesi talep edildi. Cihaz yeni anahtarlar oluşturacaktır.",

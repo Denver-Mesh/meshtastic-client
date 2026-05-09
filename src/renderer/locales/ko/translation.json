@@ -455,7 +455,8 @@
     "rebootOtaTitle": "OTA로 재부팅",
     "rebootOtaMessage": "그러면 장치가 OTA(Over The Air) 펌웨어 업데이트 모드로 재부팅됩니다.",
     "rebootOtaConfirm": "OTA로 재부팅",
-    "rebootOtaButton": "OTA로 재부팅"
+    "rebootOtaButton": "OTA로 재부팅",
+    "directMessages": "다이렉트 메시지"
   },
   "securityPanel": {
     "keyRegenRequested": "키 재생성을 요청했습니다. 장치가 새 키를 생성합니다.",

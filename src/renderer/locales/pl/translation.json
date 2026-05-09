@@ -455,7 +455,8 @@
     "rebootOtaTitle": "Uruchom ponownie do OTA",
     "rebootOtaMessage": "Spowoduje to ponowne uruchomienie urządzenia w trybie aktualizacji oprogramowania sprzętowego OTA (Over The Air).",
     "rebootOtaConfirm": "Uruchom ponownie do OTA",
-    "rebootOtaButton": "Uruchom ponownie do OTA"
+    "rebootOtaButton": "Uruchom ponownie do OTA",
+    "directMessages": "Wiadomości bezpośrednie"
   },
   "securityPanel": {
     "keyRegenRequested": "Wymagana regeneracja kluczy. Urządzenie wygeneruje nowe klucze.",

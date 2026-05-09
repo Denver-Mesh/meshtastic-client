@@ -455,7 +455,8 @@
     "rebootOtaTitle": "Перезагрузитесь в ОТА",
     "rebootOtaMessage": "Это перезагрузит устройство в режим обновления прошивки OTA (по воздуху).",
     "rebootOtaConfirm": "Перезагрузитесь в ОТА",
-    "rebootOtaButton": "Перезагрузитесь в ОТА"
+    "rebootOtaButton": "Перезагрузитесь в ОТА",
+    "directMessages": "Прямые сообщения"
   },
   "securityPanel": {
     "keyRegenRequested": "Запрошено восстановление ключа. Устройство сгенерирует новые ключи.",

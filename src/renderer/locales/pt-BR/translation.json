@@ -455,7 +455,8 @@
     "rebootOtaTitle": "Reiniciar para OTA",
     "rebootOtaMessage": "Isso reiniciará o dispositivo no modo de atualização de firmware OTA (Over The Air).",
     "rebootOtaConfirm": "Reiniciar para OTA",
-    "rebootOtaButton": "Reiniciar para OTA"
+    "rebootOtaButton": "Reiniciar para OTA",
+    "directMessages": "Mensagens diretas"
   },
   "securityPanel": {
     "keyRegenRequested": "Regeneração de chave solicitada. O dispositivo gerará novas chaves.",

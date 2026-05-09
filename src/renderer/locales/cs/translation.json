@@ -455,7 +455,8 @@
     "rebootOtaTitle": "Restartujte do OTA",
     "rebootOtaMessage": "Tím se zařízení restartuje do režimu aktualizace firmwaru OTA (Over The Air).",
     "rebootOtaConfirm": "Restartujte do OTA",
-    "rebootOtaButton": "Restartujte do OTA"
+    "rebootOtaButton": "Restartujte do OTA",
+    "directMessages": "Přímé zprávy"
   },
   "securityPanel": {
     "keyRegenRequested": "Požadována regenerace klíče. Zařízení vygeneruje nové klíče.",

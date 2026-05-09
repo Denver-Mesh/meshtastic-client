@@ -455,7 +455,8 @@
     "rebootOtaTitle": "Перезавантажити в режим OTA",
     "rebootOtaMessage": "Це перезавантажить пристрій у режимі оновлення прошивки OTA (Over The Air).",
     "rebootOtaConfirm": "Перезавантажити в режим OTA",
-    "rebootOtaButton": "Перезавантажити в режим OTA"
+    "rebootOtaButton": "Перезавантажити в режим OTA",
+    "directMessages": "Прямі повідомлення"
   },
   "securityPanel": {
     "keyRegenRequested": "Запит на регенерацію ключа. Пристрій генеруватиме нові ключі.",

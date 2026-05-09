@@ -455,7 +455,8 @@
     "rebootOtaTitle": "Start opnieuw op naar OTA",
     "rebootOtaMessage": "Hierdoor wordt het apparaat opnieuw opgestart in de OTA-firmware-updatemodus (Over The Air).",
     "rebootOtaConfirm": "Start opnieuw op naar OTA",
-    "rebootOtaButton": "Start opnieuw op naar OTA"
+    "rebootOtaButton": "Start opnieuw op naar OTA",
+    "directMessages": "Directe berichten"
   },
   "securityPanel": {
     "keyRegenRequested": "Sleutelregeneratie aangevraagd. Apparaat genereert nieuwe sleutels.",

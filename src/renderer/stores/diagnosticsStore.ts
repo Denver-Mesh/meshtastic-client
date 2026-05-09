@@ -676,7 +676,6 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
 
     if (analysisTimer) clearTimeout(analysisTimer);
     analysisTimer = setTimeout(() => {
-      const state = get();
       const now = Date.now();
       set((s) => {
         const newAnomalies = new Map<number, NodeAnomaly>();
@@ -686,10 +685,10 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
         const isLowAccuracy = !!(s.ourPositionSource && isLowAccuracyPosition(s.ourPositionSource));
         const { distanceMultiplier, hopsThreshold } = getEnvParams(s.envMode, isLowAccuracy);
         for (const [nodeId, { node: n, homeNode: hn }] of pendingAnalyses) {
-          const history = state.hopHistory.get(nodeId) ?? [];
-          const stats = state.packetStats.get(nodeId);
-          const ignoreMqtt = state.ignoreMqttEnabled || state.mqttIgnoredNodes.has(nodeId);
-          const noiseData = getNoiseStatsForNode(state.noiseRateStats, nodeId);
+          const history = s.hopHistory.get(nodeId) ?? [];
+          const stats = s.packetStats.get(nodeId);
+          const ignoreMqtt = s.ignoreMqttEnabled || s.mqttIgnoredNodes.has(nodeId);
+          const noiseData = getNoiseStatsForNode(s.noiseRateStats, nodeId);
           const anomaly = analyzeNode(
             n,
             stats,
@@ -753,7 +752,7 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
                 (homeFromPending.num_packets_rx_bad ?? 0) - baselineValue.rxBad,
               ),
             };
-            const cuStats24h = get().getCuStats24h(myNodeNum);
+            const cuStats24h = computeCuStats24h(s.cuHistory.get(myNodeNum) ?? []);
             const findings = diagnoseConnectedNode(adjustedHomeNode, {
               cuStats24h: cuStats24h ?? undefined,
               capabilities,
@@ -1214,6 +1213,7 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
     if (analysisTimer) clearTimeout(analysisTimer);
     analysisTimer = null;
     pendingAnalyses.clear();
+    meshcoreRateCounter.reset();
     resetCuSpikeCooldown();
     clearPersistedDiagnosticRowsSnapshot();
     rfRowCooldowns.clear();

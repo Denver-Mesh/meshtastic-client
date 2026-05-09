@@ -455,7 +455,8 @@
     "rebootOtaTitle": "Riavvia su OTA",
     "rebootOtaMessage": "Ciò riavvierà il dispositivo in modalità di aggiornamento del firmware OTA (Over The Air).",
     "rebootOtaConfirm": "Riavvia su OTA",
-    "rebootOtaButton": "Riavvia su OTA"
+    "rebootOtaButton": "Riavvia su OTA",
+    "directMessages": "Messaggi diretti"
   },
   "securityPanel": {
     "keyRegenRequested": "Rigenerazione chiave richiesta. Il dispositivo genererà nuove chiavi.",

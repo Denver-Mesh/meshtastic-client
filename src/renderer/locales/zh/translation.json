@@ -455,7 +455,8 @@
     "rebootOtaTitle": "重新启动到OTA",
     "rebootOtaMessage": "这将使设备重新启动到OTA （无线）固件更新模式。",
     "rebootOtaConfirm": "重新启动到OTA",
-    "rebootOtaButton": "重新启动到OTA"
+    "rebootOtaButton": "重新启动到OTA",
+    "directMessages": "直接消息"
   },
   "securityPanel": {
     "keyRegenRequested": "已请求密钥重新生成。设备将生成新密钥。",

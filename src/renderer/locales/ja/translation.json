@@ -455,7 +455,8 @@
     "rebootOtaTitle": "OTA への再起動",
     "rebootOtaMessage": "これにより、デバイスが OTA (Over The Air) ファームウェア更新モードで再起動されます。",
     "rebootOtaConfirm": "OTA への再起動",
-    "rebootOtaButton": "OTA への再起動"
+    "rebootOtaButton": "OTA への再起動",
+    "directMessages": "ダイレクトメッセージ"
   },
   "securityPanel": {
     "keyRegenRequested": "キーの再生成が要求されました。デバイスは新しいキーを生成します。",

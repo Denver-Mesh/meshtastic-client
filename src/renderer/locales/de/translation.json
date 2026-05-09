@@ -455,7 +455,8 @@
     "rebootOtaTitle": "Neustart auf OTA",
     "rebootOtaMessage": "Dadurch wird das Gerät im OTA-Firmware-Aktualisierungsmodus (Over The Air) neu gestartet.",
     "rebootOtaConfirm": "Neustart auf OTA",
-    "rebootOtaButton": "Neustart auf OTA"
+    "rebootOtaButton": "Neustart auf OTA",
+    "directMessages": "Direktnachrichten"
   },
   "securityPanel": {
     "keyRegenRequested": "Schlüsselregeneration angefordert. Das Gerät generiert neue Schlüssel.",

@@ -230,6 +230,7 @@
     "channelRoleDisabled": "Disabled",
     "channelRoleSecondary": "Secondary",
     "channelN": "Channel {{num}}",
+    "directMessages": "Direct messages",
     "noChannels": "No channels configured.",
     "sectionBluetooth": "Bluetooth",
     "sectionDeviceRole": "Device Role",

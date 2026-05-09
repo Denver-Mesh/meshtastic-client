@@ -455,7 +455,8 @@
     "rebootOtaTitle": "Redémarrer en OTA",
     "rebootOtaMessage": "Cela redémarrera l'appareil en mode de mise à jour du micrologiciel OTA (Over The Air).",
     "rebootOtaConfirm": "Redémarrer en OTA",
-    "rebootOtaButton": "Redémarrer en OTA"
+    "rebootOtaButton": "Redémarrer en OTA",
+    "directMessages": "Messages directs"
   },
   "securityPanel": {
     "keyRegenRequested": "Régénération de clé demandée. L'appareil générera de nouvelles clés.",
