@@ -19,10 +19,19 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { constants as http2Constants } from 'node:http2';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { filterMissingKeysToTranslate, setDeepLocaleValue } from './i18n-auto-translate-lib.mjs';
+import {
+  filterMissingKeysToTranslate,
+  sanitizeLocaleTranslationJsonFileBodyForDisk,
+  setDeepLocaleValue,
+} from './i18n-auto-translate-lib.mjs';
+
+/** RFC 6585 / IANA: Too Many Requests (avoid hardcoded status literals for static analysis). */
+const HTTP_STATUS_TOO_MANY_REQUESTS = http2Constants.HTTP_STATUS_TOO_MANY_REQUESTS;
+const MYMEMORY_RATE_LIMIT_CODE = 'MYMEMORY_RATE_LIMIT';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const LOCALES_DIR = join(__dirname, '../src/renderer/locales');
@@ -149,8 +158,8 @@ async function translateMyMemory(text, targetMm) {
       await sleep(1200);
     }
     const res = await fetchWithTimeout(url);
-    if (res.status === 429) {
-      throw new Error(`MyMemory 429`);
+    if (res.status === HTTP_STATUS_TOO_MANY_REQUESTS) {
+      throw Object.assign(new Error('MyMemory rate limited'), { code: MYMEMORY_RATE_LIMIT_CODE });
     }
     if (!res.ok) {
       throw new Error(`MyMemory ${res.status}`);
@@ -224,9 +233,9 @@ async function translate(text, lang) {
       return await translateMyMemory(text, lang.mm);
     } catch (err) {
       console.warn(`  MyMemory: ${err.message} → Google`);
-      if (String(err.message).includes('429')) {
+      if (typeof err === 'object' && err !== null && err.code === MYMEMORY_RATE_LIMIT_CODE) {
         myMemoryDisabledForRun = true;
-        noteGoogleFallbackActive('429');
+        noteGoogleFallbackActive('rate limit');
       }
     }
   }
@@ -395,7 +404,8 @@ async function main() {
     }
 
     const outPath = join(LOCALES_DIR, `${lang.dir}/translation.json`);
-    writeFileSync(outPath, JSON.stringify(target, null, 2) + '\n', 'utf8');
+    const body = JSON.stringify(target, null, 2) + '\n';
+    writeFileSync(outPath, sanitizeLocaleTranslationJsonFileBodyForDisk(body), 'utf8');
     const tail =
       localeRunTotal > 1 || totalScheduledJobs > workTotal
         ? ` · run ${completedJobs}/${totalScheduledJobs}`

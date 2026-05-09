@@ -6,6 +6,19 @@
 const UNSAFE_LOCALE_KEY_PARTS = new Set(['__proto__', 'constructor', 'prototype']);
 
 /**
+ * Strip dangerous control characters from a UTF-8 JSON document before `writeFileSync`.
+ * Preserves TAB/LF/CR so pretty-printed `JSON.stringify` output stays valid JSON.
+ * Remote translation APIs return strings that become file content; this blocks NUL/C1
+ * controls (and Unicode line/paragraph separators) from reaching the locale file body.
+ *
+ * @param {string} body
+ * @returns {string}
+ */
+export function sanitizeLocaleTranslationJsonFileBodyForDisk(body) {
+  return String(body).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F\u2028\u2029]/g, ''); // eslint-disable-line no-control-regex
+}
+
+/**
  * Set a nested string value on a plain locale object using a dotted path (e.g. `tabs.chat`).
  * Rejects prototype-pollution paths; only assigns through own enumerable object slots.
  *

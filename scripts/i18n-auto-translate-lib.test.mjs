@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { filterMissingKeysToTranslate, setDeepLocaleValue } from './i18n-auto-translate-lib.mjs';
+import {
+  filterMissingKeysToTranslate,
+  sanitizeLocaleTranslationJsonFileBodyForDisk,
+  setDeepLocaleValue,
+} from './i18n-auto-translate-lib.mjs';
 
 describe('filterMissingKeysToTranslate', () => {
   const enKeys = ['a', 'b', 'c'];
@@ -45,6 +49,18 @@ describe('filterMissingKeysToTranslate', () => {
         hasGitBaseline: false,
       }),
     ).toEqual(['b', 'c']);
+  });
+});
+
+describe('sanitizeLocaleTranslationJsonFileBodyForDisk', () => {
+  it('removes NUL and other C0 controls but keeps TAB/LF/CR', () => {
+    const raw = '{\n  "a": "x"\n}\n\x00';
+    expect(sanitizeLocaleTranslationJsonFileBodyForDisk(raw)).toBe('{\n  "a": "x"\n}\n');
+  });
+
+  it('strips line/paragraph separators', () => {
+    const withSep = `{\u2028"k":1}`;
+    expect(sanitizeLocaleTranslationJsonFileBodyForDisk(withSep)).toBe('{"k":1}');
   });
 });
 
