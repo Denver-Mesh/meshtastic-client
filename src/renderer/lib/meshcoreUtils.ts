@@ -11,8 +11,8 @@ export const MESHCORE_CHAT_STUB_ID_MAX = 0xafffffff >>> 0;
 export const MESHCORE_MAX_CONTACTS = 350;
 /** Warning threshold when radio contact count approaches max. */
 export const MESHCORE_CONTACTS_WARNING_THRESHOLD = 320;
-/** Critical threshold when radio contact count is near capacity. */
-export const MESHCORE_CONTACTS_CRITICAL_THRESHOLD = 300;
+/** Critical threshold when radio contact count is near capacity (must exceed {@link MESHCORE_CONTACTS_WARNING_THRESHOLD}). */
+export const MESHCORE_CONTACTS_CRITICAL_THRESHOLD = 340;
 
 const SYNTH_PLACEHOLDER_PUBKEY_MARKER_HEX = '4d434854'; // "MCHT"
 
@@ -316,7 +316,9 @@ function meshcoreTrimTrailingZerosOutPath(outPath: Uint8Array): Uint8Array {
 
 /**
  * Build outbound path bytes for `tracePath` from a contact.
- * Valid lengths 0..{@link MESHCORE_OUT_PATH_LEN_MAX} use the firmware-reported length.
+ * Valid lengths 0..{@link MESHCORE_OUT_PATH_LEN_MAX} use the firmware-reported length (`outPathLen` 0 → first byte only).
+ * For **hop count** UI when the buffer may still hold a full route but firmware reports `outPathLen === 0`, use
+ * {@link meshcoreInferHopsFromOutPath} instead of inferring from this slice alone.
  * Negative `outPathLen` (e.g. -1), **null**, or **undefined** mean “length unset” while `outPath`
  * still holds a fixed-size buffer — trim trailing zeros. Oversized reported lengths use the same trim.
  */
@@ -505,8 +507,10 @@ const REPEATER_AUTH_HINT =
   'Set or change the repeater admin password from the Repeaters panel (session only).';
 
 /**
- * Raw SNR quarter-dB to dB scale factor. Applied to pathSnrs hop values.
- * NOTE: tracePath lastSnr is already converted to dB by the library (readInt8() / 4); do NOT apply this to it.
+ * Raw SNR quarter-dB to dB scale factor.
+ *
+ * Multiply raw quarter-dB integers from contact payloads (e.g. `contact.pathSnrs[i]` from `getContacts` / refresh)
+ * to get dB. **Do not** apply to `tracePath.lastSnr` — the library already converts that (`readInt8() / 4`).
  */
 export const MESHCORE_RPC_SNR_RAW_TO_DB = 0.25;
 

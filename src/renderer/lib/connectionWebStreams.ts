@@ -4,6 +4,8 @@
  * errors instead of "Cannot read properties of undefined (reading 'pipeTo')".
  */
 
+const MAX_USER_AGENT_SNIPPET_LENGTH = 160;
+
 export interface MeshtasticStreamsDiagnostics {
   hasTransformStream: boolean;
   hasReadablePipeTo: boolean;
@@ -20,7 +22,10 @@ export function getMeshtasticStreamsDiagnostics(): MeshtasticStreamsDiagnostics 
       typeof ReadableStream !== 'undefined' &&
       typeof ReadableStream.prototype.pipeTo === 'function',
     hasWritableStream: typeof WritableStream !== 'undefined',
-    userAgentSnippet: ua.length > 160 ? `${ua.slice(0, 160)}…` : ua,
+    userAgentSnippet:
+      ua.length > MAX_USER_AGENT_SNIPPET_LENGTH
+        ? `${ua.slice(0, MAX_USER_AGENT_SNIPPET_LENGTH)}…`
+        : ua,
   };
 }
 
@@ -70,9 +75,9 @@ export function assertTransportReadyForMeshDevice(transport: unknown, context: s
   console.error('[connection] Transport missing streams for MeshDevice', context, {
     ...getMeshtasticStreamsDiagnostics(),
     hasFromDevice: t.fromDevice != null,
-    fromHasPipeTo: typeof (t.fromDevice as { pipeTo?: unknown })?.pipeTo === 'function',
+    fromHasPipeTo: isReadableStreamWithPipeTo(t.fromDevice),
     hasToDevice: t.toDevice != null,
-    toHasGetWriter: typeof (t.toDevice as { getWriter?: unknown })?.getWriter === 'function',
+    toHasGetWriter: isWritableStreamWithWriter(t.toDevice),
   });
   throw new Error(
     `${context}: Meshtastic transport is missing readable/writable streams (fromDevice/toDevice). Reconnect USB serial or try another transport; include app version if reporting.`,

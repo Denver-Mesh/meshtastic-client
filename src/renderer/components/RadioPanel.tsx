@@ -11,6 +11,7 @@ import type { OurPosition } from '../lib/gpsSource';
 import type { MeshcoreAutoaddWireState } from '../lib/meshcoreContactAutoAdd';
 import {
   MESHCORE_CHANNEL_INDEX_MAX,
+  MESHCORE_CONTACTS_CRITICAL_THRESHOLD,
   MESHCORE_MAX_CONTACTS,
   meshcoreDeriveChannelKeyHexFromName,
   meshcoreSelfInfoBwToDisplayKhz,
@@ -194,7 +195,8 @@ function ContactCountBadge() {
     }
   };
 
-  const isNearCapacity = contactCount !== null && contactCount >= 300;
+  const isNearCapacity =
+    contactCount !== null && contactCount >= MESHCORE_CONTACTS_CRITICAL_THRESHOLD;
 
   return (
     <div className="flex items-center gap-2">
