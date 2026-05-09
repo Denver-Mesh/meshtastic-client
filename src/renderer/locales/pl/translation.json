@@ -1140,7 +1140,8 @@
       "autoConnectTimeout": "Upłynął limit czasu automatycznego łączenia.",
       "autoConnectFailed": "Automatyczne połączenie nie powiodło się",
       "connectionFailed": "Połączenie nie powiodło się"
-    }
+    },
+    "cancelMqttConnect": "Anulować"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Usuń wiersze routingu starsze niż {{hours}} godzin (1–168)",

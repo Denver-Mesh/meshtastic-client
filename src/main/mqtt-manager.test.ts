@@ -1686,3 +1686,71 @@ describe('onMessage — undecodable ServiceEnvelope signature cache', () => {
     expect(decodeSpy).toHaveBeenCalledTimes(1);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reconnect backoff + connect watchdog
+// ─────────────────────────────────────────────────────────────────────────────
+
+function getLastMockMqttClient(): {
+  on: ReturnType<typeof vi.fn>;
+  end: ReturnType<typeof vi.fn>;
+  removeAllListeners: ReturnType<typeof vi.fn>;
+} {
+  const r = vi.mocked(mqtt.connect).mock.results;
+  if (r.length === 0) throw new Error('mqtt.connect not called');
+  return r[r.length - 1].value as {
+    on: ReturnType<typeof vi.fn>;
+    end: ReturnType<typeof vi.fn>;
+    removeAllListeners: ReturnType<typeof vi.fn>;
+  };
+}
+
+function lastHandler(client: { on: ReturnType<typeof vi.fn> }, event: string): () => void {
+  const hits = client.on.mock.calls.filter((c: unknown[]) => c[0] === event);
+  const fn = hits[hits.length - 1]?.[1];
+  if (typeof fn !== 'function') throw new Error(`no ${event} handler`);
+  return fn as () => void;
+}
+
+describe('MQTTManager reconnect backoff + connect watchdog', () => {
+  const settings: MQTTSettings = {
+    server: 'localhost',
+    port: 1883,
+    username: '',
+    password: '',
+    topicPrefix: 'msh/US/',
+    autoLaunch: false,
+    maxRetries: 3,
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.mocked(mqtt.connect).mockClear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('runs scheduled _doConnect after long backoff while UI status is disconnected', () => {
+    const manager = new MQTTManager();
+    manager.connect(settings);
+    expect(manager.getStatus()).toBe('connecting');
+    const client = getLastMockMqttClient();
+    lastHandler(client, 'close')();
+    expect(manager.getStatus()).toBe('disconnected');
+    vi.advanceTimersByTime(600_000);
+    expect(vi.mocked(mqtt.connect)).toHaveBeenCalledTimes(2);
+  });
+
+  it('connect watchdog calls end and emits error when CONNACK never arrives', () => {
+    const manager = new MQTTManager();
+    const errorSpy = vi.fn();
+    manager.on('error', errorSpy);
+    manager.connect(settings);
+    const client = getLastMockMqttClient();
+    vi.advanceTimersByTime(12_000);
+    expect(client.end).toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('timed out before MQTT session'));
+  });
+});

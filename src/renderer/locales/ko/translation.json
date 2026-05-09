@@ -1140,7 +1140,8 @@
       "autoConnectTimeout": "자동 연결 시간이 초과되었습니다.",
       "autoConnectFailed": "자동 연결 실패",
       "connectionFailed": "연결 실패"
-    }
+    },
+    "cancelMqttConnect": "취소"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "{{hours}}시간(1~168)보다 오래된 라우팅 행 삭제",

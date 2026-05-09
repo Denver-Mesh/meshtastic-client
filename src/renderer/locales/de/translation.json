@@ -1140,7 +1140,8 @@
       "autoConnectTimeout": "Zeitüberschreitung bei der automatischen Verbindung.",
       "autoConnectFailed": "Automatische Verbindung fehlgeschlagen",
       "connectionFailed": "Verbindung fehlgeschlagen"
-    }
+    },
+    "cancelMqttConnect": "Stornieren"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Wirf Routingreihen, die älter als {{hours}} Stunden (1-168) sind",

@@ -1140,7 +1140,8 @@
       "autoConnectTimeout": "La connexion automatique a expiré.",
       "autoConnectFailed": "Échec de la connexion automatique",
       "connectionFailed": "La connexion a échoué"
-    }
+    },
+    "cancelMqttConnect": "Annuler"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Collectez lignes de routage de plus de {{hours}} heures (1–168)",

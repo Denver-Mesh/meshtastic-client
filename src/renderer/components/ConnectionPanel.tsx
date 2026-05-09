@@ -2346,7 +2346,23 @@ export default function ConnectionPanel({
               {t('connectionPanel.autoConnect')}
             </label>
           </div>
-          <div className="pt-1">
+          <div className={`flex pt-1 ${mqttStatus === 'connecting' ? 'gap-2' : 'flex-col'}`}>
+            {mqttStatus === 'connecting' && (
+              <button
+                type="button"
+                aria-label={t('connectionPanel.cancelMqttConnect')}
+                onClick={() =>
+                  window.electronAPI.mqtt
+                    .disconnect(protocol === 'meshcore' ? 'meshcore' : 'meshtastic')
+                    .catch((err: unknown) => {
+                      console.warn('[ConnectionPanel] mqtt.disconnect (cancel) failed:', err);
+                    })
+                }
+                className="bg-secondary-dark flex-1 rounded-lg border border-gray-600 px-4 py-2.5 text-sm font-medium text-gray-200 transition-colors hover:border-gray-500 hover:bg-gray-700"
+              >
+                {t('connectionPanel.cancelMqttConnect')}
+              </button>
+            )}
             <button
               onClick={async () => {
                 setMqttError(null);
@@ -2408,7 +2424,7 @@ export default function ConnectionPanel({
                 });
               }}
               disabled={mqttStatus === 'connecting'}
-              className="w-full rounded-lg bg-green-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-400 disabled:opacity-40"
+              className={`rounded-lg bg-green-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-400 disabled:opacity-40 ${mqttStatus === 'connecting' ? 'flex-1' : 'w-full'}`}
             >
               {t('connectionPanel.connectMqtt')}
             </button>

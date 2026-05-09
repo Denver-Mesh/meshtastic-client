@@ -1140,7 +1140,8 @@
       "autoConnectTimeout": "Connessione automatica scaduta.",
       "autoConnectFailed": "Connessione automatica non riuscita",
       "connectionFailed": "Connessione non riuscita"
-    }
+    },
+    "cancelMqttConnect": "Cancellare"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Elimina le righe di routing più vecchie di {{hours}} ore (1–168)",

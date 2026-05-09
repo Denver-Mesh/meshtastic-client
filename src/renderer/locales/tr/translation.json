@@ -1140,7 +1140,8 @@
       "autoConnectTimeout": "Otomatik bağlantı zaman aşımına uğradı.",
       "autoConnectFailed": "Otomatik bağlantı başarısız oldu",
       "connectionFailed": "Bağlantı başarısız oldu"
-    }
+    },
+    "cancelMqttConnect": "İptal etmek"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "{{hours}} saatten (1-168) daha eski olan yönlendirme satırlarını bırak",

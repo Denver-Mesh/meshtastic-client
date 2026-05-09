@@ -525,12 +525,10 @@ export class MeshcoreMqttAdapter extends EventEmitter {
       console.warn(
         `[MeshCore MQTT] Reconnecting in ${delay}ms (attempt ${this.retryCount}/${maxRetries})`,
       );
-      this.setStatus('connecting');
       this.reconnectTimer = setTimeout(() => {
         this.reconnectTimer = null;
-        // Bug 5 fix: check status === 'connecting', not !== 'disconnected', so a manual
-        // connect() call during the window does not trigger a second _doConnect().
-        if (this.status === 'connecting' && this.lastSettings) {
+        // disconnect() clears this timer; only lastSettings guard is needed for backoff → _doConnect.
+        if (this.lastSettings) {
           this._doConnect(this.lastSettings);
         }
       }, delay);

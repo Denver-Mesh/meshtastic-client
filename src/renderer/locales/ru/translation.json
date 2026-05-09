@@ -1139,7 +1139,8 @@
       "autoConnectTimeout": "Время автоматического подключения истекло.",
       "autoConnectFailed": "Автоподключение не удалось",
       "connectionFailed": "Соединение не удалось"
-    }
+    },
+    "cancelMqttConnect": "Отмена"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Удалить строки маршрутизации старше {{hours}} часов (1–168).",

@@ -1040,6 +1040,7 @@
     "channelPsks": "Channel PSKs",
     "autoConnect": "Auto-connect on application start",
     "connectMqtt": "Connect",
+    "cancelMqttConnect": "Cancel",
     "radioConnection": "Radio Connection",
     "connectionType": "Connection Type",
     "myNode": "My Node",

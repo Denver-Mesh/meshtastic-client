@@ -1140,7 +1140,8 @@
       "autoConnectTimeout": "Vypršel časový limit automatického připojení.",
       "autoConnectFailed": "Automatické připojení se nezdařilo",
       "connectionFailed": "Připojení se nezdařilo"
-    }
+    },
+    "cancelMqttConnect": "Zrušit"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Vypustit řádky směrování starší než {{hours}} hodin (1–168)",

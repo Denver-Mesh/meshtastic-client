@@ -1140,7 +1140,8 @@
       "autoConnectTimeout": "自動接続がタイムアウトしました。",
       "autoConnectFailed": "自動接続に失敗しました",
       "connectionFailed": "接続に失敗しました"
-    }
+    },
+    "cancelMqttConnect": "キャンセル"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "{{hours}} 時間より古いルーティング行を削除 (1 ～ 168)",
