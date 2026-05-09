@@ -280,6 +280,8 @@ export interface ChatMessage {
   replyPreviewText?: string;
   /** Sender name of the replied-to message */
   replyPreviewSender?: string;
+  /** RF-derived hops away for this receive when known (Meshtastic hopStart−hopLimit; MeshCore path hops). */
+  rxHops?: number;
 }
 
 export interface TelemetryPoint {
@@ -407,7 +409,7 @@ declare global {
         deleteNodesWithoutLongname: () => Promise<number>;
         prunePositionHistory: (days: number) => Promise<number>;
         clearNodePositions: () => Promise<unknown>;
-        updateMessageReceivedVia: (packetId: number) => Promise<unknown>;
+        updateMessageReceivedVia: (packetId: number, rxHops?: number | null) => Promise<unknown>;
         updateMessagePacketId: (oldPacketId: number, newPacketId: number) => Promise<unknown>;
         saveMeshcoreMessage: (message: {
           sender_id?: number | null;
@@ -424,6 +426,7 @@ declare global {
           rx_packet_fingerprint?: string | null;
           reply_preview_text?: string | null;
           reply_preview_sender?: string | null;
+          rx_hops?: number | null;
         }) => Promise<unknown>;
         updateMeshcoreContactRfTransport: (
           nodeId: number,

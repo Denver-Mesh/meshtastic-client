@@ -453,6 +453,11 @@ function validateSaveMessage(message: unknown): asserts message is Record<string
     throw new Error('db:saveMessage: timestamp must be a number');
   if (m.timestamp != null && !Number.isFinite(m.timestamp))
     throw new Error('db:saveMessage: invalid timestamp');
+  if (m.rxHops != null) {
+    const h = Number(m.rxHops);
+    if (!Number.isInteger(h) || h < 0)
+      throw new Error('db:saveMessage: rxHops must be a non-negative integer');
+  }
 }
 
 function validateSaveNode(
@@ -508,6 +513,11 @@ function validateSaveMeshcoreMessage(msg: unknown): asserts msg is Record<string
       !/^[0-9A-Fa-f]{8}$/.test(m.rx_packet_fingerprint)
     )
       throw new Error('db:saveMeshcoreMessage: rx_packet_fingerprint must be 8 hex chars');
+  }
+  if (m.rx_hops != null) {
+    const h = Number(m.rx_hops);
+    if (!Number.isInteger(h) || h < 0)
+      throw new Error('db:saveMeshcoreMessage: rx_hops must be a non-negative integer');
   }
 }
 
@@ -2667,8 +2677,8 @@ ipcMain.handle('db:saveMessage', (_event, message) => {
     validateSaveMessage(message);
     const db = getDatabase();
     const stmt = db.prepareOnce(`
-      INSERT OR IGNORE INTO messages (sender_id, sender_name, payload, channel, timestamp, packet_id, status, error, emoji, reply_id, to_node, mqtt_status, received_via, reply_preview_text, reply_preview_sender)
-      VALUES (@sender_id, @sender_name, @payload, @channel, @timestamp, @packet_id, @status, @error, @emoji, @reply_id, @to_node, @mqtt_status, @received_via, @reply_preview_text, @reply_preview_sender)
+      INSERT OR IGNORE INTO messages (sender_id, sender_name, payload, channel, timestamp, packet_id, status, error, emoji, reply_id, to_node, mqtt_status, received_via, reply_preview_text, reply_preview_sender, rx_hops)
+      VALUES (@sender_id, @sender_name, @payload, @channel, @timestamp, @packet_id, @status, @error, @emoji, @reply_id, @to_node, @mqtt_status, @received_via, @reply_preview_text, @reply_preview_sender, @rx_hops)
     `);
     const validReceivedVia = ['rf', 'mqtt', 'both'];
     return stmt.run({
@@ -2690,6 +2700,12 @@ ipcMain.handle('db:saveMessage', (_event, message) => {
           : null,
       reply_preview_text: message.replyPreviewText ?? null,
       reply_preview_sender: message.replyPreviewSender ?? null,
+      rx_hops:
+        message.rxHops != null &&
+        typeof message.rxHops === 'number' &&
+        Number.isFinite(message.rxHops)
+          ? Math.trunc(message.rxHops)
+          : null,
     });
   } catch (err) {
     console.error(
@@ -2707,7 +2723,8 @@ ipcMain.handle('db:getMessages', (_event, channel?: number, limit = 200) => {
     const columns = `id, sender_id, sender_name, payload, channel, timestamp,
          packet_id AS packetId, status, error, emoji, reply_id AS replyId, to_node,
          mqtt_status AS mqttStatus, received_via AS receivedVia,
-         reply_preview_text AS replyPreviewText, reply_preview_sender AS replyPreviewSender`;
+         reply_preview_text AS replyPreviewText, reply_preview_sender AS replyPreviewSender,
+         rx_hops AS rxHops`;
     let rows: any[];
     if (channel != null) {
       const ch = safeNonNegativeInt(channel);
@@ -3283,23 +3300,30 @@ ipcMain.handle(
 );
 
 // ─── IPC: Upgrade received_via to 'both' when packet arrives on second transport ─
-ipcMain.handle('db:updateMessageReceivedVia', (_event, packetId: number) => {
-  try {
-    const pid = safeNonNegativeInt(packetId);
-    const db = getDatabase();
-    return db
-      .prepareOnce(
-        "UPDATE messages SET received_via = 'both' WHERE packet_id = ? AND received_via != 'both'",
-      )
-      .run(pid);
-  } catch (err) {
-    console.error(
-      '[IPC] db:updateMessageReceivedVia failed:',
-      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
-    );
-    throw err;
-  }
-});
+ipcMain.handle(
+  'db:updateMessageReceivedVia',
+  (_event, packetId: number, rxHops?: number | null) => {
+    try {
+      const pid = safeNonNegativeInt(packetId);
+      const db = getDatabase();
+      const hopBind =
+        rxHops != null && typeof rxHops === 'number' && Number.isFinite(rxHops)
+          ? Math.trunc(rxHops)
+          : null;
+      return db
+        .prepareOnce(
+          "UPDATE messages SET received_via = 'both', rx_hops = COALESCE(?, rx_hops) WHERE packet_id = ? AND received_via != 'both'",
+        )
+        .run(hopBind, pid);
+    } catch (err) {
+      console.error(
+        '[IPC] db:updateMessageReceivedVia failed:',
+        sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+      );
+      throw err;
+    }
+  },
+);
 
 /** Replace optimistic temp `packet_id` with the real mesh id from `sendText()` (tapbacks key on `reply_id`). */
 ipcMain.handle('db:updateMessagePacketId', (_event, oldPacketId: number, newPacketId: number) => {
@@ -3556,8 +3580,8 @@ ipcMain.handle('db:saveMeshcoreMessage', (_event, message) => {
     return db
       .prepareOnce(
         'INSERT OR IGNORE INTO meshcore_messages ' +
-          '(sender_id, sender_name, payload, channel_idx, timestamp, status, packet_id, emoji, reply_id, to_node, received_via, rx_packet_fingerprint, reply_preview_text, reply_preview_sender) ' +
-          'VALUES (@sender_id, @sender_name, @payload, @channel_idx, @timestamp, @status, @packet_id, @emoji, @reply_id, @to_node, @received_via, @rx_packet_fingerprint, @reply_preview_text, @reply_preview_sender)',
+          '(sender_id, sender_name, payload, channel_idx, timestamp, status, packet_id, emoji, reply_id, to_node, received_via, rx_packet_fingerprint, reply_preview_text, reply_preview_sender, rx_hops) ' +
+          'VALUES (@sender_id, @sender_name, @payload, @channel_idx, @timestamp, @status, @packet_id, @emoji, @reply_id, @to_node, @received_via, @rx_packet_fingerprint, @reply_preview_text, @reply_preview_sender, @rx_hops)',
       )
       .run({
         sender_id: m.sender_id != null ? Number(m.sender_id) : null,
@@ -3574,6 +3598,10 @@ ipcMain.handle('db:saveMeshcoreMessage', (_event, message) => {
         rx_packet_fingerprint: rxFp,
         reply_preview_text: replyPreviewText,
         reply_preview_sender: replyPreviewSender,
+        rx_hops:
+          m.rx_hops != null && Number.isFinite(Number(m.rx_hops))
+            ? Math.trunc(Number(m.rx_hops))
+            : null,
       });
   } catch (err) {
     console.error(

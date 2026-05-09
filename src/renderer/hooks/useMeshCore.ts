@@ -222,6 +222,7 @@ function messageToDbRow(
     rx_packet_fingerprint: msg.rxPacketFingerprintHex ?? null,
     reply_preview_text: msg.replyPreviewText ?? null,
     reply_preview_sender: msg.replyPreviewSender ?? null,
+    rx_hops: msg.rxHops != null && Number.isFinite(msg.rxHops) ? Math.trunc(msg.rxHops) : null,
   };
 }
 
@@ -968,6 +969,7 @@ interface MeshcoreMessageDbRow {
   rx_packet_fingerprint?: string | null;
   reply_preview_text?: string | null;
   reply_preview_sender?: string | null;
+  rx_hops?: number | null;
 }
 
 /**
@@ -1051,6 +1053,7 @@ function mapMeshcoreDbRowsToChatMessages(rows: MeshcoreMessageDbRow[]): ChatMess
       replyPreviewText: typeof r.reply_preview_text === 'string' ? r.reply_preview_text : undefined,
       replyPreviewSender:
         typeof r.reply_preview_sender === 'string' ? r.reply_preview_sender : undefined,
+      rxHops: coerceOptionalDbInt(r.rx_hops),
     });
   }
   return mapped;
@@ -2512,6 +2515,15 @@ export function useMeshCore() {
           logTransportLineAsDevice(d.text);
           return;
         }
+        const dmRfMatch = rawPacketsRef.current
+          .slice()
+          .reverse()
+          .find(
+            (e) =>
+              e.payloadTypeString === 'TXT_MSG' &&
+              e.fromNodeId === null &&
+              now - e.ts <= MESHCORE_CHAT_CORRELATE_WINDOW_MS,
+          );
         addMessage(
           buildMeshcoreDmIncomingMessage(messagesRef.current, {
             rawText: d.text,
@@ -2519,6 +2531,7 @@ export function useMeshCore() {
             displayName: sender?.long_name ?? `Node-${senderId.toString(16).toUpperCase()}`,
             timestamp: d.senderTimestamp * 1000,
             receivedVia: 'rf',
+            rxHops: dmRfMatch != null ? dmRfMatch.hopCount : undefined,
             peerNodeId: senderId,
             myNodeId: myNodeNumRef.current || 0,
             to: myNodeNumRef.current || undefined,
@@ -2613,6 +2626,7 @@ export function useMeshCore() {
             channel: d.channelIdx,
             timestamp: d.senderTimestamp * 1000,
             receivedVia: 'rf',
+            rxHops: rfMatch != null ? rfMatch.hopCount : undefined,
           }),
         );
         if (mqttStatusRef.current === 'connected') {

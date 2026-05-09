@@ -86,8 +86,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     deleteNodesWithoutLongname: () => ipcRenderer.invoke('db:deleteNodesWithoutLongname'),
     prunePositionHistory: (days: number) => ipcRenderer.invoke('db:prunePositionHistory', days),
     clearNodePositions: () => ipcRenderer.invoke('db:clearNodePositions'),
-    updateMessageReceivedVia: (packetId: number) =>
-      ipcRenderer.invoke('db:updateMessageReceivedVia', packetId),
+    updateMessageReceivedVia: (packetId: number, rxHops?: number | null) =>
+      ipcRenderer.invoke('db:updateMessageReceivedVia', packetId, rxHops),
 
     getMeshcoreMessages: (channelIdx?: number, limit?: number) =>
       ipcRenderer.invoke('db:getMeshcoreMessages', channelIdx, limit),
@@ -109,6 +109,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
       to_node?: number | null;
       received_via?: string | null;
       rx_packet_fingerprint?: string | null;
+      reply_preview_text?: string | null;
+      reply_preview_sender?: string | null;
+      rx_hops?: number | null;
     }) => ipcRenderer.invoke('db:saveMeshcoreMessage', message),
     saveMeshcoreContact: (contact: {
       node_id: number;

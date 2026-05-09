@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
 
-import type { MeshNode } from '../lib/types';
+import type { ChatMessage, MeshNode } from '../lib/types';
 import ChatPanel, { getDistFromChatBottom } from './ChatPanel';
 import { ToastProvider } from './Toast';
 
@@ -1132,4 +1132,42 @@ describe('ChatPanel tapback reaction picker', () => {
       expect(document.querySelector('emoji-picker')).not.toBeInTheDocument();
     },
   );
+});
+
+describe('ChatPanel RF hop label', () => {
+  const defaultProps = {
+    messages: [] as ChatMessage[],
+    channels: [{ index: 0, name: 'General' }],
+    myNodeNum: 99,
+    onSend: vi.fn().mockResolvedValue(undefined),
+    onReact: vi.fn().mockResolvedValue(undefined),
+    onResend: vi.fn(),
+    onNodeClick: vi.fn(),
+    isConnected: true,
+    nodes: new Map(),
+    isActive: true,
+  };
+
+  it('shows rx hops for MeshCore RF incoming messages', async () => {
+    render(
+      <ToastProvider>
+        <ChatPanel
+          {...defaultProps}
+          protocol="meshcore"
+          messages={[
+            {
+              sender_id: 1,
+              sender_name: 'Peer',
+              payload: 'hello mesh',
+              channel: 0,
+              timestamp: Date.now(),
+              receivedVia: 'rf',
+              rxHops: 3,
+            },
+          ]}
+        />
+      </ToastProvider>,
+    );
+    expect(await screen.findByText('3 hops')).toBeInTheDocument();
+  });
 });

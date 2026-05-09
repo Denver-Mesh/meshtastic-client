@@ -30,6 +30,7 @@ import { containsMeshCorePattern, extractRssiSnr } from '../lib/foreignLoraDetec
 import type { OurPosition } from '../lib/gpsSource';
 import { resolveOurPosition } from '../lib/gpsSource';
 import { meshtasticHwModelName } from '../lib/hardwareModels';
+import { meshtasticComputedRfHopsAway } from '../lib/meshtasticRfHops';
 import {
   mergeMeshtasticTraceRouteIntoResultsMap,
   meshtasticTraceRouteLookupKeys,
@@ -1172,6 +1173,8 @@ export function useDevice() {
 
         const packetIdCoerced = meshtasticWireUint32AllowZero(meshPacket.id);
 
+        const incomingRxHops = !isEcho ? meshtasticComputedRfHopsAway(meshPacket) : undefined;
+
         const msgBase: ChatMessage = {
           sender_id: meshPacket.from,
           sender_name: getNodeName(meshPacket.from),
@@ -1183,6 +1186,7 @@ export function useDevice() {
           emoji,
           replyId,
           to: meshPacket.to && meshPacket.to !== BROADCAST_ADDR ? meshPacket.to : undefined,
+          ...(incomingRxHops !== undefined ? { rxHops: incomingRxHops } : {}),
         };
         const msg = enrichMeshtasticReplyPreviews(msgBase, messagesRef.current, getNodeName);
 
@@ -1190,14 +1194,19 @@ export function useDevice() {
         if (!isEcho && !msg.emoji && msg.packetId && isDuplicate(msg.packetId)) {
           // Upgrade receivedVia to 'both' if this packet was already saved via MQTT
           const rfDedupPacketId = msg.packetId;
+          const rfDedupHops = meshtasticComputedRfHopsAway(meshPacket);
           setMessages((prev) =>
             prev.map((m) =>
               m.packetId === rfDedupPacketId && m.receivedVia === 'mqtt'
-                ? { ...m, receivedVia: 'both' as const }
+                ? {
+                    ...m,
+                    receivedVia: 'both' as const,
+                    rxHops: m.rxHops ?? rfDedupHops,
+                  }
                 : m,
             ),
           );
-          void window.electronAPI.db.updateMessageReceivedVia(rfDedupPacketId);
+          void window.electronAPI.db.updateMessageReceivedVia(rfDedupPacketId, rfDedupHops);
           return;
         }
 
@@ -1825,11 +1834,7 @@ export function useDevice() {
 
         if (!mp.from) return;
 
-        const hopStart = mp.hopStart ?? 0;
-        const hopLimit = mp.hopLimit ?? 0;
-        const packetViaMqtt = mp.viaMqtt === true;
-        const computedHopsAway =
-          !packetViaMqtt && hopStart > 0 && hopLimit <= hopStart ? hopStart - hopLimit : undefined;
+        const computedHopsAway = meshtasticComputedRfHopsAway(mp);
 
         // Record RF path for packet redundancy tracking (skip id 0 — protobuf: no unique id for no-ack/non-broadcast)
         const rawId = Number(mp.id);

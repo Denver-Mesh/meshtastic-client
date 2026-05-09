@@ -1229,14 +1229,30 @@ function ChatPanel({
                           <ChatPayloadText text={msg.payload} query={searchQuery} />
                         </p>
 
-                        {/* Transport indicator for incoming messages (MeshCore is RF-first; hide redundant RF-only badge) */}
+                        {/* Transport + RF hop count (incoming) */}
                         {!isOwn &&
-                          msg.receivedVia &&
-                          (protocol !== 'meshcore' ||
-                            msg.receivedVia === 'mqtt' ||
-                            msg.receivedVia === 'both') && (
-                            <div className="mt-0.5 flex items-center justify-end">
-                              <TransportBadge via={msg.receivedVia} />
+                          ((msg.receivedVia &&
+                            (protocol !== 'meshcore' ||
+                              msg.receivedVia === 'mqtt' ||
+                              msg.receivedVia === 'both')) ||
+                            (msg.rxHops != null &&
+                              (msg.receivedVia === 'rf' || msg.receivedVia === 'both'))) && (
+                            <div className="mt-0.5 flex items-center justify-end gap-2">
+                              {msg.rxHops != null &&
+                                (msg.receivedVia === 'rf' || msg.receivedVia === 'both') && (
+                                  <span
+                                    className="text-[10px] text-gray-500"
+                                    title={t('nodeDetailModal.hopsFromRoutingTitle')}
+                                  >
+                                    {t('nodeDetailModal.hopLabel', { count: msg.rxHops })}
+                                  </span>
+                                )}
+                              {msg.receivedVia &&
+                                (protocol !== 'meshcore' ||
+                                  msg.receivedVia === 'mqtt' ||
+                                  msg.receivedVia === 'both') && (
+                                  <TransportBadge via={msg.receivedVia} />
+                                )}
                             </div>
                           )}
 

@@ -9,7 +9,7 @@ import type { NodeSqliteDB } from './db-compat';
 import { sanitizeLogMessage } from './log-service';
 
 /** Bumped when ensureSchema behavior changes in a non-idempotent way (rare). */
-export const CURRENT_SCHEMA_VERSION = 29;
+export const CURRENT_SCHEMA_VERSION = 30;
 
 /**
  * Tables only — used during upgrades so we do not CREATE UNIQUE indexes before
@@ -32,7 +32,8 @@ export const CANONICAL_TABLES_DDL = `
         mqtt_status TEXT,
         received_via TEXT,
         reply_preview_text TEXT,
-        reply_preview_sender TEXT
+        reply_preview_sender TEXT,
+        rx_hops INTEGER
       );
 
       CREATE TABLE IF NOT EXISTS nodes (
@@ -98,7 +99,8 @@ export const CANONICAL_TABLES_DDL = `
         received_via TEXT,
         rx_packet_fingerprint TEXT,
         reply_preview_text TEXT,
-        reply_preview_sender TEXT
+        reply_preview_sender TEXT,
+        rx_hops INTEGER
       );
 
       CREATE TABLE IF NOT EXISTS position_history (
@@ -216,6 +218,7 @@ export const DESIRED_COLUMNS: Readonly<Record<string, Readonly<Record<string, st
     received_via: 'TEXT',
     reply_preview_text: 'TEXT',
     reply_preview_sender: 'TEXT',
+    rx_hops: 'INTEGER',
   },
   nodes: {
     long_name: 'TEXT',
@@ -276,6 +279,7 @@ export const DESIRED_COLUMNS: Readonly<Record<string, Readonly<Record<string, st
     rx_packet_fingerprint: 'TEXT',
     reply_preview_text: 'TEXT',
     reply_preview_sender: 'TEXT',
+    rx_hops: 'INTEGER',
   },
   position_history: {
     node_id: 'INTEGER NOT NULL',

@@ -61,6 +61,11 @@ describe('Meshtastic message DB IPC (source contract)', () => {
     expect(INDEX_SOURCE).toContain("'db:updateMessagePacketId'");
     expect(INDEX_SOURCE).toMatch(/UPDATE messages SET packet_id = \? WHERE packet_id = \?/);
   });
+
+  it('updateMessageReceivedVia merges rx_hops with COALESCE when upgrading to both', () => {
+    expect(INDEX_SOURCE).toContain("'db:updateMessageReceivedVia'");
+    expect(INDEX_SOURCE).toMatch(/rx_hops = COALESCE\(\?, rx_hops\)/);
+  });
 });
 
 describe('MeshCore DB IPC (source contract)', () => {
