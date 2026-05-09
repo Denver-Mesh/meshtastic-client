@@ -13,6 +13,26 @@ interface PacketMessage {
   timestamp: number;
 }
 
+/** Narrow unknown module config payloads from IPC/protobuf to a plain record for field reads. */
+function moduleConfigSlice(raw: unknown): Record<string, unknown> {
+  if (typeof raw === 'object' && raw !== null && !Array.isArray(raw)) {
+    return raw as Record<string, unknown>;
+  }
+  return {};
+}
+
+function cfgBool(v: unknown, fallback: boolean): boolean {
+  return typeof v === 'boolean' ? v : fallback;
+}
+
+function cfgNum(v: unknown, fallback: number): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+}
+
+function cfgStr(v: unknown, fallback: string): string {
+  return typeof v === 'string' ? v : fallback;
+}
+
 interface Props {
   moduleConfigs: Record<string, unknown>;
   onSetModuleConfig: (config: unknown) => Promise<void>;
@@ -311,115 +331,127 @@ export default function ModulePanel({
   const [applyingSection, setApplyingSection] = useState<string | null>(null);
 
   // ─── Telemetry module ──────────────────────────────────────────
-  const telCfg = (moduleConfigs.telemetry as any) ?? {};
+  const telCfg = moduleConfigSlice(moduleConfigs.telemetry);
   const [telDeviceInterval, setTelDeviceInterval] = useState<number>(
-    telCfg.deviceUpdateInterval ?? 1800,
+    cfgNum(telCfg.deviceUpdateInterval, 1800),
   );
   const [telEnvInterval, setTelEnvInterval] = useState<number>(
-    telCfg.environmentUpdateInterval ?? 1800,
+    cfgNum(telCfg.environmentUpdateInterval, 1800),
   );
   const [telEnvEnabled, setTelEnvEnabled] = useState<boolean>(
-    telCfg.environmentMeasurementEnabled ?? false,
+    cfgBool(telCfg.environmentMeasurementEnabled, false),
   );
   const [telPowerEnabled, setTelPowerEnabled] = useState<boolean>(
-    telCfg.powerMeasurementEnabled ?? false,
+    cfgBool(telCfg.powerMeasurementEnabled, false),
   );
   const [telAirQualityEnabled, setTelAirQualityEnabled] = useState<boolean>(
-    telCfg.airQualityEnabled ?? false,
+    cfgBool(telCfg.airQualityEnabled, false),
   );
 
   // ─── MQTT relay module ─────────────────────────────────────────
-  const mqttCfg = (moduleConfigs.mqtt as any) ?? {};
-  const [mqttEnabled, setMqttEnabled] = useState<boolean>(mqttCfg.enabled ?? false);
-  const [mqttAddress, setMqttAddress] = useState<string>(mqttCfg.address ?? '');
-  const [mqttUsername, setMqttUsername] = useState<string>(mqttCfg.username ?? '');
-  const [mqttPassword, setMqttPassword] = useState<string>(mqttCfg.password ?? '');
-  const [mqttEncryption, setMqttEncryption] = useState<boolean>(mqttCfg.encryptionEnabled ?? false);
-  const [mqttJson, setMqttJson] = useState<boolean>(mqttCfg.jsonEnabled ?? false);
-  const [mqttTls, setMqttTls] = useState<boolean>(mqttCfg.tlsEnabled ?? false);
-  const [mqttRoot, setMqttRoot] = useState<string>(mqttCfg.root ?? '');
+  const mqttCfg = moduleConfigSlice(moduleConfigs.mqtt);
+  const [mqttEnabled, setMqttEnabled] = useState<boolean>(cfgBool(mqttCfg.enabled, false));
+  const [mqttAddress, setMqttAddress] = useState<string>(cfgStr(mqttCfg.address, ''));
+  const [mqttUsername, setMqttUsername] = useState<string>(cfgStr(mqttCfg.username, ''));
+  const [mqttPassword, setMqttPassword] = useState<string>(cfgStr(mqttCfg.password, ''));
+  const [mqttEncryption, setMqttEncryption] = useState<boolean>(
+    cfgBool(mqttCfg.encryptionEnabled, false),
+  );
+  const [mqttJson, setMqttJson] = useState<boolean>(cfgBool(mqttCfg.jsonEnabled, false));
+  const [mqttTls, setMqttTls] = useState<boolean>(cfgBool(mqttCfg.tlsEnabled, false));
+  const [mqttRoot, setMqttRoot] = useState<string>(cfgStr(mqttCfg.root, ''));
   const [mqttMapReporting, setMqttMapReporting] = useState<boolean>(
-    mqttCfg.mapReportingEnabled ?? false,
+    cfgBool(mqttCfg.mapReportingEnabled, false),
   );
 
   // ─── Canned messages ──────────────────────────────────────────
-  const cannedCfg = (moduleConfigs.cannedMessage as any) ?? {};
-  const [cannedEnabled, setCannedEnabled] = useState<boolean>(cannedCfg.enabled ?? false);
-  const [cannedText, setCannedText] = useState<string>(cannedCfg.messages ?? '');
+  const cannedCfg = moduleConfigSlice(moduleConfigs.cannedMessage);
+  const [cannedEnabled, setCannedEnabled] = useState<boolean>(cfgBool(cannedCfg.enabled, false));
+  const [cannedText, setCannedText] = useState<string>(cfgStr(cannedCfg.messages, ''));
 
   // ─── Serial module ─────────────────────────────────────────────
-  const serialCfg = (moduleConfigs.serial as any) ?? {};
-  const [serialEnabled, setSerialEnabled] = useState<boolean>(serialCfg.enabled ?? false);
-  const [serialEcho, setSerialEcho] = useState<boolean>(serialCfg.echo ?? false);
-  const [serialBaud, setSerialBaud] = useState<number>(serialCfg.baud ?? 38400);
+  const serialCfg = moduleConfigSlice(moduleConfigs.serial);
+  const [serialEnabled, setSerialEnabled] = useState<boolean>(cfgBool(serialCfg.enabled, false));
+  const [serialEcho, setSerialEcho] = useState<boolean>(cfgBool(serialCfg.echo, false));
+  const [serialBaud, setSerialBaud] = useState<number>(cfgNum(serialCfg.baud, 38400));
 
   // ─── Range test module ─────────────────────────────────────────
-  const rangeCfg = (moduleConfigs.rangeTest as any) ?? {};
-  const [rangeEnabled, setRangeEnabled] = useState<boolean>(rangeCfg.enabled ?? false);
-  const [rangeSenderInterval, setRangeSenderInterval] = useState<number>(rangeCfg.sender ?? 0);
-  const [rangeSave, setRangeSave] = useState<boolean>(rangeCfg.save ?? false);
+  const rangeCfg = moduleConfigSlice(moduleConfigs.rangeTest);
+  const [rangeEnabled, setRangeEnabled] = useState<boolean>(cfgBool(rangeCfg.enabled, false));
+  const [rangeSenderInterval, setRangeSenderInterval] = useState<number>(
+    cfgNum(rangeCfg.sender, 0),
+  );
+  const [rangeSave, setRangeSave] = useState<boolean>(cfgBool(rangeCfg.save, false));
 
   // ─── Store and Forward module ──────────────────────────────────
-  const sfCfg = (moduleConfigs.storeForward as any) ?? {};
-  const [sfEnabled, setSfEnabled] = useState<boolean>(sfCfg.enabled ?? false);
-  const [sfHeartbeat, setSfHeartbeat] = useState<boolean>(sfCfg.heartbeat ?? false);
-  const [sfNumRecords, setSfNumRecords] = useState<number>(sfCfg.numRecords ?? 0);
-  const [sfHistoryMax, setSfHistoryMax] = useState<number>(sfCfg.historyReturnMax ?? 25);
-  const [sfHistoryWindow, setSfHistoryWindow] = useState<number>(sfCfg.historyReturnWindow ?? 7200);
+  const sfCfg = moduleConfigSlice(moduleConfigs.storeForward);
+  const [sfEnabled, setSfEnabled] = useState<boolean>(cfgBool(sfCfg.enabled, false));
+  const [sfHeartbeat, setSfHeartbeat] = useState<boolean>(cfgBool(sfCfg.heartbeat, false));
+  const [sfNumRecords, setSfNumRecords] = useState<number>(cfgNum(sfCfg.numRecords, 0));
+  const [sfHistoryMax, setSfHistoryMax] = useState<number>(cfgNum(sfCfg.historyReturnMax, 25));
+  const [sfHistoryWindow, setSfHistoryWindow] = useState<number>(
+    cfgNum(sfCfg.historyReturnWindow, 7200),
+  );
 
   // ─── Detection sensor module ──────────────────────────────────
-  const detectCfg = (moduleConfigs.detectionSensor as any) ?? {};
-  const [detectEnabled, setDetectEnabled] = useState<boolean>(detectCfg.enabled ?? false);
-  const [detectName, setDetectName] = useState<string>(detectCfg.name ?? '');
+  const detectCfg = moduleConfigSlice(moduleConfigs.detectionSensor);
+  const [detectEnabled, setDetectEnabled] = useState<boolean>(cfgBool(detectCfg.enabled, false));
+  const [detectName, setDetectName] = useState<string>(cfgStr(detectCfg.name, ''));
   const [detectMinBroadcast, setDetectMinBroadcast] = useState<number>(
-    detectCfg.minimumBroadcastSecs ?? 0,
+    cfgNum(detectCfg.minimumBroadcastSecs, 0),
   );
   const [detectStateBroadcast, setDetectStateBroadcast] = useState<number>(
-    detectCfg.stateBroadcastSecs ?? 0,
+    cfgNum(detectCfg.stateBroadcastSecs, 0),
   );
 
   // ─── Pax counter module ────────────────────────────────────────
-  const paxCfg = (moduleConfigs.paxcounter as any) ?? {};
-  const [paxEnabled, setPaxEnabled] = useState<boolean>(paxCfg.enabled ?? false);
-  const [paxInterval, setPaxInterval] = useState<number>(paxCfg.paxcounterUpdateInterval ?? 0);
+  const paxCfg = moduleConfigSlice(moduleConfigs.paxcounter);
+  const [paxEnabled, setPaxEnabled] = useState<boolean>(cfgBool(paxCfg.enabled, false));
+  const [paxInterval, setPaxInterval] = useState<number>(
+    cfgNum(paxCfg.paxcounterUpdateInterval, 0),
+  );
 
   // ─── External Notification module ─────────────────────────────
-  const extNotifCfg = (moduleConfigs.externalNotification as any) ?? {};
-  const [extEnabled, setExtEnabled] = useState<boolean>(extNotifCfg.enabled ?? false);
-  const [extActive, setExtActive] = useState<boolean>(extNotifCfg.active ?? false);
-  const [extOutput, setExtOutput] = useState<number>(extNotifCfg.output ?? 0);
-  const [extOutputBuzzer, setExtOutputBuzzer] = useState<number>(extNotifCfg.outputBuzzer ?? 0);
-  const [extOutputVibra, setExtOutputVibra] = useState<number>(extNotifCfg.outputVibra ?? 0);
-  const [extOutputMs, setExtOutputMs] = useState<number>(extNotifCfg.outputMs ?? 1000);
-  const [extNagTimeout, setExtNagTimeout] = useState<number>(extNotifCfg.nagTimeout ?? 0);
+  const extNotifCfg = moduleConfigSlice(moduleConfigs.externalNotification);
+  const [extEnabled, setExtEnabled] = useState<boolean>(cfgBool(extNotifCfg.enabled, false));
+  const [extActive, setExtActive] = useState<boolean>(cfgBool(extNotifCfg.active, false));
+  const [extOutput, setExtOutput] = useState<number>(cfgNum(extNotifCfg.output, 0));
+  const [extOutputBuzzer, setExtOutputBuzzer] = useState<number>(
+    cfgNum(extNotifCfg.outputBuzzer, 0),
+  );
+  const [extOutputVibra, setExtOutputVibra] = useState<number>(cfgNum(extNotifCfg.outputVibra, 0));
+  const [extOutputMs, setExtOutputMs] = useState<number>(cfgNum(extNotifCfg.outputMs, 1000));
+  const [extNagTimeout, setExtNagTimeout] = useState<number>(cfgNum(extNotifCfg.nagTimeout, 0));
   const [extAlertMessage, setExtAlertMessage] = useState<boolean>(
-    extNotifCfg.alertMessage ?? false,
+    cfgBool(extNotifCfg.alertMessage, false),
   );
   const [extAlertMessageBuzzer, setExtAlertMessageBuzzer] = useState<boolean>(
-    extNotifCfg.alertMessageBuzzer ?? false,
+    cfgBool(extNotifCfg.alertMessageBuzzer, false),
   );
   const [extAlertMessageVibra, setExtAlertMessageVibra] = useState<boolean>(
-    extNotifCfg.alertMessageVibra ?? false,
+    cfgBool(extNotifCfg.alertMessageVibra, false),
   );
-  const [extAlertBell, setExtAlertBell] = useState<boolean>(extNotifCfg.alertBell ?? false);
+  const [extAlertBell, setExtAlertBell] = useState<boolean>(cfgBool(extNotifCfg.alertBell, false));
   const [extAlertBellBuzzer, setExtAlertBellBuzzer] = useState<boolean>(
-    extNotifCfg.alertBellBuzzer ?? false,
+    cfgBool(extNotifCfg.alertBellBuzzer, false),
   );
   const [extAlertBellVibra, setExtAlertBellVibra] = useState<boolean>(
-    extNotifCfg.alertBellVibra ?? false,
+    cfgBool(extNotifCfg.alertBellVibra, false),
   );
-  const [extUsePwm, setExtUsePwm] = useState<boolean>(extNotifCfg.usePwm ?? false);
+  const [extUsePwm, setExtUsePwm] = useState<boolean>(cfgBool(extNotifCfg.usePwm, false));
   const [extUseI2sAsBuzzer, setExtUseI2sAsBuzzer] = useState<boolean>(
-    extNotifCfg.useI2sAsBuzzer ?? false,
+    cfgBool(extNotifCfg.useI2sAsBuzzer, false),
   );
 
   // ─── Ambient Lighting module ───────────────────────────────────
-  const ambientCfg = (moduleConfigs.ambientLighting as any) ?? {};
-  const [ambientLedState, setAmbientLedState] = useState<boolean>(ambientCfg.ledState ?? false);
-  const [ambientRed, setAmbientRed] = useState<number>(ambientCfg.red ?? 0);
-  const [ambientGreen, setAmbientGreen] = useState<number>(ambientCfg.green ?? 0);
-  const [ambientBlue, setAmbientBlue] = useState<number>(ambientCfg.blue ?? 0);
-  const [ambientCurrent, setAmbientCurrent] = useState<number>(ambientCfg.current ?? 10);
+  const ambientCfg = moduleConfigSlice(moduleConfigs.ambientLighting);
+  const [ambientLedState, setAmbientLedState] = useState<boolean>(
+    cfgBool(ambientCfg.ledState, false),
+  );
+  const [ambientRed, setAmbientRed] = useState<number>(cfgNum(ambientCfg.red, 0));
+  const [ambientGreen, setAmbientGreen] = useState<number>(cfgNum(ambientCfg.green, 0));
+  const [ambientBlue, setAmbientBlue] = useState<number>(cfgNum(ambientCfg.blue, 0));
+  const [ambientCurrent, setAmbientCurrent] = useState<number>(cfgNum(ambientCfg.current, 10));
 
   // ─── RTTTL Ringtone ───────────────────────────────────────────
   const [ringtoneText, setRingtoneText] = useState<string>(ringtone ?? '');

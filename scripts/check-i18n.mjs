@@ -153,7 +153,7 @@ const LOCALE_ARTIFACT_RES = [
 // these (e.g. "TAK" → "JA"/"PRENDRE"/"ТАК"; "Discord" → "Zwietracht").
 // Match as a whole-word token so substrings like "Meshtastic" inside
 // "non-Meshtastic" still count as a single brand occurrence.
-const PROTECTED_BRANDS = ['TAK', 'Discord', 'Meshtastic', 'MeshCore'];
+const PROTECTED_BRANDS = ['TAK', 'Discord', 'Meshtastic', 'MeshCore', 'MQTT'];
 
 function brandOccurrenceCount(text, brand) {
   // Whole-word, case-sensitive count.

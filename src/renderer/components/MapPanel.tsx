@@ -27,6 +27,8 @@ import {
 } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 
+import type { ElectronAPI } from '@/shared/electron-api.types';
+
 import type { LocationFilter } from '../App';
 import { formatCoordPair } from '../lib/coordUtils';
 import { getRoutingRowForNode, routingAnomalyNodeIds } from '../lib/diagnostics/diagnosticRows';
@@ -499,18 +501,13 @@ function LocateMeControl({
         }
         return;
       }
-      const result = await (window as any).electronAPI.getGpsFix();
-      if (result.status === 'error') {
+      const result = await (window.electronAPI as unknown as ElectronAPI).getGpsFix();
+      if ('status' in result && result.status === 'error') {
         addToast(result.message, 'error');
         return;
       }
-      if ('error' in result) {
-        addToast(
-          result.code === 'NO_FIX'
-            ? t('mapPanel.gpsHardwareUnavailable')
-            : t('mapPanel.locationError', { error: result.error }),
-          'error',
-        );
+      if (!('lat' in result) || !('lon' in result)) {
+        addToast(t('mapPanel.locationRequestFailed'), 'error');
         return;
       }
       const coords: [number, number] = [result.lat, result.lon];
@@ -981,7 +978,7 @@ export default function MapPanel({
     return counts;
   }, [nodesToRender, nodeStaleThresholdMs, nodeOfflineThresholdMs]);
 
-  const iconCreateFunction = useCallback((cluster: any) => {
+  const iconCreateFunction = useCallback((cluster: { getChildCount(): number }) => {
     const count = cluster.getChildCount();
     let size = 40;
     if (count > 10) size = 50;
