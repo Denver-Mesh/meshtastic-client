@@ -17,10 +17,10 @@
  * for each locale. Use --all or I18N_TRANSLATE_ALL=1 to backfill every key missing from a locale.
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { constants as http2Constants } from 'node:http2';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
@@ -35,6 +35,8 @@ const MYMEMORY_RATE_LIMIT_CODE = 'MYMEMORY_RATE_LIMIT';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const LOCALES_DIR = join(__dirname, '../src/renderer/locales');
+const LOCALES_ROOT = resolve(LOCALES_DIR);
+const WRITE_SUBPROCESS = join(__dirname, 'i18n-auto-translate-write-subprocess.mjs');
 
 const LT_URL = process.env.LIBRETRANSLATE_URL ?? '';
 const LT_KEY = process.env.LIBRETRANSLATE_KEY ?? '';
@@ -413,9 +415,24 @@ async function main() {
       );
     }
 
-    const outPath = join(LOCALES_DIR, `${lang.dir}/translation.json`);
-    const body = JSON.stringify(target, null, 2) + '\n';
-    writeFileSync(outPath, sanitizeLocaleTranslationJsonFileBodyForDisk(body), 'utf8');
+    const outPath = resolve(join(LOCALES_ROOT, `${lang.dir}/translation.json`));
+    const body = sanitizeLocaleTranslationJsonFileBodyForDisk(
+      JSON.stringify(target, null, 2) + '\n',
+    );
+    const payload = JSON.stringify({ outPath, body });
+    const persist = spawnSync(process.execPath, [WRITE_SUBPROCESS, LOCALES_ROOT], {
+      input: payload,
+      encoding: 'utf8',
+      maxBuffer: 50 * 1024 * 1024,
+    });
+    if (persist.error) {
+      throw persist.error;
+    }
+    if (persist.status !== 0) {
+      throw new Error(
+        persist.stderr?.trim() || `locale persist subprocess exited with status ${persist.status}`,
+      );
+    }
     const tail =
       localeRunTotal > 1 || totalScheduledJobs > workTotal
         ? ` · run ${completedJobs}/${totalScheduledJobs}`
