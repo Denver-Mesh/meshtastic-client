@@ -1,3 +1,5 @@
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
+
 import { parseStoredJson } from './parseStoredJson';
 
 /** Current localStorage key for merged app + diagnostics preference JSON. */
@@ -41,6 +43,8 @@ export function mergeAppSetting(key: string, value: unknown, parseContext: strin
     const s = parseStoredJson<Record<string, unknown>>(raw, parseContext) ?? {};
     localStorage.setItem(APP_SETTINGS_STORAGE_KEY, JSON.stringify({ ...s, [key]: value }));
   } catch (e) {
-    console.warn('[appSettingsStorage] mergeAppSetting failed', key, e);
+    console.warn(
+      '[appSettingsStorage] mergeAppSetting failed ' + key + ' ' + errLikeToLogString(e),
+    );
   }
 }

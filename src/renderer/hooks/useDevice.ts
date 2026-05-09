@@ -4,6 +4,7 @@ import type { MeshDevice } from '@meshtastic/core';
 import { Admin, Channel as ProtobufChannel, Mesh, Portnums } from '@meshtastic/protobufs';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
 import { isMeshtasticDefaultPublicPsk } from '@/shared/meshtasticDefaultPublicPsk';
 
 import {
@@ -444,7 +445,7 @@ export function useDevice() {
       try {
         unsub();
       } catch (e) {
-        console.debug('[useDevice] unsubscribe error (ignored)', e);
+        console.debug('[useDevice] unsubscribe error (ignored) ' + errLikeToLogString(e));
       }
     }
     unsubscribesRef.current = [];
@@ -502,7 +503,7 @@ export function useDevice() {
           // Dual-protocol: avoid host IP/geo refresh churn while MeshCore is the active UI protocol.
           if (getStoredMeshProtocol() !== 'meshtastic') return;
           refreshOurPositionRef.current().catch((err: unknown) => {
-            console.error('[useDevice] GPS interval refresh error:', err);
+            console.error('[useDevice] GPS interval refresh error: ' + errLikeToLogString(err));
           });
         }, intervalSecs * 1000);
       }
@@ -559,7 +560,7 @@ export function useDevice() {
         }
       })
       .catch((err: unknown) => {
-        console.error('[useDevice] Failed to load messages:', err);
+        console.error('[useDevice] Failed to load messages: ' + errLikeToLogString(err));
         setMessages([]);
       });
     Promise.all([window.electronAPI.db.getNodes(), window.electronAPI.db.getMeshcoreContacts()])
@@ -606,7 +607,7 @@ export function useDevice() {
         setNodes(nodeMap);
       })
       .catch((err: unknown) => {
-        console.error('[useDevice] Failed to load nodes:', err);
+        console.error('[useDevice] Failed to load nodes: ' + errLikeToLogString(err));
       });
   }, []);
 
@@ -667,7 +668,7 @@ export function useDevice() {
               publishJsonMirror: primaryCh ? isMeshtasticDefaultPublicPsk(primaryCh.psk) : false,
             })
             .catch((e: unknown) => {
-              console.warn('[useDevice] MQTT presence publish failed', e);
+              console.warn('[useDevice] MQTT presence publish failed ' + errLikeToLogString(e));
             });
         };
         if (mqttPresenceInitTimerRef.current) clearTimeout(mqttPresenceInitTimerRef.current);
@@ -953,7 +954,7 @@ export function useDevice() {
       deviceRef.current = null;
       if (device) {
         safeDisconnect(device).catch((e: unknown) => {
-          console.debug('[useDevice] unmount safeDisconnect', e);
+          console.debug('[useDevice] unmount safeDisconnect ' + errLikeToLogString(e));
         });
       }
     };
@@ -987,7 +988,9 @@ export function useDevice() {
               deviceRef.current = null;
               if (activeDevice) {
                 void safeDisconnect(activeDevice).catch((e: unknown) => {
-                  console.debug('[useDevice] configure timeout safeDisconnect', e);
+                  console.debug(
+                    '[useDevice] configure timeout safeDisconnect ' + errLikeToLogString(e),
+                  );
                 });
               }
               cleanupSubscriptions();
@@ -1053,7 +1056,7 @@ export function useDevice() {
         const virtualNodeId = virtualNodeIdRef.current;
         if (virtualNodeId !== info.myNodeNum) {
           window.electronAPI.db.deleteNode(virtualNodeId).catch((e: unknown) => {
-            console.debug('[useDevice] deleteNode virtual', e);
+            console.debug('[useDevice] deleteNode virtual ' + errLikeToLogString(e));
           });
         }
         myNodeNumRef.current = info.myNodeNum;
@@ -1258,7 +1261,9 @@ export function useDevice() {
               })
               .then(isDuplicate)
               .catch((e: unknown) => {
-                console.debug('[useDevice] MQTT publish echo register non-fatal', e);
+                console.debug(
+                  '[useDevice] MQTT publish echo register non-fatal ' + errLikeToLogString(e),
+                );
               });
           }
         }
@@ -1272,7 +1277,7 @@ export function useDevice() {
               silent: false,
             });
           } catch (e) {
-            console.debug('[useDevice] Notification not available', e);
+            console.debug('[useDevice] Notification not available ' + errLikeToLogString(e));
           }
         }
       });
@@ -1819,7 +1824,7 @@ export function useDevice() {
                 : next;
             });
           } catch (e) {
-            console.debug('[useDevice] raw packet log entry failed', e);
+            console.debug('[useDevice] raw packet log entry failed ' + errLikeToLogString(e));
           }
 
           // Record noisy portnums for diagnostics
@@ -2181,7 +2186,7 @@ export function useDevice() {
                 },
               })
               .catch((e: unknown) => {
-                console.debug('[useDevice] MQTT waypoint relay failed', e);
+                console.debug('[useDevice] MQTT waypoint relay failed ' + errLikeToLogString(e));
               });
           }
         }
@@ -2454,7 +2459,7 @@ export function useDevice() {
         try {
           device.setHeartbeatInterval(60_000);
         } catch (e) {
-          console.warn('[useDevice] serial: setHeartbeatInterval failed', e);
+          console.warn('[useDevice] serial: setHeartbeatInterval failed ' + errLikeToLogString(e));
         }
       }
     },
@@ -2489,7 +2494,7 @@ export function useDevice() {
     deviceRef.current = null;
     if (oldDevice)
       safeDisconnect(oldDevice).catch((e: unknown) => {
-        console.debug('[useDevice] handleConnectionLost safeDisconnect', e);
+        console.debug('[useDevice] handleConnectionLost safeDisconnect ' + errLikeToLogString(e));
       });
 
     // Begin reconnection
@@ -2563,7 +2568,11 @@ export function useDevice() {
       reconnectAttemptRef.current = 0;
       isReconnectingRef.current = false;
     } catch (err) {
-      console.warn(`[Meshtastic] Reconnect attempt ${reconnectAttemptRef.current} failed:`, err);
+      console.warn(
+        `[Meshtastic] Reconnect attempt ${reconnectAttemptRef.current} failed:` +
+          ' ' +
+          errLikeToLogString(err),
+      );
       // Retry
       void attemptReconnectRef.current();
     }
@@ -2583,7 +2592,7 @@ export function useDevice() {
         const oldDevice = deviceRef.current;
         deviceRef.current = null;
         safeDisconnect(oldDevice).catch((e: unknown) => {
-          console.debug('[useDevice] connect safeDisconnect prior', e);
+          console.debug('[useDevice] connect safeDisconnect prior ' + errLikeToLogString(e));
         });
       }
 
@@ -2619,7 +2628,7 @@ export function useDevice() {
         await device.configure();
       } catch (err) {
         clearConfigureTimeout();
-        console.error('[Meshtastic] Connection failed:', err);
+        console.error('[Meshtastic] Connection failed: ' + errLikeToLogString(err));
         cleanupSubscriptions();
         stopWatchdog();
         deviceRef.current = null;
@@ -2655,7 +2664,9 @@ export function useDevice() {
         const oldDevice = deviceRef.current;
         deviceRef.current = null;
         safeDisconnect(oldDevice).catch((e: unknown) => {
-          console.debug('[useDevice] connectAutomatic safeDisconnect prior', e);
+          console.debug(
+            '[useDevice] connectAutomatic safeDisconnect prior ' + errLikeToLogString(e),
+          );
         });
       }
 
@@ -2688,7 +2699,7 @@ export function useDevice() {
         await device.configure();
       } catch (err) {
         clearConfigureTimeout();
-        console.error('[Meshtastic] Auto-connect failed:', err);
+        console.error('[Meshtastic] Auto-connect failed: ' + errLikeToLogString(err));
         cleanupSubscriptions();
         stopWatchdog();
         deviceRef.current = null;
@@ -2997,7 +3008,7 @@ export function useDevice() {
             },
           })
           .catch((e: unknown) => {
-            console.debug('[useDevice] MQTT publishWaypoint failed', e);
+            console.debug('[useDevice] MQTT publishWaypoint failed ' + errLikeToLogString(e));
           });
       }
     },
@@ -3031,7 +3042,9 @@ export function useDevice() {
           },
         })
         .catch((e: unknown) => {
-          console.debug('[useDevice] MQTT publishWaypoint (delete) failed', e);
+          console.debug(
+            '[useDevice] MQTT publishWaypoint (delete) failed ' + errLikeToLogString(e),
+          );
         });
     }
   }, []);
@@ -3137,7 +3150,7 @@ export function useDevice() {
         setNodes(nodeMap);
       })
       .catch((err: unknown) => {
-        console.error('[useDevice] Failed to refresh nodes:', err);
+        console.error('[useDevice] Failed to refresh nodes: ' + errLikeToLogString(err));
       });
   }, []);
 
@@ -3149,7 +3162,7 @@ export function useDevice() {
         setMessages(trimChatMessagesToMax(msgs.reverse(), MAX_IN_MEMORY_CHAT_MESSAGES));
       })
       .catch((err: unknown) => {
-        console.error('[useDevice] Failed to refresh messages:', err);
+        console.error('[useDevice] Failed to refresh messages: ' + errLikeToLogString(err));
         setMessages([]);
       });
   }, []);
@@ -3248,7 +3261,7 @@ export function useDevice() {
               }) as PositionType,
             )
             .catch((e: unknown) => {
-              console.debug('[useDevice] setPosition non-fatal', e);
+              console.debug('[useDevice] setPosition non-fatal ' + errLikeToLogString(e));
             });
         }
       }
@@ -3285,7 +3298,7 @@ export function useDevice() {
       if (secs > 0) {
         gpsIntervalRef.current = setInterval(() => {
           refreshOurPositionRef.current().catch((err: unknown) => {
-            console.error('[useDevice] GPS interval refresh error:', err);
+            console.error('[useDevice] GPS interval refresh error: ' + errLikeToLogString(err));
           });
         }, secs * 1000);
       }
@@ -3361,7 +3374,9 @@ export function useDevice() {
           )
           .then(() => {})
           .catch((e: unknown) => {
-            console.warn('[useDevice] sendReaction device sendText failed', e);
+            console.warn(
+              '[useDevice] sendReaction device sendText failed ' + errLikeToLogString(e),
+            );
           });
       }
 

@@ -10,6 +10,8 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
+
 import ErrorBoundary from './components/ErrorBoundary';
 import { HelpTooltip } from './components/HelpTooltip';
 import LanguageSelector from './components/LanguageSelector';
@@ -206,7 +208,7 @@ function readLogPanelVisible(): boolean {
   try {
     return localStorage.getItem(LOG_PANEL_VISIBLE_KEY) === 'true';
   } catch (e) {
-    console.debug('[App] readLogPanelVisible', e);
+    console.debug('[App] readLogPanelVisible ' + errLikeToLogString(e));
     return false;
   }
 }
@@ -220,7 +222,7 @@ function readPersistedUnread(protocol: 'meshtastic' | 'meshcore'): number {
     if (!Number.isFinite(n) || n < 0) return 0;
     return Math.min(n, 99999);
   } catch (e) {
-    console.debug('[App] readPersistedUnread', e);
+    console.debug('[App] readPersistedUnread ' + errLikeToLogString(e));
     return 0;
   }
 }
@@ -231,7 +233,7 @@ function persistUnread(protocol: 'meshtastic' | 'meshcore', count: number): void
     const n = Math.max(0, Math.min(Math.floor(count) || 0, 99999));
     localStorage.setItem(key, String(n));
   } catch (e) {
-    console.debug('[App] persistUnread quota/private mode', e);
+    console.debug('[App] persistUnread quota/private mode ' + errLikeToLogString(e));
   }
 }
 
@@ -928,11 +930,11 @@ export default function App() {
       ops.push(
         // One-time migration: rename legacy "RF !xxxxxxxx" stub nodes to "!xxxxxxxx"
         window.electronAPI.db.migrateRfStubNodes().catch((e: unknown) => {
-          console.warn('[App] startup migrateRfStubNodes failed', e);
+          console.warn('[App] startup migrateRfStubNodes failed ' + errLikeToLogString(e));
         }),
         // Delete nodes with last_heard = never (placeholder stubs with no data)
         window.electronAPI.db.deleteNodesNeverHeard().catch((e: unknown) => {
-          console.warn('[App] startup deleteNodesNeverHeard failed', e);
+          console.warn('[App] startup deleteNodesNeverHeard failed ' + errLikeToLogString(e));
         }),
       );
       if (s.autoPruneEnabled) {
@@ -940,7 +942,7 @@ export default function App() {
           typeof s.autoPruneDays === 'number' && s.autoPruneDays > 0 ? s.autoPruneDays : 30;
         ops.push(
           window.electronAPI.db.deleteNodesByAge(days).catch((e: unknown) => {
-            console.warn('[App] startup deleteNodesByAge failed', e);
+            console.warn('[App] startup deleteNodesByAge failed ' + errLikeToLogString(e));
           }),
         );
       }
@@ -949,14 +951,16 @@ export default function App() {
           typeof s.nodeCapCount === 'number' && s.nodeCapCount > 0 ? s.nodeCapCount : 10000;
         ops.push(
           window.electronAPI.db.pruneNodesByCount(cap).catch((e: unknown) => {
-            console.warn('[App] startup pruneNodesByCount failed', e);
+            console.warn('[App] startup pruneNodesByCount failed ' + errLikeToLogString(e));
           }),
         );
       }
       if (s.pruneEmptyNamesEnabled) {
         ops.push(
           window.electronAPI.db.deleteNodesWithoutLongname().catch((e: unknown) => {
-            console.warn('[App] startup deleteNodesWithoutLongname failed', e);
+            console.warn(
+              '[App] startup deleteNodesWithoutLongname failed ' + errLikeToLogString(e),
+            );
           }),
         );
       }
@@ -967,7 +971,7 @@ export default function App() {
             : 30;
         ops.push(
           window.electronAPI.db.prunePositionHistory(days).catch((e: unknown) => {
-            console.warn('[App] startup prunePositionHistory failed', e);
+            console.warn('[App] startup prunePositionHistory failed ' + errLikeToLogString(e));
           }),
         );
       }
@@ -975,7 +979,9 @@ export default function App() {
       if (s.meshcoreDeleteNeverAdvertised) {
         ops.push(
           window.electronAPI.db.deleteMeshcoreContactsNeverAdvertised().catch((e: unknown) => {
-            console.warn('[App] startup deleteMeshcoreContactsNeverAdvertised failed', e);
+            console.warn(
+              '[App] startup deleteMeshcoreContactsNeverAdvertised failed ' + errLikeToLogString(e),
+            );
           }),
         );
       }
@@ -986,7 +992,9 @@ export default function App() {
             : 30;
         ops.push(
           window.electronAPI.db.deleteMeshcoreContactsByAge(days).catch((e: unknown) => {
-            console.warn('[App] startup deleteMeshcoreContactsByAge failed', e);
+            console.warn(
+              '[App] startup deleteMeshcoreContactsByAge failed ' + errLikeToLogString(e),
+            );
           }),
         );
       }
@@ -997,7 +1005,9 @@ export default function App() {
             : 5000;
         ops.push(
           window.electronAPI.db.pruneMeshcoreContactsByCount(cap).catch((e: unknown) => {
-            console.warn('[App] startup pruneMeshcoreContactsByCount failed', e);
+            console.warn(
+              '[App] startup pruneMeshcoreContactsByCount failed ' + errLikeToLogString(e),
+            );
           }),
         );
       }
@@ -1014,7 +1024,7 @@ export default function App() {
           if (r.meshtasticEnabled) {
             innerOps.push(
               window.electronAPI.db.pruneMessagesByCount(r.meshtasticCount).catch((e: unknown) => {
-                console.warn('[App] startup pruneMessagesByCount failed', e);
+                console.warn('[App] startup pruneMessagesByCount failed ' + errLikeToLogString(e));
               }),
             );
           }
@@ -1023,14 +1033,16 @@ export default function App() {
               window.electronAPI.db
                 .pruneMeshcoreMessagesByCount(r.meshcoreCount)
                 .catch((e: unknown) => {
-                  console.warn('[App] startup pruneMeshcoreMessagesByCount failed', e);
+                  console.warn(
+                    '[App] startup pruneMeshcoreMessagesByCount failed ' + errLikeToLogString(e),
+                  );
                 }),
             );
           }
           return Promise.all(innerOps);
         })
         .catch((e: unknown) => {
-          console.warn('[App] startup message retention prune failed', e);
+          console.warn('[App] startup message retention prune failed ' + errLikeToLogString(e));
         }),
     );
 
@@ -1068,7 +1080,7 @@ export default function App() {
             if (prot === 'meshcore' && isLetsMeshSettings(connectSettings.server)) {
               const presetErr = validateLetsMeshPresetConnect(connectSettings);
               if (presetErr) {
-                console.warn('[App] MQTT auto-launch skipped:', presetErr);
+                console.warn('[App] MQTT auto-launch skipped: ' + errLikeToLogString(presetErr));
                 return;
               }
               const identity = readMeshcoreIdentity();
@@ -1084,7 +1096,10 @@ export default function App() {
                   connectSettings.password = token;
                   connectSettings.tokenExpiresAt = expiresAt;
                 } catch (e) {
-                  console.warn('[App] LetsMesh auth token auto-launch generation failed', e);
+                  console.warn(
+                    '[App] LetsMesh auth token auto-launch generation failed ' +
+                      errLikeToLogString(e),
+                  );
                   return;
                 }
               } else {
@@ -1096,7 +1111,7 @@ export default function App() {
                 }
                 const manualErr = validateLetsMeshManualCredentials(connectSettings);
                 if (manualErr) {
-                  console.warn('[App] MQTT auto-launch skipped:', manualErr);
+                  console.warn('[App] MQTT auto-launch skipped: ' + errLikeToLogString(manualErr));
                   return;
                 }
               }
@@ -1104,11 +1119,11 @@ export default function App() {
             await window.electronAPI.mqtt.connect(connectSettings);
           };
           void tryConnect().catch((e: unknown) => {
-            console.warn('[App] MQTT auto-launch connect failed', e);
+            console.warn('[App] MQTT auto-launch connect failed ' + errLikeToLogString(e));
           });
         }
       } catch (e) {
-        console.debug('[App] MQTT auto-launch startup', e);
+        console.debug('[App] MQTT auto-launch startup ' + errLikeToLogString(e));
       }
     }
   }, []);
@@ -1126,7 +1141,7 @@ export default function App() {
           const { token, expiresAt } = await generateLetsMeshAuthToken(identity, serverHost);
           await window.electronAPI.mqtt.updateMeshcoreToken(token, expiresAt);
         } catch (e) {
-          console.warn('[App] token refresh failed', e);
+          console.warn('[App] token refresh failed ' + errLikeToLogString(e));
         }
       };
       void doRefresh();
@@ -1179,7 +1194,7 @@ export default function App() {
   useEffect(() => {
     const t = setTimeout(() => {
       void window.electronAPI.update.check().catch((e: unknown) => {
-        console.warn('[App] update check failed', e);
+        console.warn('[App] update check failed ' + errLikeToLogString(e));
         setUpdateState((s) => ({ ...s, phase: 'error' }));
       });
     }, 5000);
@@ -1369,12 +1384,14 @@ export default function App() {
           device
             .connectAutomatic('ble', undefined, undefined, bleDeviceId)
             .catch((err: unknown) => {
-              console.warn('[App] handleReconnect BLE auto-connect failed', err);
+              console.warn(
+                '[App] handleReconnect BLE auto-connect failed ' + errLikeToLogString(err),
+              );
             });
           return;
         }
         device.connect(lastType).catch((err: unknown) => {
-          console.warn('[App] handleReconnect connect failed', err);
+          console.warn('[App] handleReconnect connect failed ' + errLikeToLogString(err));
         });
       }, 500);
     });
@@ -2195,7 +2212,9 @@ export default function App() {
                                     visible ? 'true' : 'false',
                                   );
                                 } catch (e) {
-                                  console.debug('[App] persist logPanelVisible', e);
+                                  console.debug(
+                                    '[App] persist logPanelVisible ' + errLikeToLogString(e),
+                                  );
                                 }
                               }}
                               nodes={nodesForUi}
@@ -2386,7 +2405,7 @@ export default function App() {
                   onCheck={() => {
                     setUpdateState({ phase: 'idle' });
                     void window.electronAPI.update.check().catch((e: unknown) => {
-                      console.warn('[App] update check failed', e);
+                      console.warn('[App] update check failed ' + errLikeToLogString(e));
                       setUpdateState((s) => ({ ...s, phase: 'error' }));
                     });
                   }}
@@ -2431,7 +2450,7 @@ export default function App() {
               try {
                 localStorage.setItem(LOG_PANEL_VISIBLE_KEY, 'false');
               } catch (e) {
-                console.debug('[App] persist logPanelVisible', e);
+                console.debug('[App] persist logPanelVisible ' + errLikeToLogString(e));
               }
             }}
           />

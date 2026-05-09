@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
+
 interface RefreshButtonProps {
   onRefresh: () => Promise<void>;
   disabled?: boolean;
@@ -26,7 +28,7 @@ export default function RefreshButton({
         // Race the actual refresh against a hard timeout — whichever finishes first
         Promise.race([
           onRefresh().catch((err: unknown) => {
-            console.debug('[RefreshButton] onRefresh failed', err);
+            console.debug('[RefreshButton] onRefresh failed ' + errLikeToLogString(err));
           }),
           new Promise<void>((r) => setTimeout(r, HARD_TIMEOUT_MS)),
         ]),
@@ -34,7 +36,7 @@ export default function RefreshButton({
         new Promise<void>((r) => setTimeout(r, minimumAnimationMs)),
       ]);
     } catch (e) {
-      console.debug('[RefreshButton] handleClick outer', e);
+      console.debug('[RefreshButton] handleClick outer ' + errLikeToLogString(e));
     } finally {
       setSpinning(false);
     }

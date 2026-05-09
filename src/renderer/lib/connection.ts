@@ -5,6 +5,7 @@ import { isMainProcessBleTimeoutMessage } from './bleConnectErrors';
 import {
   assertMeshtasticSerialWebStreamsAvailable,
   assertTransportReadyForMeshDevice,
+  formatJsonForRendererLog,
   getMeshtasticStreamsDiagnostics,
 } from './connectionWebStreams';
 import {
@@ -33,10 +34,11 @@ function rethrowIfTransportWebSerialPipeToFailed(err: unknown, phase: string): n
   if (!msg.includes('pipeTo')) {
     throw err instanceof Error ? err : new Error(String(err));
   }
+  const diagJson = formatJsonForRendererLog({
+    ...getMeshtasticStreamsDiagnostics(),
+  });
   console.error(
-    `[connection] Meshtastic serial ${phase}: pipeTo failure`,
-    err,
-    getMeshtasticStreamsDiagnostics(),
+    `[connection] Meshtastic serial ${phase}: pipeTo failure err=${msg} diagnostics=${diagJson}`,
   );
   throw new Error(
     `Meshtastic serial failed during ${phase} (Web Streams pipe). Often occurs when @meshtastic/core stream helpers are unavailable or the serial port streams are invalid. Diagnostics were logged to the console.`,
@@ -57,7 +59,9 @@ export async function createBleConnection(
 ): Promise<MeshDevice> {
   const isLinux = navigator.userAgent.toLowerCase().includes('linux');
   const connectStartedAt = Date.now();
-  console.debug('[connection] createBleConnection start', peripheralId, { isLinux });
+  console.debug(
+    `[connection] createBleConnection start peripheralId=${peripheralId ?? 'none'} sessionId=${sessionId} isLinux=${isLinux}`,
+  );
 
   if (isLinux) {
     // Reset the pairing retry count so the first attempt uses the default PIN
@@ -67,10 +71,11 @@ export async function createBleConnection(
     for (let attempt = 1; attempt <= BLE_CONNECT_MAX_ATTEMPTS; attempt++) {
       const attemptStartedAt = Date.now();
       const transport = new TransportWebBluetoothIpc(sessionId);
-      console.debug('[connection] createBleConnection: using Web Bluetooth transport on Linux', {
-        attempt,
-        maxAttempts: BLE_CONNECT_MAX_ATTEMPTS,
-      });
+      console.debug(
+        `[connection] createBleConnection: using Web Bluetooth transport on Linux ${formatJsonForRendererLog(
+          { attempt, maxAttempts: BLE_CONNECT_MAX_ATTEMPTS },
+        )}`,
+      );
 
       // On Linux, requestDevice() must be called with a user gesture
       // If no peripheralId provided, initiate device selection now
@@ -87,13 +92,15 @@ export async function createBleConnection(
         // Now connect to the device
         await transport.connect();
         if (attempt > 1) {
-          console.info('[connection] createBleConnection recovered on retry', {
-            sessionId,
-            deviceId,
-            attempt,
-            maxAttempts: BLE_CONNECT_MAX_ATTEMPTS,
-            totalElapsedMs: Date.now() - connectStartedAt,
-          });
+          console.info(
+            `[connection] createBleConnection recovered on retry ${formatJsonForRendererLog({
+              sessionId,
+              deviceId,
+              attempt,
+              maxAttempts: BLE_CONNECT_MAX_ATTEMPTS,
+              totalElapsedMs: Date.now() - connectStartedAt,
+            })}`,
+          );
         }
         console.debug('[connection] createBleConnection: connected on Linux');
         assertTransportReadyForMeshDevice(transport, 'Meshtastic BLE (Linux Web Bluetooth)');
@@ -104,24 +111,28 @@ export async function createBleConnection(
         try {
           await transport.disconnect();
         } catch (cleanupErr) {
-          console.debug('[connection] createBleConnection: cleanup error on failure', cleanupErr);
+          console.debug(
+            `[connection] createBleConnection: cleanup error on failure ${cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr)}`,
+          );
         }
 
         const message = err instanceof Error ? err.message : String(err);
         const isTimeout = /timed out/i.test(message);
         const isPairingError =
           err instanceof Error && (err as Error & { isPairingRelated?: boolean }).isPairingRelated;
-        console.warn('[connection] createBleConnection attempt failed', {
-          sessionId,
-          deviceId,
-          attempt,
-          maxAttempts: BLE_CONNECT_MAX_ATTEMPTS,
-          isTimeout,
-          isPairingError,
-          attemptElapsedMs: Date.now() - attemptStartedAt,
-          totalElapsedMs: Date.now() - connectStartedAt,
-          message,
-        });
+        console.warn(
+          `[connection] createBleConnection attempt failed ${formatJsonForRendererLog({
+            sessionId,
+            deviceId,
+            attempt,
+            maxAttempts: BLE_CONNECT_MAX_ATTEMPTS,
+            isTimeout,
+            isPairingError,
+            attemptElapsedMs: Date.now() - attemptStartedAt,
+            totalElapsedMs: Date.now() - connectStartedAt,
+            message,
+          })}`,
+        );
         // Don't retry on pairing errors (user needs to fix pairing, not retry)
         if (isPairingError || !isTimeout || attempt >= BLE_CONNECT_MAX_ATTEMPTS) {
           break;
@@ -148,13 +159,15 @@ export async function createBleConnection(
         throw new Error(connectResult.error || 'BLE connect failed');
       }
       if (attempt > 1) {
-        console.info('[connection] createBleConnection recovered on retry', {
-          sessionId,
-          peripheralId,
-          attempt,
-          maxAttempts: BLE_CONNECT_MAX_ATTEMPTS,
-          totalElapsedMs: Date.now() - connectStartedAt,
-        });
+        console.info(
+          `[connection] createBleConnection recovered on retry ${formatJsonForRendererLog({
+            sessionId,
+            peripheralId,
+            attempt,
+            maxAttempts: BLE_CONNECT_MAX_ATTEMPTS,
+            totalElapsedMs: Date.now() - connectStartedAt,
+          })}`,
+        );
       }
       console.debug('[connection] createBleConnection connected', peripheralId);
       console.debug('[connection] createBleConnection elapsedMs', Date.now() - connectStartedAt);
@@ -164,16 +177,18 @@ export async function createBleConnection(
       lastError = err;
       const message = err instanceof Error ? err.message : String(err);
       const isTimeout = isMainProcessBleTimeoutMessage(message) || /timed out/i.test(message);
-      console.warn('[connection] createBleConnection attempt failed', {
-        sessionId,
-        peripheralId,
-        attempt,
-        maxAttempts: BLE_CONNECT_MAX_ATTEMPTS,
-        isTimeout,
-        attemptElapsedMs: Date.now() - attemptStartedAt,
-        totalElapsedMs: Date.now() - connectStartedAt,
-        message,
-      });
+      console.warn(
+        `[connection] createBleConnection attempt failed ${formatJsonForRendererLog({
+          sessionId,
+          peripheralId,
+          attempt,
+          maxAttempts: BLE_CONNECT_MAX_ATTEMPTS,
+          isTimeout,
+          attemptElapsedMs: Date.now() - attemptStartedAt,
+          totalElapsedMs: Date.now() - connectStartedAt,
+          message,
+        })}`,
+      );
       if (!isTimeout || attempt >= BLE_CONNECT_MAX_ATTEMPTS) {
         break;
       }
@@ -214,8 +229,9 @@ export async function createConnection(
       }
       assertMeshtasticSerialWebStreamsAvailable();
       console.debug(
-        '[connection] Meshtastic serial Web Streams OK',
-        getMeshtasticStreamsDiagnostics(),
+        `[connection] Meshtastic serial Web Streams OK ${formatJsonForRendererLog({
+          ...getMeshtasticStreamsDiagnostics(),
+        })}`,
       );
       const SERIAL_CONNECT_TIMEOUT_MS = 15_000;
       const serialApi = navigator.serial;
@@ -238,7 +254,9 @@ export async function createConnection(
         try {
           transport = await Promise.race([serialPromise, serialTimeoutPromise]);
         } catch (err) {
-          console.debug('[connection] TransportWebSerial.create failed', err);
+          console.debug(
+            `[connection] TransportWebSerial.create failed ${err instanceof Error ? err.message : String(err)}`,
+          );
           rethrowIfTransportWebSerialPipeToFailed(err, 'TransportWebSerial.create');
         }
       } finally {
@@ -324,12 +342,18 @@ export async function reconnectSerial(lastPortId?: string | null): Promise<MeshD
   );
 
   assertMeshtasticSerialWebStreamsAvailable();
-  console.debug('[connection] reconnectSerial Web Streams OK', getMeshtasticStreamsDiagnostics());
+  console.debug(
+    `[connection] reconnectSerial Web Streams OK ${formatJsonForRendererLog({
+      ...getMeshtasticStreamsDiagnostics(),
+    })}`,
+  );
   let transport: Awaited<ReturnType<typeof TransportWebSerial.createFromPort>>;
   try {
     transport = await TransportWebSerial.createFromPort(port, 115200);
   } catch (err) {
-    console.debug('[connection] TransportWebSerial.createFromPort failed', err);
+    console.debug(
+      `[connection] TransportWebSerial.createFromPort failed ${err instanceof Error ? err.message : String(err)}`,
+    );
     rethrowIfTransportWebSerialPipeToFailed(err, 'TransportWebSerial.createFromPort');
   }
   {
@@ -363,24 +387,32 @@ export async function safeDisconnect(device: MeshDevice): Promise<void> {
       try {
         await device.transport.toDevice.close();
       } catch (e) {
-        console.debug('[connection] safeDisconnect toDevice.close', e);
+        console.debug(
+          `[connection] safeDisconnect toDevice.close ${e instanceof Error ? e.message : String(e)}`,
+        );
       }
 
       // Close fromDevice stream to prevent GC leaks and lingering fetches (HTTP)
       try {
         await (device.transport.fromDevice as ReadableStream).cancel();
       } catch (e) {
-        console.debug('[connection] safeDisconnect fromDevice.cancel', e);
+        console.debug(
+          `[connection] safeDisconnect fromDevice.cancel ${e instanceof Error ? e.message : String(e)}`,
+        );
       }
     } else {
-      console.warn('[Meshtastic] Disconnect error:', err);
+      console.warn(
+        `[Meshtastic] Disconnect error: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   } finally {
     // Always complete device streams to prevent memory leaks
     try {
       device.complete();
     } catch (e) {
-      console.debug('[connection] safeDisconnect complete', e);
+      console.debug(
+        `[connection] safeDisconnect complete ${e instanceof Error ? e.message : String(e)}`,
+      );
     }
   }
 }

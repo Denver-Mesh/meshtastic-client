@@ -58,6 +58,20 @@ describe('createBleConnection retry behavior', () => {
     expect(device).toBeTruthy();
   });
 
+  it('logs createBleConnection start as a single readable line (no [object Object])', async () => {
+    const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    await createBleConnection('ble-device-log', 'meshtastic');
+    const startMsg = debugSpy.mock.calls.find(
+      (c) => typeof c[0] === 'string' && c[0].includes('createBleConnection start'),
+    )?.[0] as string | undefined;
+    expect(startMsg).toBeDefined();
+    expect(startMsg).not.toContain('[object Object]');
+    expect(startMsg).toContain('peripheralId=ble-device-log');
+    expect(startMsg).toContain('sessionId=meshtastic');
+    expect(startMsg).toContain('isLinux=false');
+    debugSpy.mockRestore();
+  });
+
   it('does not retry non-timeout BLE errors', async () => {
     vi.mocked(window.electronAPI.connectNobleBle).mockResolvedValue({
       ok: false,

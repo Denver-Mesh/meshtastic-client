@@ -3,6 +3,7 @@ import type { TFunction } from 'i18next';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
 import {
   MQTT_DEFAULT_RECONNECT_ATTEMPTS,
   MQTT_MAX_RECONNECT_ATTEMPTS,
@@ -292,7 +293,7 @@ function saveLastConnection(p: MeshProtocol, c: LastConnection) {
   try {
     localStorage.setItem(lastConnectionKey(p), JSON.stringify(c));
   } catch (e) {
-    console.debug('[ConnectionPanel] saveLastConnection', e);
+    console.debug('[ConnectionPanel] saveLastConnection ' + errLikeToLogString(e));
   }
 }
 
@@ -300,7 +301,7 @@ function clearLastConnection(p: MeshProtocol) {
   try {
     localStorage.removeItem(lastConnectionKey(p));
   } catch (e) {
-    console.debug('[ConnectionPanel] clearLastConnection', e);
+    console.debug('[ConnectionPanel] clearLastConnection ' + errLikeToLogString(e));
   }
 }
 
@@ -308,7 +309,7 @@ function loadLastBleDevice(protocol: MeshProtocol): string | null {
   try {
     return localStorage.getItem(lastBleDeviceKey(protocol));
   } catch (e) {
-    console.debug('[ConnectionPanel] loadLastBleDevice', e);
+    console.debug('[ConnectionPanel] loadLastBleDevice ' + errLikeToLogString(e));
     return null;
   }
 }
@@ -317,7 +318,7 @@ function saveLastBleDevice(protocol: MeshProtocol, id: string) {
   try {
     localStorage.setItem(lastBleDeviceKey(protocol), id);
   } catch (e) {
-    console.debug('[ConnectionPanel] saveLastBleDevice', e);
+    console.debug('[ConnectionPanel] saveLastBleDevice ' + errLikeToLogString(e));
   }
 }
 
@@ -325,7 +326,7 @@ function loadLastSerialPort(): string | null {
   try {
     return localStorage.getItem(LAST_SERIAL_PORT_KEY);
   } catch (e) {
-    console.debug('[ConnectionPanel] loadLastSerialPort', e);
+    console.debug('[ConnectionPanel] loadLastSerialPort ' + errLikeToLogString(e));
     return null;
   }
 }
@@ -334,7 +335,7 @@ function saveLastSerialPort(id: string) {
   try {
     localStorage.setItem(LAST_SERIAL_PORT_KEY, id);
   } catch (e) {
-    console.debug('[ConnectionPanel] saveLastSerialPort', e);
+    console.debug('[ConnectionPanel] saveLastSerialPort ' + errLikeToLogString(e));
   }
 }
 
@@ -1013,7 +1014,9 @@ export default function ConnectionPanel({
         window.electronAPI.selectBluetoothDevice(pendingWbMac);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn('[ConnectionPanel] MeshCore pre-connect pair failed:', err);
+        console.warn(
+          '[ConnectionPanel] MeshCore pre-connect pair failed: ' + errLikeToLogString(err),
+        );
         setError(t('connectionPanel.error.pairingFailed', { msg }));
         setConnectionStage('connectionPanel.stageEnterPin');
         setConnecting(false);
@@ -1050,14 +1053,16 @@ export default function ConnectionPanel({
               }
             }
           } catch (e) {
-            console.warn('[ConnectionPanel] Failed to forget Web Bluetooth device:', e);
+            console.warn(
+              '[ConnectionPanel] Failed to forget Web Bluetooth device: ' + errLikeToLogString(e),
+            );
           }
         }
         try {
           await window.electronAPI.bluetoothStartScan();
           scanStarted = true;
         } catch (e) {
-          console.warn('[ConnectionPanel] bluetoothStartScan warning:', e);
+          console.warn('[ConnectionPanel] bluetoothStartScan warning: ' + errLikeToLogString(e));
         }
         setConnectionStage('connectionPanel.stagePairingPin');
         await window.electronAPI.bluetoothPair(manualMac, normalizedPin);
@@ -1075,7 +1080,7 @@ export default function ConnectionPanel({
         return;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn('[ConnectionPanel] manual pair failed:', err);
+        console.warn('[ConnectionPanel] manual pair failed: ' + errLikeToLogString(err));
         setError(t('connectionPanel.error.pinPairingFailed', { msg }));
         setShowRePairButton(true);
         setConnecting(false);
@@ -1209,7 +1214,7 @@ export default function ConnectionPanel({
       try {
         await window.electronAPI.startNobleBleScanning(protocol);
       } catch (err) {
-        console.warn('[ConnectionPanel] startNobleBleScanning failed:', err);
+        console.warn('[ConnectionPanel] startNobleBleScanning failed: ' + errLikeToLogString(err));
         const bleErrMsg = humanizeBleError(err, t);
         if (bleErrMsg) setError(bleErrMsg);
         setConnecting(false);
@@ -1222,7 +1227,7 @@ export default function ConnectionPanel({
       console.debug('[ConnectionPanel] handleConnect', connectionType, activeHostAddress);
       await onConnect(connectionType, activeHostAddress);
     } catch (err) {
-      console.warn('[ConnectionPanel] handleConnect failed', err);
+      console.warn('[ConnectionPanel] handleConnect failed ' + errLikeToLogString(err));
       let errorMsg: string;
       if (connectionType === 'serial') {
         errorMsg = humanizeSerialError(err, t);
@@ -1273,7 +1278,7 @@ export default function ConnectionPanel({
       console.debug('[ConnectionPanel] handleCancelConnection onDisconnect');
       await onDisconnect();
     } catch (e) {
-      console.debug('[ConnectionPanel] onDisconnect best-effort cleanup', e);
+      console.debug('[ConnectionPanel] onDisconnect best-effort cleanup ' + errLikeToLogString(e));
     }
   }, [
     showBlePicker,
@@ -1287,7 +1292,9 @@ export default function ConnectionPanel({
 
   const handleSelectBleDevice = useCallback(
     (deviceId: string) => {
-      console.debug('[ConnectionPanel] BLE device selected', deviceId, { isLinux });
+      console.debug(
+        `[ConnectionPanel] BLE device selected deviceId=${deviceId} isLinux=${isLinux}`,
+      );
       saveLastBleDevice(protocol, deviceId);
       // Save BLE advertisement name for use in LastConnection display
       const found = bleDevices.find((d) => d.deviceId === deviceId);
@@ -1335,7 +1342,8 @@ export default function ConnectionPanel({
         void window.electronAPI.stopNobleBleScanning(protocol);
         // Trigger the actual connection with the peripheral ID
         onConnect('ble', undefined, deviceId).catch((err: unknown) => {
-          console.warn('[ConnectionPanel] BLE connect after selection failed', err);
+          const errMsg = err instanceof Error ? err.message : String(err);
+          console.warn(`[ConnectionPanel] BLE connect after selection failed ${errMsg}`);
           const bleErrMsg = humanizeBleError(err, t);
           if (bleErrMsg) setError(bleErrMsg);
           setConnecting(false);
@@ -1877,7 +1885,9 @@ export default function ConnectionPanel({
           <button
             onClick={() =>
               window.electronAPI.mqtt.disconnect().catch((err: unknown) => {
-                console.warn('[ConnectionPanel] mqtt.disconnect failed:', err);
+                console.warn(
+                  '[ConnectionPanel] mqtt.disconnect failed: ' + errLikeToLogString(err),
+                );
               })
             }
             className="w-full rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-500"
@@ -2355,7 +2365,10 @@ export default function ConnectionPanel({
                   window.electronAPI.mqtt
                     .disconnect(protocol === 'meshcore' ? 'meshcore' : 'meshtastic')
                     .catch((err: unknown) => {
-                      console.warn('[ConnectionPanel] mqtt.disconnect (cancel) failed:', err);
+                      console.warn(
+                        '[ConnectionPanel] mqtt.disconnect (cancel) failed: ' +
+                          errLikeToLogString(err),
+                      );
                     })
                 }
                 className="bg-secondary-dark flex-1 rounded-lg border border-gray-600 px-4 py-2.5 text-sm font-medium text-gray-200 transition-colors hover:border-gray-500 hover:bg-gray-700"
@@ -2403,7 +2416,10 @@ export default function ConnectionPanel({
                     } catch (e) {
                       const msg = e instanceof Error ? e.message : String(e);
                       setMqttError(`Auth token generation failed: ${msg}`);
-                      console.warn('[ConnectionPanel] LetsMesh auth token generation failed', e);
+                      console.warn(
+                        '[ConnectionPanel] LetsMesh auth token generation failed ' +
+                          errLikeToLogString(e),
+                      );
                       return;
                     }
                   } else if (!settings.password) {
@@ -2420,7 +2436,7 @@ export default function ConnectionPanel({
                 window.electronAPI.mqtt.connect(settings).catch((err: unknown) => {
                   const msg = err instanceof Error ? err.message : String(err);
                   setMqttError(msg);
-                  console.warn('[ConnectionPanel] mqtt.connect failed:', err);
+                  console.warn('[ConnectionPanel] mqtt.connect failed: ' + errLikeToLogString(err));
                 });
               }}
               disabled={mqttStatus === 'connecting'}

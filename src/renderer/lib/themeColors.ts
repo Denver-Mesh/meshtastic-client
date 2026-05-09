@@ -2,6 +2,8 @@
  * Runtime theme color overrides for @theme tokens in styles.css.
  * Applied via document.documentElement CSS custom properties.
  */
+import { sanitizeLogMessage } from '@/main/sanitize-log-message';
+
 import { parseStoredJson } from './parseStoredJson';
 
 export const THEME_COLORS_STORAGE_KEY = 'mesh-client:themeColors';
@@ -168,10 +170,9 @@ export function applyThemeColors(colors: Record<ThemeColorKey, string>): void {
   for (const key of Object.keys(THEME_CSS_VARS) as ThemeColorKey[]) {
     const hex = resolveThemeHex(colors[key], key);
     if (!hex) {
-      console.warn('[themeColors] applyThemeColors skipped — invalid or non-strict hex', {
-        key,
-        raw: colors[key],
-      });
+      console.warn(
+        `[themeColors] applyThemeColors skipped — invalid or non-strict hex key=${sanitizeLogMessage(key)} raw=${sanitizeLogMessage(colors[key])}`,
+      );
       return;
     }
     resolved[key] = hex;

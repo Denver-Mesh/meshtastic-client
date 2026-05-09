@@ -4,6 +4,20 @@
  * errors instead of "Cannot read properties of undefined (reading 'pipeTo')".
  */
 
+import { sanitizeLogMessage } from '@/main/sanitize-log-message';
+
+const MAX_USER_AGENT_SNIPPET_LENGTH = 160;
+
+/** One string for the renderer→main log forwarder (avoids "[object Object]" in disk logs). */
+export function formatJsonForRendererLog(detail: Record<string, unknown>): string {
+  try {
+    return sanitizeLogMessage(JSON.stringify(detail));
+  } catch {
+    // catch-no-log-ok stringify fallback for circular / non-serializable log payloads
+    return sanitizeLogMessage('{}');
+  }
+}
+
 export interface MeshtasticStreamsDiagnostics {
   hasTransformStream: boolean;
   hasReadablePipeTo: boolean;
@@ -20,7 +34,10 @@ export function getMeshtasticStreamsDiagnostics(): MeshtasticStreamsDiagnostics 
       typeof ReadableStream !== 'undefined' &&
       typeof ReadableStream.prototype.pipeTo === 'function',
     hasWritableStream: typeof WritableStream !== 'undefined',
-    userAgentSnippet: ua.length > 160 ? `${ua.slice(0, 160)}…` : ua,
+    userAgentSnippet:
+      ua.length > MAX_USER_AGENT_SNIPPET_LENGTH
+        ? `${ua.slice(0, MAX_USER_AGENT_SNIPPET_LENGTH)}…`
+        : ua,
   };
 }
 
@@ -36,7 +53,12 @@ export function assertMeshtasticSerialWebStreamsAvailable(): void {
   if (!d.hasWritableStream) missing.push('WritableStream');
   if (missing.length === 0) return;
 
-  console.error('[connection] Meshtastic serial: Web Streams unavailable', { ...d, missing });
+  console.error(
+    `[connection] Meshtastic serial: Web Streams unavailable ${formatJsonForRendererLog({
+      ...d,
+      missing,
+    })}`,
+  );
   throw new Error(
     `Meshtastic serial requires Web Streams (${missing.join(', ')}). Update the app or use another connection type if available.`,
   );
@@ -67,13 +89,17 @@ export function assertTransportReadyForMeshDevice(transport: unknown, context: s
   const toOk = isWritableStreamWithWriter(t.toDevice);
   if (fromOk && toOk) return;
 
-  console.error('[connection] Transport missing streams for MeshDevice', context, {
-    ...getMeshtasticStreamsDiagnostics(),
-    hasFromDevice: t.fromDevice != null,
-    fromHasPipeTo: typeof (t.fromDevice as { pipeTo?: unknown })?.pipeTo === 'function',
-    hasToDevice: t.toDevice != null,
-    toHasGetWriter: typeof (t.toDevice as { getWriter?: unknown })?.getWriter === 'function',
-  });
+  console.error(
+    `[connection] Transport missing streams for MeshDevice ${sanitizeLogMessage(context)} ${formatJsonForRendererLog(
+      {
+        ...getMeshtasticStreamsDiagnostics(),
+        hasFromDevice: t.fromDevice != null,
+        fromHasPipeTo: isReadableStreamWithPipeTo(t.fromDevice),
+        hasToDevice: t.toDevice != null,
+        toHasGetWriter: isWritableStreamWithWriter(t.toDevice),
+      },
+    )}`,
+  );
   throw new Error(
     `${context}: Meshtastic transport is missing readable/writable streams (fromDevice/toDevice). Reconnect USB serial or try another transport; include app version if reporting.`,
   );

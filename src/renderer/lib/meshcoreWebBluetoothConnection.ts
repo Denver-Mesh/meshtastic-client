@@ -1,6 +1,8 @@
 import { Connection } from '@liamcottle/meshcore.js';
 import type { Types } from '@meshtastic/core';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
+
 import { withTimeout } from '../../shared/withTimeout';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- TransportWebBluetoothIpc is used as a value (new) in connect()
 import { TransportWebBluetoothIpc } from './transportWebBluetoothIpc';
@@ -82,7 +84,7 @@ export class MeshcoreWebBluetoothConnection extends Connection {
         }
       }
     } catch (err) {
-      console.warn('[MeshcoreWebBluetoothConnection] _readLoop error:', err);
+      console.warn('[MeshcoreWebBluetoothConnection] _readLoop error: ' + errLikeToLogString(err));
     } finally {
       try {
         this._fromDeviceReader?.releaseLock();

@@ -1,3 +1,5 @@
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
+
 import { meshcoreGetRepeaterSessionPassword } from './meshcoreUtils';
 
 /** Minimal connection surface for repeater admin `login`. */
@@ -22,6 +24,8 @@ export async function meshcoreRepeaterTryLogin(
   try {
     await conn.login(pubKey, password, 10000);
   } catch (e) {
-    console.warn('[meshcoreRepeaterSession] repeater login failed (continuing)', e);
+    console.warn(
+      '[meshcoreRepeaterSession] repeater login failed (continuing) ' + errLikeToLogString(e),
+    );
   }
 }

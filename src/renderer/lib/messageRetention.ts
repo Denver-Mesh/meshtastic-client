@@ -1,3 +1,4 @@
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
 /**
  * Helpers for the SQLite-backed message retention setting.
  *
@@ -84,7 +85,9 @@ export async function fetchMessageRetention(): Promise<MessageRetentionSettings>
     const raw = await window.electronAPI.appSettings.getAll();
     return parseMessageRetention(raw);
   } catch (e) {
-    console.warn('[messageRetention] fetchMessageRetention failed; using defaults', e);
+    console.warn(
+      '[messageRetention] fetchMessageRetention failed; using defaults ' + errLikeToLogString(e),
+    );
     return { ...DEFAULT_MESSAGE_RETENTION };
   }
 }

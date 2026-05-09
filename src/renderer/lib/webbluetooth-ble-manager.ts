@@ -1,5 +1,6 @@
 import type { Types } from '@meshtastic/core';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
 import { BLE_TO_RADIO_PAYLOAD_CAP } from '@/shared/bleAttWriteLimit';
 
 import type { NobleBleSessionId } from './types';
@@ -163,7 +164,10 @@ export class WebBluetoothManager {
         );
       }
     } catch (err) {
-      console.debug('[WebBluetooth] getAvailability failed (expected on some platforms):', err);
+      console.debug(
+        '[WebBluetooth] getAvailability failed (expected on some platforms): ' +
+          errLikeToLogString(err),
+      );
     }
 
     // Create deferred promise for custom picker flow on Linux
@@ -207,7 +211,9 @@ export class WebBluetoothManager {
         });
       })
       .catch((err: unknown) => {
-        console.error(`[WebBluetooth:${this.sessionId}] requestDevice failed:`, err);
+        console.error(
+          `[WebBluetooth:${this.sessionId}] requestDevice failed:` + ' ' + errLikeToLogString(err),
+        );
         this._pendingDevicePromise = undefined;
         this._resolvePendingDevice = undefined;
         this._rejectPendingDevice = undefined;
@@ -316,7 +322,7 @@ export class WebBluetoothManager {
         domErr?.message,
         isPairing ? '(pairing-related)' : '',
       );
-      console.debug('[WebBluetooth] raw error:', err);
+      console.debug('[WebBluetooth] raw error: ' + errLikeToLogString(err));
       // Wrap the error with classification info for the UI layer
       const error = new Error(
         `Bluetooth connection failed${isPairing ? ' (pairing issue)' : ''}: ${domErr?.message ?? String(err)}`,
@@ -392,7 +398,7 @@ export class WebBluetoothManager {
         domErr?.message,
         isPairing ? '(pairing-related)' : '',
       );
-      console.debug('[WebBluetooth] GATT discovery raw error:', err);
+      console.debug('[WebBluetooth] GATT discovery raw error: ' + errLikeToLogString(err));
       // "GATT Error: Not supported" typically means device requires pairing before GATT operations
       const error = new Error(
         `GATT Error: Not supported. The device may require pairing. ${domErr?.message ?? String(err)}`,
@@ -451,7 +457,7 @@ export class WebBluetoothManager {
         domErr?.message,
         isPairing ? '(pairing-related)' : '',
       );
-      console.debug('[WebBluetooth] startNotifications raw error:', err);
+      console.debug('[WebBluetooth] startNotifications raw error: ' + errLikeToLogString(err));
       const error = new Error(
         `Failed to start Bluetooth notifications${isPairing ? ' (pairing issue)' : ''}: ${domErr?.message ?? String(err)}`,
       ) as Error & { isPairingRelated?: boolean };
@@ -473,7 +479,9 @@ export class WebBluetoothManager {
         await this.fromRadioCharacteristic.stopNotifications();
       }
     } catch (err) {
-      console.debug('[WebBluetoothManager] stopNotifications error during cleanup:', err);
+      console.debug(
+        '[WebBluetoothManager] stopNotifications error during cleanup: ' + errLikeToLogString(err),
+      );
     }
 
     try {
@@ -481,7 +489,9 @@ export class WebBluetoothManager {
         this.device.gatt.disconnect();
       }
     } catch (err) {
-      console.debug('[WebBluetoothManager] disconnect error during cleanup:', err);
+      console.debug(
+        '[WebBluetoothManager] disconnect error during cleanup: ' + errLikeToLogString(err),
+      );
     }
 
     this.cleanup();

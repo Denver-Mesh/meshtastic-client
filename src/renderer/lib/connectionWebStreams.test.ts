@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   assertMeshtasticSerialWebStreamsAvailable,
   assertTransportReadyForMeshDevice,
+  formatJsonForRendererLog,
   getMeshtasticStreamsDiagnostics,
 } from './connectionWebStreams';
 
@@ -14,6 +15,15 @@ describe('connectionWebStreams', () => {
       expect(typeof d.hasReadablePipeTo).toBe('boolean');
       expect(typeof d.hasWritableStream).toBe('boolean');
       expect(typeof d.userAgentSnippet).toBe('string');
+    });
+  });
+
+  describe('formatJsonForRendererLog', () => {
+    it('produces a single JSON string (disk-log safe)', () => {
+      const s = formatJsonForRendererLog({ a: 1, b: 'x' });
+      expect(s).toContain('"a"');
+      expect(s).toContain('"b"');
+      expect(s).not.toContain('[object Object]');
     });
   });
 

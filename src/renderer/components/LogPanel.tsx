@@ -10,6 +10,8 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
+
 import { formatLogTimeOfDay } from '../../shared/formatLogTimestamp';
 import { parseStoredJson } from '../lib/parseStoredJson';
 import type { MeshProtocol } from '../lib/types';
@@ -174,7 +176,7 @@ export default function LogPanel({
           setEntries(recent.slice(-MAX_LINES));
         }
       } catch (e) {
-        console.debug('[LogPanel] getRecentLines IPC failed:', e);
+        console.debug('[LogPanel] getRecentLines IPC failed: ' + errLikeToLogString(e));
       }
       if (cancelled) return;
       off = window.electronAPI.log.onLine((entry) => {
@@ -219,7 +221,7 @@ export default function LogPanel({
         console.debug('[LogPanel] Log exported to', path);
       }
     } catch (e) {
-      console.error('[LogPanel] Log export failed', e);
+      console.error('[LogPanel] Log export failed ' + errLikeToLogString(e));
     }
   }, []);
 
@@ -229,7 +231,7 @@ export default function LogPanel({
       await window.electronAPI.log.clear();
       setEntries([]);
     } catch (e) {
-      console.warn('[LogPanel] clear log failed', e);
+      console.warn('[LogPanel] clear log failed ' + errLikeToLogString(e));
       setLogClearError(e instanceof Error ? e.message : 'Could not clear log');
     }
   }, []);

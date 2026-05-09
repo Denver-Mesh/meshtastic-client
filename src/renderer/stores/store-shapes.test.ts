@@ -15,8 +15,13 @@ import { useMapViewportStore } from './mapViewportStore';
 import { usePositionHistoryStore } from './positionHistoryStore';
 import { useRepeaterSignalStore } from './repeaterSignalStore';
 
-function stateKeys(store: object) {
-  const state = store as Record<string, unknown>;
+const initialDiagnosticsState = useDiagnosticsStore.getInitialState();
+const initialMapViewportState = useMapViewportStore.getInitialState();
+const initialPositionHistoryState = usePositionHistoryStore.getInitialState();
+const initialRepeaterSignalState = useRepeaterSignalStore.getInitialState();
+
+function stateKeys(stateObject: object) {
+  const state = stateObject as Record<string, unknown>;
   const data = Object.keys(state)
     .filter((k) => typeof state[k] !== 'function')
     .sort();
@@ -28,11 +33,10 @@ function stateKeys(store: object) {
 
 describe('store shape contracts', () => {
   afterEach(() => {
-    // Reset stores to clean initial state between tests
-    useDiagnosticsStore.getState().clearDiagnostics();
-    usePositionHistoryStore.setState({ history: new Map() });
-    useRepeaterSignalStore.setState({ history: new Map() });
-    useMapViewportStore.setState({ viewport: null });
+    useDiagnosticsStore.setState(initialDiagnosticsState, true);
+    useMapViewportStore.setState(initialMapViewportState, true);
+    usePositionHistoryStore.setState(initialPositionHistoryState, true);
+    useRepeaterSignalStore.setState(initialRepeaterSignalState, true);
   });
 
   describe('useDiagnosticsStore', () => {

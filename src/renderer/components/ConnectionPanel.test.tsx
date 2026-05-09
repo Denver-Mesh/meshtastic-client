@@ -121,8 +121,7 @@ describe('ConnectionPanel MQTT connect error', () => {
 
     expect(await screen.findByText('broker refused')).toBeInTheDocument();
     expect(consoleWarnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[ConnectionPanel]'),
-      expect.any(Error),
+      expect.stringMatching(/\[ConnectionPanel\].*broker refused/s),
     );
     consoleWarnSpy.mockRestore();
   });
@@ -192,8 +191,9 @@ describe('ConnectionPanel BLE error humanization', () => {
 
     expect(await screen.findByText(/On Windows, toggle Bluetooth off\/on/i)).toBeInTheDocument();
     expect(consoleWarnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[ConnectionPanel]'),
-      expect.any(Error),
+      expect.stringMatching(
+        /\[ConnectionPanel\].*Bluetooth connected but MeshCore protocol handshake/s,
+      ),
     );
     consoleWarnSpy.mockRestore();
     userAgentSpy.mockRestore();
@@ -229,8 +229,7 @@ describe('ConnectionPanel BLE error humanization', () => {
     expect(await screen.findByText(/"reason":"adapter glitch"/)).toBeInTheDocument();
     expect(screen.queryByText(/\[object Object\]/)).not.toBeInTheDocument();
     expect(consoleWarnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[ConnectionPanel]'),
-      expect.objectContaining({ reason: 'adapter glitch', code: 'BLE_OBJECT_ERR' }),
+      expect.stringMatching(/\[ConnectionPanel\].*"reason":"adapter glitch"/s),
     );
     consoleWarnSpy.mockRestore();
     userAgentSpy.mockRestore();
@@ -266,8 +265,7 @@ describe('ConnectionPanel BLE error humanization', () => {
       await screen.findByText(/update your Bluetooth driver in Device Manager/i),
     ).toBeInTheDocument();
     expect(consoleWarnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[ConnectionPanel]'),
-      expect.any(Error),
+      expect.stringMatching(/\[ConnectionPanel\].*Bluetooth adapter is not available/s),
     );
     consoleWarnSpy.mockRestore();
     userAgentSpy.mockRestore();

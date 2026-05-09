@@ -2,6 +2,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
+
 import {
   diagnosticRowsToRoutingMap,
   FOREIGN_LORA_RF_CONDITIONS,
@@ -424,7 +426,7 @@ export default function DiagnosticsPanel({
       await onTraceRoute(nodeId);
       // Result arrival is detected via useEffect watching traceRouteResults
     } catch (e) {
-      console.warn('[DiagnosticsPanel] trace route failed', e);
+      console.warn('[DiagnosticsPanel] trace route failed ' + errLikeToLogString(e));
       clearTimeout(timer);
       traceTimers.current.delete(nodeId);
       setTracePendingNodes((prev) => {

@@ -1,3 +1,5 @@
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
+
 import { parseStoredJson } from './parseStoredJson';
 import type { MeshProtocol } from './types';
 
@@ -34,7 +36,10 @@ export function loadOpenDmTabsInitial(protocol: MeshProtocol): number[] {
         try {
           localStorage.setItem(key, legacy);
         } catch (e) {
-          console.debug('[chatPanelProtocolStorage] migrate openDmTabs to protocol key failed', e);
+          console.debug(
+            '[chatPanelProtocolStorage] migrate openDmTabs to protocol key failed ' +
+              errLikeToLogString(e),
+          );
         }
         return parsed;
       }
@@ -59,7 +64,10 @@ export function loadPersistedLastReadInitial(protocol: MeshProtocol): Record<str
         try {
           localStorage.setItem(key, legacy);
         } catch (e) {
-          console.debug('[chatPanelProtocolStorage] migrate lastRead to protocol key failed', e);
+          console.debug(
+            '[chatPanelProtocolStorage] migrate lastRead to protocol key failed ' +
+              errLikeToLogString(e),
+          );
         }
         return parsed;
       }

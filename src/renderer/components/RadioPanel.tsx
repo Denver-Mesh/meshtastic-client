@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
+
 import {
   type MeshCoreContactRaw,
   type MeshCoreSelfInfo,
@@ -11,6 +13,7 @@ import type { OurPosition } from '../lib/gpsSource';
 import type { MeshcoreAutoaddWireState } from '../lib/meshcoreContactAutoAdd';
 import {
   MESHCORE_CHANNEL_INDEX_MAX,
+  MESHCORE_CONTACTS_CRITICAL_THRESHOLD,
   MESHCORE_MAX_CONTACTS,
   meshcoreDeriveChannelKeyHexFromName,
   meshcoreSelfInfoBwToDisplayKhz,
@@ -187,14 +190,15 @@ function ContactCountBadge() {
       setContactCount((prev) => (prev !== null ? 0 : prev));
       addToast(t('radioPanel.offloadedContacts', { count }), 'success');
     } catch (e) {
-      console.warn('[RadioPanel] offloadAllMeshcoreContacts error', e);
+      console.warn('[RadioPanel] offloadAllMeshcoreContacts error ' + errLikeToLogString(e));
       addToast(t('radioPanel.failedOffloadContacts'), 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const isNearCapacity = contactCount !== null && contactCount >= 300;
+  const isNearCapacity =
+    contactCount !== null && contactCount >= MESHCORE_CONTACTS_CRITICAL_THRESHOLD;
 
   return (
     <div className="flex items-center gap-2">
@@ -406,7 +410,7 @@ function base64ToPsk(b64: string): Uint8Array {
     const binary = atob(b64);
     return Uint8Array.from(binary, (c) => c.charCodeAt(0));
   } catch (e) {
-    console.debug('[RadioPanel] base64ToPsk invalid', e);
+    console.debug('[RadioPanel] base64ToPsk invalid ' + errLikeToLogString(e));
     return new Uint8Array([1]);
   }
 }
@@ -744,7 +748,7 @@ export default function RadioPanel({
         });
       setStatus(`${section} applied successfully. Device may briefly reboot.`);
     } catch (err) {
-      console.warn('[RadioPanel] apply section failed', err);
+      console.warn('[RadioPanel] apply section failed ' + errLikeToLogString(err));
       setStatus(`Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setApplyingSection(null);
@@ -796,7 +800,7 @@ export default function RadioPanel({
       await pendingAction.action();
       addToast(t('radioPanel.actionCompleted', { name: pendingAction.name }), 'success');
     } catch (err) {
-      console.warn('[RadioPanel] pending action failed', err);
+      console.warn('[RadioPanel] pending action failed ' + errLikeToLogString(err));
       addToast(
         t('radioPanel.actionFailed', {
           message: err instanceof Error ? err.message : 'Unknown error',
@@ -891,7 +895,7 @@ export default function RadioPanel({
               console.debug('[RadioPanel] onSetOwner succeeded');
               applied.push('name');
             } catch (e) {
-              console.error('[RadioPanel] onSetOwner threw:', e);
+              console.error('[RadioPanel] onSetOwner threw: ' + errLikeToLogString(e));
               notSupported.push('name');
             }
           } else {
@@ -931,7 +935,7 @@ export default function RadioPanel({
               console.debug('[RadioPanel] onApplyLoraParams succeeded');
               applied.push('radio settings');
             } catch (e) {
-              console.error('[RadioPanel] onApplyLoraParams threw:', e);
+              console.error('[RadioPanel] onApplyLoraParams threw: ' + errLikeToLogString(e));
               notSupported.push('radio settings');
             }
           }
@@ -954,7 +958,7 @@ export default function RadioPanel({
             addToast(t('radioPanel.configImportedNoChanges'), 'success');
           }
         } catch (err) {
-          console.error('[RadioPanel] config import error:', err);
+          console.error('[RadioPanel] config import error: ' + errLikeToLogString(err));
           addToast(
             t('radioPanel.configParseFailed', {
               message: err instanceof Error ? err.message : 'Invalid JSON',
@@ -1066,7 +1070,9 @@ export default function RadioPanel({
                 }
                 addToast(t('radioPanel.contactManagementUpdated'), 'success');
               } catch (e) {
-                console.warn('[RadioPanel] meshcore contact management apply failed', e);
+                console.warn(
+                  '[RadioPanel] meshcore contact management apply failed ' + errLikeToLogString(e),
+                );
                 addToast(
                   e instanceof Error ? e.message : t('radioPanel.contactMgmtFailed'),
                   'error',
@@ -1631,7 +1637,9 @@ export default function RadioPanel({
                   await onSendPositionToDevice(lat, lon, isFinite(alt) ? alt : 0);
                   addToast(t('radioPanel.positionSent'), 'success');
                 } catch (err) {
-                  console.warn('[RadioPanel] send position to device failed', err);
+                  console.warn(
+                    '[RadioPanel] send position to device failed ' + errLikeToLogString(err),
+                  );
                   addToast(
                     capabilities?.protocol === 'meshcore'
                       ? t('radioPanel.meshcoreGpsFailed', {
@@ -1766,7 +1774,9 @@ export default function RadioPanel({
                 await onApplyMeshcoreTelemetryPrivacy(modes);
                 addToast(t('radioPanel.telemetryPrivacyUpdated'), 'success');
               } catch (e) {
-                console.warn('[RadioPanel] meshcore telemetry privacy apply failed', e);
+                console.warn(
+                  '[RadioPanel] meshcore telemetry privacy apply failed ' + errLikeToLogString(e),
+                );
                 addToast(
                   e instanceof Error ? e.message : t('radioPanel.telemetryPrivacyFailed'),
                   'error',
@@ -2229,7 +2239,7 @@ function ChannelSection({
       await onCommit();
       setStatus(t('radioPanel.channelSavedStatus', { index: selectedIndex }));
     } catch (err) {
-      console.warn('[RadioPanel] save channel failed', err);
+      console.warn('[RadioPanel] save channel failed ' + errLikeToLogString(err));
       setStatus(
         t('radioPanel.channelSaveFailed', {
           message: err instanceof Error ? err.message : t('common.unknown'),
@@ -2262,7 +2272,7 @@ function ChannelSection({
       await onCommit();
       setStatus(`Channel ${selectedIndex} reset!`);
     } catch (err) {
-      console.warn('[RadioPanel] reset channel failed', err);
+      console.warn('[RadioPanel] reset channel failed ' + errLikeToLogString(err));
       setStatus(`Failed: ${err instanceof Error ? err.message : 'Unknown'}`);
     } finally {
       setSaving(false);
@@ -2630,7 +2640,7 @@ function MeshcoreChannelSection({
       setAddingNew(false);
     } catch (e) {
       const errorMsg = serializeErrorLike(e) || 'Unknown error';
-      console.warn('[MeshcoreChannelSection] save failed', { error: e, errorMessage: errorMsg });
+      console.warn(`[MeshcoreChannelSection] save failed ${errorMsg}`);
       // Show error to user - could add toast notification here
       alert(`Failed to save channel: ${errorMsg}`);
     } finally {
@@ -2645,7 +2655,7 @@ function MeshcoreChannelSection({
       setConfirmDeleteIdx(null);
       if (editingIdx === idx) setEditingIdx(null);
     } catch (e) {
-      console.warn('[MeshcoreChannelSection] delete failed', e);
+      console.warn('[MeshcoreChannelSection] delete failed ' + errLikeToLogString(e));
     } finally {
       setSaving(false);
     }
@@ -2664,7 +2674,7 @@ function MeshcoreChannelSection({
       const hex = await meshcoreDeriveChannelKeyHexFromName(editName);
       setEditKeyHex(hex);
     } catch (e) {
-      console.warn('[MeshcoreChannelSection] derive key failed', e);
+      console.warn('[MeshcoreChannelSection] derive key failed ' + errLikeToLogString(e));
     } finally {
       setDeriveKeyBusy(false);
     }

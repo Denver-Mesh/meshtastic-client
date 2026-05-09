@@ -27,6 +27,7 @@ import {
 } from 'react-leaflet';
 import MarkerClusterGroup from 'react-leaflet-cluster';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
 import type { ElectronAPI } from '@/shared/electron-api.types';
 
 import type { LocationFilter } from '../App';
@@ -514,7 +515,7 @@ function LocateMeControl({
       setLocatedPos(coords);
       map.flyTo(coords, 16);
     } catch (e) {
-      console.error('[LocateMeControl] getGpsFix failed:', e);
+      console.error('[LocateMeControl] getGpsFix failed: ' + errLikeToLogString(e));
       addToast(t('mapPanel.locationRequestFailed'), 'error');
     } finally {
       setLoading(false);

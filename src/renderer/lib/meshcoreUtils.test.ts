@@ -5,6 +5,8 @@ import {
   isMeshcoreContactEligibleForUserGroup,
   isMeshcoreTransportStatusChatLine,
   mergeHwModelOnContactUpdate,
+  MESHCORE_CONTACTS_CRITICAL_THRESHOLD,
+  MESHCORE_CONTACTS_WARNING_THRESHOLD,
   meshcoreAppendRepeaterAuthHint,
   meshcoreApplyRepeaterSessionAuth,
   meshcoreApplyRepeaterSessionAuthSkip,
@@ -29,6 +31,14 @@ import {
   meshcoreTracePathLenToHops,
   pubkeyToNodeId,
 } from './meshcoreUtils';
+
+describe('MeshCore contact capacity thresholds', () => {
+  it('critical is stricter than warning (closer to radio max)', () => {
+    expect(MESHCORE_CONTACTS_CRITICAL_THRESHOLD).toBeGreaterThan(
+      MESHCORE_CONTACTS_WARNING_THRESHOLD,
+    );
+  });
+});
 
 describe('meshcoreScaledAdvLatLonToDeg', () => {
   it('maps non-zero scaled integers to degrees', () => {
@@ -296,6 +306,11 @@ describe('meshcoreSliceContactOutPathForTrace', () => {
   it('uses firmware length when 0..61', () => {
     const buf = new Uint8Array([1, 2, 3, 0, 0]);
     expect(meshcoreSliceContactOutPathForTrace(buf, 2)).toEqual(new Uint8Array([1, 2, 3]));
+  });
+
+  it('outPathLen 0 yields first byte only (firmware direct / length-zero semantics)', () => {
+    const buf = new Uint8Array([9, 8, 7, 0, 0]);
+    expect(meshcoreSliceContactOutPathForTrace(buf, 0)).toEqual(new Uint8Array([9]));
   });
 
   it('trims trailing zeros when outPathLen is negative (e.g. -1)', () => {
