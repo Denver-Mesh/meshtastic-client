@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  coerceMeshcoreExportPrivateKeyResult,
   isMeshcoreContactEligibleForUserGroup,
   isMeshcoreTransportStatusChatLine,
   mergeHwModelOnContactUpdate,
@@ -530,5 +531,25 @@ describe('event 128 advert hw_model merge', () => {
   it('preserves Repeater when firmware advert reports None (type 0)', () => {
     const mergedHwModel = mergeHwModelOnContactUpdate('Repeater', 'None');
     expect(mergedHwModel).toBe('Repeater');
+  });
+});
+
+describe('coerceMeshcoreExportPrivateKeyResult', () => {
+  it('unwraps meshcore.js { privateKey } payload', () => {
+    const inner = new Uint8Array(64).fill(7);
+    expect(coerceMeshcoreExportPrivateKeyResult({ privateKey: inner })).toBe(inner);
+  });
+
+  it('accepts raw non-empty Uint8Array', () => {
+    const raw = new Uint8Array(32).fill(3);
+    expect(coerceMeshcoreExportPrivateKeyResult(raw)).toBe(raw);
+  });
+
+  it('returns null for empty or invalid shapes', () => {
+    expect(coerceMeshcoreExportPrivateKeyResult(null)).toBeNull();
+    expect(coerceMeshcoreExportPrivateKeyResult(undefined)).toBeNull();
+    expect(coerceMeshcoreExportPrivateKeyResult(new Uint8Array(0))).toBeNull();
+    expect(coerceMeshcoreExportPrivateKeyResult({ privateKey: new Uint8Array(0) })).toBeNull();
+    expect(coerceMeshcoreExportPrivateKeyResult({})).toBeNull();
   });
 });

@@ -194,7 +194,8 @@ declare module '@liamcottle/meshcore.js' {
     clearFloodScope(): Promise<void>;
     // Crypto
     sign(data: Uint8Array): Promise<Uint8Array>;
-    exportPrivateKey(): Promise<Uint8Array>;
+    /** meshcore.js resolves with `{ privateKey: Uint8Array }` (not a bare Uint8Array). */
+    exportPrivateKey(): Promise<unknown>;
     importPrivateKey(privateKey: Uint8Array): Promise<void>;
     // Other
     setOtherParams(manualAddContacts: boolean): Promise<void>;

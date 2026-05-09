@@ -577,3 +577,23 @@ export function meshcoreAppendRepeaterAuthHint(message: string): string {
   if (!authish) return m;
   return `${m} ${REPEATER_AUTH_HINT}`;
 }
+
+/**
+ * Normalizes the value resolved by meshcore.js `exportPrivateKey()` — typically
+ * `{ privateKey: Uint8Array }` from `onPrivateKeyResponse`. Call sites must not assume a bare `Uint8Array`.
+ */
+export function coerceMeshcoreExportPrivateKeyResult(result: unknown): Uint8Array | null {
+  if (result instanceof Uint8Array) {
+    return result.byteLength > 0 ? result : null;
+  }
+  if (
+    result &&
+    typeof result === 'object' &&
+    'privateKey' in result &&
+    result.privateKey instanceof Uint8Array
+  ) {
+    const pk = result.privateKey;
+    return pk.byteLength > 0 ? pk : null;
+  }
+  return null;
+}
