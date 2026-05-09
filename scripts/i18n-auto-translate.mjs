@@ -220,9 +220,7 @@ let googleFallbackAnnounced = false;
 function noteGoogleFallbackActive(reason) {
   if (googleFallbackAnnounced) return;
   googleFallbackAnnounced = true;
-  console.warn(
-    `  Active backend for remaining strings: Google Translate (public endpoint). ${reason}`,
-  );
+  console.warn(`  Using Google only now (MyMemory skipped). ${reason}`);
 }
 
 async function translate(text, lang) {
@@ -230,21 +228,28 @@ async function translate(text, lang) {
     try {
       return await translateLibreTranslate(text, lang.lt);
     } catch (err) {
-      console.warn(`  LibreTranslate failed (${err.message}), falling back to MyMemory/Google.`);
+      console.warn(`  LibreTranslate: ${err.message} → MyMemory/Google`);
     }
   }
   if (!myMemoryDisabledForRun) {
     try {
       return await translateMyMemory(text, lang.mm);
     } catch (err) {
-      console.warn(`  MyMemory failed (${err.message}), falling back to Google Translate.`);
+      console.warn(`  MyMemory: ${err.message} → Google`);
       if (String(err.message).includes('429')) {
         myMemoryDisabledForRun = true;
-        noteGoogleFallbackActive('MyMemory returned HTTP 429 (rate limit).');
+        noteGoogleFallbackActive('429');
       }
     }
   }
   return translateGoogle(text, lang.g);
+}
+
+/** Short tag for startup line only. */
+function shortRunMode(translateAllGaps, hasGitBaseline) {
+  if (translateAllGaps) return '--all gap vs EN';
+  if (hasGitBaseline) return 'incremental (new EN vs HEAD)';
+  return 'gap vs EN (no HEAD)';
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -260,14 +265,21 @@ async function main() {
   const enAtHead = readJsonFromGit('HEAD:src/renderer/locales/en/translation.json');
   const hasGitBaseline = Boolean(enAtHead);
   let addedEnglishKeysSet = null;
+  /** Stable order of new EN paths vs HEAD (incremental); empty if N/A. */
+  let addedEnglishKeysOrdered = [];
   if (enAtHead) {
     const enAtHeadKeys = new Set(Object.keys(flatten(enAtHead)));
     const addedEnglishKeys = enKeys.filter((key) => !enAtHeadKeys.has(key));
-    if (addedEnglishKeys.length === 0) {
-      console.log('No new English keys; skipping auto-translate.');
+    if (addedEnglishKeys.length === 0 && !translateAllGaps) {
+      console.log(
+        'No new English keys compared to git HEAD; incremental mode would fill nothing — skipping auto-translate.',
+      );
       process.exit(0);
     }
-    addedEnglishKeysSet = new Set(addedEnglishKeys);
+    if (!translateAllGaps) {
+      addedEnglishKeysSet = new Set(addedEnglishKeys);
+      addedEnglishKeysOrdered = addedEnglishKeys;
+    }
   }
 
   let anyMissing = false;
@@ -279,65 +291,135 @@ async function main() {
       translateAllGaps,
       hasGitBaseline,
     });
+    const keysToTranslateCount =
+      !translateAllGaps && addedEnglishKeysOrdered.length > 0
+        ? addedEnglishKeysOrdered.filter((k) => !(k in existing) && typeof enFlat[k] === 'string')
+            .length
+        : missing.filter((k) => typeof enFlat[k] === 'string').length;
     if (missing.length > 0) {
       anyMissing = true;
-      missingByLang.set(lang, { existing, missing });
+      missingByLang.set(lang, { existing, missing, keysToTranslateCount });
     }
   }
 
   if (!anyMissing) {
-    console.log('All translation files are up to date.');
+    console.log(
+      'Nothing to do: no locale is missing any keys that this run would machine-translate (under the current mode).',
+    );
     process.exit(0);
   }
 
-  if (LT_URL) {
-    console.log(
-      `Primary backend: LibreTranslate (${LT_URL}); fallback: MyMemory → Google Translate`,
-    );
-  } else {
-    console.log('Primary backend: MyMemory; fallback: Google Translate (public endpoint)');
+  const localeQueue = [...missingByLang.entries()];
+  const localeRunTotal = localeQueue.length;
+
+  let totalScheduledJobs = 0;
+  for (const [, { keysToTranslateCount }] of missingByLang) {
+    totalScheduledJobs += keysToTranslateCount;
   }
 
-  for (const [lang, { missing }] of missingByLang) {
-    const target = readJson(join(LOCALES_DIR, `${lang.dir}/translation.json`));
+  const apiTag = LT_URL ? `LibreTranslate ${LT_URL}` : 'MyMemory→Google';
+  console.log(
+    `${apiTag} · ${shortRunMode(translateAllGaps, hasGitBaseline)} · ` +
+      `${localeRunTotal}/${LANG_CODES.length} locales · ${totalScheduledJobs} jobs`,
+  );
+  if (!translateAllGaps && !hasGitBaseline) {
+    console.warn('No HEAD:en baseline — not incremental.');
+  }
 
-    const keysToTranslate = missing.filter((k) => typeof enFlat[k] === 'string');
-    const totalKeys = keysToTranslate.length;
-    console.log(`Translating ${totalKeys} key(s) for ${lang.dir}…`);
+  let completedJobs = 0;
+
+  for (let localeRunIndex = 0; localeRunIndex < localeQueue.length; localeRunIndex++) {
+    const [lang, { missing }] = localeQueue[localeRunIndex];
+    const localeOrdinal = localeRunIndex + 1;
+    const scanOrdinal = LANG_CODES.findIndex((l) => l.dir === lang.dir) + 1;
+
+    const target = readJson(join(LOCALES_DIR, `${lang.dir}/translation.json`));
+    const existingFlat = flatten(target);
+    const keysToTranslate =
+      !translateAllGaps && addedEnglishKeysOrdered.length > 0
+        ? addedEnglishKeysOrdered.filter(
+            (k) => !(k in existingFlat) && typeof enFlat[k] === 'string',
+          )
+        : missing.filter((k) => typeof enFlat[k] === 'string');
+    const workTotal = keysToTranslate.length;
+    const missingTotal = missing.length;
+
+    const q = `${lang.dir} queue ${localeOrdinal}/${localeRunTotal} lang ${scanOrdinal}/${LANG_CODES.length}`;
+    if (workTotal === 0) {
+      console.log(`${q} · 0 jobs (skip)`);
+      continue;
+    }
+    if (missingTotal > workTotal) {
+      console.log(`${q} · note: ${missingTotal - workTotal} non-string missing paths skipped`);
+    }
+    if (!translateAllGaps && addedEnglishKeysSet) {
+      console.log(
+        `${q} · translate ${workTotal}/${addedEnglishKeysSet.size} new-EN vs HEAD here · ${workTotal} API calls`,
+      );
+    } else {
+      console.log(
+        `${q} · ${workTotal} gap-fill API calls for this file (--all: missing vs EN only; existing keys untouched)`,
+      );
+    }
+    if ((localeRunTotal > 1 || totalScheduledJobs > workTotal) && completedJobs > 0) {
+      console.log(`  run so far ${completedJobs}/${totalScheduledJobs}`);
+    }
+    if (!translateAllGaps && addedEnglishKeysSet && workTotal > addedEnglishKeysSet.size) {
+      console.warn(
+        `  Unexpected: locale job count (${workTotal}) exceeds incremental new-EN path count (${addedEnglishKeysSet.size}) — report this as a bug.`,
+      );
+    }
 
     let count = 0;
     let failed = 0;
-    const progressEvery = totalKeys <= 30 ? 1 : 25;
+    const progressEvery = workTotal <= 30 ? 1 : 25;
     const truncateKey = (k) => (k.length > 64 ? `${k.slice(0, 61)}…` : k);
 
-    let keyIndex = 0;
+    let localeJobDone = 0;
     for (const key of keysToTranslate) {
-      keyIndex++;
       const englishValue = enFlat[key];
       try {
         const translated = await translate(englishValue, lang);
         setDeep(target, key, translated);
         count++;
-        if (keyIndex === 1 || keyIndex === totalKeys || keyIndex % progressEvery === 0) {
-          console.log(`  [${lang.dir}] ${keyIndex}/${totalKeys} ${truncateKey(key)}`);
+        localeJobDone++;
+        completedJobs++;
+        if (
+          localeJobDone === 1 ||
+          localeJobDone === workTotal ||
+          localeJobDone % progressEvery === 0
+        ) {
+          console.log(`  [${lang.dir}] ${localeJobDone}/${workTotal} · ${truncateKey(key)}`);
         }
         await sleep(300);
       } catch (err) {
-        console.error(`  Error translating "${key}" for ${lang.dir}: ${err.message}`);
+        console.error(
+          `  Failed to machine-translate one missing string — locale ${lang.dir}, key "${key}": ${err.message}`,
+        );
         failed++;
       }
     }
     if (failed > 0) {
       anyKeysFailed = true;
-      console.error(`  ${failed} key(s) failed for ${lang.dir} — run again to retry.`);
+      console.error(
+        `  ${failed} missing key(s) in locale ${lang.dir} could not be machine-translated — run again to retry only failed keys (already-filled keys stay saved).`,
+      );
     }
 
     const outPath = join(LOCALES_DIR, `${lang.dir}/translation.json`);
     writeFileSync(outPath, JSON.stringify(target, null, 2) + '\n', 'utf8');
-    console.log(`  Wrote ${count} translation(s) to ${outPath}`);
+    const tail =
+      localeRunTotal > 1 || totalScheduledJobs > workTotal
+        ? ` · run ${completedJobs}/${totalScheduledJobs}`
+        : '';
+    console.log(`  ${lang.dir}: saved +${count} keys${tail}`);
   }
 
-  console.log('Done.');
+  if (anyKeysFailed) {
+    console.error('Done with failures (exit 1).');
+  } else {
+    console.log('Done (exit 0).');
+  }
   return anyKeysFailed;
 }
 
@@ -346,6 +428,6 @@ main()
     process.exit(hadFailures ? 1 : 0);
   })
   .catch((err) => {
-    console.error(err);
+    console.error('Auto-translate aborted with an unexpected error:', err);
     process.exit(1);
   });
