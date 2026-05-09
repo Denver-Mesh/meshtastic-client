@@ -35,7 +35,7 @@
     "messages": "сообщения",
     "connect": "Соединять",
     "disconnect": "Отключить",
-    "discord": "Раздор",
+    "discord": "Discord",
     "github": "GitHub",
     "website": "Веб-сайт",
     "confirm": "Подтверждать",
@@ -58,7 +58,7 @@
     "applicationLog": "Журнал приложений",
     "playAnimation": "Воспроизвести анимацию импульсного сигнала сетки",
     "protocolSwitcher": "Переключатель протоколов",
-    "switchToMeshtastic": "Переключиться на Мештастик",
+    "switchToMeshtastic": "Переключиться на Meshtastic",
     "switchToMeshCore": "Переключиться на MeshCore",
     "backToTop": "Вернуться наверх",
     "keyboardShortcuts": "Сочетания клавиш (?)"
@@ -73,7 +73,7 @@
     "modules": "Модули",
     "telemetry": "Телеметрия",
     "security": "Безопасность",
-    "tak": "ТАК",
+    "tak": "TAK",
     "app": "Приложение",
     "diagnostics": "Диагностика",
     "stats": "Статистика",
@@ -93,7 +93,7 @@
     "sendMessage": "Отправить сообщение",
     "newLine": "Новая строка в сообщении",
     "openHelp": "Откройте справку по сочетаниям клавиш",
-    "switchMeshtastic": "Переключиться на Мештастик",
+    "switchMeshtastic": "Переключиться на Meshtastic",
     "switchMeshCore": "Переключиться на MeshCore",
     "switchToTab": "Перейдите на вкладку {{name}}",
     "notInMeshCore": "(недоступно в MeshCore)",
@@ -145,10 +145,10 @@
     "loadingDialog": "Диалог загрузки",
     "meshtasticQueueTooltip": "Очередь передачи: пакеты, ожидающие отправки. Зеленый = низкий уровень, желтый = заполнение, красный = перегружен.",
     "meshcoreQueueTooltip": "Поскольку MeshCore отправляет сообщения быстро, а мы опрашиваем каждые 30 секунд, это значение всегда должно быть 0. Если не 0, существует перегрузка.",
-    "takRunning": "ТАК работает",
-    "takStopped": "ТАК остановлен",
-    "takServerRunning": "ТАК-сервер работает",
-    "takServerStopped": "ТАК-сервер остановлен",
+    "takRunning": "TAK работает",
+    "takStopped": "TAK остановлен",
+    "takServerRunning": "TAK-сервер работает",
+    "takServerStopped": "TAK-сервер остановлен",
     "mqttConnected": "MQTT подключен",
     "mqttConnecting": "MQTT-соединение",
     "mqttError": "Ошибка MQTT",
@@ -276,7 +276,7 @@
         "description": "Узел датчика телеметрии"
       },
       "7": {
-        "label": "ТАК",
+        "label": "TAK",
         "description": "Устройство с поддержкой TAK"
       },
       "8": {
@@ -288,8 +288,8 @@
         "description": "Транслирует позицию для восстановления"
       },
       "10": {
-        "label": "ТАК Трекер",
-        "description": "Режим трекера ТАК"
+        "label": "TAK Трекер",
+        "description": "Режим трекера TAK"
       }
     },
     "contactsOnRadioBadgeTitle": "{{part}} контакты по радио",
@@ -437,7 +437,7 @@
     "wifiSsidLabel": "SSID Wi-Fi",
     "ntpServerLabel": "NTP-сервер",
     "ethernetEnabledDesc": "Включите аппаратный Ethernet (поддерживается на некоторых устройствах).",
-    "floodAdvertButton": "Реклама о наводнении",
+    "floodAdvertButton": "Flood Advert",
     "syncClockButton": "Синхронизировать часы",
     "deviceCommandsImmediateWarning": "Эти действия влияют на подключенное устройство сразу (перезагрузка, выключение, режимы прошивки и т.д.).",
     "enterDfuName": "Войдите в режим DFU",
@@ -724,7 +724,7 @@
     "clearAllLocalData": "Очистить все локальные данные и кэш",
     "title": "Настройки приложения",
     "logPanelSection": "Панель журнала",
-    "floodAdvertSection": "Реклама о наводнении",
+    "floodAdvertSection": "Flood Advert",
     "floodAdvertScheduleLabel": "Автоматически отправлять объявление о паводке по расписанию:",
     "floodAdvertEvery12h": "Каждые 12 часов",
     "floodAdvertEvery24h": "Каждые 24 часа",
@@ -872,7 +872,7 @@
     "columnLastHeard": "Последнее услышанное",
     "columnType": "Тип",
     "columnRole": "Роль",
-    "columnHops": "Хопи",
+    "columnHops": "Хопы",
     "columnMqtt": "MQTT",
     "columnLat": "лат.",
     "columnLon": "Лон",
@@ -888,7 +888,7 @@
     "emptyNoSearchMatches": "Ни один узел не соответствует вашему запросу.",
     "emptyNoNodesYet": "Узлы пока не обнаружены. Подключитесь к устройству, чтобы увидеть ячеистую сеть.",
     "buttonRefresh": "Обновить",
-    "buttonFloodAdvert": "Реклама о наводнении",
+    "buttonFloodAdvert": "Flood Advert",
     "buttonImportContacts": "Импортировать контакты",
     "meshcoreTypeChat": "Чат",
     "meshcoreTypeRepeater": "Репитер",
@@ -930,7 +930,32 @@
     "showPublicKeys": "Показывать открытые ключи в списке контактов",
     "clearAllContacts": "Очистить все контакты MeshCore",
     "contactManagement": "Управление контактами",
-    "noLimitPlaceholder": "Без ограничений"
+    "noLimitPlaceholder": "Без ограничений",
+    "intro": "Управляет тем, как сопутствующее радио добавляет контакты из прослушанной рекламы (прошивка MeshCore). Автоматическое добавление выбранных типов применяется только в том случае, если включен параметр «Автодобавление выбранных типов»; перезапись и максимальное количество переходов применяются в обоих режимах.",
+    "autoAddModeLegend": "Режим автоматического добавления",
+    "autoAddAllTitle": "Автоматически добавить все",
+    "autoAddAllDesc": "Все полученные объявления можно добавлять в контакты.",
+    "autoAddSelectedTitle": "Автодобавление выбрано",
+    "autoAddSelectedDesc": "Автоматически добавляются только те типы контактов, которые вы включили ниже.",
+    "autoAddTypesHeading": "Типы автоматического добавления (только в выбранном режиме)",
+    "typeChatUsers": "Пользователи чата",
+    "typeRepeaters": "Ретрансляторы",
+    "typeRoomServers": "Серверы комнат",
+    "typeSensors": "Датчики",
+    "overwriteOldestTitle": "Перезаписать самый старый",
+    "overwriteOldestHelp": "Когда список контактов заполнится, замените самый старый неизбранный контакт новыми.",
+    "maxHopsLabel": "Автоматически добавлять максимальное количество прыжков",
+    "maxHopsHelp": "Автоматическое добавление только в том случае, если путь объявления имеет не более указанного количества переходов. Оставьте пустым, чтобы не было ограничений. (0–{{uiMax}}; устройство может зафиксироваться на {{wireMax}}.)",
+    "maxHopsInvalid": "Введите целое число от 0 до 63 или оставьте поле пустым, чтобы ограничений не было.",
+    "contactsListAppHeading": "Список контактов (приложение)",
+    "showRefreshLabel": "Показать контроль обновления",
+    "showRefreshDesc": "Отображение кнопки обновления на вкладке «Контакты» (замена кнопки обновления по запросу на рабочем столе).",
+    "showPublicKeysLabel": "Показать открытые ключи",
+    "showPublicKeysDesc": "Покажите открытый ключ каждого контакта под именем.",
+    "clearAllIntro": "Удалите все контакты из радио и очистите базу данных контактов приложения. Это невозможно отменить.",
+    "clearAllContactsConfirm": "Удалить все контакты с магнитолы и очистить данные местных контактов?",
+    "clearingContacts": "Очистка…",
+    "clearAllContactsButton": "Очистить все контакты"
   },
   "chatPanel": {
     "channels": "Каналы",
@@ -945,7 +970,7 @@
     "addReaction": "Добавить реакцию",
     "emojiButton": "Эмодзи",
     "sendButton": "Отправлять",
-    "sendButtonDm": "ДМ",
+    "sendButtonDm": "DM",
     "sendButtonSending": "...",
     "receivedViaRf": "Получено через РФ",
     "receivedViaMqtt": "Получено через MQTT",
@@ -1163,7 +1188,7 @@
     "selfNodeFallback": "Мне",
     "heuristicNotesTooltip": "{{count}} эвристические примечания, не показанные ниже — см. таблицу диагностики.",
     "foreignClassMeshcore": "MeshCore активность",
-    "foreignClassMeshtastic": "Мештастический трафик",
+    "foreignClassMeshtastic": "Meshtastic трафик",
     "foreignClassUnknownLora": "Неизвестный сигнал LoRa",
     "proximityVeryClose": "Очень близко",
     "proximityNearby": "Рядом",
@@ -1194,7 +1219,7 @@
     "noAnomaliesMatchSearch": "Нет аномалий, соответствующих вашему запросу.",
     "tableNode": "Узел",
     "tableOffense": "Нарушение",
-    "tableHops": "Хмель",
+    "tableHops": "Хопы",
     "tableDetected": "Обнаружено",
     "tableSuggestedFix": "Предлагаемое исправление",
     "tableAction": "Действие",
@@ -1228,7 +1253,7 @@
       "widebandNoiseFloor": "Широкополосный уровень шума",
       "fringeWeakCoverage": "Крайнее / слабое покрытие",
       "meshcoreActivityDetected": "Обнаружена активность MeshCore",
-      "meshtasticTrafficDetected": "Обнаружен сетчатый трафик",
+      "meshtasticTrafficDetected": "Обнаружен трафик Meshtastic",
       "unknownLoraTraffic": "Неизвестный трафик LoRa",
       "potentialMeshcoreRepeaterConflict": "Потенциальный конфликт повторителей MeshCore"
     },
@@ -1249,7 +1274,7 @@
       "meshcoreNearby": "Рядом обнаружен узел MeshCore (RSSI {{rssi}} дБм) — может мешать трафику.",
       "meshcoreDistant": "Удаленная активность MeshCore на этой частоте (RSSI {{rssi}} дБм).",
       "meshcoreGeneric": "Узел MeshCore передает на этой частоте.",
-      "meshtastic": "Мештастический узел передает на этой частоте. Отправитель: {{sender}}. {{proximity}}Этот узел может находиться в зоне повторителя MeshCore.",
+      "meshtastic": "Meshtastic узел передает на этой частоте. Отправитель: {{sender}}. {{proximity}}Этот узел может находиться в зоне повторителя MeshCore.",
       "unknownLora": "Обнаружен нераспознанный сигнал LoRa (RSSI {{rssi}} дБм, SNR {{snr}} дБ).",
       "potentialRepeaterConflict": "Обнаружена высокая скорость передачи пакетов MeshCore (>5/мин). Близлежащий ретранслятор MeshCore может вызывать конфликты пакетов."
     },
@@ -1297,7 +1322,7 @@
       },
       "loraCollisionCorruption": {
         "title": "Полоса фильтра / переместить",
-        "description": "Немештатический LoRa или коллизии — может помочь направленная антенна или планирование каналов."
+        "description": "Не-Meshtastic LoRa или коллизии — может помочь направленная антенна или планирование каналов."
       },
       "externalInterference": {
         "title": "Определить доминирующий передатчик",
@@ -1359,7 +1384,7 @@
     "columnStatus": "Статус",
     "columnName": "Имя",
     "columnLastHeard": "Последнее услышанное",
-    "columnHops": "Хопи",
+    "columnHops": "Хопы",
     "columnUptime": "Время работы",
     "columnAirPct": "Воздух%",
     "columnReliability": "Надежность",
@@ -1438,7 +1463,7 @@
     "traceRouteRequested": "Запрошено отслеживание маршрута...",
     "connectRadioFirst": "Сначала подключитесь к радио.",
     "pathTraceHeading": "Трассировка пути",
-    "hopsLabel": "Хмель:",
+    "hopsLabel": "Хопы:",
     "hopNLabel": "Хоп {{n}}",
     "destLabel": "Место назначения",
     "sensorTelemetryHeading": "Сенсорная телеметрия (ЛПП)",
@@ -1515,7 +1540,21 @@
     "recvFloodDirectLabel": "Получение (наводнение/прямое)",
     "totalSentLabel": "Всего отправлено",
     "totalRecvLabel": "Всего получено",
-    "rxErrorsLabel": "Ошибки приема"
+    "rxErrorsLabel": "Ошибки приема",
+    "mapReportHeading": "Отчет о карте",
+    "noMapReportReceived": "Отчет о карте не получен",
+    "mapReportLastReport": "Последний отчет",
+    "mapReportDataLabel": "Данные",
+    "mapReportDataNa": "Н/Д",
+    "positionHistoryHeading": "История позиций",
+    "noPositionHistoryRecorded": "История позиций не записана",
+    "positionHistoryRecordedPoints": "Записанные очки",
+    "positionHistoryTimeSpan": "Временной интервал",
+    "positionHistoryDurationHours": "{{hours}}h",
+    "positionHistoryFirstPosition": "Первая позиция",
+    "positionHistoryLastPosition": "Последняя позиция",
+    "positionHistoryMostRecent": "Самые последние: {{lat}}, {{lon}}.",
+    "positionHistoryTruncated": "Показаны новейшие {{shown}} из {{total}} точек."
   },
   "firmwareStatus": {
     "checking": "Проверяем версию прошивки",
@@ -1623,7 +1662,7 @@
     "contactCount_other": "{{count}} контакты"
   },
   "takServerPanel": {
-    "title": "ТАК Сервер",
+    "title": "TAK Сервер",
     "description": "Встроенный TAK-сервер для совместимости с ATAK/WinTAK/iTAK. Транслирует позиции узлов сетки как события «Курсор на цели» (CoT).",
     "running": "Бег",
     "stopped": "Остановлено",
@@ -1674,7 +1713,7 @@
     "lastHopSnr": "SNR последнего перехода",
     "battery": "Батарея",
     "lastHeard": "Последнее услышанное",
-    "hops": "Хмель",
+    "hops": "Хопы",
     "channelUtil": "Канал Утилита",
     "source": "Источник",
     "position": "Позиция",
@@ -1696,7 +1735,7 @@
     "echoN": "Эхо {{n}}",
     "paths": "{{count}} пути",
     "meshcorePathHistory": "История пути MeshCore",
-    "hopsLabel": "Хмель:",
+    "hopsLabel": "Хопы: ",
     "olderCount": "+{{count}} старше",
     "hopN": "Хоп {{n}}",
     "dest": "Место назначения",
@@ -1783,8 +1822,8 @@
         "recommendation": "Приложение не может записать свою папку базы данных. Исправьте разрешения для каталога userData сетчатого клиента (см. Устранение неполадок: каталог базы данных недоступен для записи)."
       },
       "tak-server": {
-        "label": "Проблемы с сервером ТАК",
-        "recommendation": "Ошибка сервера ТАК. Проверьте статус сертификата и доступность порта."
+        "label": "Проблемы с сервером TAK",
+        "recommendation": "Ошибка сервера TAK. Проверьте статус сертификата и доступность порта."
       },
       "updater": {
         "label": "Ошибки обновления приложений",
@@ -1842,10 +1881,10 @@
       "repeater": "Репитер",
       "tracker": "Трекер",
       "sensor": "Датчик",
-      "tak": "ТАК",
+      "tak": "TAK",
       "clientHidden": "Клиент скрыт",
       "lostAndFound": "Потерянные и найденные",
-      "takTracker": "ТАК Трекер",
+      "takTracker": "TAK Трекер",
       "routerLate": "Маршрутизатор поздно",
       "clientBase": "Клиентская база"
     }

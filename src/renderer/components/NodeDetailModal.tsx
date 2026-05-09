@@ -1016,24 +1016,32 @@ export default function NodeDetailModal({
             {/* Map Report section (Meshtastic only) */}
             {protocol === 'meshtastic' && mapReports && (
               <div className="space-y-2 pb-2">
-                <h4 className="text-muted text-sm font-medium">Map Report</h4>
+                <h4 className="text-muted text-sm font-medium">
+                  {t('nodeDetailModal.mapReportHeading')}
+                </h4>
                 {(() => {
                   const mapReport = mapReports.get(node.node_id);
                   if (!mapReport) {
-                    return <p className="text-xs text-gray-500">No map report received</p>;
+                    return (
+                      <p className="text-xs text-gray-500">
+                        {t('nodeDetailModal.noMapReportReceived')}
+                      </p>
+                    );
                   }
                   return (
                     <div className="bg-secondary-dark grid grid-cols-2 gap-x-4 gap-y-1 rounded py-2 text-xs">
-                      <div className="text-muted">Last Report</div>
+                      <div className="text-muted">{t('nodeDetailModal.mapReportLastReport')}</div>
                       <div className="font-mono text-gray-200">
                         {formatSecondsAgo(
                           Math.max(0, Math.floor((Date.now() - mapReport.timestamp) / 1000)),
                           t,
                         )}
                       </div>
-                      <div className="text-muted">Data</div>
+                      <div className="text-muted">{t('nodeDetailModal.mapReportDataLabel')}</div>
                       <div className="font-mono text-gray-200">
-                        {mapReport.data ? JSON.stringify(mapReport.data).slice(0, 50) : 'N/A'}
+                        {mapReport.data
+                          ? JSON.stringify(mapReport.data).slice(0, 50)
+                          : t('nodeDetailModal.mapReportDataNa')}
                       </div>
                     </div>
                   );
@@ -1044,11 +1052,17 @@ export default function NodeDetailModal({
             {/* Position History (GPS tracking path) */}
             {positionHistory && (
               <div className="space-y-2 pb-2">
-                <h4 className="text-muted text-sm font-medium">Position History</h4>
+                <h4 className="text-muted text-sm font-medium">
+                  {t('nodeDetailModal.positionHistoryHeading')}
+                </h4>
                 {(() => {
                   const points = positionHistory.get(node.node_id);
                   if (!points || points.length === 0) {
-                    return <p className="text-xs text-gray-500">No position history recorded</p>;
+                    return (
+                      <p className="text-xs text-gray-500">
+                        {t('nodeDetailModal.noPositionHistoryRecorded')}
+                      </p>
+                    );
                   }
                   const sorted = [...points].sort((a, b) => a.t - b.t);
                   const first = sorted[0];
@@ -1058,27 +1072,45 @@ export default function NodeDetailModal({
                   return (
                     <>
                       <div className="bg-secondary-dark grid grid-cols-2 gap-x-4 gap-y-1 rounded py-2 text-xs">
-                        <div className="text-muted">Recorded Points</div>
+                        <div className="text-muted">
+                          {t('nodeDetailModal.positionHistoryRecordedPoints')}
+                        </div>
                         <div className="font-mono text-gray-200">{points.length}</div>
-                        <div className="text-muted">Time Span</div>
-                        <div className="font-mono text-gray-200">{durationHours}h</div>
-                        <div className="text-muted">First Position</div>
+                        <div className="text-muted">
+                          {t('nodeDetailModal.positionHistoryTimeSpan')}
+                        </div>
+                        <div className="font-mono text-gray-200">
+                          {t('nodeDetailModal.positionHistoryDurationHours', {
+                            hours: durationHours,
+                          })}
+                        </div>
+                        <div className="text-muted">
+                          {t('nodeDetailModal.positionHistoryFirstPosition')}
+                        </div>
                         <div className="font-mono text-gray-200">
                           {new Date(first.t).toLocaleString()}
                         </div>
-                        <div className="text-muted">Last Position</div>
+                        <div className="text-muted">
+                          {t('nodeDetailModal.positionHistoryLastPosition')}
+                        </div>
                         <div className="font-mono text-gray-200">
                           {new Date(last.t).toLocaleString()}
                         </div>
                       </div>
                       {sorted.length > 1 && (
                         <div className="text-[10px] text-gray-500">
-                          Most recent: {last.lat.toFixed(5)}, {last.lon.toFixed(5)}
+                          {t('nodeDetailModal.positionHistoryMostRecent', {
+                            lat: last.lat.toFixed(5),
+                            lon: last.lon.toFixed(5),
+                          })}
                         </div>
                       )}
                       {sorted.length > POSITION_HISTORY_MAX_ROWS && (
                         <div className="text-[10px] text-gray-500">
-                          Showing newest {POSITION_HISTORY_MAX_ROWS} of {sorted.length} points
+                          {t('nodeDetailModal.positionHistoryTruncated', {
+                            shown: POSITION_HISTORY_MAX_ROWS,
+                            total: sorted.length,
+                          })}
                         </div>
                       )}
                       <div className="bg-secondary-dark space-y-1 rounded py-2">
