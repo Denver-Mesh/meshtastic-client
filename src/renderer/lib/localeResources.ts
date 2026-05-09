@@ -1,5 +1,7 @@
 import type { i18n as I18nInstance } from 'i18next';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
+
 import type { SupportedLocale } from '../locales/languages';
 import { SUPPORTED_LANGUAGES } from '../locales/languages';
 
@@ -46,7 +48,9 @@ export async function ensureLocaleLoaded(i18n: I18nInstance, code: string): Prom
     loadedLocales.add(code);
     return true;
   } catch (err) {
-    console.error('ensureLocaleLoaded: failed to load locale', code, err);
+    console.error(
+      'ensureLocaleLoaded: failed to load locale ' + code + ' ' + errLikeToLogString(err),
+    );
     await i18n.changeLanguage('en');
     return false;
   }

@@ -102,7 +102,9 @@ export class TransportWebBluetoothIpc implements Types.Transport {
         this._fromDeviceController.enqueue(value);
       }
     } catch (err) {
-      console.error('[TransportWebBluetoothIpc] _readLoop: error:', err);
+      console.error(
+        `[TransportWebBluetoothIpc] _readLoop: error: ${err instanceof Error ? err.message : String(err)}`,
+      );
       // Error the controller so stream consumers are notified and don't hang
       this._fromDeviceController?.error(err instanceof Error ? err : new Error(String(err)));
     } finally {

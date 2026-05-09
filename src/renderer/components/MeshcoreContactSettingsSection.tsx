@@ -2,6 +2,8 @@
 import { useEffect, useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
+
 import type { MeshCoreSelfInfo } from '../hooks/useMeshCore';
 import {
   MESHCORE_AUTOADD_MAX_HOPS_WIRE_MAX,
@@ -359,7 +361,9 @@ export default function MeshcoreContactSettingsSection({
                     addToast(t('meshcoreContactSettings.allContactsCleared'), 'success');
                   })
                   .catch((e: unknown) => {
-                    console.warn('[MeshcoreContactSettingsSection] clear all failed', e);
+                    console.warn(
+                      '[MeshcoreContactSettingsSection] clear all failed ' + errLikeToLogString(e),
+                    );
                     addToast(
                       e instanceof Error
                         ? e.message

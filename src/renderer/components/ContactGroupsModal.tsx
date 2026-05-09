@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
+
 import type { ContactGroup } from '../../shared/electron-api.types';
 import { isMeshcoreContactEligibleForUserGroup } from '../lib/meshcoreUtils';
 import { isMeshtasticContactEligibleForUserGroup } from '../lib/meshtasticContactGroupUtils';
@@ -136,7 +138,7 @@ export default function ContactGroupsModal({
       await onLoadMembers(group.group_id);
       setManagingGroup(group);
     } catch (e) {
-      console.warn('[ContactGroupsModal] loadMembers failed:', e);
+      console.warn('[ContactGroupsModal] loadMembers failed: ' + errLikeToLogString(e));
       addToast(
         t('contactGroupsModal.failedLoadMembers', {
           message: e instanceof Error ? e.message : String(e),
@@ -156,7 +158,7 @@ export default function ContactGroupsModal({
         await onAddMember(managingGroup.group_id, contactNodeId);
       }
     } catch (e) {
-      console.warn('[ContactGroupsModal] toggleMember failed:', e);
+      console.warn('[ContactGroupsModal] toggleMember failed: ' + errLikeToLogString(e));
       addToast(
         t('contactGroupsModal.failedUpdateMember', {
           message: e instanceof Error ? e.message : String(e),

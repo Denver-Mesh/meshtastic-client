@@ -1,6 +1,8 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/refs */
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
+
 import type { ContactGroup } from '../../shared/electron-api.types';
 
 export interface UseContactGroupsResult {
@@ -36,7 +38,7 @@ export function useContactGroups(selfNodeId: number | null): UseContactGroupsRes
       const result = await window.electronAPI.db.getContactGroups(id);
       setGroups(result);
     } catch (e: unknown) {
-      console.error('[useContactGroups] reloadGroups failed:', e);
+      console.error('[useContactGroups] reloadGroups failed: ' + errLikeToLogString(e));
     }
   }, []);
 
@@ -61,7 +63,9 @@ export function useContactGroups(selfNodeId: number | null): UseContactGroupsRes
           }
         })
         .catch((e: unknown) => {
-          console.error('[useContactGroups] getContactGroupMembers failed:', e);
+          console.error(
+            '[useContactGroups] getContactGroupMembers failed: ' + errLikeToLogString(e),
+          );
         });
     }
   }, []);

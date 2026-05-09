@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
+
 import { getAppSettingsRaw, mergeAppSetting } from '../lib/appSettingsStorage';
 import { haversineDistanceKm } from '../lib/nodeStatus';
 import { parseStoredJson } from '../lib/parseStoredJson';
@@ -58,7 +60,7 @@ export const usePositionHistoryStore = create<PositionHistoryState>((set, get) =
         window.electronAPI.db
           .savePositionHistory(nodeId, lat, lon, now, source)
           .catch((err: unknown) => {
-            console.warn('[positionHistory] DB write failed:', err);
+            console.warn('[positionHistory] DB write failed: ' + errLikeToLogString(err));
           });
       } catch {
         // catch-no-log-ok electronAPI not available in test/storybook contexts
@@ -87,10 +89,14 @@ export const usePositionHistoryStore = create<PositionHistoryState>((set, get) =
     set({ history: new Map() });
     try {
       window.electronAPI.db.clearPositionHistory().catch((err: unknown) => {
-        console.warn('[positionHistory] clearPositionHistory DB failed:', err);
+        console.warn(
+          '[positionHistory] clearPositionHistory DB failed: ' + errLikeToLogString(err),
+        );
       });
     } catch (e) {
-      console.warn('[positionHistory] clearPositionHistory IPC bridge error:', e);
+      console.warn(
+        '[positionHistory] clearPositionHistory IPC bridge error: ' + errLikeToLogString(e),
+      );
     }
   },
 
@@ -137,7 +143,7 @@ export const usePositionHistoryStore = create<PositionHistoryState>((set, get) =
       }
       set({ history: newHistory });
     } catch (err) {
-      console.warn('[positionHistory] loadHistoryFromDb failed:', err);
+      console.warn('[positionHistory] loadHistoryFromDb failed: ' + errLikeToLogString(err));
     }
   },
 }));

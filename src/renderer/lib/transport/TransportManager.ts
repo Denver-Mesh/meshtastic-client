@@ -69,7 +69,9 @@ export class TransportManager {
           onStatusUpdateRef.current({ tempId, transport: 'mqtt', status: 'acked' });
         })
         .catch((err: unknown) => {
-          console.warn('[TransportManager] MQTT publish failed', err);
+          console.warn(
+            `[TransportManager] MQTT publish failed ${err instanceof Error ? err.message : String(err)}`,
+          );
           onStatusUpdateRef.current({
             tempId,
             transport: 'mqtt',
@@ -97,7 +99,9 @@ export class TransportManager {
           const pe = err as { packetId?: number; error?: string };
           const packetId = typeof pe.packetId === 'number' ? pe.packetId : undefined;
           const error = pe.error ?? String(err);
-          console.warn('[Meshtastic] sendText failed', err);
+          console.warn(
+            `[Meshtastic] sendText failed ${err instanceof Error ? err.message : String(err)}`,
+          );
           onStatusUpdateRef.current({
             tempId,
             transport: 'device',

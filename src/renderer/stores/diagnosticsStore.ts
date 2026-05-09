@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
+
 import { getAppSettingsRaw, mergeAppSetting, setAppSettingsRaw } from '../lib/appSettingsStorage';
 import {
   DEFAULT_RF_DIAGNOSTIC_MAX_AGE_MS,
@@ -270,7 +272,7 @@ function schedulePersistDiagnosticRows(getRows: () => DiagnosticRow[]): void {
       };
       localStorage.setItem(DIAGNOSTIC_ROWS_STORAGE_KEY, JSON.stringify(payload));
     } catch (e) {
-      console.warn('[diagnosticsStore] persist diagnosticRows failed', e);
+      console.warn('[diagnosticsStore] persist diagnosticRows failed ' + errLikeToLogString(e));
     }
   }, PERSIST_DEBOUNCE_MS);
 }
@@ -442,7 +444,9 @@ function migrateLegacyAutoTracerouteKeysOnce(): void {
     next.autoTracerouteEnabledMeshcore = v;
     setAppSettingsRaw(JSON.stringify(next));
   } catch (e) {
-    console.warn('[diagnosticsStore] migrateLegacyAutoTracerouteKeysOnce failed', e);
+    console.warn(
+      '[diagnosticsStore] migrateLegacyAutoTracerouteKeysOnce failed ' + errLikeToLogString(e),
+    );
   }
 }
 
@@ -460,7 +464,7 @@ function saveMqttIgnoredNodes(nodes: Set<number>): void {
     console.debug('[diagnosticsStore] saveMqttIgnoredNodes');
     localStorage.setItem('mesh-client:mqttIgnoredNodes', JSON.stringify([...nodes]));
   } catch (e) {
-    console.warn('[diagnosticsStore] saveMqttIgnoredNodes failed', e);
+    console.warn('[diagnosticsStore] saveMqttIgnoredNodes failed ' + errLikeToLogString(e));
   }
 }
 
@@ -520,10 +524,10 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
           }
         })
         .catch((e: unknown) => {
-          console.warn('[diagnosticsStore] loadMeshcoreHopHistory failed', e);
+          console.warn('[diagnosticsStore] loadMeshcoreHopHistory failed ' + errLikeToLogString(e));
         });
     } catch (e) {
-      console.warn('[diagnosticsStore] loadMeshcoreHopHistory failed', e);
+      console.warn('[diagnosticsStore] loadMeshcoreHopHistory failed ' + errLikeToLogString(e));
     }
     try {
       dbApi
@@ -546,10 +550,12 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
           }
         })
         .catch((e: unknown) => {
-          console.warn('[diagnosticsStore] loadMeshcoreTraceHistory failed', e);
+          console.warn(
+            '[diagnosticsStore] loadMeshcoreTraceHistory failed ' + errLikeToLogString(e),
+          );
         });
     } catch (e) {
-      console.warn('[diagnosticsStore] loadMeshcoreTraceHistory failed', e);
+      console.warn('[diagnosticsStore] loadMeshcoreTraceHistory failed ' + errLikeToLogString(e));
     }
   },
 
@@ -578,7 +584,7 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
         return { meshcoreHopHistory: newMap };
       });
     } catch (e) {
-      console.warn('[diagnosticsStore] saveMeshcoreHopHistory failed', e);
+      console.warn('[diagnosticsStore] saveMeshcoreHopHistory failed ' + errLikeToLogString(e));
     }
   },
 
@@ -614,7 +620,7 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
         return { meshcoreTraceHistory: newMap };
       });
     } catch (e) {
-      console.warn('[diagnosticsStore] saveMeshcoreTraceHistory failed', e);
+      console.warn('[diagnosticsStore] saveMeshcoreTraceHistory failed ' + errLikeToLogString(e));
     }
   },
 
@@ -633,7 +639,7 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
         return { meshcoreHopHistory: newHopMap, meshcoreTraceHistory: newTraceMap };
       });
     } catch (e) {
-      console.warn('[diagnosticsStore] pruneMeshcorePathHistory failed', e);
+      console.warn('[diagnosticsStore] pruneMeshcorePathHistory failed ' + errLikeToLogString(e));
     }
   },
 

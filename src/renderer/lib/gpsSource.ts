@@ -1,3 +1,5 @@
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
+
 export type GpsSource = 'device' | 'browser' | 'ip' | 'static';
 
 /** Sources that provide only city-level (~10–50 km) accuracy (browser WiFi/IP positioning included) */
@@ -64,7 +66,7 @@ export async function resolveOurPosition(
         return { lat: result.lat, lon: result.lon, source: mappedSource };
       }
     } catch (e) {
-      console.debug('[gpsSource] getGpsFix failed, fall through', e);
+      console.debug('[gpsSource] getGpsFix failed, fall through ' + errLikeToLogString(e));
     }
   }
 
@@ -83,7 +85,7 @@ export async function resolveOurPosition(
       }
     }
   } catch (e) {
-    console.debug('[gpsSource] ipapi fetch failed, fall through', e);
+    console.debug('[gpsSource] ipapi fetch failed, fall through ' + errLikeToLogString(e));
   }
 
   return null;

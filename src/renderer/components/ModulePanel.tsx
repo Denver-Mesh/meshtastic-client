@@ -2,6 +2,7 @@ import type { TFunction } from 'i18next';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
 import { MS_PER_MINUTE } from '@/renderer/lib/timeConstants';
 
 import { HelpTooltip } from './HelpTooltip';
@@ -481,7 +482,7 @@ export default function ModulePanel({
           });
       })
       .catch((err: unknown) => {
-        console.warn('[ModulePanel] apply failed', err);
+        console.warn('[ModulePanel] apply failed ' + errLikeToLogString(err));
         addToast(
           t('modulePanel.failed', {
             message: err instanceof Error ? err.message : 'Unknown error',
@@ -591,7 +592,7 @@ export default function ModulePanel({
             await onCommit();
             addToast(t('modulePanel.cannedMessagesApplied'), 'success');
           } catch (err) {
-            console.warn('[ModulePanel] canned messages failed', err);
+            console.warn('[ModulePanel] canned messages failed ' + errLikeToLogString(err));
             addToast(
               t('modulePanel.failed', {
                 message: err instanceof Error ? err.message : 'Unknown error',
@@ -997,7 +998,7 @@ export default function ModulePanel({
               await onCommit();
               addToast(t('modulePanel.rtttlSaved'), 'success');
             } catch (err) {
-              console.warn('[ModulePanel] RTTTL apply failed', err);
+              console.warn('[ModulePanel] RTTTL apply failed ' + errLikeToLogString(err));
               addToast(
                 t('modulePanel.failed', {
                   message: err instanceof Error ? err.message : 'Unknown error',

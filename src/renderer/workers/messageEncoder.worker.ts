@@ -3,6 +3,7 @@
 import { toBinary } from '@bufbuild/protobuf';
 import { Mesh } from '@meshtastic/protobufs';
 
+import { errLikeToLogString } from '../lib/errLikeToLogString';
 import type { WorkerCommand, WorkerEvent } from '../lib/transport/types';
 
 // Only accept messages from our renderer (Electron: file/null in prod, localhost in dev).
@@ -63,7 +64,7 @@ self.onmessage = (event: MessageEvent<WorkerCommand>) => {
     const reply: WorkerEvent = { type: 'ENCODED', id: cmd.id, buffer };
     (self as unknown as Worker).postMessage(reply, [buffer]);
   } catch (err) {
-    console.warn('[messageEncoder.worker] encode failed', err);
+    console.warn('[messageEncoder.worker] encode failed ' + errLikeToLogString(err));
     const reply: WorkerEvent = { type: 'ERROR', id: cmd.id, error: String(err) };
     (self as unknown as Worker).postMessage(reply);
   }

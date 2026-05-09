@@ -2,6 +2,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
+
 import type {
   MeshCoreNeighborResult,
   MeshCoreNodeTelemetry,
@@ -325,7 +327,7 @@ export default function NodeDetailModal({
     try {
       await onRequestPosition(node.node_id);
     } catch (e) {
-      console.warn('[NodeDetailModal] request position failed', e);
+      console.warn('[NodeDetailModal] request position failed ' + errLikeToLogString(e));
       setPositionRequestedAt(null);
       setActionStatus(t('nodeDetailModal.positionRequestFailed'));
     }
@@ -1186,7 +1188,9 @@ export default function NodeDetailModal({
                       await onRequestRepeaterStatus(node.node_id);
                       setActionStatus(null);
                     } catch (e) {
-                      console.warn('[NodeDetailModal] requestRepeaterStatus failed', e);
+                      console.warn(
+                        '[NodeDetailModal] requestRepeaterStatus failed ' + errLikeToLogString(e),
+                      );
                       setActionStatus(
                         e instanceof Error ? e.message : t('nodeDetailModal.statusRequestFailed'),
                       );
@@ -1216,7 +1220,9 @@ export default function NodeDetailModal({
                       await onRequestTelemetry(node.node_id);
                       setActionStatus(null);
                     } catch (e) {
-                      console.warn('[NodeDetailModal] requestTelemetry failed', e);
+                      console.warn(
+                        '[NodeDetailModal] requestTelemetry failed ' + errLikeToLogString(e),
+                      );
                       setActionStatus(
                         e instanceof Error
                           ? e.message
@@ -1245,7 +1251,9 @@ export default function NodeDetailModal({
                       await onRequestNeighbors(node.node_id);
                       setActionStatus(null);
                     } catch (e) {
-                      console.warn('[NodeDetailModal] requestNeighbors failed', e);
+                      console.warn(
+                        '[NodeDetailModal] requestNeighbors failed ' + errLikeToLogString(e),
+                      );
                       setActionStatus(
                         e instanceof Error
                           ? e.message
@@ -1304,7 +1312,9 @@ export default function NodeDetailModal({
                         setActionStatus(t('nodeDetailModal.noPublicKeyAvailable'));
                       }
                     } catch (e) {
-                      console.warn('[NodeDetailModal] exportContact failed', e);
+                      console.warn(
+                        '[NodeDetailModal] exportContact failed ' + errLikeToLogString(e),
+                      );
                       setActionStatus(
                         e instanceof Error ? e.message : t('nodeDetailModal.exportFailed'),
                       );
@@ -1331,7 +1341,9 @@ export default function NodeDetailModal({
                       const success = await onShareContact(node.node_id);
                       setActionStatus(success ? null : t('nodeDetailModal.shareFailed'));
                     } catch (e) {
-                      console.warn('[NodeDetailModal] shareContact failed', e);
+                      console.warn(
+                        '[NodeDetailModal] shareContact failed ' + errLikeToLogString(e),
+                      );
                       setActionStatus(
                         e instanceof Error ? e.message : t('nodeDetailModal.shareFailed'),
                       );
@@ -1366,7 +1378,7 @@ export default function NodeDetailModal({
                       setRadioContactCount(count);
                       setActionStatus(null);
                     } catch (e) {
-                      console.warn('[NodeDetailModal] addToRadio failed', e);
+                      console.warn('[NodeDetailModal] addToRadio failed ' + errLikeToLogString(e));
                       setActionStatus(
                         e instanceof Error ? e.message : t('nodeDetailModal.addToRadioFailed'),
                       );
@@ -1400,7 +1412,9 @@ export default function NodeDetailModal({
                       setRadioContactCount(count);
                       setActionStatus(null);
                     } catch (e) {
-                      console.warn('[NodeDetailModal] removeFromRadio failed', e);
+                      console.warn(
+                        '[NodeDetailModal] removeFromRadio failed ' + errLikeToLogString(e),
+                      );
                       setActionStatus(
                         e instanceof Error ? e.message : t('nodeDetailModal.removeFromRadioFailed'),
                       );

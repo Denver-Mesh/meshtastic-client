@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
 import { MESHCORE_PATH_HISTORY_GLOBAL_ROW_LIMIT } from '@/shared/meshcorePathHistoryLimits';
 
 import type { PathRecord, PathScore, PathSelection } from '../lib/pathHistoryTypes';
@@ -208,7 +209,9 @@ export const usePathHistoryStore = create<PathHistoryState>((set, get) => ({
           routeWeight,
         )
         .catch((err: unknown) => {
-          console.warn('[pathHistory] upsertMeshcorePathHistory failed:', err);
+          console.warn(
+            '[pathHistory] upsertMeshcorePathHistory failed: ' + errLikeToLogString(err),
+          );
         });
     } catch {
       // catch-no-log-ok electronAPI unavailable in tests
@@ -255,7 +258,9 @@ export const usePathHistoryStore = create<PathHistoryState>((set, get) => ({
       window.electronAPI.db
         .recordMeshcorePathOutcome(nodeId, pathHash, success, tripTimeMs)
         .catch((err: unknown) => {
-          console.warn('[pathHistory] recordMeshcorePathOutcome failed:', err);
+          console.warn(
+            '[pathHistory] recordMeshcorePathOutcome failed: ' + errLikeToLogString(err),
+          );
         });
     } catch {
       // catch-no-log-ok electronAPI unavailable in tests
@@ -311,7 +316,7 @@ export const usePathHistoryStore = create<PathHistoryState>((set, get) => ({
       evictLRU(newRecords, newLru);
       set({ records: newRecords, lruOrder: newLru });
     } catch (err) {
-      console.warn('[pathHistory] loadForNode failed:', err);
+      console.warn('[pathHistory] loadForNode failed: ' + errLikeToLogString(err));
     }
   },
 
@@ -351,7 +356,7 @@ export const usePathHistoryStore = create<PathHistoryState>((set, get) => ({
       }
       set({ records, lruOrder });
     } catch (err) {
-      console.warn('[pathHistory] loadAllFromDb failed:', err);
+      console.warn('[pathHistory] loadAllFromDb failed: ' + errLikeToLogString(err));
     }
   },
 
@@ -362,7 +367,9 @@ export const usePathHistoryStore = create<PathHistoryState>((set, get) => ({
     set({ records: newRecords, lruOrder: newLru });
     try {
       window.electronAPI.db.deleteMeshcorePathHistoryForNode(nodeId).catch((err: unknown) => {
-        console.warn('[pathHistory] deleteMeshcorePathHistoryForNode failed:', err);
+        console.warn(
+          '[pathHistory] deleteMeshcorePathHistoryForNode failed: ' + errLikeToLogString(err),
+        );
       });
     } catch {
       // catch-no-log-ok electronAPI unavailable in tests
@@ -373,7 +380,9 @@ export const usePathHistoryStore = create<PathHistoryState>((set, get) => ({
     set({ records: new Map(), lruOrder: [] });
     try {
       window.electronAPI.db.deleteAllMeshcorePathHistory().catch((err: unknown) => {
-        console.warn('[pathHistory] deleteAllMeshcorePathHistory failed:', err);
+        console.warn(
+          '[pathHistory] deleteAllMeshcorePathHistory failed: ' + errLikeToLogString(err),
+        );
       });
     } catch {
       // catch-no-log-ok electronAPI unavailable in tests

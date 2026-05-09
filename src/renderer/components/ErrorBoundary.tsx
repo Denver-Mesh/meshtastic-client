@@ -1,6 +1,7 @@
 import type { ErrorInfo, ReactNode } from 'react';
 import { Component } from 'react';
 
+import { errLikeToLogString } from '../lib/errLikeToLogString';
 import i18n from '../lib/i18n';
 
 interface Props {
@@ -23,7 +24,12 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    console.error('[ErrorBoundary] caught:', error, errorInfo);
+    console.error(
+      '[ErrorBoundary] caught: ' +
+        errLikeToLogString(error) +
+        ' info=' +
+        errLikeToLogString(errorInfo),
+    );
   }
 
   render() {

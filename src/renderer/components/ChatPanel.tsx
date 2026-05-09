@@ -13,6 +13,8 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
+
 import {
   dismissedDmTabsStorageKey,
   lastReadStorageKey,
@@ -354,7 +356,7 @@ function ChatPanel({
     try {
       localStorage.setItem(openDmTabsStorageKey(protocol), JSON.stringify(openDmTabs));
     } catch (e) {
-      console.warn('[ChatPanel] persist openDmTabs failed', e);
+      console.warn('[ChatPanel] persist openDmTabs failed ' + errLikeToLogString(e));
     }
   }, [openDmTabs, protocol]);
 
@@ -362,7 +364,7 @@ function ChatPanel({
     try {
       localStorage.setItem(dismissedDmTabsStorageKey(protocol), JSON.stringify(dismissedDmTabs));
     } catch (e) {
-      console.warn('[ChatPanel] persist dismissedDmTabs failed', e);
+      console.warn('[ChatPanel] persist dismissedDmTabs failed ' + errLikeToLogString(e));
     }
   }, [dismissedDmTabs, protocol]);
 
@@ -388,7 +390,7 @@ function ChatPanel({
     try {
       localStorage.setItem(lastReadStorageKey(protocol), JSON.stringify(persistedLastRead));
     } catch (e) {
-      console.warn('[ChatPanel] persist lastRead failed', e);
+      console.warn('[ChatPanel] persist lastRead failed ' + errLikeToLogString(e));
     }
   }, [persistedLastRead, protocol]);
 
@@ -743,7 +745,7 @@ function ChatPanel({
       setPersistedLastRead((prev) => ({ ...prev, [viewKey]: now }));
       setUnreadDividerTimestamp(0);
     } catch (err) {
-      console.error('[ChatPanel] Send failed:', err);
+      console.error('[ChatPanel] Send failed: ' + errLikeToLogString(err));
       setChatActionError({
         message: err instanceof Error ? err.message : 'Send failed',
         viewKey,
@@ -762,7 +764,7 @@ function ChatPanel({
       console.debug('[ChatPanel] handleReact', emojiCode, packetId, sendChannel);
       await onReact(emojiCode, packetId, sendChannel);
     } catch (err) {
-      console.error('[ChatPanel] React failed:', err);
+      console.error('[ChatPanel] React failed: ' + errLikeToLogString(err));
       setChatActionError({
         message: err instanceof Error ? err.message : 'Reaction failed',
         viewKey,

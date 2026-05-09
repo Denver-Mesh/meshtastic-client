@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
+
 import type { LocationFilter } from '../App';
 import { getAppSettingsRaw, mergeAppSetting, setAppSettingsRaw } from '../lib/appSettingsStorage';
 import { formatCoordPair } from '../lib/coordUtils';
@@ -279,7 +281,7 @@ export default function AppPanel({
         lastSavedRetentionRef.current = loaded;
       })
       .catch((e: unknown) => {
-        console.warn('[AppPanel] fetchMessageRetention failed', e);
+        console.warn('[AppPanel] fetchMessageRetention failed ' + errLikeToLogString(e));
       });
     return () => {
       cancelled = true;
@@ -298,7 +300,7 @@ export default function AppPanel({
           lastSavedRetentionRef.current = { ...lastSavedRetentionRef.current, [key]: value };
         },
         (err: unknown) => {
-          console.error('[AppPanel] persist message retention failed', err);
+          console.error('[AppPanel] persist message retention failed ' + errLikeToLogString(err));
           addToast(t('appPanel.failedSaveRetention'), 'error');
           setRetention(previous);
         },
@@ -367,7 +369,7 @@ export default function AppPanel({
           JSON.stringify({ ...existing, refreshInterval: val }),
         );
       } catch (e) {
-        console.debug('[AppPanel] persist gps interval', e);
+        console.debug('[AppPanel] persist gps interval ' + errLikeToLogString(e));
       }
       onGpsIntervalChange?.(val);
     },
@@ -427,7 +429,7 @@ export default function AppPanel({
       onRefreshGps?.();
       addToast(t('appPanel.staticPositionSaved'), 'success');
     } catch (e) {
-      console.warn('[AppPanel] save static position failed', e);
+      console.warn('[AppPanel] save static position failed ' + errLikeToLogString(e));
       addToast(t('appPanel.failedSavePosition'), 'error');
     }
   }, [staticLatInput, staticLonInput, addToast, onRefreshGps, onGpsIntervalChange, t]);
@@ -449,7 +451,7 @@ export default function AppPanel({
       onRefreshGps?.();
       addToast(t('appPanel.staticPositionCleared'), 'success');
     } catch (e) {
-      console.warn('[AppPanel] clear static position failed', e);
+      console.warn('[AppPanel] clear static position failed ' + errLikeToLogString(e));
       addToast(t('appPanel.failedClearPosition'), 'error');
     }
   }, [addToast, onRefreshGps, t]);
@@ -466,7 +468,7 @@ export default function AppPanel({
           setMsgChannels(rows.map((r) => r.channel));
         })
         .catch((e: unknown) => {
-          console.debug('[AppPanel] getMeshcoreMessageChannels', e);
+          console.debug('[AppPanel] getMeshcoreMessageChannels ' + errLikeToLogString(e));
         });
     } else {
       window.electronAPI.db
@@ -475,7 +477,7 @@ export default function AppPanel({
           setMsgChannels(rows.map((r) => r.channel));
         })
         .catch((e: unknown) => {
-          console.debug('[AppPanel] getMessageChannels', e);
+          console.debug('[AppPanel] getMessageChannels ' + errLikeToLogString(e));
         });
     }
   }, [protocol]);
@@ -519,7 +521,7 @@ export default function AppPanel({
       if (messageActions.includes(actionName)) onMessagesPruned?.();
       addToast(t('appPanel.actionCompleted', { name: actionName }), 'success');
     } catch (err) {
-      console.warn('[AppPanel] pending action failed', err);
+      console.warn('[AppPanel] pending action failed ' + errLikeToLogString(err));
       addToast(
         t('appPanel.actionFailed', {
           message: err instanceof Error ? err.message : 'Unknown error',
@@ -1245,7 +1247,7 @@ export default function AppPanel({
                   addToast(t('appPanel.exportedTo', { path }), 'success');
                 }
               } catch (err) {
-                console.warn('[AppPanel] export failed', err);
+                console.warn('[AppPanel] export failed ' + errLikeToLogString(err));
                 addToast(
                   t('appPanel.exportFailed', {
                     message: err instanceof Error ? err.message : 'Unknown error',
@@ -1275,7 +1277,7 @@ export default function AppPanel({
                   );
                 }
               } catch (err) {
-                console.warn('[AppPanel] import failed', err);
+                console.warn('[AppPanel] import failed ' + errLikeToLogString(err));
                 addToast(
                   t('appPanel.importFailed', {
                     message: err instanceof Error ? err.message : 'Unknown error',

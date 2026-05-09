@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
+
 import { useToast } from './Toast';
 
 interface SecurityConfig {
@@ -263,7 +265,7 @@ export default function SecurityPanel({
       });
       addToast(t('securityPanel.keyRegenRequested'), 'success');
     } catch (err) {
-      console.warn('[SecurityPanel] handleRegenerate', err);
+      console.warn('[SecurityPanel] handleRegenerate ' + errLikeToLogString(err));
       addToast(
         t('securityPanel.failed', {
           message: err instanceof Error ? err.message : 'Unknown error',
@@ -290,7 +292,7 @@ export default function SecurityPanel({
       await applyConfig({ adminKey: parsed });
       addToast(t('securityPanel.adminKeysApplied'), 'success');
     } catch (err) {
-      console.warn('[SecurityPanel] handleApplyAdminKeys', err);
+      console.warn('[SecurityPanel] handleApplyAdminKeys ' + errLikeToLogString(err));
       addToast(
         t('securityPanel.failed', {
           message: err instanceof Error ? err.message : 'Unknown error',
@@ -309,7 +311,7 @@ export default function SecurityPanel({
       await applyConfig({ isManaged, serialEnabled, debugLogApiEnabled, adminChannelEnabled });
       addToast(t('securityPanel.adminSettingsApplied'), 'success');
     } catch (err) {
-      console.warn('[SecurityPanel] handleApplyToggles', err);
+      console.warn('[SecurityPanel] handleApplyToggles ' + errLikeToLogString(err));
       addToast(
         t('securityPanel.failed', {
           message: err instanceof Error ? err.message : 'Unknown error',
@@ -336,7 +338,7 @@ export default function SecurityPanel({
       setBackupAvailable(true);
       addToast(t('securityPanel.keysBackedUp'), 'success');
     } catch (err) {
-      console.warn('[SecurityPanel] handleBackup', err);
+      console.warn('[SecurityPanel] handleBackup ' + errLikeToLogString(err));
       addToast(
         t('securityPanel.backupFailed', {
           message: err instanceof Error ? err.message : 'Unknown error',
@@ -363,7 +365,7 @@ export default function SecurityPanel({
       await applyConfig({ publicKey, privateKey });
       addToast(t('securityPanel.keysRestored'), 'success');
     } catch (err) {
-      console.warn('[SecurityPanel] handleRestore', err);
+      console.warn('[SecurityPanel] handleRestore ' + errLikeToLogString(err));
       addToast(
         t('securityPanel.restoreFailed', {
           message: err instanceof Error ? err.message : 'Unknown error',
@@ -390,7 +392,7 @@ export default function SecurityPanel({
         addToast(t('securityPanel.signNoResult'), 'error');
       }
     } catch (err) {
-      console.warn('[SecurityPanel] handleSignData', err);
+      console.warn('[SecurityPanel] handleSignData ' + errLikeToLogString(err));
       addToast(
         t('securityPanel.signFailed', {
           message: err instanceof Error ? err.message : 'Unknown error',
@@ -415,7 +417,7 @@ export default function SecurityPanel({
         addToast(t('securityPanel.exportNoKey'), 'error');
       }
     } catch (err) {
-      console.warn('[SecurityPanel] handleExportPrivateKey', err);
+      console.warn('[SecurityPanel] handleExportPrivateKey ' + errLikeToLogString(err));
       addToast(
         t('securityPanel.exportFailed', {
           message: err instanceof Error ? err.message : 'Unknown error',
@@ -441,7 +443,7 @@ export default function SecurityPanel({
         addToast(t('securityPanel.importFailed'), 'error');
       }
     } catch (err) {
-      console.warn('[SecurityPanel] handleImportPrivateKey', err);
+      console.warn('[SecurityPanel] handleImportPrivateKey ' + errLikeToLogString(err));
       addToast(
         t('securityPanel.importFailedWithMessage', {
           message: err instanceof Error ? err.message : 'Unknown error',

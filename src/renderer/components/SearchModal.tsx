@@ -2,6 +2,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
+
 import type { MeshNode } from '../lib/types';
 
 interface SearchResult {
@@ -117,7 +119,7 @@ export default function SearchModal({
           }
           setResults(items);
         } catch (e) {
-          console.warn('[SearchModal] search error', e);
+          console.warn('[SearchModal] search error ' + errLikeToLogString(e));
         } finally {
           setLoading(false);
         }

@@ -1,3 +1,4 @@
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
 /**
  * Parse persisted JSON (e.g. localStorage); warn on parse failure.
  * See CONTRIBUTING.md — Error boundaries and logging.
@@ -9,7 +10,7 @@ export function parseStoredJson<T>(raw: string | null, context: string): T | nul
   try {
     return JSON.parse(raw) as T;
   } catch (e) {
-    console.warn(`[parseStoredJson] ${context} failed`, e);
+    console.warn(`[parseStoredJson] ${context} failed` + ' ' + errLikeToLogString(e));
     return null;
   }
 }

@@ -2,6 +2,8 @@ import type { TFunction } from 'i18next';
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
+
 import type {
   CliHistoryEntry,
   MeshCoreNeighborResult,
@@ -316,7 +318,7 @@ export default function RepeatersPanel({
     try {
       await onRequestRepeaterStatus(nodeId);
     } catch (e) {
-      console.warn('[RepeatersPanel] requestRepeaterStatus error', e);
+      console.warn('[RepeatersPanel] requestRepeaterStatus error ' + errLikeToLogString(e));
       addToast(
         t('repeatersPanel.statusFailedToast', {
           message: e instanceof Error ? e.message : String(e),
@@ -337,7 +339,7 @@ export default function RepeatersPanel({
     try {
       await onPing(nodeId);
     } catch (e) {
-      console.warn('[RepeatersPanel] ping error', e);
+      console.warn('[RepeatersPanel] ping error ' + errLikeToLogString(e));
       addToast(
         t('repeatersPanel.pingFailedToast', {
           message: e instanceof Error ? e.message : String(e),
@@ -394,7 +396,7 @@ export default function RepeatersPanel({
       await onRequestNeighbors?.(nodeId);
       setExpandedNeighbors((prev) => new Set([...prev, nodeId]));
     } catch (e) {
-      console.warn('[RepeatersPanel] requestNeighbors error', e);
+      console.warn('[RepeatersPanel] requestNeighbors error ' + errLikeToLogString(e));
     } finally {
       setNeighborsLoadingSet((prev) => {
         const n = new Set(prev);
@@ -419,7 +421,7 @@ export default function RepeatersPanel({
       await onRequestTelemetry?.(nodeId);
       setExpandedTelemetry((prev) => new Set([...prev, nodeId]));
     } catch (e) {
-      console.warn('[RepeatersPanel] requestTelemetry error', e);
+      console.warn('[RepeatersPanel] requestTelemetry error ' + errLikeToLogString(e));
       addToast(`Telemetry failed: ${e instanceof Error ? e.message : String(e)}`, 'error');
     } finally {
       setTelemetryLoadingSet((prev) => {
@@ -455,7 +457,7 @@ export default function RepeatersPanel({
     try {
       await onSendCliCommand(nodeId, command.trim(), useSavedPath);
     } catch (e) {
-      console.warn('[RepeatersPanel] CLI command error', e);
+      console.warn('[RepeatersPanel] CLI command error ' + errLikeToLogString(e));
     } finally {
       setCliLoadingSet((prev) => {
         const n = new Set(prev);

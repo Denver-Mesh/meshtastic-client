@@ -583,8 +583,7 @@ describe('ChatPanel accessibility', () => {
       expect(screen.getByRole('alert')).toHaveTextContent('send failed');
     });
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[ChatPanel]'),
-      expect.any(Error),
+      expect.stringMatching(/\[ChatPanel\].*send failed/s),
     );
     consoleErrorSpy.mockRestore();
   });

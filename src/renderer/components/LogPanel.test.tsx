@@ -23,8 +23,7 @@ describe('LogPanel accessibility', () => {
     const alert = screen.getByRole('alert');
     expect(alert).toHaveTextContent('clear failed');
     expect(consoleWarnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[LogPanel]'),
-      expect.any(Error),
+      expect.stringMatching(/\[LogPanel\].*clear failed/s),
     );
     consoleWarnSpy.mockRestore();
   });
