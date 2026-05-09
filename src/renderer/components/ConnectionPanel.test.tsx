@@ -471,3 +471,45 @@ describe("ConnectionPanel Meshtastic MQTT presets — Liam's server", () => {
     expect(screen.queryByText(/uplink-only/i)).not.toBeInTheDocument();
   });
 });
+
+describe('ConnectionPanel MQTT cancel while connecting', () => {
+  it('calls mqtt.disconnect with meshtastic when Cancel is pressed', async () => {
+    const user = userEvent.setup();
+    vi.mocked(window.electronAPI.mqtt.disconnect).mockClear();
+    render(
+      <ConnectionPanel
+        state={disconnectedState}
+        onConnect={vi.fn().mockResolvedValue(undefined)}
+        onAutoConnect={vi.fn().mockResolvedValue(undefined)}
+        onDisconnect={vi.fn().mockResolvedValue(undefined)}
+        mqttStatus="connecting"
+        protocol="meshtastic"
+      />,
+    );
+    const mqttCard = screen.getByText('MQTT Connection').closest('.bg-deep-black');
+    expect(mqttCard).toBeTruthy();
+    const cancelBtn = within(mqttCard as HTMLElement).getByRole('button', { name: /^Cancel$/i });
+    await user.click(cancelBtn);
+    expect(window.electronAPI.mqtt.disconnect).toHaveBeenCalledWith('meshtastic');
+  });
+
+  it('calls mqtt.disconnect with meshcore when Cancel is pressed', async () => {
+    const user = userEvent.setup();
+    vi.mocked(window.electronAPI.mqtt.disconnect).mockClear();
+    render(
+      <ConnectionPanel
+        state={disconnectedState}
+        onConnect={vi.fn().mockResolvedValue(undefined)}
+        onAutoConnect={vi.fn().mockResolvedValue(undefined)}
+        onDisconnect={vi.fn().mockResolvedValue(undefined)}
+        mqttStatus="connecting"
+        protocol="meshcore"
+      />,
+    );
+    const mqttCard = screen.getByText('MQTT Connection').closest('.bg-deep-black');
+    expect(mqttCard).toBeTruthy();
+    const cancelBtn = within(mqttCard as HTMLElement).getByRole('button', { name: /^Cancel$/i });
+    await user.click(cancelBtn);
+    expect(window.electronAPI.mqtt.disconnect).toHaveBeenCalledWith('meshcore');
+  });
+});

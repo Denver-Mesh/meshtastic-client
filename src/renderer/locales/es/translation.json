@@ -1140,7 +1140,8 @@
       "autoConnectTimeout": "Se agotó el tiempo de espera de la conexión automática.",
       "autoConnectFailed": "Falló la conexión automática",
       "connectionFailed": "La conexión falló"
-    }
+    },
+    "cancelMqttConnect": "Cancelar"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Filas de enrutamiento de más de {{hours}} horas (1–168)",

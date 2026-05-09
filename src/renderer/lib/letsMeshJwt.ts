@@ -1,3 +1,8 @@
+import { meshcoreIsSyntheticPlaceholderPubKeyHex } from './meshcoreUtils';
+
+/** localStorage key for MeshCore keys used by LetsMesh / device-signing MQTT JWT (Radio import or radio export). */
+export const MESHCORE_IDENTITY_STORAGE_KEY = 'mesh-client:meshcoreIdentity';
+
 /** US LetsMesh broker (WebSocket TLS on 443). */
 export const LETSMESH_HOST_US = 'mqtt-us-v1.letsmesh.net';
 /** EU LetsMesh broker (WebSocket TLS on 443). */
@@ -33,13 +38,48 @@ export function letsMeshJwtAudience(serverHost: string): string {
   return serverHost.trim();
 }
 
+function meshcorePubKeyBytesToHexLower(pub: Uint8Array): string {
+  return Array.from(pub, (b) => (b & 0xff).toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * After a MeshCore radio connects, persist identity from firmware export so LetsMesh MQTT can sign
+ * JWTs without a separate JSON import (same storage shape as RadioPanel config import).
+ * @returns true if storage was updated.
+ */
+export function tryPersistMeshcoreIdentityFromRadioExport(
+  publicKey: Uint8Array | undefined,
+  privateKeyBytes: Uint8Array | null | undefined,
+): boolean {
+  if (publicKey?.length !== 32) return false;
+  const pubHex = meshcorePubKeyBytesToHexLower(publicKey);
+  if (meshcoreIsSyntheticPlaceholderPubKeyHex(pubHex)) return false;
+  if (!privateKeyBytes || (privateKeyBytes.length !== 32 && privateKeyBytes.length !== 64)) {
+    return false;
+  }
+  try {
+    localStorage.setItem(
+      MESHCORE_IDENTITY_STORAGE_KEY,
+      JSON.stringify({
+        public_key: Array.from(publicKey),
+        private_key: Array.from(privateKeyBytes),
+      }),
+    );
+    window.dispatchEvent(new Event('meshclient:meshcoreIdentityUpdated'));
+    return true;
+  } catch {
+    // catch-no-log-ok localStorage quota or private mode — same as RadioPanel import path
+    return false;
+  }
+}
+
 // Read the identity cached by RadioPanel after a config-file import.
 export function readMeshcoreIdentity(): {
   private_key?: string | number[];
   public_key?: string | number[];
 } | null {
   try {
-    const raw = localStorage.getItem('mesh-client:meshcoreIdentity');
+    const raw = localStorage.getItem(MESHCORE_IDENTITY_STORAGE_KEY);
     if (!raw) return null;
     return JSON.parse(raw) as { private_key?: string | number[]; public_key?: string | number[] };
   } catch {

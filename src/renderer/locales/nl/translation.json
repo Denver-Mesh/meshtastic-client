@@ -1140,7 +1140,8 @@
       "autoConnectTimeout": "Er is een time-out opgetreden voor automatisch verbinden.",
       "autoConnectFailed": "Automatisch verbinden mislukt",
       "connectionFailed": "Verbinding mislukt"
-    }
+    },
+    "cancelMqttConnect": "Annuleren"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Rijen voor droprouting die ouder zijn dan {{hours}} uur (1–168)",

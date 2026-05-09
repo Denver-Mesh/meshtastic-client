@@ -24,6 +24,7 @@ import {
 } from '../lib/foreignLoraDetection';
 import type { OurPosition } from '../lib/gpsSource';
 import { resolveOurPosition } from '../lib/gpsSource';
+import { tryPersistMeshcoreIdentityFromRadioExport } from '../lib/letsMeshJwt';
 import {
   buildMeshcoreChannelIncomingMessage,
   buildMeshcoreDmIncomingMessage,
@@ -65,6 +66,7 @@ import {
   runMeshcoreTracePathMultiplexed,
 } from '../lib/meshcoreTracePathMultiplex';
 import {
+  coerceMeshcoreExportPrivateKeyResult,
   CONTACT_TYPE_LABELS,
   isMeshcoreTransportStatusChatLine,
   mergeHwModelOnContactUpdate,
@@ -726,7 +728,8 @@ interface MeshCoreConnection {
   ): Promise<void>;
   // Cryptographic operations
   sign(data: Uint8Array): Promise<Uint8Array>;
-  exportPrivateKey(): Promise<Uint8Array>;
+  /** Resolves to `{ privateKey: Uint8Array }` from meshcore.js (64-byte ORLP secret). */
+  exportPrivateKey(): Promise<unknown>;
   importPrivateKey(privateKey: Uint8Array): Promise<void>;
   // Waiting messages
   syncNextMessage(): Promise<unknown>;
@@ -3117,6 +3120,17 @@ export function useMeshCore() {
       setState((prev) => ({ ...prev, myNodeNum: myNodeId, status: 'configured' }));
       if (getStoredMeshProtocol() === 'meshcore') {
         useDiagnosticsStore.getState().migrateForeignLoraFromZero(myNodeId);
+      }
+
+      try {
+        const rawExport = await awaitUnlessMeshcoreSetupCancelled(
+          setupGen,
+          withTimeout(conn.exportPrivateKey(), 10_000, 'exportPrivateKey'),
+        );
+        const privBytes = coerceMeshcoreExportPrivateKeyResult(rawExport);
+        tryPersistMeshcoreIdentityFromRadioExport(info.publicKey, privBytes);
+      } catch (e) {
+        console.debug('[useMeshCore] exportPrivateKey for MQTT identity cache skipped', e);
       }
 
       try {
@@ -5613,8 +5627,8 @@ export function useMeshCore() {
     const conn = connRef.current;
     if (!conn) return null;
     try {
-      const key = await conn.exportPrivateKey();
-      return key;
+      const raw = await conn.exportPrivateKey();
+      return coerceMeshcoreExportPrivateKeyResult(raw);
     } catch (e: unknown) {
       console.warn('[useMeshCore] exportPrivateKey error', e);
       return null;

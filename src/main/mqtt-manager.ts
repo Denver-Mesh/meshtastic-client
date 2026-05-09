@@ -182,6 +182,8 @@ export class MQTTManager extends EventEmitter {
   private meshtasticConnectT0 = 0;
   /** After `connack timeout`, reconnect with {@link MESHTASTIC_MQTT_RECONNECT_AFTER_CONNACK_TIMEOUT_MS}. */
   private preferFastMqttReconnect = false;
+  /** Force-end client if CONNACK never arrives (mqtt.js connectTimeout alone can miss some WSS/TLS hangs). */
+  private connectAckTimer: ReturnType<typeof setTimeout> | null = null;
 
   connect(settings: MQTTSettings): void {
     // Disconnect any existing connection first
@@ -192,11 +194,28 @@ export class MQTTManager extends EventEmitter {
       .map(parsePsk)
       .filter((k): k is Buffer => k !== null);
     this.retryCount = 0;
-    this.setStatus('connecting');
     this._doConnect(settings);
   }
 
+  private clearConnectAckTimer(): void {
+    if (this.connectAckTimer) {
+      clearTimeout(this.connectAckTimer);
+      this.connectAckTimer = null;
+    }
+  }
+
   private _doConnect(settings: MQTTSettings): void {
+    this.clearConnectAckTimer();
+    this.setStatus('connecting');
+    if (this.client) {
+      try {
+        this.client.removeAllListeners();
+        this.client.end(true);
+      } catch {
+        // catch-no-log-ok tear down stale client before new connect
+      }
+      this.client = null;
+    }
     this.clientId = `meshtastic-electron-${Math.random().toString(36).slice(2, 8)}`;
     const clientId = this.clientId;
     this.meshtasticConnectT0 = Date.now();
@@ -257,7 +276,23 @@ export class MQTTManager extends EventEmitter {
       this.client = mqtt.connect(connectOpts);
     }
 
+    this.connectAckTimer = setTimeout(() => {
+      this.connectAckTimer = null;
+      if (this.status !== 'connecting' || !this.client) return;
+      const msg = `Meshtastic MQTT: timed out before MQTT session (no CONNACK within ${MESHTASTIC_MQTT_CONNECT_ACK_MS / 1000}s). Check host, port, WebSocket path /mqtt, TLS, and network (firewall, VPN, DNS).`;
+      console.error('[Meshtastic MQTT]', sanitizeLogMessage(msg)); // log-filter-ok Meshtastic MQTT logs → App log panel
+      this.emit('error', msg);
+      this.preferFastMqttReconnect = true;
+      try {
+        // Do not removeAllListeners — `close` must run so reconnect backoff still schedules.
+        this.client.end(true);
+      } catch {
+        // catch-no-log-ok forced end during stuck connect
+      }
+    }, MESHTASTIC_MQTT_CONNECT_ACK_MS);
+
     this.client.on('connect', () => {
+      this.clearConnectAckTimer();
       console.debug(
         '[Meshtastic MQTT] CONNACK received',
         `${Date.now() - this.meshtasticConnectT0}ms`,
@@ -349,6 +384,7 @@ export class MQTTManager extends EventEmitter {
     });
 
     this.client.on('close', () => {
+      this.clearConnectAckTimer();
       this.clearWssPing();
       this.clearKeepaliveReschedule();
       const skipReconnect =
@@ -381,18 +417,19 @@ export class MQTTManager extends EventEmitter {
       console.warn(
         `[Meshtastic MQTT] Reconnecting in ${delay}ms (attempt ${this.retryCount}/${maxRetries})`,
       ); // log-filter-ok Meshtastic MQTT logs → App log panel
-      this.setStatus('connecting');
+      this.setStatus('disconnected');
 
       this.reconnectTimer = setTimeout(() => {
         this.reconnectTimer = null;
-        if (this.status !== 'disconnected' && this.currentSettings) {
+        if (this.currentSettings) {
           this._doConnect(this.currentSettings);
         }
       }, delay);
     });
 
     this.client.on('offline', () => {
-      if (this.status !== 'disconnected') {
+      if (this.status === 'disconnected' || this.status === 'error') return;
+      if (this.client) {
         this.setStatus('connecting');
       }
     });
@@ -751,6 +788,7 @@ export class MQTTManager extends EventEmitter {
 
   disconnect(): void {
     this.preferFastMqttReconnect = false;
+    this.clearConnectAckTimer();
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;

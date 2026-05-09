@@ -1140,7 +1140,8 @@
       "autoConnectTimeout": "Waktu sambungan otomatis habis.",
       "autoConnectFailed": "Sambungan otomatis gagal",
       "connectionFailed": "Koneksi gagal"
-    }
+    },
+    "cancelMqttConnect": "Membatalkan"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Hapus baris perutean yang lebih lama dari {{hours}} jam (1–168)",

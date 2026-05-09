@@ -1140,7 +1140,8 @@
       "autoConnectTimeout": "Час очікування автоматичного підключення минув.",
       "autoConnectFailed": "Помилка автоматичного підключення",
       "connectionFailed": "Помилка підключення"
-    }
+    },
+    "cancelMqttConnect": "Скасувати"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Відкиньте рядки маршрутизації, старші за {{hours}} год (1–168)",

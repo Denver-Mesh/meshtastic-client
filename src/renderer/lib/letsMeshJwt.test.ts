@@ -8,8 +8,12 @@ import {
   LETSMESH_HOST_US,
   letsMeshJwtAudience,
   letsMeshMqttUsernameFromIdentity,
+  MESHCORE_IDENTITY_STORAGE_KEY,
   MESHMAPPER_HOST,
+  readMeshcoreIdentity,
+  tryPersistMeshcoreIdentityFromRadioExport,
 } from './letsMeshJwt';
+import { meshcoreSyntheticPlaceholderPubKeyHex } from './meshcoreUtils';
 
 // Sample key pair from @michaelhart/meshcore-decoder tests (auth-token.test.ts)
 const sampleKeyPair = {
@@ -73,5 +77,48 @@ describe('letsMeshJwt', () => {
     const verified = await verifyAuthToken(token, sampleKeyPair.publicKey);
     expect(verified).not.toBeNull();
     expect(verified?.aud).toBe(LETSMESH_HOST_EU);
+  });
+
+  it('tryPersistMeshcoreIdentityFromRadioExport stores NaCl-style seed for JWT path', () => {
+    const pub = Uint8Array.from(
+      sampleKeyPair.publicKey.match(/.{2}/g)!.map((byte) => parseInt(byte, 16)),
+    );
+    const seedHex = sampleKeyPair.privateKey.slice(0, 64);
+    const priv = Uint8Array.from(seedHex.match(/.{2}/g)!.map((byte) => parseInt(byte, 16)));
+    expect(tryPersistMeshcoreIdentityFromRadioExport(pub, priv)).toBe(true);
+    const id = readMeshcoreIdentity();
+    expect(Array.isArray(id?.public_key)).toBe(true);
+    expect((id?.public_key as number[]).length).toBe(32);
+    expect(Array.isArray(id?.private_key)).toBe(true);
+    expect((id?.private_key as number[]).length).toBe(32);
+    localStorage.removeItem(MESHCORE_IDENTITY_STORAGE_KEY);
+  });
+
+  it('tryPersistMeshcoreIdentityFromRadioExport persists full 64-byte private key', () => {
+    const pub = Uint8Array.from(
+      sampleKeyPair.publicKey.match(/.{2}/g)!.map((byte) => parseInt(byte, 16)),
+    );
+    const priv = Uint8Array.from(
+      sampleKeyPair.privateKey.match(/.{2}/g)!.map((byte) => parseInt(byte, 16)),
+    );
+    expect(tryPersistMeshcoreIdentityFromRadioExport(pub, priv)).toBe(true);
+    expect((readMeshcoreIdentity()?.private_key as number[]).length).toBe(64);
+    localStorage.removeItem(MESHCORE_IDENTITY_STORAGE_KEY);
+  });
+
+  it('tryPersistMeshcoreIdentityFromRadioExport rejects synthetic placeholder pubkey', () => {
+    const hex = meshcoreSyntheticPlaceholderPubKeyHex(0xabc);
+    const pub = Uint8Array.from(hex.match(/.{2}/g)!.map((b) => parseInt(b, 16)));
+    const priv = new Uint8Array(32).fill(1);
+    expect(tryPersistMeshcoreIdentityFromRadioExport(pub, priv)).toBe(false);
+    expect(localStorage.getItem(MESHCORE_IDENTITY_STORAGE_KEY)).toBeNull();
+  });
+
+  it('tryPersistMeshcoreIdentityFromRadioExport rejects invalid private length', () => {
+    const pub = Uint8Array.from(
+      sampleKeyPair.publicKey.match(/.{2}/g)!.map((byte) => parseInt(byte, 16)),
+    );
+    const priv = new Uint8Array(16);
+    expect(tryPersistMeshcoreIdentityFromRadioExport(pub, priv)).toBe(false);
   });
 });
