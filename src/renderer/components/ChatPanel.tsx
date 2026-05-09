@@ -258,6 +258,7 @@ export interface ChatPanelProps {
    * it to measure whether the user has scrolled away from the latest messages.
    */
   outerScrollMetricsRootRef?: React.RefObject<HTMLElement | null>;
+  compactMode?: boolean;
 }
 
 function ChatPanel({
@@ -279,6 +280,7 @@ function ChatPanel({
   protocol = 'meshtastic',
   scrollToTopRef,
   outerScrollMetricsRootRef,
+  compactMode = false,
 }: ChatPanelProps) {
   const { t } = useTranslation();
   const ownNodeIdSet = useMemo(() => {
@@ -1089,7 +1091,7 @@ function ChatPanel({
         <div
           ref={scrollContainerRef}
           onScroll={handleScroll}
-          className="bg-deep-black/50 h-full space-y-1.5 overflow-y-auto rounded-xl p-3"
+          className={`bg-deep-black/50 h-full overflow-y-auto rounded-xl p-3 ${compactMode ? 'space-y-0.5' : 'space-y-1.5'}`}
         >
           {filteredMessages.length === 0 ? (
             <div className="text-muted py-12 text-center">
@@ -1126,11 +1128,27 @@ function ChatPanel({
 
               const isUnreadStart = i === unreadStartIndex;
 
+              const prevMsg = i > 0 ? filteredMessages[i - 1] : null;
+              const nextMsg = i < filteredMessages.length - 1 ? filteredMessages[i + 1] : null;
+              const isContinuation =
+                compactMode &&
+                daySeparator === null &&
+                prevMsg !== null &&
+                prevMsg.sender_id === msg.sender_id &&
+                msg.timestamp - prevMsg.timestamp < 5 * 60 * 1000;
+              const isFollowedByContinuation =
+                compactMode &&
+                nextMsg !== null &&
+                nextMsg.sender_id === msg.sender_id &&
+                !daySeparatorIndices.has(i + 1) &&
+                nextMsg.timestamp - msg.timestamp < 5 * 60 * 1000;
+
               return (
                 <div
                   key={
                     msg.id != null ? `db-${msg.id}` : `${msg.timestamp}-${msg.packetId ?? 'x'}-${i}`
                   }
+                  className={isContinuation ? '!mt-px' : undefined}
                 >
                   {daySeparator}
                   {isUnreadStart && (
@@ -1150,42 +1168,44 @@ function ChatPanel({
                     >
                       {/* Message bubble */}
                       <div
-                        className={`min-w-0 rounded-2xl px-3 py-2 ${
+                        className={`min-w-0 rounded-2xl px-3 ${compactMode ? 'py-1' : 'py-2'} ${
                           isDm
                             ? isOwn
-                              ? 'rounded-br-sm border border-purple-500/30 bg-purple-600/20'
-                              : 'rounded-bl-sm border border-purple-600/30 bg-purple-700/20'
+                              ? `${isFollowedByContinuation ? 'rounded-br-none' : 'rounded-br-sm'} border border-purple-500/30 bg-purple-600/20${isContinuation ? 'rounded-tr-sm' : ''}`
+                              : `${isFollowedByContinuation ? 'rounded-bl-none' : 'rounded-bl-sm'} border border-purple-600/30 bg-purple-700/20${isContinuation ? 'rounded-tl-sm' : ''}`
                             : isOwn
-                              ? 'rounded-br-sm border border-blue-500/30 bg-blue-600/20'
-                              : 'bg-secondary-dark/50 rounded-bl-sm border border-gray-600/30'
+                              ? `${isFollowedByContinuation ? 'rounded-br-none' : 'rounded-br-sm'} border border-blue-500/30 bg-blue-600/20${isContinuation ? 'rounded-tr-sm' : ''}`
+                              : `${isFollowedByContinuation ? 'rounded-bl-none' : 'rounded-bl-sm'} border-chat-incoming-border border bg-chat-incoming-bg${isContinuation ? 'rounded-tl-sm' : ''}`
                         }`}
                       >
                         {/* Header: sender name (clickable) + DM indicator + time */}
-                        <div className="mb-0.5 flex items-center gap-2">
-                          <button
-                            onClick={() => {
-                              onNodeClick(msg.sender_id);
-                            }}
-                            className={`cursor-pointer text-xs font-semibold hover:underline ${
-                              isDm
-                                ? 'text-purple-400'
-                                : isOwn
-                                  ? 'text-blue-400'
-                                  : 'text-bright-green'
-                            }`}
-                          >
-                            {displaySenderName}
-                          </button>
-                          {isDm && (
-                            <span className="text-[10px] font-medium text-purple-400/70">DM</span>
-                          )}
-                          <span className="text-muted/70 text-[10px]">
-                            {formatTime(msg.timestamp)}
-                          </span>
-                          {channels.length > 1 && !isDm && (
-                            <span className="text-[10px] text-gray-600">ch{msg.channel}</span>
-                          )}
-                        </div>
+                        {!isContinuation && (
+                          <div className="mb-0.5 flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                onNodeClick(msg.sender_id);
+                              }}
+                              className={`cursor-pointer text-xs font-semibold hover:underline ${
+                                isDm
+                                  ? 'text-purple-400'
+                                  : isOwn
+                                    ? 'text-blue-400'
+                                    : 'text-bright-green'
+                              }`}
+                            >
+                              {displaySenderName}
+                            </button>
+                            {isDm && (
+                              <span className="text-[10px] font-medium text-purple-400/70">DM</span>
+                            )}
+                            <span className="text-muted/70 text-[10px]">
+                              {formatTime(msg.timestamp)}
+                            </span>
+                            {channels.length > 1 && !isDm && (
+                              <span className="text-[10px] text-gray-600">ch{msg.channel}</span>
+                            )}
+                          </div>
+                        )}
 
                         {/* Quoted reply preview */}
                         {msg.replyId &&

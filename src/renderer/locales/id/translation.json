@@ -818,7 +818,8 @@
     "meshcoreRemoveNeverAdvertisedLabel": "Hapus kontak yang tidak pernah beriklan saat startup",
     "meshcoreRemoveNeverAdvertisedHint": "Menghapus kontak placeholder basi tanpa riwayat iklan; kontak favorit disimpan.",
     "messagesLoadLimitIntro": "Batasi jumlah pesan yang dimuat ke dalam memori untuk UI, dan batasi jumlah baris yang disimpan di SQLite. Memuat lebih sedikit akan membuat RAM tetap rendah di jaringan yang sibuk; batas database memangkas pesan lama saat startup aplikasi (disimpan per protokol).",
-    "logPanelHelp": "Saat diaktifkan, streaming log langsung muncul di sebelah kanan. Baris debug memerlukan kotak centang di dalam panel log."
+    "logPanelHelp": "Saat diaktifkan, streaming log langsung muncul di sebelah kanan. Baris debug memerlukan kotak centang di dalam panel log.",
+    "compactMessages": "Tampilan pesan ringkas"
   },
   "nodeListPanel": {
     "contactsRefreshed": "Kontak disegarkan.",

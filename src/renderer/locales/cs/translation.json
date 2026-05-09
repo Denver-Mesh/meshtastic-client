@@ -818,7 +818,8 @@
     "meshcoreRemoveNeverAdvertisedLabel": "Při spuštění odstraňte kontakty, které nikdy neinzerovaly",
     "meshcoreRemoveNeverAdvertisedHint": "Odstraní zastaralé zástupné kontakty bez historie reklam; oblíbené kontakty jsou zachovány.",
     "messagesLoadLimitIntro": "Omezte počet zpráv, které se načítají do paměti pro uživatelské rozhraní, a omezte počet řádků, které zůstanou v SQLite. Menší zatížení udržuje RAM v rušných sítích; omezení databáze ořezává starší zprávy při spuštění aplikace (uložené podle protokolu).",
-    "logPanelHelp": "Je-li povoleno, na pravé straně se zobrazí živý záznam protokolu. Řádky ladění vyžadují zaškrtávací políčko na panelu protokolu."
+    "logPanelHelp": "Je-li povoleno, na pravé straně se zobrazí živý záznam protokolu. Řádky ladění vyžadují zaškrtávací políčko na panelu protokolu.",
+    "compactMessages": "Kompaktní zobrazení zpráv"
   },
   "nodeListPanel": {
     "contactsRefreshed": "Kontakty byly obnoveny.",

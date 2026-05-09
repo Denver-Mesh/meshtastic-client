@@ -7,6 +7,10 @@
   --color-deep-black: #0f172a;
   --color-secondary-dark: #334155;
   --color-muted: #94a3b8;
+  /* Chat incoming (channel): explicit rgb so borders never rely on color-mix + transparent
+     (can read as a bright/white rim on some Chromium/Electron builds). */
+  --color-chat-incoming-bg: rgb(30 41 59 / 0.38);
+  --color-chat-incoming-border: rgb(51 65 85 / 0.55);
 }
 
 /* Leaflet container needs explicit height */

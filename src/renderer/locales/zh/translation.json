@@ -818,7 +818,8 @@
     "meshcoreRemoveNeverAdvertisedLabel": "删除从未在启动时发布广告的联系人",
     "meshcoreRemoveNeverAdvertisedHint": "删除没有广告历史记录的陈旧占位符联系人；保留收藏的联系人。",
     "messagesLoadLimitIntro": "限制UI加载到内存中的消息数，并限制SQLite中保留的行数。加载较少会降低繁忙网络上的RAM ；数据库CAP会在应用程序启动时修剪较旧的消息（按协议存储）。",
-    "logPanelHelp": "启用后，实时日志流将显示在右侧。调试行需要日志面板内的复选框。"
+    "logPanelHelp": "启用后，实时日志流将显示在右侧。调试行需要日志面板内的复选框。",
+    "compactMessages": "紧凑的消息视图"
   },
   "nodeListPanel": {
     "contactsRefreshed": "联系人已刷新。",

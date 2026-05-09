@@ -818,7 +818,8 @@
     "meshcoreRemoveNeverAdvertisedLabel": "Verwijder contacten die nog nooit hebben geadverteerd bij het opstarten",
     "meshcoreRemoveNeverAdvertisedHint": "Verwijdert verouderde tijdelijke contacten zonder advertentiegeschiedenis; favoriete contacten blijven behouden.",
     "messagesLoadLimitIntro": "Beperk het aantal berichten dat in het geheugen van de gebruikersinterface wordt geladen en beperk het aantal rijen dat in SQLite blijft. Door minder te laden, blijft het RAM-geheugen laag op drukke netwerken; de database cap verwijdert oudere berichten bij het opstarten van de app (opgeslagen per protocol).",
-    "logPanelHelp": "Indien ingeschakeld, verschijnt er aan de rechterkant een live logstream. Voor foutopsporingsregels is het selectievakje in het logpaneel vereist."
+    "logPanelHelp": "Indien ingeschakeld, verschijnt er aan de rechterkant een live logstream. Voor foutopsporingsregels is het selectievakje in het logpaneel vereist.",
+    "compactMessages": "Compacte berichtweergave"
   },
   "nodeListPanel": {
     "contactsRefreshed": "Contacten vernieuwd.",

@@ -21,4 +21,5 @@ export const DEFAULT_APP_SETTINGS_SHARED = {
   coordinateFormat: 'decimal' as const,
   autoFloodAdvertIntervalHours: 12,
   locale: 'en' as string,
+  chatCompactMode: false,
 };

@@ -818,7 +818,8 @@
     "meshcoreRemoveNeverAdvertisedLabel": "Başlangıçta hiç reklam vermeyen kişileri kaldırın",
     "meshcoreRemoveNeverAdvertisedHint": "Reklam geçmişi olmayan eski yer tutucu kişileri kaldırır; favorilere eklenen kişiler korunur.",
     "messagesLoadLimitIntro": "Kullanıcı arayüzü için belleğe kaç mesajın yükleneceğini ve SQLite'ta kaç satırın kalacağını sınırlayın. Daha az yükleme, yoğun ağlarda RAM'in düşük kalmasını sağlar; veritabanı başlığı, uygulama başlangıcında eski mesajları siler (protokol başına saklanır).",
-    "logPanelHelp": "Etkinleştirildiğinde sağda canlı bir günlük akışı görünür. Hata ayıklama satırları, günlük panelinin içindeki onay kutusunun işaretlenmesini gerektirir."
+    "logPanelHelp": "Etkinleştirildiğinde sağda canlı bir günlük akışı görünür. Hata ayıklama satırları, günlük panelinin içindeki onay kutusunun işaretlenmesini gerektirir.",
+    "compactMessages": "Kompakt mesaj görünümü"
   },
   "nodeListPanel": {
     "contactsRefreshed": "Kişiler yenilendi.",

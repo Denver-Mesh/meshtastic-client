@@ -818,7 +818,8 @@
     "meshcoreRemoveNeverAdvertisedLabel": "Usuń kontakty, które nigdy nie były reklamowane podczas uruchamiania",
     "meshcoreRemoveNeverAdvertisedHint": "Usuwa nieaktualne kontakty zastępcze bez historii ogłoszeń; ulubione kontakty zostaną zachowane.",
     "messagesLoadLimitIntro": "Ogranicz liczbę wiadomości ładowanych do pamięci interfejsu użytkownika i liczbę wierszy pozostających w SQLite. Ładowanie mniejszej liczby zmniejsza ilość pamięci RAM w obciążonych sieciach; limit bazy danych usuwa starsze wiadomości podczas uruchamiania aplikacji (przechowywane według protokołu).",
-    "logPanelHelp": "Po włączeniu po prawej stronie pojawia się strumień dziennika na żywo. Linie debugowania wymagają pola wyboru w panelu dziennika."
+    "logPanelHelp": "Po włączeniu po prawej stronie pojawia się strumień dziennika na żywo. Linie debugowania wymagają pola wyboru w panelu dziennika.",
+    "compactMessages": "Kompaktowy widok wiadomości"
   },
   "nodeListPanel": {
     "refreshFailed": "Odświeżanie nie powiodło się: {{message}}",

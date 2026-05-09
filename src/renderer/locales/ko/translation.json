@@ -818,7 +818,8 @@
     "meshcoreRemoveNeverAdvertisedLabel": "시작 시 광고한 적이 없는 연락처 제거",
     "meshcoreRemoveNeverAdvertisedHint": "광고 기록이 없는 오래된 자리 표시자 연락처를 제거합니다. 즐겨찾는 연락처가 유지됩니다.",
     "messagesLoadLimitIntro": "UI용 메모리에 로드되는 메시지 수를 제한하고 SQLite에 유지되는 행 수를 제한합니다. 더 적은 수의 로드를 사용하면 사용량이 많은 네트워크에서 RAM을 적게 사용할 수 있습니다. 데이터베이스 캡은 앱 시작 시 오래된 메시지를 정리합니다(프로토콜별로 저장됨).",
-    "logPanelHelp": "활성화되면 실시간 로그 스트림이 오른쪽에 나타납니다. 디버그 라인에는 로그 패널 내부의 확인란이 필요합니다."
+    "logPanelHelp": "활성화되면 실시간 로그 스트림이 오른쪽에 나타납니다. 디버그 라인에는 로그 패널 내부의 확인란이 필요합니다.",
+    "compactMessages": "간결한 메시지 보기"
   },
   "nodeListPanel": {
     "contactsRefreshed": "연락처가 새로 고쳐졌습니다.",

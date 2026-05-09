@@ -818,7 +818,8 @@
     "meshcoreRemoveNeverAdvertisedLabel": "Eliminar contactos que nunca se han anunciado en el inicio",
     "meshcoreRemoveNeverAdvertisedHint": "Elimina los contactos de marcador de posición obsoletos sin historial de anuncios; los contactos favoritos se mantienen.",
     "messagesLoadLimitIntro": "Limite la cantidad de mensajes que se cargan en la memoria para la interfaz de usuario y limite la cantidad de filas que permanecen en SQLite. Cargar menos mantiene la RAM baja en redes ocupadas; el límite de la base de datos elimina los mensajes más antiguos al iniciar la aplicación (almacenados por protocolo).",
-    "logPanelHelp": "Cuando está habilitado, aparece una transmisión de registro en vivo a la derecha. Las líneas de depuración requieren la casilla de verificación dentro del panel de registro."
+    "logPanelHelp": "Cuando está habilitado, aparece una transmisión de registro en vivo a la derecha. Las líneas de depuración requieren la casilla de verificación dentro del panel de registro.",
+    "compactMessages": "Vista compacta de mensajes"
   },
   "nodeListPanel": {
     "contactsRefreshed": "Contactos actualizados.",

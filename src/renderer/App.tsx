@@ -483,6 +483,11 @@ export default function App() {
       hideMqttOnly: Boolean(s.filterMqttOnly),
     };
   });
+  const [chatCompactMode, setChatCompactMode] = useState<boolean>(() => {
+    const s =
+      parseStoredJson<Record<string, unknown>>(getAppSettingsRaw(), 'App chatCompactMode') ?? {};
+    return Boolean(s.chatCompactMode);
+  });
   const [pendingDmTarget, setPendingDmTarget] = useState<number | null>(null);
   const [meshtasticUnread, setMeshtasticUnread] = useState(() => readPersistedUnread('meshtastic'));
   const [meshcoreUnread, setMeshcoreUnread] = useState(() => readPersistedUnread('meshcore'));
@@ -1384,6 +1389,10 @@ export default function App() {
     setLocationFilter(f);
   }, []);
 
+  const handleChatCompactModeChange = useCallback((compact: boolean) => {
+    setChatCompactMode(compact);
+  }, []);
+
   const statusColor = STATUS_COLOR[device.state.status] ?? 'bg-gray-500';
 
   const queueUsed = device.queueStatus ? device.queueStatus.maxlen - device.queueStatus.free : 0;
@@ -1808,6 +1817,7 @@ export default function App() {
                             protocol={protocol}
                             scrollToTopRef={scrollToTopChatRef}
                             outerScrollMetricsRootRef={mainViewportRef}
+                            compactMode={chatCompactMode}
                           />
                         </Suspense>
                       </div>
@@ -2205,6 +2215,7 @@ export default function App() {
                                   : undefined
                               }
                               onAutoFloodAdvertIntervalChange={setAutoFloodAdvertIntervalHours}
+                              onChatCompactModeChange={handleChatCompactModeChange}
                             />
                           </Suspense>
                         </ErrorBoundary>

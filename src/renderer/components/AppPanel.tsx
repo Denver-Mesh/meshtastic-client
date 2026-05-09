@@ -119,6 +119,7 @@ interface AppSettings {
   messageLimitEnabled: boolean;
   messageLimitCount: number;
   autoFloodAdvertIntervalHours: number;
+  chatCompactMode: boolean;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
@@ -154,6 +155,7 @@ interface Props {
   onMessagesPruned?: () => void;
   onClearMeshcoreRepeaters?: () => Promise<void>;
   onAutoFloodAdvertIntervalChange?: (hours: number) => void;
+  onChatCompactModeChange?: (compact: boolean) => void;
 }
 
 interface PendingAction {
@@ -182,6 +184,7 @@ export default function AppPanel({
   onMessagesPruned,
   onClearMeshcoreRepeaters,
   onAutoFloodAdvertIntervalChange,
+  onChatCompactModeChange,
 }: Props) {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const { addToast } = useToast();
@@ -246,6 +249,10 @@ export default function AppPanel({
     settings.filterMqttOnly,
     onLocationFilterChange,
   ]);
+
+  useEffect(() => {
+    onChatCompactModeChange?.(settings.chatCompactMode);
+  }, [settings.chatCompactMode, onChatCompactModeChange]);
 
   const updateSetting = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
@@ -1205,6 +1212,21 @@ export default function AppPanel({
               <span className="text-sm text-gray-300">{t('common.messages')}</span>
             </div>
           )}
+          <div className="flex items-center gap-2 border-t border-gray-700 pt-2">
+            <input
+              type="checkbox"
+              id="chatCompactMode"
+              checked={settings.chatCompactMode}
+              onChange={(e) => {
+                updateSetting('chatCompactMode', e.target.checked);
+              }}
+              aria-label={t('appPanel.compactMessages')}
+              className="accent-brand-green"
+            />
+            <label htmlFor="chatCompactMode" className="cursor-pointer text-sm text-gray-300">
+              {t('appPanel.compactMessages')}
+            </label>
+          </div>
         </div>
       </div>
 
