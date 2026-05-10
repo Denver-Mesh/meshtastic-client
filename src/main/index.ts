@@ -86,7 +86,7 @@ import { MQTTManager } from './mqtt-manager';
 import { handleNobleBleToRadioWrite } from './noble-ble-ipc';
 import { NobleBleManager, type NobleSessionId } from './noble-ble-manager';
 import type { TakServerManager } from './tak-server-manager';
-import { getCheckNow, initUpdater } from './updater';
+import { getCheckNowFromMenu, initUpdater } from './updater';
 
 // Route main-process console through log file + Log panel (must run before other code logs)
 patchMainConsole();
@@ -985,7 +985,7 @@ function setupAppMenu() {
           { type: 'separator' as const },
           {
             label: 'Check for Updates\u2026',
-            click: () => getCheckNow()?.(),
+            click: () => getCheckNowFromMenu()?.(),
           },
           { type: 'separator' as const },
           {
@@ -1038,7 +1038,7 @@ function setupAppMenu() {
           { type: 'separator' as const },
           {
             label: 'Check for Updates\u2026',
-            click: () => getCheckNow()?.(),
+            click: () => getCheckNowFromMenu()?.(),
           },
         ],
       },
