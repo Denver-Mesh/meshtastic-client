@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import {
   app,
   BrowserWindow,
+  crashReporter,
   dialog,
   ipcMain,
   Menu,
@@ -91,6 +92,17 @@ import { getCheckNowFromMenu, initUpdater } from './updater';
 // Route main-process console through log file + Log panel (must run before other code logs)
 patchMainConsole();
 
+// Capture native minidumps locally (no upload). Failure point: crashReporter unavailable in some test harnesses.
+try {
+  crashReporter.start({ uploadToServer: false });
+  console.debug('[main] crashReporter started (uploadToServer: false)');
+} catch (e: unknown) {
+  console.warn(
+    '[main] crashReporter.start failed:',
+    sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+  );
+}
+
 // Linux: SIGSEGV in Electron GPU process on some Wayland / driver stacks (electron#41980).
 // Must run before app.whenReady(). CLI flags --disable-gpu also work; env avoids wrapper scripts.
 if (process.platform === 'linux' && process.env.MESH_CLIENT_DISABLE_GPU === '1') {
@@ -108,6 +120,11 @@ if (!app.requestSingleInstanceLock()) {
 if (process.platform === 'win32') {
   app.setAppUserModelId('com.meshclient.app');
 }
+
+/** Trusted Help menu / About credits URLs (static, not user-controlled). */
+const HELP_URL_WEBSITE = 'https://coloradomesh.org/';
+const HELP_URL_GITHUB = 'https://github.com/Colorado-Mesh/mesh-client';
+const HELP_URL_DISCORD = 'https://discord.com/invite/McChKR5NpS';
 
 // ─── Window state persistence ───────────────────────────────────────
 interface WindowState {
@@ -865,7 +882,9 @@ function setupTray(window: BrowserWindow) {
       { type: 'separator' },
       {
         label: `About ${app.name}`,
-        click: () => void showAboutDialog(),
+        click: () => {
+          showAboutDialog();
+        },
       },
       { type: 'separator' },
       {
@@ -891,63 +910,101 @@ function setupTray(window: BrowserWindow) {
   }
 }
 
-async function showAboutDialog(): Promise<void> {
+function applyAboutPanelOptions(): void {
+  const version = app.getVersion();
+  const credits = [
+    `Version ${version}`,
+    '',
+    'Cross-platform Electron desktop client for Meshtastic and MeshCore on macOS, Linux, and Windows — BLE, USB serial, Wi‑Fi/TCP, MQTT, local SQLite history, routing diagnostics, and keyboard-first workflows.',
+    '',
+    'License: MIT',
+    'Author: Colorado Mesh',
+    '',
+    `Website:  ${HELP_URL_WEBSITE}`,
+    `GitHub:   ${HELP_URL_GITHUB}`,
+    `Discord:  ${HELP_URL_DISCORD}`,
+  ].join('\n');
+
+  const iconCandidate = path.join(process.resourcesPath, '256x256.png');
+  const iconPath = fs.existsSync(iconCandidate) ? iconCandidate : undefined;
+
+  try {
+    if (process.platform === 'linux') {
+      app.setAboutPanelOptions({
+        applicationName: app.name,
+        applicationVersion: version,
+        copyright: 'Copyright © Colorado Mesh',
+        credits,
+        authors: ['Colorado Mesh'],
+        website: HELP_URL_WEBSITE,
+        ...(iconPath ? { iconPath } : {}),
+      });
+    } else {
+      app.setAboutPanelOptions({
+        applicationName: app.name,
+        applicationVersion: version,
+        copyright: 'Copyright © Colorado Mesh',
+        credits,
+        ...(iconPath ? { iconPath } : {}),
+      });
+    }
+  } catch (e: unknown) {
+    console.warn(
+      '[main] setAboutPanelOptions failed:',
+      sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+    );
+  }
+}
+
+function openHelpExternalLink(rawUrl: string): void {
+  const target = parseHttpOrHttpsUrl(rawUrl);
+  if (!target) {
+    console.warn('[main] help link: invalid url', sanitizeLogMessage(rawUrl.slice(0, 200)));
+    return;
+  }
+  console.debug(`[main] help link: openExternal url=${sanitizeLogMessage(target.toString())}`);
+  void shell.openExternal(target.toString() /* parseHttpOrHttpsUrl */).catch((e: unknown) => {
+    console.error(
+      '[main] help link: openExternal failed',
+      sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+    );
+  });
+}
+
+function buildHelpMenuExternalLinkItems(): (
+  | { type: 'separator' }
+  | { label: string; click: () => void }
+)[] {
+  return [
+    { type: 'separator' as const },
+    {
+      label: 'Colorado Mesh Website',
+      click: () => {
+        openHelpExternalLink(HELP_URL_WEBSITE);
+      },
+    },
+    {
+      label: 'GitHub Repository',
+      click: () => {
+        openHelpExternalLink(HELP_URL_GITHUB);
+      },
+    },
+    {
+      label: 'Discord',
+      click: () => {
+        openHelpExternalLink(HELP_URL_DISCORD);
+      },
+    },
+  ];
+}
+
+function showAboutDialog(): void {
   const appName = app.name;
   const version = app.getVersion();
 
   try {
     console.debug(`[main] about dialog: opening app=${sanitizeLogMessage(appName)}`);
-
-    const w = BrowserWindow.getFocusedWindow() ?? mainWindow;
-    const detail = [
-      `Version ${version}`,
-      '',
-      'Cross-platform Electron desktop client for Meshtastic and MeshCore on macOS, Linux, and Windows — BLE, USB serial, Wi‑Fi/TCP, MQTT, local SQLite history, routing diagnostics, and keyboard-first workflows.',
-      '',
-      'License: MIT',
-      'Author: Colorado Mesh',
-      '',
-      'Website:  https://coloradomesh.org/',
-      'GitHub:   https://github.com/Colorado-Mesh/mesh-client',
-      'Discord:  https://discord.com/invite/McChKR5NpS',
-    ].join('\n');
-
-    const opts = {
-      type: 'info' as const,
-      title: appName,
-      message: appName,
-      detail,
-      buttons: ['Close', 'Website', 'GitHub', 'Discord'],
-      defaultId: 0,
-      cancelId: 0,
-    };
-
-    const { response } = await (w ? dialog.showMessageBox(w, opts) : dialog.showMessageBox(opts));
-    console.debug(`[main] about dialog: response=${sanitizeLogMessage(String(response))}`);
-
-    const urls: (string | null)[] = [
-      null,
-      'https://coloradomesh.org/',
-      'https://github.com/Colorado-Mesh/mesh-client',
-      'https://discord.com/invite/McChKR5NpS',
-    ];
-    const url = urls[response];
-    if (!url) return;
-
-    const target = parseHttpOrHttpsUrl(url);
-    if (!target) return;
-
-    console.debug(`[main] about dialog: openExternal url=${sanitizeLogMessage(target.toString())}`);
-    try {
-      const validatedTarget = parseHttpOrHttpsUrl(target.toString());
-      if (!validatedTarget) return;
-      await shell.openExternal(validatedTarget.toString());
-    } catch (e) {
-      console.error(
-        '[main] about dialog: openExternal failed',
-        sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
-      );
-    }
+    app.showAboutPanel();
   } catch (e) {
     console.error(
       '[main] about dialog failed',
@@ -968,11 +1025,13 @@ async function showAboutDialog(): Promise<void> {
 }
 
 /**
- * Application menu: macOS uses the app-name menu (About, updates, Hide, Quit) plus editMenu
- * for Cmd+C/V/X/Z/A via AppKit. Windows/Linux get File (Quit), Edit, and Help (About, updates)
+ * Application menu: macOS uses the app-name menu (About, updates, Hide, Quit), editMenu,
+ * and Help (project links). Windows/Linux get File (Quit), Edit, and Help (About, updates, links)
  * so About is reachable from the menu bar and standard edit shortcuts work.
  */
 function setupAppMenu() {
+  applyAboutPanelOptions();
+
   if (process.platform === 'darwin') {
     appMenu = Menu.buildFromTemplate([
       {
@@ -980,7 +1039,9 @@ function setupAppMenu() {
         submenu: [
           {
             label: `About ${app.name}`,
-            click: () => void showAboutDialog(),
+            click: () => {
+              showAboutDialog();
+            },
           },
           { type: 'separator' as const },
           {
@@ -1009,6 +1070,12 @@ function setupAppMenu() {
         ],
       },
       { role: 'editMenu' as const },
+      {
+        label: 'Help',
+        submenu: buildHelpMenuExternalLinkItems().filter(
+          (item): item is { label: string; click: () => void } => !('type' in item),
+        ),
+      },
     ]);
   } else {
     appMenu = Menu.buildFromTemplate([
@@ -1033,13 +1100,16 @@ function setupAppMenu() {
         submenu: [
           {
             label: `About ${app.name}`,
-            click: () => void showAboutDialog(),
+            click: () => {
+              showAboutDialog();
+            },
           },
           { type: 'separator' as const },
           {
             label: 'Check for Updates\u2026',
             click: () => getCheckNowFromMenu()?.(),
           },
+          ...buildHelpMenuExternalLinkItems(),
         ],
       },
     ]);
@@ -4858,10 +4928,27 @@ app.on('second-instance', () => {
   }
 });
 
+app.on('child-process-gone', (_event, details) => {
+  console.error(
+    '[main] child-process-gone:',
+    sanitizeLogMessage(
+      `${details.type} ${details.reason ?? ''} exit=${String(details.exitCode ?? 'n/a')}`,
+    ),
+  );
+});
+
 void app.whenReady().then(() => {
   try {
     initLogFile();
     console.debug(`[Startup] runtime ${formatRuntimeLogTag()}`);
+    try {
+      console.debug('[main] crashDumps path:', sanitizeLogMessage(app.getPath('crashDumps')));
+    } catch (e: unknown) {
+      console.warn(
+        '[main] crashDumps path unavailable:',
+        sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+      );
+    }
 
     initDatabase();
 

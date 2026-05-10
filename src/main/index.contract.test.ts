@@ -125,11 +125,14 @@ describe('External link routing (source contract)', () => {
 });
 
 describe('About dialog crash guard (source contract)', () => {
-  it('catches and logs native dialog failures with a non-recursive error-box fallback', () => {
-    expect(INDEX_SOURCE).toContain('async function showAboutDialog(): Promise<void>');
+  it('uses native About panel with error-box fallback (no custom showMessageBox About)', () => {
+    expect(INDEX_SOURCE).toContain('function showAboutDialog(): void {');
     expect(INDEX_SOURCE).toContain(
       'console.debug(`[main] about dialog: opening app=${sanitizeLogMessage(appName)}`);',
     );
+    expect(INDEX_SOURCE).toContain('app.showAboutPanel();');
+    expect(INDEX_SOURCE).toContain('app.setAboutPanelOptions');
+    expect(INDEX_SOURCE).toContain('function applyAboutPanelOptions(): void');
     expect(INDEX_SOURCE).toContain("'[main] about dialog failed'");
     expect(INDEX_SOURCE).toContain(
       'dialog.showErrorBox(`About ${appName}`, `${appName}\\nVersion ${version}`);',
@@ -138,15 +141,26 @@ describe('About dialog crash guard (source contract)', () => {
     expect(INDEX_SOURCE).not.toContain('showMessageBox(`About ${appName}`');
   });
 
-  it('logs selected About responses and handles rejected About link opens', () => {
+  it('exposes Help menu external link helper with validated openExternal', () => {
+    expect(INDEX_SOURCE).toContain('function openHelpExternalLink(');
+    expect(INDEX_SOURCE).toContain('function buildHelpMenuExternalLinkItems(');
+    expect(INDEX_SOURCE).toContain('[main] help link: openExternal url=');
+    expect(INDEX_SOURCE).toContain('[main] help link: openExternal failed');
     expect(INDEX_SOURCE).toContain(
-      'console.debug(`[main] about dialog: response=${sanitizeLogMessage(String(response))}`);',
+      'void shell.openExternal(target.toString() /* parseHttpOrHttpsUrl */).catch((e: unknown) => {',
     );
-    expect(INDEX_SOURCE).toContain(
-      'console.debug(`[main] about dialog: openExternal url=${sanitizeLogMessage(target.toString())}`);',
-    );
-    expect(INDEX_SOURCE).toContain('await shell.openExternal(validatedTarget.toString());');
-    expect(INDEX_SOURCE).toContain("'[main] about dialog: openExternal failed'");
+    expect(INDEX_SOURCE).toContain('HELP_URL_WEBSITE');
+    expect(INDEX_SOURCE).toContain('HELP_URL_GITHUB');
+    expect(INDEX_SOURCE).toContain('HELP_URL_DISCORD');
+  });
+});
+
+describe('Native crash observability (source contract)', () => {
+  it('starts crashReporter without upload and logs child-process-gone', () => {
+    expect(INDEX_SOURCE).toContain('import {\n  app,\n  BrowserWindow,\n  crashReporter,');
+    expect(INDEX_SOURCE).toContain('crashReporter.start({ uploadToServer: false })');
+    expect(INDEX_SOURCE).toContain("'[main] crashDumps path:'");
+    expect(INDEX_SOURCE).toContain("'[main] child-process-gone:'");
   });
 });
 
