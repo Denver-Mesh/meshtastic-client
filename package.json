@@ -176,6 +176,7 @@
       "usb"
     ],
     "overrides": {
+      "@electron/asar": "^4.0.1",
       "cacheable-request": "^10.0.0",
       "yauzl": "^3.2.1"
     },
