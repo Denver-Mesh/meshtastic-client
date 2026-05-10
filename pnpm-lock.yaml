@@ -4719,7 +4719,7 @@ snapshots:
       fs-extra: 10.1.0
       isbinaryfile: 4.0.10
       minimist: 1.2.8
-      plist: 3.1.0
+      plist: 3.1.1
     transitivePeerDependencies:
       - supports-color
 
@@ -4742,7 +4742,7 @@ snapshots:
       dir-compare: 4.2.0
       fs-extra: 11.3.5
       minimatch: 9.0.9
-      plist: 3.1.0
+      plist: 3.1.1
     transitivePeerDependencies:
       - supports-color
 
@@ -5110,7 +5110,7 @@ snapshots:
   '@serialport/binding-mock@10.2.2':
     dependencies:
       '@serialport/bindings-interface': 1.2.2
-      debug: 4.4.0
+      debug: 4.4.3(patch_hash=cf37fa96f5df733456b16c82c9e1c9054a92f6216692aa33d5e2e1e208888e37)
     transitivePeerDependencies:
       - supports-color
 
@@ -5629,8 +5629,7 @@ snapshots:
 
   '@xmldom/xmldom@0.8.13': {}
 
-  '@xmldom/xmldom@0.9.10':
-    optional: true
+  '@xmldom/xmldom@0.9.10': {}
 
   '@yarnpkg/lockfile@1.1.0': {}
 
@@ -7801,7 +7800,7 @@ snapshots:
 
   node-abi@4.31.0:
     dependencies:
-      semver: 7.7.4
+      semver: 7.8.0
 
   node-addon-api@1.7.2:
     optional: true
@@ -7815,7 +7814,7 @@ snapshots:
 
   node-api-version@0.2.1:
     dependencies:
-      semver: 7.7.4
+      semver: 7.8.0
 
   node-exports-info@1.6.0:
     dependencies:
@@ -7838,7 +7837,7 @@ snapshots:
       graceful-fs: 4.2.11
       nopt: 9.0.0
       proc-log: 6.1.0
-      semver: 7.7.4
+      semver: 7.8.0
       tar: 7.5.15
       tinyglobby: 0.2.16
       undici: 6.25.0
@@ -8026,7 +8025,6 @@ snapshots:
       '@xmldom/xmldom': 0.9.10
       base64-js: 1.5.1
       xmlbuilder: 15.1.1
-    optional: true
 
   possible-typed-array-names@1.1.0: {}
 
