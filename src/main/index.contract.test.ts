@@ -125,14 +125,22 @@ describe('External link routing (source contract)', () => {
 });
 
 describe('About dialog crash guard (source contract)', () => {
-  it('uses native About panel with error-box fallback (no custom showMessageBox About)', () => {
+  it('uses Windows HTML About fallback and native panel elsewhere (no showMessageBox About)', () => {
     expect(INDEX_SOURCE).toContain('function showAboutDialog(): void {');
     expect(INDEX_SOURCE).toContain(
       'console.debug(`[main] about dialog: opening app=${sanitizeLogMessage(appName)}`);',
     );
+    expect(INDEX_SOURCE).toContain(
+      "import { buildWindowsAboutDocumentHtml } from './windows-about-html';",
+    );
+    expect(INDEX_SOURCE).toContain('function showWindowsAboutFallbackWindow(): void {');
+    expect(INDEX_SOURCE).toContain('showWindowsAboutFallbackWindow();');
     expect(INDEX_SOURCE).toContain('app.showAboutPanel();');
     expect(INDEX_SOURCE).toContain('app.setAboutPanelOptions');
     expect(INDEX_SOURCE).toContain('function applyAboutPanelOptions(): void');
+    expect(INDEX_SOURCE).toMatch(
+      /function applyAboutPanelOptions\(\): void \{[\s\S]*?if \(process\.platform === 'win32'\) \{\s*return;\s*\}/,
+    );
     expect(INDEX_SOURCE).toContain("'[main] about dialog failed'");
     expect(INDEX_SOURCE).toContain(
       'dialog.showErrorBox(`About ${appName}`, `${appName}\\nVersion ${version}`);',

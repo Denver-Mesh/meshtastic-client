@@ -88,6 +88,7 @@ import { handleNobleBleToRadioWrite } from './noble-ble-ipc';
 import { NobleBleManager, type NobleSessionId } from './noble-ble-manager';
 import type { TakServerManager } from './tak-server-manager';
 import { getCheckNowFromMenu, initUpdater } from './updater';
+import { buildWindowsAboutDocumentHtml } from './windows-about-html';
 
 // Route main-process console through log file + Log panel (must run before other code logs)
 patchMainConsole();
@@ -232,6 +233,8 @@ function isAnyMqttConnected(): boolean {
 }
 
 let mainWindow: BrowserWindow | null = null;
+/** Win32 About: native About panel can hard-crash; use a small HTML BrowserWindow instead (#406). */
+let windowsAboutWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 /** Retain tray context menu so macOS menu bridge does not see a freed model (avoids console warning / crashes). */
 let trayContextMenu: Menu | null = null;
@@ -911,6 +914,12 @@ function setupTray(window: BrowserWindow) {
 }
 
 function applyAboutPanelOptions(): void {
+  // GitHub #406: On Windows 11, Electron’s native About path (`setAboutPanelOptions` / `showAboutPanel`)
+  // can fault the process with no JS exception (upstream Electron + Win32 shell bug). We skip
+  // registering the panel on win32 because `showAboutDialog` uses the HTML fallback instead.
+  if (process.platform === 'win32') {
+    return;
+  }
   const version = app.getVersion();
   const credits = [
     `Version ${version}`,
@@ -998,12 +1007,113 @@ function buildHelpMenuExternalLinkItems(): (
   ];
 }
 
+/**
+ * GitHub #406: Windows 11 can hard-exit the app inside Electron’s native About APIs (`showAboutPanel`
+ * and related Win32 shell UI) before any try/catch — upstream Electron/Win32 bug. This replaces
+ * that path with a sandboxed data-URL window; https navigations are routed to `openHelpExternalLink`.
+ */
+function showWindowsAboutFallbackWindow(): void {
+  try {
+    if (windowsAboutWindow && !windowsAboutWindow.isDestroyed()) {
+      windowsAboutWindow.show();
+      windowsAboutWindow.focus();
+      return;
+    }
+
+    const parent = BrowserWindow.getFocusedWindow() ?? mainWindow ?? undefined;
+    const html = buildWindowsAboutDocumentHtml(app.name, app.getVersion());
+    const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+
+    console.debug(
+      '[main] about: opening Windows HTML fallback',
+      sanitizeLogMessage(`parent=${Boolean(parent)}`),
+    );
+
+    const win = new BrowserWindow({
+      width: 440,
+      height: 480,
+      resizable: true,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      parent: parent ?? undefined,
+      modal: Boolean(parent),
+      title: `About ${app.name}`,
+      autoHideMenuBar: true,
+      show: false,
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        webviewTag: false,
+      },
+    });
+
+    windowsAboutWindow = win;
+
+    win.webContents.on('will-navigate', (event, url) => {
+      if (url.startsWith('data:') || url === 'about:blank') return;
+      const t = parseHttpOrHttpsUrl(url);
+      if (t) {
+        event.preventDefault();
+        openHelpExternalLink(t.toString());
+        return;
+      }
+      event.preventDefault();
+    });
+
+    win.webContents.setWindowOpenHandler(({ url }) => {
+      // deny unexpected child windows (check:electron-security scans this block)
+      const t = parseHttpOrHttpsUrl(url);
+      if (t) {
+        openHelpExternalLink(t.toString());
+      }
+      return { action: 'deny' };
+    });
+
+    win.once('ready-to-show', () => {
+      if (!win.isDestroyed()) win.show();
+    });
+
+    win.on('closed', () => {
+      if (windowsAboutWindow === win) windowsAboutWindow = null;
+    });
+
+    void win.loadURL(dataUrl).catch((e: unknown) => {
+      console.error(
+        '[main] about: Windows HTML load failed',
+        sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+      );
+      if (!win.isDestroyed()) win.destroy();
+      if (windowsAboutWindow === win) windowsAboutWindow = null;
+    });
+  } catch (e: unknown) {
+    console.error(
+      '[main] about: Windows HTML fallback failed',
+      sanitizeLogMessage(e instanceof Error ? e.message : String(e)),
+    );
+    try {
+      dialog.showErrorBox(
+        `About ${app.name}`,
+        `${app.name}\nVersion ${app.getVersion()}\n\nCould not open the About window.`,
+      );
+    } catch {
+      // catch-no-log-ok dialog unavailable; error already logged above
+    }
+  }
+}
+
 function showAboutDialog(): void {
   const appName = app.name;
   const version = app.getVersion();
 
   try {
     console.debug(`[main] about dialog: opening app=${sanitizeLogMessage(appName)}`);
+    // GitHub #406: same Electron/Win32 native About bug as above — do not call `showAboutPanel` here.
+    if (process.platform === 'win32') {
+      showWindowsAboutFallbackWindow();
+      return;
+    }
     app.showAboutPanel();
   } catch (e) {
     console.error(
