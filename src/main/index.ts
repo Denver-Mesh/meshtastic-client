@@ -4865,7 +4865,7 @@ function validateHttpHost(host: unknown): asserts host is string {
 async function httpPreflight(host: string, tls: boolean): Promise<void> {
   const protocol = tls ? 'https' : 'http';
   const url = `${protocol}://${host}/json/report`;
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}`);
   }
@@ -4879,6 +4879,7 @@ async function httpWriteToRadio(host: string, tls: boolean, data: Uint8Array): P
       'Content-Type': 'application/x-protobuf',
     },
     body: Buffer.from(data),
+    signal: AbortSignal.timeout(10_000),
   });
 }
 

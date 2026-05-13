@@ -22,8 +22,10 @@ import {
   LETSMESH_HOST_EU,
   LETSMESH_HOST_US,
   letsMeshMqttUsernameFromIdentity,
+  meshcoreIdentityHasPrivateKey,
   MESHMAPPER_HOST,
   readMeshcoreIdentity,
+  readMeshcoreIdentityAsync,
 } from '../lib/letsMeshJwt';
 import { meshcoreMqttUserFacingHint } from '../lib/meshcoreMqttUserHint';
 import {
@@ -689,6 +691,17 @@ export default function ConnectionPanel({
       window.removeEventListener('meshclient:meshcoreIdentityUpdated', syncLetsMeshUsername);
     };
   }, [protocol, meshcorePreset]);
+
+  const [hasPrivateKey, setHasPrivateKey] = useState(() => meshcoreIdentityHasPrivateKey());
+  useEffect(() => {
+    const sync = () => {
+      setHasPrivateKey(meshcoreIdentityHasPrivateKey());
+    };
+    window.addEventListener('meshclient:meshcoreIdentityUpdated', sync);
+    return () => {
+      window.removeEventListener('meshclient:meshcoreIdentityUpdated', sync);
+    };
+  }, []);
 
   const activeMqttSettings = protocol === 'meshcore' ? meshcoreMqttSettings : mqttSettings;
   const setActiveMqttSettings = protocol === 'meshcore' ? setMeshcoreMqttSettings : setMqttSettings;
@@ -2025,6 +2038,7 @@ export default function ConnectionPanel({
                           password: '',
                         }));
                       } else if (id === 'ripple') {
+                        if (!window.confirm(t('connectionPanel.ripplePresetConfirm'))) return;
                         setMeshcoreMqttSettings((prev) => ({
                           ...prev,
                           server: 'mqtt.ripplenetworks.com.au',
@@ -2187,17 +2201,14 @@ export default function ConnectionPanel({
               meshcorePreset === 'meshmapper') && (
               <div
                 className={`flex items-start gap-2 rounded border px-2 py-2 text-xs ${
-                  readMeshcoreIdentity()?.private_key
+                  hasPrivateKey
                     ? 'border-brand-green/40 bg-brand-green/10 text-brand-green/90'
                     : 'border-amber-700/50 bg-amber-900/20 text-amber-200/90'
                 }`}
               >
-                {(() => {
-                  const id = readMeshcoreIdentity();
-                  return id?.private_key && id?.public_key
-                    ? 'Auth token (meshcore-decoder format) will be generated when you connect. Username is v1_ plus your 64-character public key (hex). JWT audience matches the Server hostname.'
-                    : 'No full identity — import your MeshCore config in the Radio panel (public and private keys), or paste username (v1_<public key>) and token manually. JWT audience in the token must match the Server hostname.';
-                })()}
+                {hasPrivateKey && readMeshcoreIdentity()?.public_key
+                  ? 'Auth token (meshcore-decoder format) will be generated when you connect. Username is v1_ plus your 64-character public key (hex). JWT audience matches the Server hostname.'
+                  : 'No full identity — import your MeshCore config in the Radio panel (public and private keys), or paste username (v1_<public key>) and token manually. JWT audience in the token must match the Server hostname.'}
               </div>
             )}
           {protocol === 'meshcore' && (
@@ -2399,7 +2410,7 @@ export default function ConnectionPanel({
                     setMqttError(presetErr);
                     return;
                   }
-                  const identity = readMeshcoreIdentity();
+                  const identity = await readMeshcoreIdentityAsync();
                   const hasFullIdentity = !!(identity?.private_key && identity?.public_key);
                   if (!hasFullIdentity) {
                     const manualErr = validateLetsMeshManualCredentials(settings);

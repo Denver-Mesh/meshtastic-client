@@ -1,4 +1,9 @@
 *.db
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
 .DS_Store
 .aider*
 .claude/

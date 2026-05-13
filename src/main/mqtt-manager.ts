@@ -7,7 +7,7 @@ import {
   Portnums,
   Telemetry,
 } from '@meshtastic/protobufs';
-import { createCipheriv, createDecipheriv, createHash } from 'crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomInt } from 'crypto';
 import { EventEmitter } from 'events';
 import * as mqtt from 'mqtt';
 
@@ -184,6 +184,12 @@ export class MQTTManager extends EventEmitter {
   private connectAckTimer: ReturnType<typeof setTimeout> | null = null;
 
   connect(settings: MQTTSettings): void {
+    if (/[+#]/.test(settings.topicPrefix)) {
+      throw new Error(
+        `MQTT topicPrefix must not contain wildcard characters '+' or '#': ${settings.topicPrefix}`,
+      );
+    }
+
     // Disconnect any existing connection first
     this.disconnect();
 
@@ -214,7 +220,7 @@ export class MQTTManager extends EventEmitter {
       }
       this.client = null;
     }
-    this.clientId = `meshtastic-electron-${Math.random().toString(36).slice(2, 8)}`;
+    this.clientId = `meshtastic-electron-${randomBytes(3).toString('hex')}`;
     const clientId = this.clientId;
     this.meshtasticConnectT0 = Date.now();
     const hostTrim = settings.server.trim();
@@ -480,7 +486,7 @@ export class MQTTManager extends EventEmitter {
     if (!this.client?.connected || !this.currentSettings) {
       throw new Error('MQTT not connected');
     }
-    const packetId = (Math.random() * 0xffffffff) >>> 0;
+    const packetId = randomInt(0, 0x100000000);
     this.seenPacketIds.set(packetId, Date.now() + DEDUP_TTL_MS);
 
     const fromId = from >>> 0;
@@ -835,13 +841,15 @@ export class MQTTManager extends EventEmitter {
       }
       for (const id of expired) this.seenPacketIds.delete(id);
     }
-    // Hard cap: if the map is still very large after cleanup, clear it entirely to prevent
-    // unbounded memory growth from a malicious or misbehaving broker.
+    // Hard cap: evict the oldest half of entries rather than wiping all, so dedup history is
+    // partially preserved and a flood of unique IDs can't open a replay window.
     if (this.seenPacketIds.size > 50_000) {
       console.warn(
-        '[Meshtastic MQTT] seenPacketIds exceeded 50k entries after cleanup — clearing dedup map',
+        '[Meshtastic MQTT] seenPacketIds exceeded 50k entries after cleanup — evicting oldest half',
       ); // log-filter-ok Meshtastic MQTT logs → App log panel
-      this.seenPacketIds.clear();
+      const sorted = [...this.seenPacketIds.entries()].sort((a, b) => a[1] - b[1]);
+      const evictCount = sorted.length >> 1;
+      for (let i = 0; i < evictCount; i++) this.seenPacketIds.delete(sorted[i][0]);
     }
     if (this.seenPacketIds.has(packetId)) {
       const expiry = this.seenPacketIds.get(packetId)!;

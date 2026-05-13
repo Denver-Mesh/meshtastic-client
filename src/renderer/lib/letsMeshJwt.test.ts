@@ -8,6 +8,7 @@ import {
   LETSMESH_HOST_US,
   letsMeshJwtAudience,
   letsMeshMqttUsernameFromIdentity,
+  MESHCORE_ENC_PK_KEY,
   MESHCORE_IDENTITY_STORAGE_KEY,
   MESHMAPPER_HOST,
   readMeshcoreIdentity,
@@ -79,46 +80,49 @@ describe('letsMeshJwt', () => {
     expect(verified?.aud).toBe(LETSMESH_HOST_EU);
   });
 
-  it('tryPersistMeshcoreIdentityFromRadioExport stores NaCl-style seed for JWT path', () => {
+  it('tryPersistMeshcoreIdentityFromRadioExport stores NaCl-style seed for JWT path', async () => {
     const pub = Uint8Array.from(
       sampleKeyPair.publicKey.match(/.{2}/g)!.map((byte) => parseInt(byte, 16)),
     );
     const seedHex = sampleKeyPair.privateKey.slice(0, 64);
     const priv = Uint8Array.from(seedHex.match(/.{2}/g)!.map((byte) => parseInt(byte, 16)));
-    expect(tryPersistMeshcoreIdentityFromRadioExport(pub, priv)).toBe(true);
+    expect(await tryPersistMeshcoreIdentityFromRadioExport(pub, priv)).toBe(true);
     const id = readMeshcoreIdentity();
     expect(Array.isArray(id?.public_key)).toBe(true);
     expect((id?.public_key as number[]).length).toBe(32);
+    // safeStorage mock returns null → plaintext fallback stores private_key in localStorage
     expect(Array.isArray(id?.private_key)).toBe(true);
     expect((id?.private_key as number[]).length).toBe(32);
     localStorage.removeItem(MESHCORE_IDENTITY_STORAGE_KEY);
+    localStorage.removeItem(MESHCORE_ENC_PK_KEY);
   });
 
-  it('tryPersistMeshcoreIdentityFromRadioExport persists full 64-byte private key', () => {
+  it('tryPersistMeshcoreIdentityFromRadioExport persists full 64-byte private key', async () => {
     const pub = Uint8Array.from(
       sampleKeyPair.publicKey.match(/.{2}/g)!.map((byte) => parseInt(byte, 16)),
     );
     const priv = Uint8Array.from(
       sampleKeyPair.privateKey.match(/.{2}/g)!.map((byte) => parseInt(byte, 16)),
     );
-    expect(tryPersistMeshcoreIdentityFromRadioExport(pub, priv)).toBe(true);
+    expect(await tryPersistMeshcoreIdentityFromRadioExport(pub, priv)).toBe(true);
     expect((readMeshcoreIdentity()?.private_key as number[]).length).toBe(64);
     localStorage.removeItem(MESHCORE_IDENTITY_STORAGE_KEY);
+    localStorage.removeItem(MESHCORE_ENC_PK_KEY);
   });
 
-  it('tryPersistMeshcoreIdentityFromRadioExport rejects synthetic placeholder pubkey', () => {
+  it('tryPersistMeshcoreIdentityFromRadioExport rejects synthetic placeholder pubkey', async () => {
     const hex = meshcoreSyntheticPlaceholderPubKeyHex(0xabc);
     const pub = Uint8Array.from(hex.match(/.{2}/g)!.map((b) => parseInt(b, 16)));
     const priv = new Uint8Array(32).fill(1);
-    expect(tryPersistMeshcoreIdentityFromRadioExport(pub, priv)).toBe(false);
+    expect(await tryPersistMeshcoreIdentityFromRadioExport(pub, priv)).toBe(false);
     expect(localStorage.getItem(MESHCORE_IDENTITY_STORAGE_KEY)).toBeNull();
   });
 
-  it('tryPersistMeshcoreIdentityFromRadioExport rejects invalid private length', () => {
+  it('tryPersistMeshcoreIdentityFromRadioExport rejects invalid private length', async () => {
     const pub = Uint8Array.from(
       sampleKeyPair.publicKey.match(/.{2}/g)!.map((byte) => parseInt(byte, 16)),
     );
     const priv = new Uint8Array(16);
-    expect(tryPersistMeshcoreIdentityFromRadioExport(pub, priv)).toBe(false);
+    expect(await tryPersistMeshcoreIdentityFromRadioExport(pub, priv)).toBe(false);
   });
 });

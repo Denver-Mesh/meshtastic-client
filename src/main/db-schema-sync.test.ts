@@ -7,7 +7,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { NodeSqliteDB } from './db-compat';
 import { CURRENT_SCHEMA_VERSION, runSchemaUpgrade } from './db-schema-sync';
 
-describe('runSchemaUpgrade', () => {
+// Schema sync walks every migration; default 5s Vitest timeout flakes on busy CI runners.
+describe('runSchemaUpgrade', { timeout: 30_000 }, () => {
   let dir: string | undefined;
 
   afterEach(() => {

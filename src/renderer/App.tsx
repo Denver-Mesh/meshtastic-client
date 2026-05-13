@@ -65,7 +65,7 @@ import {
   generateLetsMeshAuthToken,
   isLetsMeshSettings,
   letsMeshMqttUsernameFromIdentity,
-  readMeshcoreIdentity,
+  readMeshcoreIdentityAsync,
 } from './lib/letsMeshJwt';
 import { pubkeyToNodeId } from './lib/meshcoreUtils';
 import { meshNodeStubForDetailModal } from './lib/meshNodeStubForDetail';
@@ -1092,7 +1092,7 @@ export default function App() {
                 console.warn('[App] MQTT auto-launch skipped: ' + errLikeToLogString(presetErr));
                 return;
               }
-              const identity = readMeshcoreIdentity();
+              const identity = await readMeshcoreIdentityAsync();
               const hasFull = !!(identity?.private_key && identity?.public_key);
               if (hasFull) {
                 try {
@@ -1142,7 +1142,7 @@ export default function App() {
     const off = window.electronAPI.mqtt.onRequestTokenRefresh((serverHost) => {
       const doRefresh = async () => {
         try {
-          const identity = readMeshcoreIdentity();
+          const identity = await readMeshcoreIdentityAsync();
           if (!identity?.private_key || !identity?.public_key) {
             console.warn('[App] token refresh requested but no identity available');
             return;

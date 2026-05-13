@@ -10,6 +10,12 @@ import { useMeshCore } from './useMeshCore';
 
 const SENDER_ID = 0x12345678;
 
+/** Node that exists only in meshcore_contacts (not as a message sender) — exercises first `savedNodes` hop merge. */
+const CONTACT_ONLY_ID = 0xcafe0001;
+const CONTACT_ONLY_PUBKEY_HEX = Array.from({ length: 32 }, (_, i) =>
+  ((i * 11 + 7) & 0xff).toString(16).padStart(2, '0'),
+).join('');
+
 /** Transport metadata line that must not appear as channel chat (regression: DB hydration must filter). */
 const ACK_TRANSPORT_PAYLOAD =
   'ack @[Digi Mobile] | ca,18,9c,72,97,69,0a | SNR: 12.0 dB | RSSI: -25 dBm | Received at: 12:56:35';
@@ -58,6 +64,7 @@ describe('useMeshCore mount hydration', () => {
   afterEach(() => {
     vi.mocked(window.electronAPI.db.getMeshcoreContacts).mockResolvedValue([]);
     vi.mocked(window.electronAPI.db.getMeshcoreMessages).mockResolvedValue([]);
+    vi.mocked(window.electronAPI.db.getNodes).mockResolvedValue([]);
   });
 
   it('loads persisted meshcore messages from SQLite on mount without connecting a device', async () => {
@@ -76,6 +83,67 @@ describe('useMeshCore mount hydration', () => {
 
     expect(result.current.nodes.has(SENDER_ID)).toBe(true);
     expect(result.current.nodes.get(SENDER_ID)?.long_name).toBe('Alice');
+  });
+
+  it('hydrates hops_away for message stub senders from nodes table when meshcore_contacts has no row', async () => {
+    vi.mocked(window.electronAPI.db.getMeshcoreContacts).mockResolvedValue([]);
+    vi.mocked(window.electronAPI.db.getMeshcoreMessages).mockResolvedValue([sampleMeshcoreDbRow()]);
+    vi.mocked(window.electronAPI.db.getNodes).mockResolvedValue([
+      { node_id: SENDER_ID, hops: 5, hops_away: null },
+    ] as never[]);
+
+    const { result } = renderHook(() => useMeshCore());
+
+    await waitFor(() => {
+      expect(result.current.nodes.get(SENDER_ID)?.hops_away).toBe(5);
+    });
+  });
+
+  it('hydrates hops from nodes table for both meshcore_contacts rows and message-only stubs in one DB load', async () => {
+    vi.mocked(window.electronAPI.db.getMeshcoreContacts).mockResolvedValue([
+      {
+        node_id: CONTACT_ONLY_ID,
+        public_key: CONTACT_ONLY_PUBKEY_HEX,
+        adv_name: 'ContactOnly',
+        contact_type: 2,
+        last_advert: 1_700_000_000,
+        adv_lat: null as number | null,
+        adv_lon: null as number | null,
+        last_snr: 0,
+        last_rssi: 0,
+        favorited: 0,
+        nickname: null as string | null,
+        hops_away: null as number | null,
+        on_radio: 0,
+        last_synced_from_radio: null as string | null,
+      },
+    ] as never[]);
+    vi.mocked(window.electronAPI.db.getMeshcoreMessages).mockResolvedValue([sampleMeshcoreDbRow()]);
+    vi.mocked(window.electronAPI.db.getNodes).mockResolvedValue([
+      { node_id: CONTACT_ONLY_ID, hops: 3, hops_away: null },
+      { node_id: SENDER_ID, hops: 7, hops_away: null },
+    ] as never[]);
+
+    const { result } = renderHook(() => useMeshCore());
+
+    await waitFor(() => {
+      expect(result.current.nodes.get(CONTACT_ONLY_ID)?.hops_away).toBe(3);
+      expect(result.current.nodes.get(SENDER_ID)?.hops_away).toBe(7);
+    });
+  });
+
+  it('uses nodes.hops_away when nodes.hops is null for a message stub', async () => {
+    vi.mocked(window.electronAPI.db.getMeshcoreContacts).mockResolvedValue([]);
+    vi.mocked(window.electronAPI.db.getMeshcoreMessages).mockResolvedValue([sampleMeshcoreDbRow()]);
+    vi.mocked(window.electronAPI.db.getNodes).mockResolvedValue([
+      { node_id: SENDER_ID, hops: null, hops_away: 4 },
+    ] as never[]);
+
+    const { result } = renderHook(() => useMeshCore());
+
+    await waitFor(() => {
+      expect(result.current.nodes.get(SENDER_ID)?.hops_away).toBe(4);
+    });
   });
 
   it('leaves messages empty when the DB returns no rows', async () => {

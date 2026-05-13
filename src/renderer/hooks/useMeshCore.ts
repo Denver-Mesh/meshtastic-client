@@ -1523,6 +1523,20 @@ export function useMeshCore() {
       }
       const mapped = mapMeshcoreDbRowsToChatMessages(dbMsgs as MeshcoreMessageDbRow[]);
       const mergedInitial = mergeStubNodesFromMeshcoreMessages(initial, mapped);
+      // Stub nodes from message hydration are added after the first savedNodes merge; apply
+      // persisted hop counts from `nodes` for them too (meshcore_contacts.hops_away is often null).
+      for (const n of savedNodes as {
+        node_id: number;
+        hops_away: number | null;
+        hops: number | null;
+      }[]) {
+        const hopCount = n.hops ?? n.hops_away;
+        if (hopCount == null) continue;
+        const existing = mergedInitial.get(n.node_id);
+        if (existing && existing.hops_away === undefined) {
+          mergedInitial.set(n.node_id, { ...existing, hops_away: hopCount });
+        }
+      }
       if (opts?.beforeCommit && !opts.beforeCommit()) return;
 
       meshcoreLastPersistedNodesRef.current = new Map(mergedInitial);
@@ -1709,6 +1723,26 @@ export function useMeshCore() {
       pubKeyMapRef.current.clear();
       pubKeyPrefixMapRef.current.clear();
       outPathMapRef.current.clear();
+      // Persisted hop counts from `nodes` are the source of truth across app restarts and
+      // contact-table cleanups. Pre-fetch so each contact merge can fall back when the radio
+      // reports no outPath and prevSnap has no entry yet.
+      const savedHopsByNodeId = new Map<number, number>();
+      try {
+        const savedRows = (await window.electronAPI.db.getNodes()) as {
+          node_id: number;
+          hops?: number | null;
+          hops_away?: number | null;
+        }[];
+        for (const r of savedRows) {
+          const h = r.hops ?? r.hops_away;
+          if (h != null && Number.isFinite(h)) savedHopsByNodeId.set(r.node_id, h);
+        }
+      } catch (e) {
+        console.warn(
+          '[useMeshCore] buildNodesFromContacts: getNodes for hops fallback ' +
+            errLikeToLogString(e),
+        );
+      }
       for (const contact of contacts) {
         const base = meshcoreContactToMeshNode(contact);
         const last_heard = mergeMeshcoreLastHeardFromAdvert(
@@ -1717,9 +1751,10 @@ export function useMeshCore() {
         );
         const prevNode = prevSnap.get(base.node_id);
         const slicedPath = meshcoreSliceContactOutPathForTrace(contact.outPath, contact.outPathLen);
+        const effectivePrevHops = prevNode?.hops_away ?? savedHopsByNodeId.get(base.node_id);
         const hopsAway = meshcoreMergeContactHopsAwayFromPrevious(
           base.hops_away,
-          prevNode?.hops_away,
+          effectivePrevHops,
           slicedPath.length,
         );
         const node: MeshNode = { ...base, last_heard, hops_away: hopsAway };
@@ -1909,6 +1944,16 @@ export function useMeshCore() {
             ...existing,
             hops_away: traceHops,
           });
+        }
+      }
+
+      // Final fallback: nodes still missing hops_away after radio/contact/trace merges fall back
+      // to persisted `nodes` rows. Critical when `meshcore_contacts` is sparse (off-radio cleanup).
+      for (const [nodeId, node] of nextNodes) {
+        if (node.hops_away !== undefined) continue;
+        const savedHops = savedHopsByNodeId.get(nodeId);
+        if (savedHops != null) {
+          nextNodes.set(nodeId, { ...node, hops_away: savedHops });
         }
       }
 
@@ -2355,6 +2400,12 @@ export function useMeshCore() {
         pubKeyPrefixMapRef.current.set(prefix, node.node_id);
         const nick = nicknameMapRef.current.get(node.node_id);
         const nodeWithNick = nick ? { ...node, long_name: nick, short_name: '' } : node;
+        const prevHopsForDb = nodesRef.current.get(nodeWithNick.node_id)?.hops_away;
+        const mergedHopsForDb = meshcoreMergeContactHopsAwayFromPrevious(
+          nodeWithNick.hops_away,
+          prevHopsForDb,
+          0,
+        );
         setNodes((prev) => {
           const next = new Map(prev);
           const existing = prev.get(nodeWithNick.node_id);
@@ -2362,12 +2413,16 @@ export function useMeshCore() {
             ...(existing ?? {}),
             ...nodeWithNick,
             hw_model: mergeHwModelOnContactUpdate(existing?.hw_model, nodeWithNick.hw_model),
-            hops_away: nodeWithNick.hops_away ?? existing?.hops_away,
+            hops_away: meshcoreMergeContactHopsAwayFromPrevious(
+              nodeWithNick.hops_away,
+              existing?.hops_away,
+              0,
+            ),
           });
           return next;
         });
         void window.electronAPI.db
-          .saveMeshcoreContact(contactToDbRow(d, nick ?? null, 1))
+          .saveMeshcoreContact(contactToDbRow(d, nick ?? null, 1, undefined, mergedHopsForDb))
           .catch((e: unknown) => {
             console.warn(
               '[useMeshCore] saveMeshcoreContact (event 138) error ' + errLikeToLogString(e),
@@ -3166,7 +3221,7 @@ export function useMeshCore() {
           withTimeout(conn.exportPrivateKey(), 10_000, 'exportPrivateKey'),
         );
         const privBytes = coerceMeshcoreExportPrivateKeyResult(rawExport);
-        tryPersistMeshcoreIdentityFromRadioExport(info.publicKey, privBytes);
+        void tryPersistMeshcoreIdentityFromRadioExport(info.publicKey, privBytes);
       } catch (e) {
         console.debug(
           '[useMeshCore] exportPrivateKey for MQTT identity cache skipped ' + errLikeToLogString(e),

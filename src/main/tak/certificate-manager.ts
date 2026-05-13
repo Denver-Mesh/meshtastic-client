@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto';
+
 import { app } from 'electron';
 import fs from 'fs';
 import * as forge from 'node-forge';
@@ -35,7 +37,7 @@ function buildCert(
 ): forge.pki.Certificate {
   const cert = forge.pki.createCertificate();
   cert.publicKey = publicKey;
-  cert.serialNumber = String(Math.floor(Math.random() * 1_000_000));
+  cert.serialNumber = randomBytes(8).toString('hex');
   cert.validity.notBefore = new Date();
   cert.validity.notAfter = new Date();
   cert.validity.notAfter.setFullYear(cert.validity.notAfter.getFullYear() + validityYears);

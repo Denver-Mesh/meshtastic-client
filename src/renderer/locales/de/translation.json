@@ -1146,7 +1146,8 @@
       "autoConnectFailed": "Automatische Verbindung fehlgeschlagen",
       "connectionFailed": "Verbindung fehlgeschlagen"
     },
-    "cancelMqttConnect": "Stornieren"
+    "cancelMqttConnect": "Stornieren",
+    "ripplePresetConfirm": "Die Ripple-Voreinstellung verwendet gemeinsam genutzte Community-Anmeldeinformationen und deaktiviert die TLS-Zertifikatüberprüfung. Nur in einem vertrauenswürdigen Netzwerk verwenden. Fortfahren?"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Wirf Routingreihen, die älter als {{hours}} Stunden (1-168) sind",

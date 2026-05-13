@@ -1146,7 +1146,8 @@
       "autoConnectFailed": "Échec de la connexion automatique",
       "connectionFailed": "La connexion a échoué"
     },
-    "cancelMqttConnect": "Annuler"
+    "cancelMqttConnect": "Annuler",
+    "ripplePresetConfirm": "Le préréglage Ripple utilise les informations d'identification de la communauté partagée et désactive la vérification du certificat TLS. Utilisez-le uniquement sur un réseau de confiance. Continuer ?"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Collectez lignes de routage de plus de {{hours}} heures (1–168)",

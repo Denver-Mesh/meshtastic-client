@@ -60,7 +60,7 @@ export function resetCuSpikeCooldown(): void {
 /**
  * If current CU is more than double the 24h average, return a finding.
  * Returns null when gates fail (insufficient history).
- * Cooldown: after firing for nodeId, suppress re-fire until cooldown elapses unless currentCu dropped back to or below average.
+ * Cooldown: after firing for nodeId, suppress re-fire until cooldown elapses.
  */
 export function detectCuSpike(
   currentCu: number,
@@ -73,7 +73,7 @@ export function detectCuSpike(
   if (currentCu <= 2 * stats.average) return null;
   if (nodeId != null) {
     const last = cuSpikeLastFired.get(nodeId);
-    if (last != null && Date.now() - last < CU_SPIKE_COOLDOWN_MS && currentCu > stats.average) {
+    if (last != null && Date.now() - last < CU_SPIKE_COOLDOWN_MS) {
       return null;
     }
     cuSpikeLastFired.set(nodeId, Date.now());
