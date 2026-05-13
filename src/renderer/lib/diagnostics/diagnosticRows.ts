@@ -28,7 +28,7 @@ export function pruneDiagnosticRowsByAge(
   const rfLimit = rfMaxAgeMs ?? routingMaxAgeMs;
   return rows.filter((r) => {
     const limit = r.kind === 'rf' ? rfLimit : routingMaxAgeMs;
-    return now - r.detectedAt <= limit;
+    return now - r.detectedAt < limit;
   });
 }
 

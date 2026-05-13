@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import { EventEmitter } from 'events';
 import * as mqtt from 'mqtt';
 
@@ -251,7 +252,7 @@ export class MeshcoreMqttAdapter extends EventEmitter {
     const isV1Username = /^v1_[0-9A-Fa-f]{64}$/i.test(settings.username ?? '');
     const clientId = isV1Username
       ? settings.username
-      : `meshcore-mqtt-${Math.random().toString(36).slice(2, 10)}`;
+      : `meshcore-mqtt-${randomBytes(4).toString('hex')}`;
     const useTls = settings.port === 8883;
     const rejectUnauthorizedTls = useTls ? !settings.tlsInsecure : false;
     const logUrl = buildMeshcoreUrlForLog(settings);

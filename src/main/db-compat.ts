@@ -237,8 +237,10 @@ export class NodeSqliteDB {
    * non-existent destination).
    */
   backup(destPath: string): void {
-    if (fs.existsSync(destPath)) {
+    try {
       fs.unlinkSync(destPath);
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
     }
     const escaped = destPath.replace(/'/g, "''");
     this._run(`VACUUM INTO '${escaped}'`);
