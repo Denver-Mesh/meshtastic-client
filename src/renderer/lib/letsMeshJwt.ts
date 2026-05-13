@@ -3,6 +3,9 @@ import { meshcoreIsSyntheticPlaceholderPubKeyHex } from './meshcoreUtils';
 /** localStorage key for MeshCore keys used by LetsMesh / device-signing MQTT JWT (Radio import or radio export). */
 export const MESHCORE_IDENTITY_STORAGE_KEY = 'mesh-client:meshcoreIdentity';
 
+/** localStorage key for the safeStorage-encrypted private key (base64 ciphertext). */
+export const MESHCORE_ENC_PK_KEY = 'mesh-client:meshcoreIdentityEncPK';
+
 /** US LetsMesh broker (WebSocket TLS on 443). */
 export const LETSMESH_HOST_US = 'mqtt-us-v1.letsmesh.net';
 /** EU LetsMesh broker (WebSocket TLS on 443). */
@@ -45,12 +48,15 @@ function meshcorePubKeyBytesToHexLower(pub: Uint8Array): string {
 /**
  * After a MeshCore radio connects, persist identity from firmware export so LetsMesh MQTT can sign
  * JWTs without a separate JSON import (same storage shape as RadioPanel config import).
+ *
+ * Private key is stored encrypted via Electron safeStorage when available; falls back to
+ * plaintext localStorage on platforms without an OS keychain (e.g. Linux without keyring).
  * @returns true if storage was updated.
  */
-export function tryPersistMeshcoreIdentityFromRadioExport(
+export async function tryPersistMeshcoreIdentityFromRadioExport(
   publicKey: Uint8Array | undefined,
   privateKeyBytes: Uint8Array | null | undefined,
-): boolean {
+): Promise<boolean> {
   if (publicKey?.length !== 32) return false;
   const pubHex = meshcorePubKeyBytesToHexLower(publicKey);
   if (meshcoreIsSyntheticPlaceholderPubKeyHex(pubHex)) return false;
@@ -58,19 +64,66 @@ export function tryPersistMeshcoreIdentityFromRadioExport(
     return false;
   }
   try {
-    localStorage.setItem(
-      MESHCORE_IDENTITY_STORAGE_KEY,
-      JSON.stringify({
-        public_key: Array.from(publicKey),
-        private_key: Array.from(privateKeyBytes),
-      }),
-    );
+    const privArray = Array.from(privateKeyBytes);
+    const ciphertext = await window.electronAPI.safeStorage.encrypt(JSON.stringify(privArray));
+    if (ciphertext !== null) {
+      localStorage.setItem(
+        MESHCORE_IDENTITY_STORAGE_KEY,
+        JSON.stringify({ public_key: Array.from(publicKey) }),
+      );
+      localStorage.setItem(MESHCORE_ENC_PK_KEY, ciphertext);
+    } else {
+      // safeStorage unavailable — store plaintext as before
+      localStorage.setItem(
+        MESHCORE_IDENTITY_STORAGE_KEY,
+        JSON.stringify({ public_key: Array.from(publicKey), private_key: privArray }),
+      );
+    }
     window.dispatchEvent(new Event('meshclient:meshcoreIdentityUpdated'));
     return true;
   } catch {
     // catch-no-log-ok localStorage quota or private mode — same as RadioPanel import path
     return false;
   }
+}
+
+/** Returns true if a private key exists (encrypted or plaintext), without decrypting it. */
+export function meshcoreIdentityHasPrivateKey(): boolean {
+  try {
+    if (localStorage.getItem(MESHCORE_ENC_PK_KEY) !== null) return true;
+    const raw = localStorage.getItem(MESHCORE_IDENTITY_STORAGE_KEY);
+    if (!raw) return false;
+    const parsed = JSON.parse(raw) as { private_key?: unknown };
+    return parsed.private_key != null;
+  } catch {
+    // catch-no-log-ok
+    return false;
+  }
+}
+
+/**
+ * Async version of readMeshcoreIdentity that decrypts the private key from safeStorage when
+ * available, or falls back to the plaintext value stored in localStorage.
+ */
+export async function readMeshcoreIdentityAsync(): Promise<{
+  private_key?: string | number[];
+  public_key?: string | number[];
+} | null> {
+  const base = readMeshcoreIdentity();
+  if (!base) return null;
+  const ciphertext = localStorage.getItem(MESHCORE_ENC_PK_KEY);
+  if (ciphertext !== null) {
+    try {
+      const plaintext = await window.electronAPI.safeStorage.decrypt(ciphertext);
+      if (plaintext !== null) {
+        const private_key = JSON.parse(plaintext) as number[];
+        return { ...base, private_key };
+      }
+    } catch {
+      // catch-no-log-ok safeStorage decrypt failed — fall through to plaintext path
+    }
+  }
+  return base;
 }
 
 // Read the identity cached by RadioPanel after a config-file import.

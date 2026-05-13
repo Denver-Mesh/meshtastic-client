@@ -3166,7 +3166,7 @@ export function useMeshCore() {
           withTimeout(conn.exportPrivateKey(), 10_000, 'exportPrivateKey'),
         );
         const privBytes = coerceMeshcoreExportPrivateKeyResult(rawExport);
-        tryPersistMeshcoreIdentityFromRadioExport(info.publicKey, privBytes);
+        void tryPersistMeshcoreIdentityFromRadioExport(info.publicKey, privBytes);
       } catch (e) {
         console.debug(
           '[useMeshCore] exportPrivateKey for MQTT identity cache skipped ' + errLikeToLogString(e),

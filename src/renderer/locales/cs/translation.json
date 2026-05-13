@@ -1146,7 +1146,8 @@
       "autoConnectFailed": "Automatické připojení se nezdařilo",
       "connectionFailed": "Připojení se nezdařilo"
     },
-    "cancelMqttConnect": "Zrušit"
+    "cancelMqttConnect": "Zrušit",
+    "ripplePresetConfirm": "Přednastavení Ripple používá sdílené přihlašovací údaje komunity a zakazuje ověření certifikátu TLS. Použít pouze v důvěryhodné síti. Pokračovat?"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Vypustit řádky směrování starší než {{hours}} hodin (1–168)",

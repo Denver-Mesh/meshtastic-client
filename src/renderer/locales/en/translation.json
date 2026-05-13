@@ -1004,6 +1004,7 @@
   "connectionPanel": {
     "maxReconnectAttempts": "Max MQTT reconnect attempts",
     "letsMeshRegion": "LetsMesh region",
+    "ripplePresetConfirm": "The Ripple preset uses shared community credentials and disables TLS certificate verification. Only use this on a trusted network. Continue?",
     "showPassword": "Show password",
     "hidePassword": "Hide password",
     "pairWithDevice": "Pair with your device",

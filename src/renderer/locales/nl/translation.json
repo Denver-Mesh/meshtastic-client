@@ -1146,7 +1146,8 @@
       "autoConnectFailed": "Automatisch verbinden mislukt",
       "connectionFailed": "Verbinding mislukt"
     },
-    "cancelMqttConnect": "Annuleren"
+    "cancelMqttConnect": "Annuleren",
+    "ripplePresetConfirm": "De Ripple-voorinstelling gebruikt gedeelde gemeenschapsreferenties en schakelt TLS-certificaatverificatie uit. Gebruik dit alleen op een vertrouwd netwerk. Doorgaan?"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Rijen voor droprouting die ouder zijn dan {{hours}} uur (1–168)",

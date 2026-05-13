@@ -1146,7 +1146,8 @@
       "autoConnectFailed": "Sambungan otomatis gagal",
       "connectionFailed": "Koneksi gagal"
     },
-    "cancelMqttConnect": "Membatalkan"
+    "cancelMqttConnect": "Membatalkan",
+    "ripplePresetConfirm": "Preset Ripple menggunakan kredensial komunitas bersama dan menonaktifkan verifikasi sertifikat TLS. Hanya gunakan ini di jaringan tepercaya. Lanjutkan?"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Hapus baris perutean yang lebih lama dari {{hours}} jam (1–168)",

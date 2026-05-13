@@ -1146,7 +1146,8 @@
       "autoConnectFailed": "Falló la conexión automática",
       "connectionFailed": "La conexión falló"
     },
-    "cancelMqttConnect": "Cancelar"
+    "cancelMqttConnect": "Cancelar",
+    "ripplePresetConfirm": "El ajuste preestablecido de Ripple utiliza credenciales comunitarias compartidas y desactiva la verificación del certificado TLS. Utilice esto solo en una red de confianza. ¿Continuar?"
   },
   "diagnosticsPanel": {
     "dropRoutingRows": "Filas de enrutamiento de más de {{hours}} horas (1–168)",
