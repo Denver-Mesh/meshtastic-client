@@ -1523,6 +1523,20 @@ export function useMeshCore() {
       }
       const mapped = mapMeshcoreDbRowsToChatMessages(dbMsgs as MeshcoreMessageDbRow[]);
       const mergedInitial = mergeStubNodesFromMeshcoreMessages(initial, mapped);
+      // Stub nodes from message hydration are added after the first savedNodes merge; apply
+      // persisted hop counts from `nodes` for them too (meshcore_contacts.hops_away is often null).
+      for (const n of savedNodes as {
+        node_id: number;
+        hops_away: number | null;
+        hops: number | null;
+      }[]) {
+        const hopCount = n.hops ?? n.hops_away;
+        if (hopCount == null) continue;
+        const existing = mergedInitial.get(n.node_id);
+        if (existing && existing.hops_away === undefined) {
+          mergedInitial.set(n.node_id, { ...existing, hops_away: hopCount });
+        }
+      }
       if (opts?.beforeCommit && !opts.beforeCommit()) return;
 
       meshcoreLastPersistedNodesRef.current = new Map(mergedInitial);
