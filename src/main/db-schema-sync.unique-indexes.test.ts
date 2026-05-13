@@ -40,109 +40,116 @@ describe('unique index contract (INDEX_DDLS vs dedupe coverage)', () => {
   });
 });
 
-describe('runSchemaUpgrade tolerates missing unique indexes + duplicate keys', () => {
-  let dir: string | undefined;
+// Each case opens a DB and runs runSchemaUpgrade twice; allow headroom on slow CI.
+describe(
+  'runSchemaUpgrade tolerates missing unique indexes + duplicate keys',
+  { timeout: 30_000 },
+  () => {
+    let dir: string | undefined;
 
-  afterEach(() => {
-    if (dir) {
-      rmSync(dir, { recursive: true, force: true });
-      dir = undefined;
+    afterEach(() => {
+      if (dir) {
+        rmSync(dir, { recursive: true, force: true });
+        dir = undefined;
+      }
+    });
+
+    function openFreshUpgradedDb(name: string): NodeSqliteDB {
+      dir = mkdtempSync(join(tmpdir(), 'mesh-uniq-test-'));
+      const dbPath = join(dir, name);
+      const db = new NodeSqliteDB(dbPath);
+      runSchemaUpgrade(db);
+      return db;
     }
-  });
 
-  function openFreshUpgradedDb(name: string): NodeSqliteDB {
-    dir = mkdtempSync(join(tmpdir(), 'mesh-uniq-test-'));
-    const dbPath = join(dir, name);
-    const db = new NodeSqliteDB(dbPath);
-    runSchemaUpgrade(db);
-    return db;
-  }
-
-  it('idx_msg_packet_dedup: dedupes duplicate (sender_id, packet_id) rows', () => {
-    const db = openFreshUpgradedDb('packet.db');
-    db.execScript('DROP INDEX IF EXISTS idx_msg_packet_dedup');
-    db.prepare(
-      `INSERT INTO messages (sender_id, sender_name, payload, channel, timestamp, packet_id)
+    it('idx_msg_packet_dedup: dedupes duplicate (sender_id, packet_id) rows', () => {
+      const db = openFreshUpgradedDb('packet.db');
+      db.execScript('DROP INDEX IF EXISTS idx_msg_packet_dedup');
+      db.prepare(
+        `INSERT INTO messages (sender_id, sender_name, payload, channel, timestamp, packet_id)
        VALUES (42, 'n', 'p1', 0, 1000, 999)`,
-    ).run();
-    db.prepare(
-      `INSERT INTO messages (sender_id, sender_name, payload, channel, timestamp, packet_id)
+      ).run();
+      db.prepare(
+        `INSERT INTO messages (sender_id, sender_name, payload, channel, timestamp, packet_id)
        VALUES (42, 'n', 'p2', 0, 1001, 999)`,
-    ).run();
-    runSchemaUpgrade(db);
-    const n = (
-      db
-        .prepare('SELECT COUNT(*) as c FROM messages WHERE sender_id = 42 AND packet_id = 999')
-        .get() as {
-        c: number;
-      }
-    ).c;
-    expect(n).toBe(1);
-    expect(
-      db
-        .prepare(
-          `SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_msg_packet_dedup' LIMIT 1`,
-        )
-        .get(),
-    ).toBeDefined();
-    db.close();
-  });
+      ).run();
+      runSchemaUpgrade(db);
+      const n = (
+        db
+          .prepare('SELECT COUNT(*) as c FROM messages WHERE sender_id = 42 AND packet_id = 999')
+          .get() as {
+          c: number;
+        }
+      ).c;
+      expect(n).toBe(1);
+      expect(
+        db
+          .prepare(
+            `SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_msg_packet_dedup' LIMIT 1`,
+          )
+          .get(),
+      ).toBeDefined();
+      db.close();
+    });
 
-  it('idx_reaction_dedup: dedupes duplicate (sender_id, reply_id, emoji) rows', () => {
-    const db = openFreshUpgradedDb('reaction.db');
-    db.execScript('DROP INDEX IF EXISTS idx_reaction_dedup');
-    db.prepare(
-      `INSERT INTO messages (sender_id, sender_name, payload, channel, timestamp, reply_id, emoji)
+    it('idx_reaction_dedup: dedupes duplicate (sender_id, reply_id, emoji) rows', () => {
+      const db = openFreshUpgradedDb('reaction.db');
+      db.execScript('DROP INDEX IF EXISTS idx_reaction_dedup');
+      db.prepare(
+        `INSERT INTO messages (sender_id, sender_name, payload, channel, timestamp, reply_id, emoji)
        VALUES (1, 'a', 'x', 0, 100, 5, 10)`,
-    ).run();
-    db.prepare(
-      `INSERT INTO messages (sender_id, sender_name, payload, channel, timestamp, reply_id, emoji)
+      ).run();
+      db.prepare(
+        `INSERT INTO messages (sender_id, sender_name, payload, channel, timestamp, reply_id, emoji)
        VALUES (1, 'a', 'x2', 0, 101, 5, 10)`,
-    ).run();
-    runSchemaUpgrade(db);
-    const n = (
-      db.prepare('SELECT COUNT(*) as c FROM messages WHERE reply_id = 5 AND emoji = 10').get() as {
-        c: number;
-      }
-    ).c;
-    expect(n).toBe(1);
-    expect(
-      db
-        .prepare(
-          `SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_reaction_dedup' LIMIT 1`,
-        )
-        .get(),
-    ).toBeDefined();
-    db.close();
-  });
+      ).run();
+      runSchemaUpgrade(db);
+      const n = (
+        db
+          .prepare('SELECT COUNT(*) as c FROM messages WHERE reply_id = 5 AND emoji = 10')
+          .get() as {
+          c: number;
+        }
+      ).c;
+      expect(n).toBe(1);
+      expect(
+        db
+          .prepare(
+            `SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_reaction_dedup' LIMIT 1`,
+          )
+          .get(),
+      ).toBeDefined();
+      db.close();
+    });
 
-  it('idx_mc_msg_dedup: dedupes duplicate (sender_id, timestamp, channel_idx, payload) rows', () => {
-    const db = openFreshUpgradedDb('mc.db');
-    db.execScript('DROP INDEX IF EXISTS idx_mc_msg_dedup');
-    db.prepare(
-      `INSERT INTO meshcore_messages (sender_id, sender_name, payload, channel_idx, timestamp)
+    it('idx_mc_msg_dedup: dedupes duplicate (sender_id, timestamp, channel_idx, payload) rows', () => {
+      const db = openFreshUpgradedDb('mc.db');
+      db.execScript('DROP INDEX IF EXISTS idx_mc_msg_dedup');
+      db.prepare(
+        `INSERT INTO meshcore_messages (sender_id, sender_name, payload, channel_idx, timestamp)
        VALUES (7, 'u', 'same', 2, 5000)`,
-    ).run();
-    db.prepare(
-      `INSERT INTO meshcore_messages (sender_id, sender_name, payload, channel_idx, timestamp)
+      ).run();
+      db.prepare(
+        `INSERT INTO meshcore_messages (sender_id, sender_name, payload, channel_idx, timestamp)
        VALUES (7, 'u', 'same', 2, 5000)`,
-    ).run();
-    runSchemaUpgrade(db);
-    const n = (
-      db
-        .prepare(
-          'SELECT COUNT(*) as c FROM meshcore_messages WHERE sender_id = 7 AND channel_idx = 2 AND payload = ?',
-        )
-        .get('same') as { c: number }
-    ).c;
-    expect(n).toBe(1);
-    expect(
-      db
-        .prepare(
-          `SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_mc_msg_dedup' LIMIT 1`,
-        )
-        .get(),
-    ).toBeDefined();
-    db.close();
-  });
-});
+      ).run();
+      runSchemaUpgrade(db);
+      const n = (
+        db
+          .prepare(
+            'SELECT COUNT(*) as c FROM meshcore_messages WHERE sender_id = 7 AND channel_idx = 2 AND payload = ?',
+          )
+          .get('same') as { c: number }
+      ).c;
+      expect(n).toBe(1);
+      expect(
+        db
+          .prepare(
+            `SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_mc_msg_dedup' LIMIT 1`,
+          )
+          .get(),
+      ).toBeDefined();
+      db.close();
+    });
+  },
+);
