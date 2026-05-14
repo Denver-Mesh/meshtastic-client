@@ -183,6 +183,36 @@ export function diagnoseConnectedNode(
     });
   }
 
+  // MeshCore-only: Elevated Noise Floor and Excessive Flooding (from packet stats RPC)
+  const meshcoreStats = node.meshcore_local_stats;
+  if (meshcoreStats) {
+    if (meshcoreStats.noiseFloor > -95) {
+      findings.push({
+        condition: 'Elevated Noise Floor',
+        cause: `Radio noise floor is ${meshcoreStats.noiseFloor} dBm — elevated interference reducing effective range.`,
+        severity: 'warning',
+        causeI18n: {
+          key: 'diagnosticsPanel.rfCause.elevatedNoiseFloor',
+          params: { noiseFloor: meshcoreStats.noiseFloor },
+        },
+      });
+    }
+
+    const totalSent = (meshcoreStats.nSentFlood ?? 0) + (meshcoreStats.nSentDirect ?? 0);
+    if (totalSent >= 20 && (meshcoreStats.nSentFlood ?? 0) / totalSent > 0.9) {
+      const floodPct = Math.round(((meshcoreStats.nSentFlood ?? 0) / totalSent) * 100);
+      findings.push({
+        condition: 'Excessive Flooding',
+        cause: `${floodPct}% of transmissions are flood-routed — direct routing may not be established with nearby nodes.`,
+        severity: 'warning',
+        causeI18n: {
+          key: 'diagnosticsPanel.rfCause.excessiveFlooding',
+          params: { percent: floodPct },
+        },
+      });
+    }
+  }
+
   return findings;
 }
 
@@ -203,47 +233,51 @@ export function diagnoseOtherNode(
   context?: OtherNodeDiagnosticContext,
 ): RFDiagnosis[] | null {
   if (context?.capabilities?.hasRfStats === false) return null;
-  if (node.channel_utilization == null && node.air_util_tx == null) return null;
 
   const findings: RFDiagnosis[] = [];
-  const cu = node.channel_utilization ?? 0;
-  const tx = node.air_util_tx ?? 0;
-  const snrMeaningful = snrMeaningfulForNodeDiagnostics(node, context?.capabilities);
-  const snr = node.snr ?? 0;
+  const hasCuData = node.channel_utilization != null || node.air_util_tx != null;
 
-  if (cu > HIGH_CU && tx < LOW_TX) {
-    findings.push({
-      condition: 'External Interference',
-      cause: 'Nearby transmitter dominating the channel — your node backs off to avoid collisions.',
-      severity: 'warning',
-      causeI18n: { key: 'diagnosticsPanel.rfCause.externalInterference' },
-    });
+  if (hasCuData) {
+    const cu = node.channel_utilization ?? 0;
+    const tx = node.air_util_tx ?? 0;
+    const snrMeaningful = snrMeaningfulForNodeDiagnostics(node, context?.capabilities);
+    const snr = node.snr ?? 0;
+
+    if (cu > HIGH_CU && tx < LOW_TX) {
+      findings.push({
+        condition: 'External Interference',
+        cause:
+          'Nearby transmitter dominating the channel — your node backs off to avoid collisions.',
+        severity: 'warning',
+        causeI18n: { key: 'diagnosticsPanel.rfCause.externalInterference' },
+      });
+    }
+
+    const cuSpike = detectCuSpike(cu, context?.cuStats24h ?? null, node.node_id);
+    if (cuSpike) findings.push(cuSpike);
+
+    // SNR only when meaningful (0-hop RF) — still last-hop into client; label for clarity
+    if (snrMeaningful && cu > HIGH_CU && snr < LOW_SNR) {
+      findings.push({
+        condition: 'Wideband Noise Floor',
+        cause:
+          'Broadband interference (faulty electronics, power-line noise, etc.) elevating the noise floor.',
+        severity: 'warning',
+        isLastHop: true,
+        causeI18n: { key: 'diagnosticsPanel.rfCause.widebandNoiseFloor' },
+      });
+    }
+
+    if (snrMeaningful && cu <= 10 && snr < LOW_SNR) {
+      findings.push({
+        condition: 'Fringe / Weak Coverage',
+        cause: 'Node is too far away or poorly connected to the rest of the mesh.',
+        severity: 'info',
+        isLastHop: true,
+        causeI18n: { key: 'diagnosticsPanel.rfCause.fringeWeakCoverage' },
+      });
+    }
   }
 
-  const cuSpike = detectCuSpike(cu, context?.cuStats24h ?? null, node.node_id);
-  if (cuSpike) findings.push(cuSpike);
-
-  // SNR only when meaningful (0-hop RF) — still last-hop into client; label for clarity
-  if (snrMeaningful && cu > HIGH_CU && snr < LOW_SNR) {
-    findings.push({
-      condition: 'Wideband Noise Floor',
-      cause:
-        'Broadband interference (faulty electronics, power-line noise, etc.) elevating the noise floor.',
-      severity: 'warning',
-      isLastHop: true,
-      causeI18n: { key: 'diagnosticsPanel.rfCause.widebandNoiseFloor' },
-    });
-  }
-
-  if (snrMeaningful && cu <= 10 && snr < LOW_SNR) {
-    findings.push({
-      condition: 'Fringe / Weak Coverage',
-      cause: 'Node is too far away or poorly connected to the rest of the mesh.',
-      severity: 'info',
-      isLastHop: true,
-      causeI18n: { key: 'diagnosticsPanel.rfCause.fringeWeakCoverage' },
-    });
-  }
-
-  return findings;
+  return findings.length > 0 ? findings : null;
 }

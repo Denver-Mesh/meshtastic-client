@@ -24,6 +24,7 @@ We were inspired by features from these projects:
 - [meshcore-open](https://github.com/zjs81/meshcore-open): Flutter client for MeshCore devices
 - [meshtastic-cli](https://github.com/statico/meshtastic-cli): Terminal UI for monitoring Meshtastic mesh networks
 - [Mesh Monitor](https://meshmonitor.org/): Web-based mesh network monitoring dashboard
+- [CoreScope](https://github.com/Kpa-clawbot/CoreScope): Self-hosted MeshCore network analyzer with RF analytics, packet visualization, and topology tools
 
 ## Libraries & Tools
 

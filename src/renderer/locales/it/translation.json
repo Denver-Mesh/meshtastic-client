@@ -78,7 +78,9 @@
     "diagnostics": "Diagnostica",
     "stats": "Statistiche",
     "sniffer": "Sniffer",
-    "repeaters": "Ripetitori"
+    "repeaters": "Ripetitori",
+    "rf": "RF",
+    "graph": "Graph"
   },
   "sidebar": {
     "disabledTabTooltip": "Non disponibile in questa modalità"
@@ -904,7 +906,9 @@
     "statusStale": "Stanco",
     "statusOffline": "Non in linea",
     "removeFromFavorites": "Rimuovi dai preferiti",
-    "addToFavorites": "Aggiungi ai preferiti"
+    "addToFavorites": "Aggiungi ai preferiti",
+    "healthTooltip": "Punteggio di salute: {{total}}/100 (segnale {{signal}}, recency {{recency}}, carico {{load}}, batteria {{battery}})",
+    "healthAriaLabel": "Punteggio di salute del nodo {{total}} su 100"
   },
   "mapPanel": {
     "locationUnavailable": "Posizione non disponibile.",
@@ -1241,7 +1245,8 @@
       "badRoute": "Brutto percorso",
       "routeFlapping": "Sbattimento del percorso",
       "impossibleHop": "Salto impossibile",
-      "noisyNode": "Nodo rumoroso"
+      "noisyNode": "Nodo rumoroso",
+      "weakLink": "Collegamento debole"
     },
     "routingDesc": {
       "hopGoblinKm": "A soli {{distanceKm}} km di distanza, ma facendo {{hops}} salti: un salto eccessivo critico",
@@ -1249,7 +1254,9 @@
       "badRouteSuboptimalMi": "Solo {{distanceMi}} mi di distanza ma facendo {{hops}} salti: possibile percorso non ottimale",
       "impossibleHopMi": "Segnalato come a 0 salti di distanza ma distante {{miles}} miglia: dati GPS o di percorso sospetti",
       "routeFlapping": "Il conteggio dei luppoli è cambiato {{changes}} volte negli ultimi 10 minuti: percorso instabile",
-      "noisyNode": "Invio di {{ratePerHour}}/ora il {{ports}}: traffico eccessivo"
+      "noisyNode": "Invio di {{ratePerHour}}/ora il {{ports}}: traffico eccessivo",
+      "pathInstability": "Percorso modificato {{changes}} volte negli ultimi 10 minuti — il percorso è instabile",
+      "weakLink": "Collegamento debole su hop {{hop}} (SNR {{snr}} dB) — relè a basso segnale su percorso tracciato"
     },
     "rfCondition": {
       "utilizationVsTx": "Utilizzo rispetto a TX",
@@ -1265,7 +1272,9 @@
       "meshcoreActivityDetected": "Rilevata attività MeshCore",
       "meshtasticTrafficDetected": "Rilevato traffico Meshtastic",
       "unknownLoraTraffic": "Traffico LoRa sconosciuto",
-      "potentialMeshcoreRepeaterConflict": "Potenziale conflitto del ripetitore MeshCore"
+      "potentialMeshcoreRepeaterConflict": "Potenziale conflitto del ripetitore MeshCore",
+      "elevatedNoiseFloor": "Pavimento Rumoroso Elevato",
+      "excessiveFlooding": "Inondazioni eccessive"
     },
     "rfCause": {
       "channelUtilizationSpike": "L'attuale {{current}}% è superiore a 2 volte la media recente ({{average}}%): possibile congestione o aumento di interferenze.",
@@ -1277,7 +1286,9 @@
       "loraCollisionCorruption": "Preambolo rilevato ma CRC/decodifica non riuscita (molto spesso traffico LoRa non Meshtastic).",
       "externalInterference": "Trasmettitore vicino che domina il canale: il tuo nodo indietreggia per evitare collisioni.",
       "widebandNoiseFloor": "Interferenze a banda larga (elettronica difettosa, rumore della linea elettrica, ecc.) che aumentano il rumore di fondo.",
-      "fringeWeakCoverage": "Il nodo è troppo lontano o scarsamente connesso al resto della mesh."
+      "fringeWeakCoverage": "Il nodo è troppo lontano o scarsamente connesso al resto della mesh.",
+      "elevatedNoiseFloor": "Il rumore di fondo della radio è {{noiseFloor}} dBm — interferenza elevata che riduce la portata effettiva.",
+      "excessiveFlooding": "{{percent}}% delle trasmissioni sono instradate in modo alluvionale — l'instradamento diretto potrebbe non essere stabilito con nodi vicini."
     },
     "foreignLoraCause": {
       "meshcoreVeryClose": "Nodo MeshCore molto vicino (RSSI {{rssi}} dBm): potrebbe causare collisioni di pacchetti.",
@@ -1303,7 +1314,9 @@
       "mqttRfOverlapTitle": "Controllare la sovrapposizione MQTT/RF",
       "mqttRfOverlapDescription": "{{percent}}% di duplicazione dei pacchetti entro 5 miglia: il downlink del gateway o i percorsi con bridge potrebbero emettere RF; prova Ignora MQTT per i nodi interessati.",
       "duplicateInterferenceTitle": "Controllare il posizionamento: allontanarsi da dispositivi elettronici/rumore",
-      "duplicateInterferenceDescription": "{{percent}}% duplicazione pacchetto entro 5 miglia: sospetta interferenza RF locale."
+      "duplicateInterferenceDescription": "{{percent}}% duplicazione pacchetto entro 5 miglia: sospetta interferenza RF locale.",
+      "weakLinkTitle": "Aggiungere o riposizionare un relè sull'hop debole",
+      "weakLinkDescription": "Il percorso tracciato contiene un salto con SNR inferiore a -5 dB — posizionare un relè nel punto centrale potrebbe stabilizzare il percorso."
     },
     "remedyRf": {
       "utilizationVsTx": {
@@ -1345,6 +1358,14 @@
       "fringeWeakCoverage": {
         "title": "Migliora il percorso o aggiungi relè",
         "description": "Il nodo è al limite della copertura: posizionamento del relè o aggiornamento dell'antenna."
+      },
+      "elevatedNoiseFloor": {
+        "title": "Identificare e rimuovere la fonte di interferenza",
+        "description": "Il rumore di fondo elevato riduce l'autonomia e l'SNR: controlla l'elettronica, gli alimentatori o i motori nelle vicinanze."
+      },
+      "excessiveFlooding": {
+        "title": "Consenti l'istituzione di percorsi diretti",
+        "description": "Il rapporto di inondazione è molto alto: attendere che il nodo accumuli contatti a percorso diretto o controllare la prossimità del ripetitore."
       }
     }
   },
@@ -1910,5 +1931,36 @@
       "gladYouAreHere": "Sono contento che tu sia qui",
       "keepTheMeshAlive": "Mantieni viva la rete"
     }
+  },
+  "channelUtilization": {
+    "title": "Utilizzo del canale",
+    "noData": "Non sono ancora disponibili dati sull'utilizzo del canale",
+    "meshcoreNote": "MeshCore: mostra solo il nodo connesso",
+    "tooltipLabel": "Utilizzo del canale"
+  },
+  "peerGraph": {
+    "title": "Grafico di comunicazione peer",
+    "noNodes": "Nessun nodo ancora osservato",
+    "nodeCount": "{{count}} nodi",
+    "edgeCount": "{{count}} link",
+    "ariaLabel": "Grafico della rete di comunicazione peer",
+    "good": ": Segnale",
+    "warn": "Segnale marginale",
+    "poor": "Segnale scarso;",
+    "me": "Questo nodo",
+    "directLink": "Diretto (0 luppoli)",
+    "relayLink": "Tramite relè (1 hop)",
+    "hiddenCount": "Mostra {{shown}} di {{total}} nodi (nodi non connessi nascosti)"
+  },
+  "rfHistograms": {
+    "title": "Distribuzione del segnale RF",
+    "subtitle": "{{count}} nodi osservati",
+    "noNodes": "Nessun nodo ancora osservato",
+    "snrTitle": "Distribuzione SNR",
+    "snrAxis": "SNR (dB)",
+    "rssiTitle": "Distribuzione RSSI",
+    "rssiAxis": "RSSI (dBm)",
+    "hopTitle": "Distribuzione conteggio hop",
+    "hopAxis": "Hop"
   }
 }

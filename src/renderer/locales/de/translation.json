@@ -78,7 +78,9 @@
     "diagnostics": "Diagnostik",
     "stats": "Statistik",
     "sniffer": "Sniffer",
-    "repeaters": "Wiederholbare Felder"
+    "repeaters": "Wiederholbare Felder",
+    "rf": "RF",
+    "graph": "Grafik"
   },
   "sidebar": {
     "disabledTabTooltip": "Nicht verfügbar in diesem Modus."
@@ -904,7 +906,9 @@
     "statusStale": "a",
     "statusOffline": "Offline",
     "removeFromFavorites": "Aus Favoriten-Liste entfernen",
-    "addToFavorites": "Zu Favoriten hinzufügen"
+    "addToFavorites": "Zu Favoriten hinzufügen",
+    "healthTooltip": "Gesundheitsbewertung: {{total}}/100 (Signal {{signal}}, Aktualität {{recency}}, Last {{load}}, Batterie {{battery}})",
+    "healthAriaLabel": "Node Health Score {{total}} von 100"
   },
   "mapPanel": {
     "locationUnavailable": "Standort nicht verfügbar.",
@@ -1241,7 +1245,8 @@
       "badRoute": "Schlechte Route",
       "routeFlapping": "Routenschlag",
       "impossibleHop": "Impossible Hop",
-      "noisyNode": "Rauschender Knoten"
+      "noisyNode": "Rauschender Knoten",
+      "weakLink": "Schwaches Glied"
     },
     "routingDesc": {
       "hopGoblinKm": "Nur {{distanceKm}} km entfernt, aber mit {{hops}} Hops — kritisches Über-Hopping",
@@ -1249,7 +1254,9 @@
       "badRouteSuboptimalMi": "Nur {{distanceMi}} mi entfernt, aber mit {{hops}} Hops — mögliche suboptimale Route",
       "impossibleHopMi": "Als 0 Hops entfernt, aber {{miles}} Meilen entfernt gemeldet — GPS- oder Routing-Daten verdächtig",
       "routeFlapping": "Sprunganzahl in den letzten 10 Minuten {{changes}} geändert — instabile Route",
-      "noisyNode": "Senden von {{ratePerHour}}/h auf {{ports}} — übermäßiger Verkehr"
+      "noisyNode": "Senden von {{ratePerHour}}/h auf {{ports}} — übermäßiger Verkehr",
+      "pathInstability": "Route in den letzten 10 Minuten {{changes}} mal geändert — Pfad ist instabil",
+      "weakLink": "Schwache Verbindung im Sprung {{hop}} (SNR {{snr}} dB) — Low-Signal-Relais auf verfolgtem Pfad"
     },
     "rfCondition": {
       "utilizationVsTx": "Auslastung vs. TX",
@@ -1265,7 +1272,9 @@
       "meshcoreActivityDetected": "MeshCore-Aktivität erkannt",
       "meshtasticTrafficDetected": "Meshtastic Verkehr erkannt",
       "unknownLoraTraffic": "Unbekannter LoRa-Verkehr",
-      "potentialMeshcoreRepeaterConflict": "Potenzieller MeshCore-Repeater-Konflikt"
+      "potentialMeshcoreRepeaterConflict": "Potenzieller MeshCore-Repeater-Konflikt",
+      "elevatedNoiseFloor": "Boden mit erhöhtem Geräuschpegel",
+      "excessiveFlooding": "Übermäßige Überschwemmungen"
     },
     "rfCause": {
       "channelUtilizationSpike": "Der aktuelle Wert von {{current}}% liegt über dem Zweifachen des aktuellen Durchschnitts ({{average}}%) — mögliche Stau- oder Störungsüberlastung.",
@@ -1277,7 +1286,9 @@
       "loraCollisionCorruption": "Präambel erkannt, aber CRC/Dekodierung fehlgeschlagen (meistens nicht-Meshtastic LoRa-Verkehr).",
       "externalInterference": "Der Sender in der Nähe dominiert den Kanal — Ihr Knoten zieht sich zurück, um Kollisionen zu vermeiden.",
       "widebandNoiseFloor": "Breitbandige Störungen (fehlerhafte Elektronik, Stromleitungsgeräusche usw.), die den Geräuschpegel erhöhen.",
-      "fringeWeakCoverage": "Der Knoten ist zu weit entfernt oder schlecht mit dem Rest des Netzes verbunden."
+      "fringeWeakCoverage": "Der Knoten ist zu weit entfernt oder schlecht mit dem Rest des Netzes verbunden.",
+      "elevatedNoiseFloor": "Der Funkgeräuschpegel beträgt {{noiseFloor}} dBm — erhöhte Interferenz reduziert die effektive Reichweite.",
+      "excessiveFlooding": "{{percent}}% der Übertragungen werden überflutet - ein direktes Routing mit Knoten in der Nähe ist möglicherweise nicht möglich."
     },
     "foreignLoraCause": {
       "meshcoreVeryClose": "MeshCore-Knoten sehr nahe (RSSI {{rssi}} dBm) — verursacht wahrscheinlich Paketkollisionen.",
@@ -1303,7 +1314,9 @@
       "mqttRfOverlapTitle": "MQTT / RF-Überlappung prüfen",
       "mqttRfOverlapDescription": "{{percent}}% Paketduplizierung innerhalb von 5 Meilen — Gateway-Downlink oder überbrückte Pfade können RF widerspiegeln; versuchen Sie, MQTT für betroffene Knoten zu ignorieren.",
       "duplicateInterferenceTitle": "Platzierung prüfen: Weg von Elektronik/Lärm",
-      "duplicateInterferenceDescription": "{{percent}}% Paketduplikation innerhalb von 5 Meilen — lokale HF-Störung vermutet."
+      "duplicateInterferenceDescription": "{{percent}}% Paketduplikation innerhalb von 5 Meilen — lokale HF-Störung vermutet.",
+      "weakLinkTitle": "Relay auf dem schwachen Sprung hinzufügen oder neu positionieren",
+      "weakLinkDescription": "Der zurückgelegte Pfad enthält einen Sprung mit einem SNR unter -5 dB — die Platzierung eines Relais in der Mitte könnte die Route stabilisieren."
     },
     "remedyRf": {
       "utilizationVsTx": {
@@ -1345,6 +1358,14 @@
       "fringeWeakCoverage": {
         "title": "Pfad verbessern oder Relais hinzufügen",
         "description": "Der Knoten befindet sich am Rand der Abdeckung — Relaisplatzierung oder Antennen-Upgrade."
+      },
+      "elevatedNoiseFloor": {
+        "title": "Störquelle identifizieren und entfernen",
+        "description": "Erhöhter Geräuschpegel reduziert Reichweite und SNR — prüfen Sie, ob sich Elektronik, Schaltnetzteile oder Motoren in der Nähe befinden."
+      },
+      "excessiveFlooding": {
+        "title": "Ermöglichen Sie die Einrichtung direkter Routen",
+        "description": "Das Überschwemmungsverhältnis ist sehr hoch — warten Sie, bis der Knoten Direktpfadkontakte akkumuliert hat, oder überprüfen Sie die Nähe des Repeaters."
       }
     }
   },
@@ -1910,5 +1931,36 @@
       "gladYouAreHere": "Schön, dass Sie hier sind",
       "keepTheMeshAlive": "Halten Sie das Netz am Leben"
     }
+  },
+  "channelUtilization": {
+    "title": "Kanalauslastung",
+    "noData": "Noch keine Kanalauslastungsdaten verfügbar",
+    "meshcoreNote": "MeshCore: Nur verbundene Knoten anzeigen",
+    "tooltipLabel": "Kanalauslastung"
+  },
+  "peerGraph": {
+    "title": "Peer-Kommunikationsgrafik",
+    "noNodes": "Noch keine Knoten beobachtet",
+    "nodeCount": "{{count}} Nodes",
+    "edgeCount": "{{count}} Links",
+    "ariaLabel": "Peer-Kommunikationsnetzwerkdiagramm",
+    "good": "Gutes Signal",
+    "warn": "Grenzsignal",
+    "poor": "Schwaches Signal",
+    "me": "Dieser Knoten",
+    "directLink": "Direkt (0 Sprünge)",
+    "relayLink": "Über Relais (1 Hop)",
+    "hiddenCount": "Anzeigen von {{shown}} von {{total}} Knoten (nicht verbundene Knoten ausgeblendet)"
+  },
+  "rfHistograms": {
+    "title": "Signalverteilung",
+    "subtitle": "{{count}} Knoten beobachtet",
+    "noNodes": "Noch keine Knoten beobachtet",
+    "snrTitle": "SNR-Verteilung",
+    "snrAxis": "SNR [dB]",
+    "rssiTitle": "RSSI-Verteilung",
+    "rssiAxis": "Rssi (dBm)",
+    "hopTitle": "Hop-Anzahl-Verteilung",
+    "hopAxis": "Hops"
   }
 }

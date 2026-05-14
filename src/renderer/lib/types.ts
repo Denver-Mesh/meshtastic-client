@@ -12,7 +12,8 @@ export type AnomalyType =
   | 'bad_route'
   | 'route_flapping'
   | 'impossible_hop'
-  | 'noisy_node';
+  | 'noisy_node'
+  | 'weak_link';
 
 /** How confident the detector is: proven uses distance/stats; heuristic is SNR/hops pattern only. */
 export type AnomalyConfidence = 'proven' | 'heuristic';

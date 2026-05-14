@@ -20,6 +20,7 @@ import {
   MeshtasticHybridPathIcons,
   meshtasticNodeShowsHybridMqttPath,
 } from '../lib/meshtasticSourceIcons';
+import { nodeHealthScore, nodeHealthTier } from '../lib/nodeHealthScore';
 import { getNodeTypeIcon } from '../lib/nodeIcons';
 import { getNodeStatus, haversineDistanceKm, normalizeLastHeardMs } from '../lib/nodeStatus';
 import { useRadioProvider } from '../lib/radio/providerFactory';
@@ -965,6 +966,8 @@ export default function NodeListPanel({
                   nodeStaleThresholdMs,
                   nodeOfflineThresholdMs,
                 );
+                const health = nodeHealthScore(node);
+                const healthTier = nodeHealthTier(health.total);
                 const isMqttOnlyDimmed = ignoreMqttEnabled && !!node.heard_via_mqtt_only;
                 const rowOpacity = isMqttOnlyDimmed
                   ? 'opacity-50'
@@ -1019,6 +1022,25 @@ export default function NodeListPanel({
                             ★
                           </span>
                         )}
+                        <span
+                          className={`rounded px-1 text-[9px] leading-tight font-semibold ${
+                            healthTier === 'good'
+                              ? 'bg-green-900/60 text-green-400'
+                              : healthTier === 'warn'
+                                ? 'bg-yellow-900/60 text-yellow-400'
+                                : 'bg-red-900/60 text-red-400'
+                          }`}
+                          title={t('nodeListPanel.healthTooltip', {
+                            total: health.total,
+                            signal: health.signal,
+                            recency: health.recency,
+                            load: health.load,
+                            battery: health.battery,
+                          })}
+                          aria-label={t('nodeListPanel.healthAriaLabel', { total: health.total })}
+                        >
+                          {health.total}
+                        </span>
                       </div>
                     </td>
                     {/* Favorite toggle */}

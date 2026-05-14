@@ -78,7 +78,9 @@
     "diagnostics": "Diagnostic",
     "stats": "Statistiques",
     "sniffer": "Renifleur",
-    "repeaters": "Répéteurs"
+    "repeaters": "Répéteurs",
+    "rf": "RF",
+    "graph": "Graphique"
   },
   "sidebar": {
     "disabledTabTooltip": "Non disponible dans ce mode"
@@ -904,7 +906,9 @@
     "statusStale": "goût de vieux",
     "statusOffline": "Hors ligne",
     "removeFromFavorites": "Supprimer des favoris",
-    "addToFavorites": "Ajouter aux favoris"
+    "addToFavorites": "Ajouter aux favoris",
+    "healthTooltip": "Score de santé : {{total}}/100 (signal {{signal}}, récence {{recency}}, charge {{load}}, batterie {{battery}})",
+    "healthAriaLabel": "Score de santé des nœuds {{total}} sur 100"
   },
   "mapPanel": {
     "locationUnavailable": "Localisation indisponible.",
@@ -1241,7 +1245,8 @@
       "badRoute": "Route incorrecte",
       "routeFlapping": "Itinéraire battant",
       "impossibleHop": "Saut impossible",
-      "noisyNode": "Nœud bruyant"
+      "noisyNode": "Nœud bruyant",
+      "weakLink": "MAILLON FAIBLE"
     },
     "routingDesc": {
       "hopGoblinKm": "À seulement {{distanceKm}} km, mais en prenant {{hops}} sauts — saut excessif critique",
@@ -1249,7 +1254,9 @@
       "badRouteSuboptimalMi": "Seulement {{distanceMi}} mi mais en prenant {{hops}} sauts — itinéraire sous-optimal possible",
       "impossibleHopMi": "Signalé comme étant à 0 saut mais à {{miles}} miles de distance — GPS ou données de routage suspectes",
       "routeFlapping": "Nombre de sauts modifié {{changes}} fois au cours des 10 dernières minutes — itinéraire instable",
-      "noisyNode": "Envoi {{ratePerHour}}/h sur {{ports}} — trafic excessif"
+      "noisyNode": "Envoi {{ratePerHour}}/h sur {{ports}} — trafic excessif",
+      "pathInstability": "Itinéraire modifié {{changes}} fois au cours des 10 dernières minutes — le chemin est instable",
+      "weakLink": "Lien faible au niveau du hop {{hop}} (SNR {{snr}} dB) — relais à faible signal sur le chemin tracé"
     },
     "rfCondition": {
       "utilizationVsTx": "Utilisation vs TX",
@@ -1265,7 +1272,9 @@
       "meshcoreActivityDetected": "Activité MeshCore détectée",
       "meshtasticTrafficDetected": "Trafic Meshtastic détecté",
       "unknownLoraTraffic": "Trafic LoRa inconnu",
-      "potentialMeshcoreRepeaterConflict": "Conflit potentiel de répéteur MeshCore"
+      "potentialMeshcoreRepeaterConflict": "Conflit potentiel de répéteur MeshCore",
+      "elevatedNoiseFloor": "Plancher de bruit surélevé",
+      "excessiveFlooding": "Inondations excessives"
     },
     "rfCause": {
       "channelUtilizationSpike": "Le {{current}}% actuel est supérieur à 2fois la moyenne récente ({{average}}%) — congestion ou interférence possible.",
@@ -1277,7 +1286,9 @@
       "loraCollisionCorruption": "Préambule détecté mais CRC/décodage échoué (le plus souvent trafic LoRa non-Meshtastic).",
       "externalInterference": "Émetteur à proximité dominant le canal — votre nœud recule pour éviter les collisions.",
       "widebandNoiseFloor": "Interférence à large bande (électronique défectueuse, bruit de ligne électrique, etc.) élevant le plancher de bruit.",
-      "fringeWeakCoverage": "Le nœud est trop éloigné ou mal connecté au reste du maillage."
+      "fringeWeakCoverage": "Le nœud est trop éloigné ou mal connecté au reste du maillage.",
+      "elevatedNoiseFloor": "Le plancher de bruit radio est de {{noiseFloor}} dBm — interférence élevée réduisant la portée effective.",
+      "excessiveFlooding": "{{percent}}% des transmissions sont acheminées par inondation - le routage direct peut ne pas être établi avec les nœuds à proximité."
     },
     "foreignLoraCause": {
       "meshcoreVeryClose": "Nœud MeshCore très proche (RSSI {{rssi}} dBm) — causant probablement des collisions de paquets.",
@@ -1303,7 +1314,9 @@
       "mqttRfOverlapTitle": "Vérifier le chevauchement MQTT / RF",
       "mqttRfOverlapDescription": "{{percent}}% duplication de paquets dans un rayon de 5 mi — la liaison descendante de la passerelle ou les chemins pontés peuvent faire écho RF ; essayez Ignorer MQTT pour les nœuds affectés.",
       "duplicateInterferenceTitle": "Placement du chèque : éloignez-vous de l'électronique/du bruit",
-      "duplicateInterferenceDescription": "{{percent}}% duplication de paquets dans un rayon de 5 mi — interférence RF locale suspectée."
+      "duplicateInterferenceDescription": "{{percent}}% duplication de paquets dans un rayon de 5 mi — interférence RF locale suspectée.",
+      "weakLinkTitle": "Ajouter ou repositionner un relais sur le saut faible",
+      "weakLinkDescription": "Le chemin tracé contient un saut avec un SNR inférieur à -5 dB — placer un relais au milieu pourrait stabiliser l'itinéraire."
     },
     "remedyRf": {
       "utilizationVsTx": {
@@ -1345,6 +1358,14 @@
       "fringeWeakCoverage": {
         "title": "Améliorer le chemin ou ajouter un relais",
         "description": "Le nœud est au bord de la couverture — placement du relais ou mise à niveau de l'antenne."
+      },
+      "elevatedNoiseFloor": {
+        "title": "Identifier et supprimer la source d'interférence",
+        "description": "Un plancher de bruit élevé réduit la portée et le SNR — vérifiez les composants électroniques à proximité, les blocs d'alimentation à découpage ou les moteurs."
+      },
+      "excessiveFlooding": {
+        "title": "Autoriser les itinéraires directs à établir",
+        "description": "Le taux d'inondation est très élevé — attendez que le nœud accumule des contacts directs ou vérifiez la proximité du répéteur."
       }
     }
   },
@@ -1910,5 +1931,36 @@
       "gladYouAreHere": "Heureux que tu sois là",
       "keepTheMeshAlive": "Gardez le maillage en vie"
     }
+  },
+  "channelUtilization": {
+    "title": "Utilisation des canaux",
+    "noData": "Aucune donnée d'utilisation de canal disponible pour le moment",
+    "meshcoreNote": "MeshCore : montrant uniquement le nœud connecté",
+    "tooltipLabel": "Utilisation des canaux"
+  },
+  "peerGraph": {
+    "title": "Graphique de communication par les pairs",
+    "noNodes": "Aucun nœud observé pour le moment",
+    "nodeCount": "{{count}} nœuds",
+    "edgeCount": "{{count}} liens",
+    "ariaLabel": "Graphique du réseau de communication par les pairs",
+    "good": "Signal approprié",
+    "warn": "Signal marginal",
+    "poor": "Signal faible",
+    "me": "Ce nœud",
+    "directLink": "Direct (0 saut)",
+    "relayLink": "Par relais (1 saut)",
+    "hiddenCount": "Affichage de {{shown}} sur {{total}} nœuds (nœuds non connectés masqués)"
+  },
+  "rfHistograms": {
+    "title": "REPARTITION DE SIGNAUX",
+    "subtitle": "{{count}} nœuds observés",
+    "noNodes": "Aucun nœud observé pour le moment",
+    "snrTitle": "Distribution SNR",
+    "snrAxis": "SNR (dB)",
+    "rssiTitle": "Distribution RSSI",
+    "rssiAxis": "RSSI (dBm)",
+    "hopTitle": "Distribution du nombre de sauts",
+    "hopAxis": "Sauts"
   }
 }

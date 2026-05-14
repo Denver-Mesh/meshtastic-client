@@ -78,7 +78,9 @@
     "diagnostics": "Diagnostyka",
     "stats": "Statystyki",
     "sniffer": "szperacz",
-    "repeaters": "Repeatery"
+    "repeaters": "Repeatery",
+    "rf": "RF",
+    "graph": "Wykres"
   },
   "sidebar": {
     "disabledTabTooltip": "Niedostępne w tym trybie"
@@ -904,7 +906,9 @@
     "statusStale": "Nieświeży",
     "statusOffline": "Nieaktywny",
     "removeFromFavorites": "Usuń z ulubionych",
-    "addToFavorites": "Dodaj do ulubionych"
+    "addToFavorites": "Dodaj do ulubionych",
+    "healthTooltip": "Wynik zdrowotny: {{total}}/100 (sygnał {{signal}}, aktualny {{recency}}, obciążenie {{load}}, bateria {{battery}})",
+    "healthAriaLabel": "Wynik zdrowotny węzła {{total}} ze 100"
   },
   "mapPanel": {
     "locationUnavailable": "Lokalizacja niedostępna.",
@@ -1241,7 +1245,8 @@
       "badRoute": "Zła trasa",
       "routeFlapping": "Falowanie tras",
       "impossibleHop": "Niemożliwy skok",
-      "noisyNode": "Głośny węzeł"
+      "noisyNode": "Głośny węzeł",
+      "weakLink": "Słabe ogniwo NATO?"
     },
     "routingDesc": {
       "hopGoblinKm": "Tylko {{distanceKm}} km stąd, ale wykonuje {{hops}} przeskoków — krytyczne przeskoki",
@@ -1249,7 +1254,9 @@
       "badRouteSuboptimalMi": "Tylko {{distanceMi}} mi stąd, ale {{hops}} przeskoków — możliwa trasa nieoptymalna",
       "impossibleHopMi": "Zgłaszane jako 0 przeskoków, ale odległe o {{miles}} mil — podejrzane dane GPS lub trasy",
       "routeFlapping": "Liczba przeskoków zmieniła się {{changes}} razy w ciągu ostatnich 10 minut — trasa niestabilna",
-      "noisyNode": "Wysyłanie {{ratePerHour}}/h na {{ports}} — nadmierny ruch"
+      "noisyNode": "Wysyłanie {{ratePerHour}}/h na {{ports}} — nadmierny ruch",
+      "pathInstability": "Trasa zmieniona {{changes}} razy w ciągu ostatnich 10 minut — trasa jest niestabilna",
+      "weakLink": "Słabe połączenie przy skoku {{hop}} (SNR {{snr}} dB) — przekaźnik niskiego sygnału na śledzonej ścieżce"
     },
     "rfCondition": {
       "utilizationVsTx": "Wykorzystanie a TX",
@@ -1265,7 +1272,9 @@
       "meshcoreActivityDetected": "Wykryto aktywność MeshCore",
       "meshtasticTrafficDetected": "Wykryto ruch sieciowy Meshtastic",
       "unknownLoraTraffic": "Nieznany ruch LoRa",
-      "potentialMeshcoreRepeaterConflict": "Potencjalny konflikt wzmacniaków MeshCore"
+      "potentialMeshcoreRepeaterConflict": "Potencjalny konflikt wzmacniaków MeshCore",
+      "elevatedNoiseFloor": "Podwyższona podłoga hałasu",
+      "excessiveFlooding": "Nadmierne powodzie"
     },
     "rfCause": {
       "channelUtilizationSpike": "Prąd {{current}}% jest ponad 2 razy większy od ostatniej średniej ({{average}}%) — możliwe przeciążenie lub wzrost zakłóceń.",
@@ -1277,7 +1286,9 @@
       "loraCollisionCorruption": "Wykryto preambułę, ale CRC/dekodowanie nie powiodło się (najczęściej ruch LoRa inny niż Meshtastic).",
       "externalInterference": "Pobliski nadajnik dominujący na kanale — Twój węzeł wycofuje się, aby uniknąć kolizji.",
       "widebandNoiseFloor": "Zakłócenia szerokopasmowe (wadliwa elektronika, zakłócenia w linii energetycznej itp.) podnoszące poziom szumów.",
-      "fringeWeakCoverage": "Węzeł jest zbyt daleko lub słabo połączony z resztą siatki."
+      "fringeWeakCoverage": "Węzeł jest zbyt daleko lub słabo połączony z resztą siatki.",
+      "elevatedNoiseFloor": "Poziom szumów radiowych wynosi {{noiseFloor}} dBm — podwyższone zakłócenia zmniejszające skuteczny zasięg.",
+      "excessiveFlooding": "{{percent}}% transmisji jest kierowanych przez powódź — trasowanie bezpośrednie może nie zostać ustanowione z pobliskimi węzłami."
     },
     "foreignLoraCause": {
       "meshcoreVeryClose": "Węzeł MeshCore bardzo blisko (RSSI {{rssi}} dBm) — prawdopodobnie powoduje kolizje pakietów.",
@@ -1303,7 +1314,9 @@
       "mqttRfOverlapTitle": "Sprawdź nakładanie się MQTT/RF",
       "mqttRfOverlapDescription": "{{percent}}% duplikacji pakietów w promieniu 5 mil — łącze w dół bramy lub ścieżki zmostkowane mogą powodować echo RF; spróbuj zignorować MQTT dla dotkniętych węzłów.",
       "duplicateInterferenceTitle": "Sprawdź umiejscowienie: Odsuń się od elektroniki/hałasu",
-      "duplicateInterferenceDescription": "{{percent}}% duplikacji pakietów w promieniu 5 mil — podejrzenie lokalnych zakłóceń radiowych."
+      "duplicateInterferenceDescription": "{{percent}}% duplikacji pakietów w promieniu 5 mil — podejrzenie lokalnych zakłóceń radiowych.",
+      "weakLinkTitle": "Dodaj lub zmień położenie przekaźnika na słabym skoku",
+      "weakLinkDescription": "Trasowana ścieżka zawiera przeskok o SNR poniżej -5 dB — umieszczenie przekaźnika w punkcie środkowym mogłoby ustabilizować trasę."
     },
     "remedyRf": {
       "utilizationVsTx": {
@@ -1345,6 +1358,14 @@
       "fringeWeakCoverage": {
         "title": "Popraw ścieżkę lub dodaj przekaźnik",
         "description": "Węzeł znajduje się na granicy zasięgu — umieszczenie przekaźnika lub modernizacja anteny."
+      },
+      "elevatedNoiseFloor": {
+        "title": "Zidentyfikuj i usuń źródło zakłóceń",
+        "description": "Podłoga o podwyższonym poziomie hałasu zmniejsza zasięg i SNR — sprawdź pobliską elektronikę, zasilacze przełączające lub silniki."
+      },
+      "excessiveFlooding": {
+        "title": "Zezwalaj na bezpośrednie wyznaczanie tras",
+        "description": "Wskaźnik powodzi jest bardzo wysoki — poczekaj, aż węzeł zgromadzi styki ścieżki bezpośredniej lub sprawdź bliskość przemiennika."
       }
     }
   },
@@ -1910,5 +1931,36 @@
       "gladYouAreHere": "Cieszę się, że tu jesteś",
       "keepTheMeshAlive": "Utrzymuj siatkę przy życiu"
     }
+  },
+  "channelUtilization": {
+    "title": "Wykorzystanie kanału",
+    "noData": "Brak dostępnych danych o wykorzystaniu kanału",
+    "meshcoreNote": "MeshCore: wyświetlanie tylko połączonego węzła",
+    "tooltipLabel": "Wykorzystanie kanału"
+  },
+  "peerGraph": {
+    "title": "Wykres komunikacji koleżeńskiej",
+    "noNodes": "Nie zaobserwowano jeszcze węzłów",
+    "nodeCount": "Węzły {{count}}",
+    "edgeCount": "Linki: {{count}}",
+    "ariaLabel": "Wykres sieci komunikacji rówieśniczej",
+    "good": "Dobry sygnał",
+    "warn": "Sygnał krańcowy",
+    "poor": "Słaby sygnał",
+    "me": "Ten węzeł",
+    "directLink": "Bezpośredni (0 przeskoków)",
+    "relayLink": "Przez przekaźnik (1 przeskok)",
+    "hiddenCount": "Wyświetlanie {{shown}} z węzłów {{total}} (niepołączone węzły ukryte)"
+  },
+  "rfHistograms": {
+    "title": "Dystrybucja sygnału RF",
+    "subtitle": "Obserwowane węzły: {{count}}",
+    "noNodes": "Nie zaobserwowano jeszcze węzłów",
+    "snrTitle": "Dystrybucja SNR",
+    "snrAxis": "SNR (dB)",
+    "rssiTitle": "Dystrybucja RSSI",
+    "rssiAxis": "RSSI (dBm)",
+    "hopTitle": "Dystrybucja liczby przeskoków",
+    "hopAxis": "Przeskoków"
   }
 }

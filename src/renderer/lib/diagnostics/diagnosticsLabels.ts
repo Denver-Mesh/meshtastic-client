@@ -24,6 +24,8 @@ const RF_CONDITION_LABEL_KEY: Record<string, string> = {
   'Unknown LoRa Traffic': 'diagnosticsPanel.rfCondition.unknownLoraTraffic',
   'Potential MeshCore Repeater Conflict':
     'diagnosticsPanel.rfCondition.potentialMeshcoreRepeaterConflict',
+  'Elevated Noise Floor': 'diagnosticsPanel.rfCondition.elevatedNoiseFloor',
+  'Excessive Flooding': 'diagnosticsPanel.rfCondition.excessiveFlooding',
 };
 
 const ROUTING_ANOMALY_TYPE_KEY: Record<AnomalyType, string> = {
@@ -32,6 +34,7 @@ const ROUTING_ANOMALY_TYPE_KEY: Record<AnomalyType, string> = {
   route_flapping: 'diagnosticsPanel.routingAnomalyType.routeFlapping',
   impossible_hop: 'diagnosticsPanel.routingAnomalyType.impossibleHop',
   noisy_node: 'diagnosticsPanel.routingAnomalyType.noisyNode',
+  weak_link: 'diagnosticsPanel.routingAnomalyType.weakLink',
 };
 
 export function translateRfConditionLabel(t: TFunction, condition: string): string {

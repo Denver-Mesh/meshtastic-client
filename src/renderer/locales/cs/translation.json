@@ -78,7 +78,9 @@
     "diagnostics": "Diagnostika",
     "stats": "Statistiky",
     "sniffer": "Čichač",
-    "repeaters": "Opakovače"
+    "repeaters": "Opakovače",
+    "rf": "regionální facilitátor",
+    "graph": "Graf"
   },
   "sidebar": {
     "disabledTabTooltip": "Není k dispozici v tomto režimu"
@@ -904,7 +906,9 @@
     "statusStale": "Zatuchlý",
     "statusOffline": "Offline",
     "removeFromFavorites": "Odebrat z oblíbených",
-    "addToFavorites": "Přidat k oblíbeným"
+    "addToFavorites": "Přidat k oblíbeným",
+    "healthTooltip": "Zdravotní skóre: {{total}}/100 (signál {{signal}}, aktuálnost {{recency}}, zatížení {{load}}, baterie {{battery}})",
+    "healthAriaLabel": "Zdravotní skóre uzlu {{total}} ze 100"
   },
   "mapPanel": {
     "locationUnavailable": "Poloha není k dispozici.",
@@ -1241,7 +1245,8 @@
       "badRoute": "Špatná trasa",
       "routeFlapping": "Trasa mávání",
       "impossibleHop": "Nemožný poskok",
-      "noisyNode": "Hlučný uzel"
+      "noisyNode": "Hlučný uzel",
+      "weakLink": "Slabý odkaz"
     },
     "routingDesc": {
       "hopGoblinKm": "Pouze {{distanceKm}} km daleko, ale zabere to {{hops}} skoků – kritické přeskakování",
@@ -1249,7 +1254,9 @@
       "badRouteSuboptimalMi": "Pouze {{distanceMi}} míle daleko, ale zabere to {{hops}} skoků – možná neoptimální trasa",
       "impossibleHopMi": "Hlášeno jako 0 skoků daleko, ale {{miles}} mil daleko – podezřelá data GPS nebo směrování",
       "routeFlapping": "Počet skoků se za posledních 10 minut změnil {{changes}}krát – nestabilní trasa",
-      "noisyNode": "Odesílání {{ratePerHour}}/h dne {{ports}} – nadměrný provoz"
+      "noisyNode": "Odesílání {{ratePerHour}}/h dne {{ports}} – nadměrný provoz",
+      "pathInstability": "Trasa se za posledních 10 minut změnila {{changes}} krát — cesta je nestabilní",
+      "weakLink": "Slabé spojení při hop {{hop}} (SNR {{snr}} dB) — relé nízkého signálu na trasované cestě"
     },
     "rfCondition": {
       "utilizationVsTx": "Využití vs. TX",
@@ -1265,7 +1272,9 @@
       "meshcoreActivityDetected": "Byla zjištěna aktivita MeshCore",
       "meshtasticTrafficDetected": "Zjištěn provoz Meshtastic",
       "unknownLoraTraffic": "Neznámý provoz LoRa",
-      "potentialMeshcoreRepeaterConflict": "Potenciální konflikt MeshCore Repeater"
+      "potentialMeshcoreRepeaterConflict": "Potenciální konflikt MeshCore Repeater",
+      "elevatedNoiseFloor": "Zvýšená hluková podlaha",
+      "excessiveFlooding": "Nadměrné záplavy"
     },
     "rfCause": {
       "channelUtilizationSpike": "Aktuální {{current}}% je více než 2× nedávný průměr ({{average}}%) – možné přetížení nebo nárůst rušení.",
@@ -1277,7 +1286,9 @@
       "loraCollisionCorruption": "Preambule byla zjištěna, ale CRC/dekódování se nezdařilo (nejčastěji non-Meshtastic LoRa provoz).",
       "externalInterference": "Blízký vysílač dominující kanálu – váš uzel ustoupí, aby se vyhnul kolizím.",
       "widebandNoiseFloor": "Širokopásmové rušení (vadná elektronika, šum ve vedení atd.) zvyšující hladinu hluku.",
-      "fringeWeakCoverage": "Uzel je příliš daleko nebo je špatně připojen ke zbytku sítě."
+      "fringeWeakCoverage": "Uzel je příliš daleko nebo je špatně připojen ke zbytku sítě.",
+      "elevatedNoiseFloor": "Podlaha rádiového šumu je {{noiseFloor}} dBm — zvýšený efektivní rozsah snížení rušení.",
+      "excessiveFlooding": "{{percent}}% přenosů je zaplaveno — přímé směrování nemusí být vytvořeno s blízkými uzly."
     },
     "foreignLoraCause": {
       "meshcoreVeryClose": "Uzel MeshCore velmi blízko (RSSI {{rssi}} dBm) — pravděpodobně způsobuje kolize paketů.",
@@ -1303,7 +1314,9 @@
       "mqttRfOverlapTitle": "Zkontrolujte překrytí MQTT / RF",
       "mqttRfOverlapDescription": "{{percent}}% duplikace paketů do 5 mil – sestupná brána nebo přemostěné cesty mohou odrážet RF; zkuste Ignorovat MQTT pro postižené uzly.",
       "duplicateInterferenceTitle": "Zkontrolujte umístění: Přesuňte se dál od elektroniky/hluku",
-      "duplicateInterferenceDescription": "{{percent}}% duplikace paketů do 5 mil – podezření na místní RF rušení."
+      "duplicateInterferenceDescription": "{{percent}}% duplikace paketů do 5 mil – podezření na místní RF rušení.",
+      "weakLinkTitle": "Přidejte nebo přemístěte relé na slabý hop",
+      "weakLinkDescription": "Trasovaná cesta obsahuje hop s SNR pod -5 dB — umístění relé na střed by mohlo trasu stabilizovat."
     },
     "remedyRf": {
       "utilizationVsTx": {
@@ -1345,6 +1358,14 @@
       "fringeWeakCoverage": {
         "title": "Vylepšete cestu nebo přidejte relé",
         "description": "Uzel je na okraji pokrytí – umístění relé nebo upgrade antény."
+      },
+      "elevatedNoiseFloor": {
+        "title": "Identifikujte a odstraňte zdroj rušení",
+        "description": "Zvýšená hluková podlaha snižuje dosah a SNR — zkontrolujte blízkou elektroniku, spínací zdroje nebo motory."
+      },
+      "excessiveFlooding": {
+        "title": "Povolit vytvoření přímých tras",
+        "description": "Poměr zaplavení je velmi vysoký — počkejte, až se v uzlu nahromadí kontakty s přímou cestou, nebo zkontrolujte blízkost opakovače."
       }
     }
   },
@@ -1910,5 +1931,36 @@
       "gladYouAreHere": "Jsem rád, že jsi tady",
       "keepTheMeshAlive": "Udržujte síť naživu"
     }
+  },
+  "channelUtilization": {
+    "title": "Využití kanálu",
+    "noData": "Zatím nejsou k dispozici žádné údaje o využití kanálu",
+    "meshcoreNote": "MeshCore: zobrazuje pouze připojený uzel",
+    "tooltipLabel": "Využití kanálu"
+  },
+  "peerGraph": {
+    "title": "Graf vzájemné komunikace",
+    "noNodes": "Zatím nebyly pozorovány žádné uzly",
+    "nodeCount": "Uzly {{count}}",
+    "edgeCount": "{{count}} odkazy",
+    "ariaLabel": "Graf peer komunikační sítě",
+    "good": "Dobrý signál.",
+    "warn": "Okrajový signál",
+    "poor": "Slabý signál",
+    "me": "Tento uzel",
+    "directLink": "Přímý (0 chmelů)",
+    "relayLink": "Přes relé (1 hop)",
+    "hiddenCount": "Zobrazeno {{shown}} z {{total}} uzlů (skryté nespojené uzly)"
+  },
+  "rfHistograms": {
+    "title": "Distribuce vysokofrekvenčního signálu",
+    "subtitle": "{{count}} pozorovaných uzlů",
+    "noNodes": "Zatím nebyly pozorovány žádné uzly",
+    "snrTitle": "Distribuce SNR",
+    "snrAxis": "SNR (dB)",
+    "rssiTitle": "Distribuce RSSI",
+    "rssiAxis": "RSSI (dBm)",
+    "hopTitle": "Distribuce počtu chmele",
+    "hopAxis": "Chmel"
   }
 }

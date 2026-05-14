@@ -84,7 +84,9 @@
     "diagnostics": "Diagnostics",
     "stats": "Stats",
     "sniffer": "Sniffer",
-    "repeaters": "Repeaters"
+    "repeaters": "Repeaters",
+    "rf": "RF",
+    "graph": "Graph"
   },
   "sidebar": {
     "disabledTabTooltip": "Not available in this mode"
@@ -105,7 +107,7 @@
     "notInMeshCore": " (not available in MeshCore)",
     "meshCoreRepeaters": " (MeshCore: Repeaters)",
     "packetSniffer": "Packet Sniffer",
-    "footerNote": "Cmd/Ctrl+0, A, M, and S switch to the App, Diagnostics, Stats, and Packet Sniffer tabs by name when those tabs are visible (not by fixed slot, so shortcuts stay correct when some tabs are hidden)."
+    "footerNote": "Cmd/Ctrl+0, A, M, R, G, and S switch to the App, Diagnostics, Stats, RF, Graph, and Packet Sniffer tabs by name when those tabs are visible (not by fixed slot, so shortcuts stay correct when some tabs are hidden)."
   },
   "logPanel": {
     "showLevels": "Show levels",
@@ -910,7 +912,9 @@
     "statusStale": "Stale",
     "statusOffline": "Offline",
     "removeFromFavorites": "Remove from favorites",
-    "addToFavorites": "Add to favorites"
+    "addToFavorites": "Add to favorites",
+    "healthTooltip": "Health score: {{total}}/100 (signal {{signal}}, recency {{recency}}, load {{load}}, battery {{battery}})",
+    "healthAriaLabel": "Node health score {{total}} out of 100"
   },
   "mapPanel": {
     "locationUnavailable": "Location unavailable.",
@@ -1244,7 +1248,8 @@
       "badRoute": "Bad route",
       "routeFlapping": "Route flapping",
       "impossibleHop": "Impossible hop",
-      "noisyNode": "Noisy node"
+      "noisyNode": "Noisy node",
+      "weakLink": "Weak link"
     },
     "routingDesc": {
       "hopGoblinKm": "Only {{distanceKm}} km away but taking {{hops}} hops — critical over-hopping",
@@ -1252,6 +1257,8 @@
       "badRouteSuboptimalMi": "Only {{distanceMi}} mi away but taking {{hops}} hops — possible suboptimal route",
       "impossibleHopMi": "Reported as 0 hops away but {{miles}} miles distant — GPS or routing data suspect",
       "routeFlapping": "Hop count changed {{changes}} times in the last 10 minutes — unstable route",
+      "pathInstability": "Route changed {{changes}} times in the last 10 minutes — path is unstable",
+      "weakLink": "Weak link at hop {{hop}} (SNR {{snr}} dB) — low-signal relay on traced path",
       "noisyNode": "Sending {{ratePerHour}}/hr on {{ports}} — excessive traffic"
     },
     "rfCondition": {
@@ -1268,7 +1275,9 @@
       "meshcoreActivityDetected": "MeshCore Activity Detected",
       "meshtasticTrafficDetected": "Meshtastic Traffic Detected",
       "unknownLoraTraffic": "Unknown LoRa Traffic",
-      "potentialMeshcoreRepeaterConflict": "Potential MeshCore Repeater Conflict"
+      "potentialMeshcoreRepeaterConflict": "Potential MeshCore Repeater Conflict",
+      "elevatedNoiseFloor": "Elevated Noise Floor",
+      "excessiveFlooding": "Excessive Flooding"
     },
     "rfCause": {
       "channelUtilizationSpike": "Current {{current}}% is over 2× the recent average ({{average}}%) — possible congestion or interference surge.",
@@ -1280,7 +1289,9 @@
       "loraCollisionCorruption": "Preamble detected but CRC/decode failed (most often non-Meshtastic LoRa traffic).",
       "externalInterference": "Nearby transmitter dominating the channel — your node backs off to avoid collisions.",
       "widebandNoiseFloor": "Broadband interference (faulty electronics, power-line noise, etc.) elevating the noise floor.",
-      "fringeWeakCoverage": "Node is too far away or poorly connected to the rest of the mesh."
+      "fringeWeakCoverage": "Node is too far away or poorly connected to the rest of the mesh.",
+      "elevatedNoiseFloor": "Radio noise floor is {{noiseFloor}} dBm — elevated interference reducing effective range.",
+      "excessiveFlooding": "{{percent}}% of transmissions are flood-routed — direct routing may not be established with nearby nodes."
     },
     "foreignLoraCause": {
       "meshcoreVeryClose": "MeshCore node very close (RSSI {{rssi}} dBm) — likely causing packet collisions.",
@@ -1306,7 +1317,9 @@
       "mqttRfOverlapTitle": "Check MQTT / RF overlap",
       "mqttRfOverlapDescription": "{{percent}}% packet duplication within 5 mi — gateway downlink or bridged paths may echo RF; try Ignore MQTT for affected nodes.",
       "duplicateInterferenceTitle": "Check Placement: Move away from electronics/noise",
-      "duplicateInterferenceDescription": "{{percent}}% packet duplication within 5 mi — local RF interference suspected."
+      "duplicateInterferenceDescription": "{{percent}}% packet duplication within 5 mi — local RF interference suspected.",
+      "weakLinkTitle": "Add or reposition a relay on the weak hop",
+      "weakLinkDescription": "Traced path contains a hop with SNR below -5 dB — placing a relay at the midpoint could stabilize the route."
     },
     "remedyRf": {
       "utilizationVsTx": {
@@ -1348,6 +1361,14 @@
       "fringeWeakCoverage": {
         "title": "Improve path or add relay",
         "description": "Node is at edge of coverage — relay placement or antenna upgrade."
+      },
+      "elevatedNoiseFloor": {
+        "title": "Identify and remove interference source",
+        "description": "Elevated noise floor reduces range and SNR — check for nearby electronics, switching power supplies, or motors."
+      },
+      "excessiveFlooding": {
+        "title": "Allow direct routes to establish",
+        "description": "Flood ratio is very high — wait for the node to accumulate direct-path contacts, or check repeater proximity."
       }
     },
     "noDiagnosticsHealthy": "No diagnostics detected. The mesh looks healthy!",
@@ -1909,5 +1930,36 @@
       "gladYouAreHere": "Glad you are here",
       "keepTheMeshAlive": "Keep the mesh alive"
     }
+  },
+  "channelUtilization": {
+    "title": "Channel Utilization",
+    "noData": "No channel utilization data available yet",
+    "meshcoreNote": "MeshCore: showing connected node only",
+    "tooltipLabel": "Channel utilization"
+  },
+  "peerGraph": {
+    "title": "Peer Communication Graph",
+    "noNodes": "No nodes observed yet",
+    "nodeCount": "{{count}} nodes",
+    "edgeCount": "{{count}} links",
+    "ariaLabel": "Peer communication network graph",
+    "good": "Good signal",
+    "warn": "Marginal signal",
+    "poor": "Poor signal",
+    "me": "This node",
+    "directLink": "Direct (0 hops)",
+    "relayLink": "Via relay (1 hop)",
+    "hiddenCount": "Showing {{shown}} of {{total}} nodes (unconnected nodes hidden)"
+  },
+  "rfHistograms": {
+    "title": "RF Signal Distribution",
+    "subtitle": "{{count}} nodes observed",
+    "noNodes": "No nodes observed yet",
+    "snrTitle": "SNR Distribution",
+    "snrAxis": "SNR (dB)",
+    "rssiTitle": "RSSI Distribution",
+    "rssiAxis": "RSSI (dBm)",
+    "hopTitle": "Hop Count Distribution",
+    "hopAxis": "Hops"
   }
 }

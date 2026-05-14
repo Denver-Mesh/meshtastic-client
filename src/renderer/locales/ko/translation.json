@@ -78,7 +78,9 @@
     "diagnostics": "진단",
     "stats": "통계",
     "sniffer": "스니퍼",
-    "repeaters": "중계기"
+    "repeaters": "중계기",
+    "rf": "RF",
+    "graph": "그래프"
   },
   "sidebar": {
     "disabledTabTooltip": "이 모드에서는 사용할 수 없습니다."
@@ -904,7 +906,9 @@
     "statusStale": "탁한",
     "statusOffline": "오프라인",
     "removeFromFavorites": "즐겨찾기에서 제거",
-    "addToFavorites": "즐겨찾기에 추가"
+    "addToFavorites": "즐겨찾기에 추가",
+    "healthTooltip": "건강 점수: {{total}}/100 (신호 {{signal}}, 최신성 {{recency}}, 부하 {{load}}, 배터리 {{battery}})",
+    "healthAriaLabel": "100점 만점에 노드 체력 점수 {{total}}"
   },
   "mapPanel": {
     "locationUnavailable": "위치를 확인할 수 없습니다.",
@@ -1241,7 +1245,8 @@
       "badRoute": "잘못된 경로",
       "routeFlapping": "경로 플래핑",
       "impossibleHop": "불가능한 홉",
-      "noisyNode": "시끄러운 노드"
+      "noisyNode": "시끄러운 노드",
+      "weakLink": "약한 링크"
     },
     "routingDesc": {
       "hopGoblinKm": "{{distanceKm}}km 거리에 있지만 {{hops}} 홉 사용 — 심각한 오버홉",
@@ -1249,7 +1254,9 @@
       "badRouteSuboptimalMi": "{{distanceMi}}마일만 떨어져 있지만 {{hops}} 홉을 사용함 — 최적이 아닌 경로일 수 있음",
       "impossibleHopMi": "0홉 거리이지만 {{miles}}마일 떨어진 것으로 보고됨 - GPS 또는 라우팅 데이터가 의심됨",
       "routeFlapping": "지난 10분 동안 홉 수가 {{changes}}번 변경되었습니다. 경로가 불안정합니다.",
-      "noisyNode": "{{ports}}에 {{ratePerHour}}/시간 전송 — 과도한 트래픽"
+      "noisyNode": "{{ports}}에 {{ratePerHour}}/시간 전송 — 과도한 트래픽",
+      "pathInstability": "지난 10분 동안 경로가 {{changes}}번 변경됨 — 경로가 불안정함",
+      "weakLink": "홉 {{hop}}(SNR {{snr}} dB)에서 약한 링크 — 추적 경로의 낮은 신호 릴레이"
     },
     "rfCondition": {
       "utilizationVsTx": "활용도 대 TX",
@@ -1265,7 +1272,9 @@
       "meshcoreActivityDetected": "MeshCore 활동이 감지되었습니다.",
       "meshtasticTrafficDetected": "Meshtastic 트래픽이 감지되었습니다.",
       "unknownLoraTraffic": "알 수 없는 LoRa 트래픽",
-      "potentialMeshcoreRepeaterConflict": "잠재적인 MeshCore 리피터 충돌"
+      "potentialMeshcoreRepeaterConflict": "잠재적인 MeshCore 리피터 충돌",
+      "elevatedNoiseFloor": "높은 소음층",
+      "excessiveFlooding": "과도한 홍수"
     },
     "rfCause": {
       "channelUtilizationSpike": "현재 {{current}}%는 최근 평균({{average}}%)의 2배를 초과합니다. 혼잡 또는 간섭 급증이 발생할 수 있습니다.",
@@ -1277,7 +1286,9 @@
       "loraCollisionCorruption": "프리앰블이 감지되었지만 CRC/디코딩에 실패했습니다(대부분 Meshtastic이 아닌 LoRa 트래픽).",
       "externalInterference": "채널을 지배하는 근처 송신기 - 충돌을 피하기 위해 노드가 물러납니다.",
       "widebandNoiseFloor": "광대역 간섭(전자 장치 결함, 전력선 소음 등)으로 인해 노이즈 플로어가 높아집니다.",
-      "fringeWeakCoverage": "노드가 너무 멀리 떨어져 있거나 메시의 나머지 부분과 제대로 연결되어 있지 않습니다."
+      "fringeWeakCoverage": "노드가 너무 멀리 떨어져 있거나 메시의 나머지 부분과 제대로 연결되어 있지 않습니다.",
+      "elevatedNoiseFloor": "무선 노이즈 플로어는 {{noiseFloor}} dBm — 유효 범위를 줄이는 높은 간섭.",
+      "excessiveFlooding": "{{percent}}%의 전송이 플러드 라우팅됩니다 — 근처 노드에서 직접 라우팅이 설정되지 않을 수 있습니다."
     },
     "foreignLoraCause": {
       "meshcoreVeryClose": "MeshCore 노드가 매우 가깝습니다(RSSI {{rssi}} dBm). 패킷 충돌이 발생할 가능성이 있습니다.",
@@ -1303,7 +1314,9 @@
       "mqttRfOverlapTitle": "MQTT/RF 중복 확인",
       "mqttRfOverlapDescription": "5마일 내에서 {{percent}}% 패킷 중복 - 게이트웨이 다운링크 또는 브리지 경로가 RF를 에코할 수 있습니다. 영향을 받은 노드에 대해 MQTT 무시를 시도해보세요.",
       "duplicateInterferenceTitle": "배치 확인: 전자 장치/소음에서 멀리 떨어지세요.",
-      "duplicateInterferenceDescription": "5마일 내에서 {{percent}}% 패킷 중복 — 로컬 RF 간섭이 의심됩니다."
+      "duplicateInterferenceDescription": "5마일 내에서 {{percent}}% 패킷 중복 — 로컬 RF 간섭이 의심됩니다.",
+      "weakLinkTitle": "약한 홉에 릴레이 추가 또는 위치 변경",
+      "weakLinkDescription": "추적 경로에는 SNR이 -5 dB 미만인 홉이 있습니다. 중간 지점에 릴레이를 배치하면 경로가 안정될 수 있습니다."
     },
     "remedyRf": {
       "utilizationVsTx": {
@@ -1345,6 +1358,14 @@
       "fringeWeakCoverage": {
         "title": "경로 개선 또는 릴레이 추가",
         "description": "노드가 적용 범위 가장자리에 있습니다(릴레이 배치 또는 안테나 업그레이드)."
+      },
+      "elevatedNoiseFloor": {
+        "title": "간섭원 식별 및 제거",
+        "description": "노이즈 플로어가 높아지면 범위와 SNR이 줄어듭니다. 근처의 전자 장치, 스위칭 전원 공급 장치 또는 모터가 있는지 확인하십시오."
+      },
+      "excessiveFlooding": {
+        "title": "직행 경로를 설정하도록 허용",
+        "description": "홍수 비율이 매우 높습니다. 노드가 직접 경로 접촉을 축적하거나 리피터 근접성을 확인할 때까지 기다리십시오."
       }
     }
   },
@@ -1910,5 +1931,36 @@
       "gladYouAreHere": "당신이 여기 있어서 다행이에요",
       "keepTheMeshAlive": "메시를 살아있게 유지하세요"
     }
+  },
+  "channelUtilization": {
+    "title": "채널 사용률",
+    "noData": "아직 사용 가능한 채널 사용 데이터 없음",
+    "meshcoreNote": "MeshCore: 연결된 노드만 표시",
+    "tooltipLabel": "채널 사용률"
+  },
+  "peerGraph": {
+    "title": "동료 커뮤니케이션 그래프",
+    "noNodes": "아직 관찰된 노드 없음",
+    "nodeCount": "{{count}} 노드",
+    "edgeCount": "{{count}} 링크",
+    "ariaLabel": "피어 통신 네트워크 그래프",
+    "good": "양호한 신호",
+    "warn": "한계 신호",
+    "poor": "신호 불량",
+    "me": "이 노드",
+    "directLink": "직접 (0홉)",
+    "relayLink": "비아 릴레이 (1 홉)",
+    "hiddenCount": "{{shown}} / {{total}} 개 노드 표시 (연결되지 않은 노드 숨김)"
+  },
+  "rfHistograms": {
+    "title": "RF 신호 분포",
+    "subtitle": "{{count}} 노드 관찰됨",
+    "noNodes": "아직 관찰된 노드 없음",
+    "snrTitle": "SNR 배포",
+    "snrAxis": "SNR (dB)",
+    "rssiTitle": "RSSI 배포",
+    "rssiAxis": "RSSI (dBm)",
+    "hopTitle": "홉 수 분포",
+    "hopAxis": "홉"
   }
 }

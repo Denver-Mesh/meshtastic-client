@@ -10,6 +10,20 @@ type ScenarioChecker = (
 ) => DiagnosticRemedy | null;
 
 const SCENARIOS: ScenarioChecker[] = [
+  // Scenario W: Weak link on traced path (MeshCore per-hop SNR)
+  (node) => {
+    if (!snrMeaningfulForNodeDiagnostics(node)) return null;
+    if ((node.hops_away ?? 0) < 2) return null;
+    if (node.snr >= -5) return null;
+    return {
+      title: 'Add or reposition a relay on the weak hop',
+      description: `Traced path contains a hop with SNR below -5 dB — placing a relay at the midpoint could stabilize the route.`,
+      category: 'Physical',
+      severity: 'warning',
+      titleKey: 'diagnosticsPanel.remedyScenario.weakLinkTitle',
+      descriptionKey: 'diagnosticsPanel.remedyScenario.weakLinkDescription',
+    };
+  },
   // Scenario C: Antenna/Polarization Mismatch (most specific — check first)
   (node, _home, distMiles) => {
     if (!snrMeaningfulForNodeDiagnostics(node)) return null;
@@ -196,6 +210,24 @@ const RF_CONDITION_REMEDIES: Record<string, DiagnosticRemedy> = {
     severity: 'info',
     titleKey: 'diagnosticsPanel.remedyRf.fringeWeakCoverage.title',
     descriptionKey: 'diagnosticsPanel.remedyRf.fringeWeakCoverage.description',
+  },
+  'Elevated Noise Floor': {
+    title: 'Identify and remove interference source',
+    description:
+      'Elevated noise floor reduces range and SNR — check for nearby electronics, switching power supplies, or motors.',
+    category: 'Physical',
+    severity: 'warning',
+    titleKey: 'diagnosticsPanel.remedyRf.elevatedNoiseFloor.title',
+    descriptionKey: 'diagnosticsPanel.remedyRf.elevatedNoiseFloor.description',
+  },
+  'Excessive Flooding': {
+    title: 'Allow direct routes to establish',
+    description:
+      'Flood ratio is very high — wait for the node to accumulate direct-path contacts, or check repeater proximity.',
+    category: 'Configuration',
+    severity: 'warning',
+    titleKey: 'diagnosticsPanel.remedyRf.excessiveFlooding.title',
+    descriptionKey: 'diagnosticsPanel.remedyRf.excessiveFlooding.description',
   },
 };
 

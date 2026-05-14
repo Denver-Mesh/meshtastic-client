@@ -192,6 +192,58 @@ export function detectRouteFlapping(
   return null;
 }
 
+/**
+ * MeshCore-specific: detect path instability from PathUpdated (0x81) event count.
+ * More accurate than hop-count heuristic — an actual re-route event, not an inference.
+ */
+export function detectPathInstability(
+  nodeId: number,
+  pathUpdatedTimestamps: number[],
+): NodeAnomaly | null {
+  const tenMinAgo = Date.now() - 10 * 60 * 1000;
+  const recent = pathUpdatedTimestamps.filter((t) => t >= tenMinAgo);
+  if (recent.length <= 3) return null;
+  return {
+    nodeId,
+    type: 'route_flapping',
+    severity: 'warning',
+    description: `Route changed ${recent.length} times in the last 10 minutes — path is unstable`,
+    descriptionI18n: {
+      key: 'diagnosticsPanel.routingDesc.pathInstability',
+      params: { changes: recent.length },
+    },
+    detectedAt: Date.now(),
+  };
+}
+
+/** MeshCore-specific: identify the weakest hop in a traced route using per-hop SNR data. */
+export function detectWeakLinkOnPath(nodeId: number, tracePathSnrs: number[]): NodeAnomaly | null {
+  if (tracePathSnrs.length < 2) return null;
+  let minSnr = Infinity;
+  let minHop = 0;
+  for (let i = 0; i < tracePathSnrs.length; i++) {
+    if (tracePathSnrs[i] < minSnr) {
+      minSnr = tracePathSnrs[i];
+      minHop = i + 1;
+    }
+  }
+  if (minSnr < -5) {
+    return {
+      nodeId,
+      type: 'weak_link',
+      severity: 'warning',
+      confidence: 'proven',
+      description: `Weak link at hop ${minHop} (SNR ${minSnr.toFixed(1)} dB) — low-signal relay on traced path`,
+      descriptionI18n: {
+        key: 'diagnosticsPanel.routingDesc.weakLink',
+        params: { hop: minHop, snr: minSnr.toFixed(1) },
+      },
+      detectedAt: Date.now(),
+    };
+  }
+  return null;
+}
+
 export function analyzeNode(
   node: MeshNode,
   stats: { total: number; duplicates: number } | undefined,
@@ -203,6 +255,8 @@ export function analyzeNode(
   hopsThreshold = 2,
   capabilities?: ProtocolCapabilities,
   noiseStats?: NoiseStats | null,
+  tracePathSnrs?: number[],
+  pathUpdatedTimestamps?: number[],
 ): NodeAnomaly | null {
   // Priority: errors first, then warnings
   // impossible_hop requires hops_away === 0 — skip for protocols without hop count
@@ -224,7 +278,10 @@ export function analyzeNode(
   );
   if (badRoute?.severity === 'error') return badRoute;
 
-  const flapping = detectRouteFlapping(node.node_id, hopHistory);
+  // Use PathUpdated events (MeshCore) when available; fall back to hop-count heuristic
+  const flapping = pathUpdatedTimestamps?.length
+    ? detectPathInstability(node.node_id, pathUpdatedTimestamps)
+    : detectRouteFlapping(node.node_id, hopHistory);
   if (flapping) return flapping;
 
   const hopGoblin = detectHopGoblin(
@@ -236,6 +293,12 @@ export function analyzeNode(
     hopsThreshold,
   );
   if (hopGoblin) return hopGoblin;
+
+  // MeshCore per-hop SNR weak link (only when trace data is present)
+  if (capabilities?.hasPerHopSnr && tracePathSnrs?.length) {
+    const weakLink = detectWeakLinkOnPath(node.node_id, tracePathSnrs);
+    if (weakLink) return weakLink;
+  }
 
   if (badRoute?.severity === 'warning') return badRoute;
 
@@ -262,6 +325,7 @@ export function detectNoisyNode(
 
   const windowHours = stats.windowMs / 3_600_000;
   const exceedPorts: number[] = [];
+  const errorPorts: number[] = [];
   let maxExceed = 0;
 
   for (const [portnumStr, count] of Object.entries(stats.counts)) {
@@ -289,12 +353,10 @@ export function detectNoisyNode(
       localError = 10;
     } else localWarn = warnThreshold;
 
-    if (ratePerHour >= localError) {
+    if (ratePerHour >= localWarn) {
       exceedPorts.push(portnum);
       maxExceed = Math.max(maxExceed, ratePerHour);
-    } else if (ratePerHour >= localWarn) {
-      exceedPorts.push(portnum);
-      maxExceed = Math.max(maxExceed, ratePerHour);
+      if (ratePerHour >= localError) errorPorts.push(portnum);
     }
   }
 
@@ -317,9 +379,7 @@ export function detectNoisyNode(
     })
     .join(', ');
 
-  const isError =
-    maxExceed >= errorThreshold ||
-    (exceedPorts.includes(NOISY_PORTNUMS.NEIGHBOR_INFO_APP) && maxExceed >= 2);
+  const isError = errorPorts.length > 0;
 
   return {
     nodeId: stats.nodeId,
