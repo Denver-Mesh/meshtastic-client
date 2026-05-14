@@ -325,6 +325,7 @@ export function detectNoisyNode(
 
   const windowHours = stats.windowMs / 3_600_000;
   const exceedPorts: number[] = [];
+  const errorPorts: number[] = [];
   let maxExceed = 0;
 
   for (const [portnumStr, count] of Object.entries(stats.counts)) {
@@ -352,12 +353,10 @@ export function detectNoisyNode(
       localError = 10;
     } else localWarn = warnThreshold;
 
-    if (ratePerHour >= localError) {
+    if (ratePerHour >= localWarn) {
       exceedPorts.push(portnum);
       maxExceed = Math.max(maxExceed, ratePerHour);
-    } else if (ratePerHour >= localWarn) {
-      exceedPorts.push(portnum);
-      maxExceed = Math.max(maxExceed, ratePerHour);
+      if (ratePerHour >= localError) errorPorts.push(portnum);
     }
   }
 
@@ -380,9 +379,7 @@ export function detectNoisyNode(
     })
     .join(', ');
 
-  const isError =
-    maxExceed >= errorThreshold ||
-    (exceedPorts.includes(NOISY_PORTNUMS.NEIGHBOR_INFO_APP) && maxExceed >= 2);
+  const isError = errorPorts.length > 0;
 
   return {
     nodeId: stats.nodeId,

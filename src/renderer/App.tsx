@@ -2396,7 +2396,6 @@ export default function App() {
                             <PeerGraphPanel
                               nodes={nodesForUi}
                               myNodeId={device.selfNodeId}
-                              protocol={protocol}
                               onNodeClick={setSelectedNodeId}
                             />
                           </Suspense>

@@ -139,6 +139,38 @@ describe('detectNoisyNode', () => {
     // 3 position packets in 1 hour is below the 4/hr warn threshold
     expect(detectNoisyNode(makeStats({ [NOISY_PORTNUMS.POSITION_APP]: 3 }))).toBeNull();
   });
+
+  it('NEIGHBOR_INFO_APP (portnum 71) warns at 1/hr and errors at 2/hr', () => {
+    const warn = detectNoisyNode(makeStats({ [NOISY_PORTNUMS.NEIGHBOR_INFO_APP]: 1 }));
+    expect(warn).not.toBeNull();
+    expect(warn!.severity).toBe('warning');
+
+    const error = detectNoisyNode(makeStats({ [NOISY_PORTNUMS.NEIGHBOR_INFO_APP]: 2 }));
+    expect(error).not.toBeNull();
+    expect(error!.severity).toBe('error');
+  });
+
+  it('MeshCore DiscoveryFlood (1001) warns at 3/hr and errors at 10/hr', () => {
+    const warn = detectNoisyNode(makeStats({ 1001: 3 }));
+    expect(warn).not.toBeNull();
+    expect(warn!.severity).toBe('warning');
+    expect(warn!.description).toContain('DiscoveryFlood');
+
+    const error = detectNoisyNode(makeStats({ 1001: 10 }));
+    expect(error).not.toBeNull();
+    expect(error!.severity).toBe('error');
+  });
+
+  it('MeshCore RoomAdvert (1002) warns at 4/hr and errors at 10/hr', () => {
+    const warn = detectNoisyNode(makeStats({ 1002: 4 }));
+    expect(warn).not.toBeNull();
+    expect(warn!.severity).toBe('warning');
+    expect(warn!.description).toContain('RoomAdvert');
+
+    const error = detectNoisyNode(makeStats({ 1002: 10 }));
+    expect(error).not.toBeNull();
+    expect(error!.severity).toBe('error');
+  });
 });
 
 describe('detectWeakLinkOnPath', () => {

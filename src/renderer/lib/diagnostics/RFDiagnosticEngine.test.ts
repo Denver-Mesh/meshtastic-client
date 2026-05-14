@@ -94,6 +94,49 @@ describe('diagnoseOtherNode', () => {
     expect(findings).not.toBeNull();
     expect(findings!.some((f) => f.condition === 'Channel Utilization Spike')).toBe(true);
   });
+
+  it('returns null immediately when hasRfStats is false', () => {
+    const node = baseNode({ channel_utilization: 80, air_util_tx: 1 });
+    expect(diagnoseOtherNode(node, { capabilities: { hasRfStats: false } as never })).toBeNull();
+  });
+});
+
+describe('diagnoseConnectedNode', () => {
+  it('returns [] immediately when hasRfStats is false', () => {
+    const node = baseNode({ channel_utilization: 80, num_packets_rx_bad: 30, num_packets_rx: 100 });
+    expect(
+      diagnoseConnectedNode(node, { capabilities: { hasRfStats: false } as never }),
+    ).toHaveLength(0);
+  });
+});
+
+describe('detectCuSpike cooldown', () => {
+  beforeEach(() => {
+    resetCuSpikeCooldown();
+  });
+
+  it('suppresses repeat spike for the same nodeId within cooldown window', () => {
+    const stats = { average: 10, sampleCount: 20, spanMs: 60 * 60 * 1000 };
+    const first = detectCuSpike(50, stats, 42);
+    expect(first).not.toBeNull();
+    const second = detectCuSpike(50, stats, 42);
+    expect(second).toBeNull();
+  });
+
+  it('does not suppress spike for a different nodeId', () => {
+    const stats = { average: 10, sampleCount: 20, spanMs: 60 * 60 * 1000 };
+    detectCuSpike(50, stats, 42);
+    const other = detectCuSpike(50, stats, 99);
+    expect(other).not.toBeNull();
+  });
+
+  it('does not suppress when nodeId is undefined (anonymous path)', () => {
+    const stats = { average: 10, sampleCount: 20, spanMs: 60 * 60 * 1000 };
+    const first = detectCuSpike(50, stats, undefined);
+    expect(first).not.toBeNull();
+    const second = detectCuSpike(50, stats, undefined);
+    expect(second).not.toBeNull();
+  });
 });
 
 describe('diagnoseConnectedNode — MeshCore stats', () => {

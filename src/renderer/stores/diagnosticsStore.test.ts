@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { useDiagnosticsStore } from './diagnosticsStore';
+import { computeCuStats24h, useDiagnosticsStore } from './diagnosticsStore';
 
 const SNAPSHOT_KEY = 'mesh-client:diagnosticRowsSnapshot';
 
@@ -57,5 +57,50 @@ describe('diagnosticsStore clearing behavior', () => {
     vi.advanceTimersByTime(3_000);
 
     expect(localStorage.getItem(SNAPSHOT_KEY)).toBeNull();
+  });
+});
+
+describe('computeCuStats24h', () => {
+  it('returns null for empty samples', () => {
+    expect(computeCuStats24h([])).toBeNull();
+  });
+
+  it('returns null when all samples are older than 24h', () => {
+    const old = Date.now() - 25 * 60 * 60 * 1000;
+    expect(computeCuStats24h([{ t: old, cu: 10 }])).toBeNull();
+  });
+
+  it('computes average and span for fresh samples', () => {
+    const now = Date.now();
+    const samples = [
+      { t: now - 60_000, cu: 10 },
+      { t: now - 120_000, cu: 20 },
+      { t: now - 180_000, cu: 30 },
+    ];
+    const result = computeCuStats24h(samples);
+    expect(result).not.toBeNull();
+    expect(result!.sampleCount).toBe(3);
+    expect(result!.average).toBeCloseTo(20);
+    expect(result!.spanMs).toBeGreaterThan(0);
+  });
+
+  it('prunes samples older than 24h before computing', () => {
+    const now = Date.now();
+    const samples = [
+      { t: now - 25 * 60 * 60 * 1000, cu: 100 },
+      { t: now - 1000, cu: 10 },
+    ];
+    const result = computeCuStats24h(samples);
+    expect(result).not.toBeNull();
+    expect(result!.sampleCount).toBe(1);
+    expect(result!.average).toBe(10);
+  });
+
+  it('returns spanMs of 0 for a single sample', () => {
+    const now = Date.now();
+    const result = computeCuStats24h([{ t: now - 1000, cu: 15 }]);
+    expect(result).not.toBeNull();
+    expect(result!.spanMs).toBe(0);
+    expect(result!.sampleCount).toBe(1);
   });
 });

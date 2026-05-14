@@ -47,7 +47,10 @@ function meshcoreTracePathSnrsFromDbJson(raw: string | null | undefined): number
   if (raw == null || raw === '') return [];
   try {
     const p = JSON.parse(raw) as unknown;
-    if (!Array.isArray(p)) return [];
+    if (!Array.isArray(p)) {
+      console.warn('[diagnosticsStore] meshcoreTracePathSnrs: unexpected non-array JSON in DB');
+      return [];
+    }
     return p.filter((x): x is number => typeof x === 'number' && Number.isFinite(x));
   } catch {
     // catch-no-log-ok corrupt JSON in DB column; treat as empty SNR list

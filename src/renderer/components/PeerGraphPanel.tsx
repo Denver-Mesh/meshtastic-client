@@ -7,7 +7,6 @@ import type { MeshNode } from '../lib/types';
 interface PeerGraphPanelProps {
   nodes: Map<number, MeshNode>;
   myNodeId: number;
-  protocol: 'meshtastic' | 'meshcore';
   onNodeClick?: (nodeId: number) => void;
 }
 
