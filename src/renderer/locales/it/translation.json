@@ -78,7 +78,9 @@
     "diagnostics": "Diagnostica",
     "stats": "Statistiche",
     "sniffer": "Sniffer",
-    "repeaters": "Ripetitori"
+    "repeaters": "Ripetitori",
+    "rf": "RF",
+    "graph": "Graph"
   },
   "sidebar": {
     "disabledTabTooltip": "Non disponibile in questa modalità"
@@ -904,7 +906,9 @@
     "statusStale": "Stanco",
     "statusOffline": "Non in linea",
     "removeFromFavorites": "Rimuovi dai preferiti",
-    "addToFavorites": "Aggiungi ai preferiti"
+    "addToFavorites": "Aggiungi ai preferiti",
+    "healthTooltip": "Punteggio di salute: {{total}}/100 (segnale {{signal}}, recency {{recency}}, carico {{load}}, batteria {{battery}})",
+    "healthAriaLabel": "Punteggio di salute del nodo {{total}} su 100"
   },
   "mapPanel": {
     "locationUnavailable": "Posizione non disponibile.",
@@ -1927,5 +1931,36 @@
       "gladYouAreHere": "Sono contento che tu sia qui",
       "keepTheMeshAlive": "Mantieni viva la rete"
     }
+  },
+  "channelUtilization": {
+    "title": "Utilizzo del canale",
+    "noData": "Non sono ancora disponibili dati sull'utilizzo del canale",
+    "meshcoreNote": "MeshCore: mostra solo il nodo connesso",
+    "tooltipLabel": "Utilizzo del canale"
+  },
+  "peerGraph": {
+    "title": "Grafico di comunicazione peer",
+    "noNodes": "Nessun nodo ancora osservato",
+    "nodeCount": "{{count}} nodi",
+    "edgeCount": "{{count}} link",
+    "ariaLabel": "Grafico della rete di comunicazione peer",
+    "good": ": Segnale",
+    "warn": "Segnale marginale",
+    "poor": "Segnale scarso;",
+    "me": "Questo nodo",
+    "directLink": "Diretto (0 luppoli)",
+    "relayLink": "Tramite relè (1 hop)",
+    "hiddenCount": "Mostra {{shown}} di {{total}} nodi (nodi non connessi nascosti)"
+  },
+  "rfHistograms": {
+    "title": "Distribuzione del segnale RF",
+    "subtitle": "{{count}} nodi osservati",
+    "noNodes": "Nessun nodo ancora osservato",
+    "snrTitle": "Distribuzione SNR",
+    "snrAxis": "SNR (dB)",
+    "rssiTitle": "Distribuzione RSSI",
+    "rssiAxis": "RSSI (dBm)",
+    "hopTitle": "Distribuzione conteggio hop",
+    "hopAxis": "Hop"
   }
 }

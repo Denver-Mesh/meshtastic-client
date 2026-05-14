@@ -78,7 +78,9 @@
     "diagnostics": "Diagnostika",
     "stats": "Statistiky",
     "sniffer": "Čichač",
-    "repeaters": "Opakovače"
+    "repeaters": "Opakovače",
+    "rf": "regionální facilitátor",
+    "graph": "Graf"
   },
   "sidebar": {
     "disabledTabTooltip": "Není k dispozici v tomto režimu"
@@ -904,7 +906,9 @@
     "statusStale": "Zatuchlý",
     "statusOffline": "Offline",
     "removeFromFavorites": "Odebrat z oblíbených",
-    "addToFavorites": "Přidat k oblíbeným"
+    "addToFavorites": "Přidat k oblíbeným",
+    "healthTooltip": "Zdravotní skóre: {{total}}/100 (signál {{signal}}, aktuálnost {{recency}}, zatížení {{load}}, baterie {{battery}})",
+    "healthAriaLabel": "Zdravotní skóre uzlu {{total}} ze 100"
   },
   "mapPanel": {
     "locationUnavailable": "Poloha není k dispozici.",
@@ -1927,5 +1931,36 @@
       "gladYouAreHere": "Jsem rád, že jsi tady",
       "keepTheMeshAlive": "Udržujte síť naživu"
     }
+  },
+  "channelUtilization": {
+    "title": "Využití kanálu",
+    "noData": "Zatím nejsou k dispozici žádné údaje o využití kanálu",
+    "meshcoreNote": "MeshCore: zobrazuje pouze připojený uzel",
+    "tooltipLabel": "Využití kanálu"
+  },
+  "peerGraph": {
+    "title": "Graf vzájemné komunikace",
+    "noNodes": "Zatím nebyly pozorovány žádné uzly",
+    "nodeCount": "Uzly {{count}}",
+    "edgeCount": "{{count}} odkazy",
+    "ariaLabel": "Graf peer komunikační sítě",
+    "good": "Dobrý signál.",
+    "warn": "Okrajový signál",
+    "poor": "Slabý signál",
+    "me": "Tento uzel",
+    "directLink": "Přímý (0 chmelů)",
+    "relayLink": "Přes relé (1 hop)",
+    "hiddenCount": "Zobrazeno {{shown}} z {{total}} uzlů (skryté nespojené uzly)"
+  },
+  "rfHistograms": {
+    "title": "Distribuce vysokofrekvenčního signálu",
+    "subtitle": "{{count}} pozorovaných uzlů",
+    "noNodes": "Zatím nebyly pozorovány žádné uzly",
+    "snrTitle": "Distribuce SNR",
+    "snrAxis": "SNR (dB)",
+    "rssiTitle": "Distribuce RSSI",
+    "rssiAxis": "RSSI (dBm)",
+    "hopTitle": "Distribuce počtu chmele",
+    "hopAxis": "Chmel"
   }
 }

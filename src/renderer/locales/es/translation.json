@@ -78,7 +78,9 @@
     "diagnostics": "Diagnóstico",
     "stats": "Estadísticas",
     "sniffer": "detector cromatográfico de explosivos",
-    "repeaters": "Repetidoras"
+    "repeaters": "Repetidoras",
+    "rf": "RF",
+    "graph": "Gráfico"
   },
   "sidebar": {
     "disabledTabTooltip": "No disponible en este modo"
@@ -904,7 +906,9 @@
     "statusStale": "(Rancio)",
     "statusOffline": "Sin conexión",
     "removeFromFavorites": "Eliminar de favoritos",
-    "addToFavorites": "Añadir a favoritos"
+    "addToFavorites": "Añadir a favoritos",
+    "healthTooltip": "Puntuación de salud: {{total}}/100 (señal {{signal}}, reciente {{recency}}, carga {{load}}, batería {{battery}})",
+    "healthAriaLabel": "Puntuación de salud del nodo {{total}} de 100"
   },
   "mapPanel": {
     "locationUnavailable": "Ubicación no disponible.",
@@ -1927,5 +1931,36 @@
       "gladYouAreHere": "Me alegro de que estés aquí",
       "keepTheMeshAlive": "Mantenga viva la malla"
     }
+  },
+  "channelUtilization": {
+    "title": "Utilización del canal.",
+    "noData": "Aún no hay datos de utilización del canal disponibles",
+    "meshcoreNote": "MeshCore: mostrando solo el nodo conectado",
+    "tooltipLabel": "Utilización del canal."
+  },
+  "peerGraph": {
+    "title": "Gráfico de comunicación con los compañeros",
+    "noNodes": "Aún no se han observado nodos",
+    "nodeCount": "Nodos {{count}}",
+    "edgeCount": "{{count}} enlaces",
+    "ariaLabel": "Gráfico de red de comunicación entre pares",
+    "good": "Señal Fuerte",
+    "warn": "Señal marginal",
+    "poor": "Señal pobre",
+    "me": "Este nodo",
+    "directLink": "Directo (0 saltos)",
+    "relayLink": "A través del relé (1 salto)",
+    "hiddenCount": "Mostrando {{shown}} de {{total}} nodos (nodos no conectados ocultos)"
+  },
+  "rfHistograms": {
+    "title": "Distribución de señal de RF",
+    "subtitle": "{{count}} nodos observados",
+    "noNodes": "Aún no se han observado nodos",
+    "snrTitle": "Distribución SNR",
+    "snrAxis": "SNR (dB)",
+    "rssiTitle": "Distribución RSSI",
+    "rssiAxis": "RSSI (dBm)",
+    "hopTitle": "Distribución del recuento de saltos",
+    "hopAxis": "Saltos"
   }
 }

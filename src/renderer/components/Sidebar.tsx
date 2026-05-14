@@ -258,6 +258,42 @@ function TabIcon({ name }: { name: string }) {
           />
         </svg>
       );
+    case 'RF':
+      return (
+        <svg
+          aria-hidden="true"
+          className={cls}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+          />
+        </svg>
+      );
+    case 'Graph':
+      return (
+        <svg
+          aria-hidden="true"
+          className={cls}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <circle cx="5" cy="12" r="2" />
+          <circle cx="19" cy="5" r="2" />
+          <circle cx="19" cy="19" r="2" />
+          <circle cx="12" cy="12" r="2" />
+          <line x1="7" y1="12" x2="10" y2="12" />
+          <line x1="14" y1="12" x2="17" y2="7" />
+          <line x1="14" y1="12" x2="17" y2="17" />
+        </svg>
+      );
     default:
       return null;
   }

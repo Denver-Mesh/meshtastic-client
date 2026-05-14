@@ -78,7 +78,9 @@
     "diagnostics": "Diagnostiek",
     "stats": "Statistieken",
     "sniffer": "Snuffel",
-    "repeaters": "Repeaters"
+    "repeaters": "Repeaters",
+    "rf": "RF",
+    "graph": "Diagram"
   },
   "sidebar": {
     "disabledTabTooltip": "Niet beschikbaar in deze modus"
@@ -904,7 +906,9 @@
     "statusStale": "Muf",
     "statusOffline": "Offline",
     "removeFromFavorites": "Verwijderen uit favorieten",
-    "addToFavorites": "Toevoegen aan favorieten"
+    "addToFavorites": "Toevoegen aan favorieten",
+    "healthTooltip": "Gezondheidsscore: {{total}}/100 (signaal {{signal}}, recent {{recency}}, belasting {{load}}, batterij {{battery}})",
+    "healthAriaLabel": "Knooppuntgezondheidsscore {{total}} van de 100"
   },
   "mapPanel": {
     "locationUnavailable": "Locatie niet beschikbaar.",
@@ -1927,5 +1931,36 @@
       "gladYouAreHere": "Fijn dat je er bent",
       "keepTheMeshAlive": "Houd het gaas levend"
     }
+  },
+  "channelUtilization": {
+    "title": "Kanaalgebruik",
+    "noData": "Nog geen kanaalgebruiksgegevens beschikbaar",
+    "meshcoreNote": "MeshCore: alleen verbonden knooppunt weergeven",
+    "tooltipLabel": "Kanaalgebruik"
+  },
+  "peerGraph": {
+    "title": "Peer-communicatiegrafiek",
+    "noNodes": "Nog geen knooppunten waargenomen",
+    "nodeCount": "{{count}} knooppunten",
+    "edgeCount": "{{count}} links",
+    "ariaLabel": "Peer-communicatienetwerkgrafiek",
+    "good": "Goed signaal",
+    "warn": "Marginaal signaal",
+    "poor": "/ Zwak signaal",
+    "me": "Dit onderdeel",
+    "directLink": "Direct (0 hops)",
+    "relayLink": "Via relais (1 hop)",
+    "hiddenCount": "Toont {{shown}} van {{total}} knooppunten (niet-verbonden knooppunten verborgen)"
+  },
+  "rfHistograms": {
+    "title": "RF-signaalverdeling",
+    "subtitle": "{{count}} waargenomen knooppunten",
+    "noNodes": "Nog geen knooppunten waargenomen",
+    "snrTitle": "SNR-verdeling",
+    "snrAxis": "SNR (dB)",
+    "rssiTitle": "RSSI-verdeling",
+    "rssiAxis": "RSSI (dBm)",
+    "hopTitle": "Hop Telling Distributie",
+    "hopAxis": "Hop"
   }
 }

@@ -78,7 +78,9 @@
     "diagnostics": "Диагностика",
     "stats": "Статистика",
     "sniffer": "Нюхач",
-    "repeaters": "Ретрансляторы"
+    "repeaters": "Ретрансляторы",
+    "rf": "RF",
+    "graph": "График"
   },
   "sidebar": {
     "disabledTabTooltip": "Недоступно в этом режиме"
@@ -904,7 +906,9 @@
     "statusStale": "Несвежий",
     "statusOffline": "Офлайн",
     "removeFromFavorites": "Удалить из избранного",
-    "addToFavorites": "Добавить в избранное"
+    "addToFavorites": "Добавить в избранное",
+    "healthTooltip": "Показатель здоровья: {{total}}/100 (сигнал {{signal}}, актуальность {{recency}}, нагрузка {{load}}, батарея {{battery}})",
+    "healthAriaLabel": "Оценка здоровья узла {{total}} из 100"
   },
   "mapPanel": {
     "locationUnavailable": "Местоположение недоступно.",
@@ -1926,5 +1930,36 @@
       "gladYouAreHere": "Рад, что ты здесь",
       "keepTheMeshAlive": "Сохраняйте сетку живой"
     }
+  },
+  "channelUtilization": {
+    "title": "Использование канала",
+    "noData": "Данные об использовании канала пока отсутствуют",
+    "meshcoreNote": "MeshCore: отображение только подключенного узла",
+    "tooltipLabel": "Использование канала"
+  },
+  "peerGraph": {
+    "title": "График одноранговой связи",
+    "noNodes": "Узлы еще не обнаружены",
+    "nodeCount": "{{count}} узлов",
+    "edgeCount": "{{count}} ссылки",
+    "ariaLabel": "График одноранговой сети связи",
+    "good": "Хороший сигнал",
+    "warn": "Предельный сигнал",
+    "poor": "Слабый сигнал",
+    "me": "Этот узел",
+    "directLink": "Прямой (0 прыжков)",
+    "relayLink": "Через реле (1 переход)",
+    "hiddenCount": "Отображение {{shown}} из {{total}} узлов (несвязанные узлы скрыты)"
+  },
+  "rfHistograms": {
+    "title": "Распределение радиочастотных сигналов",
+    "subtitle": "Наблюдается {{count}} узлов",
+    "noNodes": "Узлы еще не обнаружены",
+    "snrTitle": "Распределение SNR",
+    "snrAxis": "SNR (дБ)",
+    "rssiTitle": "Распределение RSSI",
+    "rssiAxis": "RSSI (дБм)",
+    "hopTitle": "Распределение количества прыжков",
+    "hopAxis": "Прыжки"
   }
 }

@@ -78,7 +78,9 @@
     "diagnostics": "Diagnostic",
     "stats": "Statistiques",
     "sniffer": "Renifleur",
-    "repeaters": "Répéteurs"
+    "repeaters": "Répéteurs",
+    "rf": "RF",
+    "graph": "Graphique"
   },
   "sidebar": {
     "disabledTabTooltip": "Non disponible dans ce mode"
@@ -904,7 +906,9 @@
     "statusStale": "goût de vieux",
     "statusOffline": "Hors ligne",
     "removeFromFavorites": "Supprimer des favoris",
-    "addToFavorites": "Ajouter aux favoris"
+    "addToFavorites": "Ajouter aux favoris",
+    "healthTooltip": "Score de santé : {{total}}/100 (signal {{signal}}, récence {{recency}}, charge {{load}}, batterie {{battery}})",
+    "healthAriaLabel": "Score de santé des nœuds {{total}} sur 100"
   },
   "mapPanel": {
     "locationUnavailable": "Localisation indisponible.",
@@ -1927,5 +1931,36 @@
       "gladYouAreHere": "Heureux que tu sois là",
       "keepTheMeshAlive": "Gardez le maillage en vie"
     }
+  },
+  "channelUtilization": {
+    "title": "Utilisation des canaux",
+    "noData": "Aucune donnée d'utilisation de canal disponible pour le moment",
+    "meshcoreNote": "MeshCore : montrant uniquement le nœud connecté",
+    "tooltipLabel": "Utilisation des canaux"
+  },
+  "peerGraph": {
+    "title": "Graphique de communication par les pairs",
+    "noNodes": "Aucun nœud observé pour le moment",
+    "nodeCount": "{{count}} nœuds",
+    "edgeCount": "{{count}} liens",
+    "ariaLabel": "Graphique du réseau de communication par les pairs",
+    "good": "Signal approprié",
+    "warn": "Signal marginal",
+    "poor": "Signal faible",
+    "me": "Ce nœud",
+    "directLink": "Direct (0 saut)",
+    "relayLink": "Par relais (1 saut)",
+    "hiddenCount": "Affichage de {{shown}} sur {{total}} nœuds (nœuds non connectés masqués)"
+  },
+  "rfHistograms": {
+    "title": "REPARTITION DE SIGNAUX",
+    "subtitle": "{{count}} nœuds observés",
+    "noNodes": "Aucun nœud observé pour le moment",
+    "snrTitle": "Distribution SNR",
+    "snrAxis": "SNR (dB)",
+    "rssiTitle": "Distribution RSSI",
+    "rssiAxis": "RSSI (dBm)",
+    "hopTitle": "Distribution du nombre de sauts",
+    "hopAxis": "Sauts"
   }
 }

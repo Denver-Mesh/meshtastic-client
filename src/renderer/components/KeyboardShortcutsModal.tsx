@@ -15,6 +15,8 @@ const DEFAULT_TAB_NAMES = [
   'Diagnostics',
   'Stats',
   'Sniffer',
+  'RF',
+  'Graph',
 ];
 
 interface KeyboardShortcutsModalProps {
@@ -34,7 +36,7 @@ export default function KeyboardShortcutsModal({
   const dialogRef = useRef<HTMLDivElement>(null);
 
   const shortcuts = useMemo(() => {
-    const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'A', 'M', 'S'];
+    const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'A', 'M', 'S', 'R', 'G'];
     const slots = tabSlotIds ?? DEFAULT_TAB_NAMES;
     const labels =
       tabLabels ??

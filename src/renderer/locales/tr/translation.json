@@ -78,7 +78,9 @@
     "diagnostics": "Teşhis",
     "stats": "İstatistikler",
     "sniffer": "Koklayıcı",
-    "repeaters": "Tekrarlayıcılar"
+    "repeaters": "Tekrarlayıcılar",
+    "rf": "RF",
+    "graph": "Grafik"
   },
   "sidebar": {
     "disabledTabTooltip": "Bu modda kullanılamaz"
@@ -904,7 +906,9 @@
     "statusStale": "Bayat",
     "statusOffline": "Çevrimdışı",
     "removeFromFavorites": "Favorilerden kaldır",
-    "addToFavorites": "Favorilere ekle"
+    "addToFavorites": "Favorilere ekle",
+    "healthTooltip": "Sağlık skoru: {{total}}/100 (sinyal {{signal}}, son kullanım {{recency}}, yük {{load}}, pil {{battery}})",
+    "healthAriaLabel": "Düğüm sağlık puanı {{total}} 100 üzerinden"
   },
   "mapPanel": {
     "locationUnavailable": "Konum kullanılamıyor.",
@@ -1927,5 +1931,36 @@
       "gladYouAreHere": "burada olmana sevindim",
       "keepTheMeshAlive": "Ağı canlı tutun"
     }
+  },
+  "channelUtilization": {
+    "title": "Kanal Kullanımı",
+    "noData": "Henüz kanal kullanım verisi yok",
+    "meshcoreNote": "MeshCore: yalnızca bağlı düğüm gösteriliyor",
+    "tooltipLabel": "Kanal kullanımı"
+  },
+  "peerGraph": {
+    "title": "Akran İletişim Grafiği",
+    "noNodes": "Henüz hiçbir düğüm gözlemlenmedi",
+    "nodeCount": "{{count}} düğümler",
+    "edgeCount": "{{count}} bağlantılar",
+    "ariaLabel": "Akran iletişim ağı grafiği",
+    "good": "İyi sinyal",
+    "warn": "Marjinal sinyal",
+    "poor": "Zayıf sinyal",
+    "me": "Bu düğüm",
+    "directLink": "Direkt (0 şerbetçiotu)",
+    "relayLink": "Röle üzerinden (1 atlama)",
+    "hiddenCount": "{{shown}}/{{total}} düğüm gösteriliyor (bağlantısız düğümler gizli)"
+  },
+  "rfHistograms": {
+    "title": "RF Sinyal Dağılımı",
+    "subtitle": "{{count}} gözlemlenen düğümler",
+    "noNodes": "Henüz hiçbir düğüm gözlemlenmedi",
+    "snrTitle": "SNR Dağılımı",
+    "snrAxis": "SNR (dB)",
+    "rssiTitle": "RSSI Dağılımı",
+    "rssiAxis": "RSSI (dBm)",
+    "hopTitle": "Hop Sayısı Dağılımı",
+    "hopAxis": "Şerbetçi otu"
   }
 }

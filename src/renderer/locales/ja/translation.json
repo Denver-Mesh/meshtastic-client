@@ -78,7 +78,9 @@
     "diagnostics": "診断",
     "stats": "統計",
     "sniffer": "スニッファー",
-    "repeaters": "リピーター"
+    "repeaters": "リピーター",
+    "rf": "RF",
+    "graph": "グラフ"
   },
   "sidebar": {
     "disabledTabTooltip": "このモードでは使用できません"
@@ -904,7 +906,9 @@
     "statusStale": "古い",
     "statusOffline": "オフライン",
     "removeFromFavorites": "お気に入りから削除",
-    "addToFavorites": "お気に入りに追加"
+    "addToFavorites": "お気に入りに追加",
+    "healthTooltip": "健康スコア: {{total}}/100 (信号 {{signal}}, 最近 {{recency}}, 負荷 {{load}}, バッテリー {{battery}})",
+    "healthAriaLabel": "ノードヘルススコア{{total}} / 100"
   },
   "mapPanel": {
     "locationUnavailable": "場所が利用できません。",
@@ -1927,5 +1931,36 @@
       "gladYouAreHere": "ここに来てくれて嬉しいです",
       "keepTheMeshAlive": "メッシュを生きたままにしておく"
     }
+  },
+  "channelUtilization": {
+    "title": "チャネル使用率",
+    "noData": "利用可能なチャネル使用率データはまだありません",
+    "meshcoreNote": "MeshCore:接続されたノードのみを表示",
+    "tooltipLabel": "チャネル使用率"
+  },
+  "peerGraph": {
+    "title": "ピアコミュニケーショングラフ",
+    "noNodes": "まだ観察されたノードはありません",
+    "nodeCount": "{{count}}ノード",
+    "edgeCount": "{{count}}リンク",
+    "ariaLabel": "ピア通信ネットワークグラフ",
+    "good": "電波が非常に良好です",
+    "warn": "限界信号",
+    "poor": "信号不良",
+    "me": "このノード",
+    "directLink": "ダイレクト（ 0ホップ）",
+    "relayLink": "リレー経由（ 1ホップ）",
+    "hiddenCount": "{{shown}}/{{total}}ノードを表示しています（接続されていないノードは非表示）"
+  },
+  "rfHistograms": {
+    "title": "RF信号分布",
+    "subtitle": "{{count}}個のノードが観察されました",
+    "noNodes": "まだ観察されたノードはありません",
+    "snrTitle": "SNR分布",
+    "snrAxis": "SNR (dB)",
+    "rssiTitle": "RSSI配布",
+    "rssiAxis": "RSSI (dBm)",
+    "hopTitle": "ホップカウント分布",
+    "hopAxis": "ホップ"
   }
 }

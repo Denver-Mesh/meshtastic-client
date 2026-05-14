@@ -84,7 +84,9 @@
     "diagnostics": "Diagnostics",
     "stats": "Stats",
     "sniffer": "Sniffer",
-    "repeaters": "Repeaters"
+    "repeaters": "Repeaters",
+    "rf": "RF",
+    "graph": "Graph"
   },
   "sidebar": {
     "disabledTabTooltip": "Not available in this mode"
@@ -105,7 +107,7 @@
     "notInMeshCore": " (not available in MeshCore)",
     "meshCoreRepeaters": " (MeshCore: Repeaters)",
     "packetSniffer": "Packet Sniffer",
-    "footerNote": "Cmd/Ctrl+0, A, M, and S switch to the App, Diagnostics, Stats, and Packet Sniffer tabs by name when those tabs are visible (not by fixed slot, so shortcuts stay correct when some tabs are hidden)."
+    "footerNote": "Cmd/Ctrl+0, A, M, R, G, and S switch to the App, Diagnostics, Stats, RF, Graph, and Packet Sniffer tabs by name when those tabs are visible (not by fixed slot, so shortcuts stay correct when some tabs are hidden)."
   },
   "logPanel": {
     "showLevels": "Show levels",
@@ -910,7 +912,9 @@
     "statusStale": "Stale",
     "statusOffline": "Offline",
     "removeFromFavorites": "Remove from favorites",
-    "addToFavorites": "Add to favorites"
+    "addToFavorites": "Add to favorites",
+    "healthTooltip": "Health score: {{total}}/100 (signal {{signal}}, recency {{recency}}, load {{load}}, battery {{battery}})",
+    "healthAriaLabel": "Node health score {{total}} out of 100"
   },
   "mapPanel": {
     "locationUnavailable": "Location unavailable.",
@@ -1926,5 +1930,36 @@
       "gladYouAreHere": "Glad you are here",
       "keepTheMeshAlive": "Keep the mesh alive"
     }
+  },
+  "channelUtilization": {
+    "title": "Channel Utilization",
+    "noData": "No channel utilization data available yet",
+    "meshcoreNote": "MeshCore: showing connected node only",
+    "tooltipLabel": "Channel utilization"
+  },
+  "peerGraph": {
+    "title": "Peer Communication Graph",
+    "noNodes": "No nodes observed yet",
+    "nodeCount": "{{count}} nodes",
+    "edgeCount": "{{count}} links",
+    "ariaLabel": "Peer communication network graph",
+    "good": "Good signal",
+    "warn": "Marginal signal",
+    "poor": "Poor signal",
+    "me": "This node",
+    "directLink": "Direct (0 hops)",
+    "relayLink": "Via relay (1 hop)",
+    "hiddenCount": "Showing {{shown}} of {{total}} nodes (unconnected nodes hidden)"
+  },
+  "rfHistograms": {
+    "title": "RF Signal Distribution",
+    "subtitle": "{{count}} nodes observed",
+    "noNodes": "No nodes observed yet",
+    "snrTitle": "SNR Distribution",
+    "snrAxis": "SNR (dB)",
+    "rssiTitle": "RSSI Distribution",
+    "rssiAxis": "RSSI (dBm)",
+    "hopTitle": "Hop Count Distribution",
+    "hopAxis": "Hops"
   }
 }

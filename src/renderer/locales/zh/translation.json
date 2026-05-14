@@ -78,7 +78,9 @@
     "diagnostics": "诊断",
     "stats": "属 性",
     "sniffer": "嗅探",
-    "repeaters": "中继器"
+    "repeaters": "中继器",
+    "rf": "射频",
+    "graph": "图"
   },
   "sidebar": {
     "disabledTabTooltip": "在此模式下不可用"
@@ -904,7 +906,9 @@
     "statusStale": "陈旧",
     "statusOffline": "线下",
     "removeFromFavorites": "从收藏夹中移除",
-    "addToFavorites": "添加到收藏夹"
+    "addToFavorites": "添加到收藏夹",
+    "healthTooltip": "健康评分: {{total}}/100 (信号 {{signal}}, 最新 {{recency}}, 负载 {{load}}, 电池 {{battery}})",
+    "healthAriaLabel": "节点健康评分{{total}}/100"
   },
   "mapPanel": {
     "locationUnavailable": "無法取得位置。",
@@ -1927,5 +1931,36 @@
       "gladYouAreHere": "很高兴你在这里",
       "keepTheMeshAlive": "保持网格存活"
     }
+  },
+  "channelUtilization": {
+    "title": "渠道利用率",
+    "noData": "尚无可用的频道利用率数据",
+    "meshcoreNote": "MeshCore ：仅显示连接的节点",
+    "tooltipLabel": "渠道利用率"
+  },
+  "peerGraph": {
+    "title": "同行沟通图表",
+    "noNodes": "尚未观察到节点",
+    "nodeCount": "{{count}}节点",
+    "edgeCount": "{{count}}链接",
+    "ariaLabel": "对等通信网络图",
+    "good": "网络通畅：",
+    "warn": "边际信号",
+    "poor": "信号差",
+    "me": "此节点",
+    "directLink": "直接（ 0跳）",
+    "relayLink": "通过继电器（ 1跳）",
+    "hiddenCount": "显示{{shown}}/{{total}}节点（未连接节点隐藏）"
+  },
+  "rfHistograms": {
+    "title": "射频信号分布",
+    "subtitle": "观察到{{count}}个节点",
+    "noNodes": "尚未观察到节点",
+    "snrTitle": "信噪比分布",
+    "snrAxis": "SNR(dB)",
+    "rssiTitle": "RSSI分发",
+    "rssiAxis": "RSSI (dBm)",
+    "hopTitle": "跳数分布",
+    "hopAxis": "链路数目"
   }
 }

@@ -78,7 +78,9 @@
     "diagnostics": "Diagnostik",
     "stats": "Statistik",
     "sniffer": "Sniffer",
-    "repeaters": "Wiederholbare Felder"
+    "repeaters": "Wiederholbare Felder",
+    "rf": "RF",
+    "graph": "Grafik"
   },
   "sidebar": {
     "disabledTabTooltip": "Nicht verfügbar in diesem Modus."
@@ -904,7 +906,9 @@
     "statusStale": "a",
     "statusOffline": "Offline",
     "removeFromFavorites": "Aus Favoriten-Liste entfernen",
-    "addToFavorites": "Zu Favoriten hinzufügen"
+    "addToFavorites": "Zu Favoriten hinzufügen",
+    "healthTooltip": "Gesundheitsbewertung: {{total}}/100 (Signal {{signal}}, Aktualität {{recency}}, Last {{load}}, Batterie {{battery}})",
+    "healthAriaLabel": "Node Health Score {{total}} von 100"
   },
   "mapPanel": {
     "locationUnavailable": "Standort nicht verfügbar.",
@@ -1927,5 +1931,36 @@
       "gladYouAreHere": "Schön, dass Sie hier sind",
       "keepTheMeshAlive": "Halten Sie das Netz am Leben"
     }
+  },
+  "channelUtilization": {
+    "title": "Kanalauslastung",
+    "noData": "Noch keine Kanalauslastungsdaten verfügbar",
+    "meshcoreNote": "MeshCore: Nur verbundene Knoten anzeigen",
+    "tooltipLabel": "Kanalauslastung"
+  },
+  "peerGraph": {
+    "title": "Peer-Kommunikationsgrafik",
+    "noNodes": "Noch keine Knoten beobachtet",
+    "nodeCount": "{{count}} Nodes",
+    "edgeCount": "{{count}} Links",
+    "ariaLabel": "Peer-Kommunikationsnetzwerkdiagramm",
+    "good": "Gutes Signal",
+    "warn": "Grenzsignal",
+    "poor": "Schwaches Signal",
+    "me": "Dieser Knoten",
+    "directLink": "Direkt (0 Sprünge)",
+    "relayLink": "Über Relais (1 Hop)",
+    "hiddenCount": "Anzeigen von {{shown}} von {{total}} Knoten (nicht verbundene Knoten ausgeblendet)"
+  },
+  "rfHistograms": {
+    "title": "Signalverteilung",
+    "subtitle": "{{count}} Knoten beobachtet",
+    "noNodes": "Noch keine Knoten beobachtet",
+    "snrTitle": "SNR-Verteilung",
+    "snrAxis": "SNR [dB]",
+    "rssiTitle": "RSSI-Verteilung",
+    "rssiAxis": "Rssi (dBm)",
+    "hopTitle": "Hop-Anzahl-Verteilung",
+    "hopAxis": "Hops"
   }
 }

@@ -78,7 +78,9 @@
     "diagnostics": "Diagnósticos",
     "stats": "Estatísticas",
     "sniffer": "Farejamento",
-    "repeaters": "Repetidores"
+    "repeaters": "Repetidores",
+    "rf": "Frequência de rádio (RF)",
+    "graph": "Gráfico"
   },
   "sidebar": {
     "disabledTabTooltip": "Não disponível neste modo"
@@ -904,7 +906,9 @@
     "statusStale": "Rançoso",
     "statusOffline": "Off-line",
     "removeFromFavorites": "Remove from favorites",
-    "addToFavorites": "Add to favorites"
+    "addToFavorites": "Add to favorites",
+    "healthTooltip": "Pontuação de saúde: {{total}}/100 (sinal {{signal}}, recência {{recency}}, carga {{load}}, bateria {{battery}})",
+    "healthAriaLabel": "Pontuação de integridade do nó {{total}} de 100"
   },
   "mapPanel": {
     "locationUnavailable": "Localização não disponível.",
@@ -1927,5 +1931,36 @@
       "gladYouAreHere": "Que bom que você está aqui",
       "keepTheMeshAlive": "Mantenha a malha viva"
     }
+  },
+  "channelUtilization": {
+    "title": "Utilização do canal",
+    "noData": "Ainda não há dados de utilização do canal disponíveis",
+    "meshcoreNote": "MeshCore: mostrando apenas o nó conectado",
+    "tooltipLabel": "Utilização do canal"
+  },
+  "peerGraph": {
+    "title": "Gráfico de Comunicação entre Pares",
+    "noNodes": "Nenhum nó observado ainda",
+    "nodeCount": "{{count}} nós",
+    "edgeCount": "{{count}} links",
+    "ariaLabel": "Gráfico de rede de comunicação entre pares",
+    "good": "Bom Sinal",
+    "warn": "Sinal marginal",
+    "poor": "Sinal pobre.",
+    "me": "Este nó",
+    "directLink": "Direto (0 saltos)",
+    "relayLink": "Via relé (1 salto)",
+    "hiddenCount": "Mostrando {{shown}} de {{total}} nós (nós não conectados ocultos)"
+  },
+  "rfHistograms": {
+    "title": "Distribuição de sinal de RF",
+    "subtitle": "{{count}} nós observados",
+    "noNodes": "Nenhum nó observado ainda",
+    "snrTitle": "Distribuição SNR",
+    "snrAxis": "SNR (dB)",
+    "rssiTitle": "Distribuição RSSI",
+    "rssiAxis": "RSSI (dBm)",
+    "hopTitle": "Distribuição de Contagem de Saltos",
+    "hopAxis": "Saltos"
   }
 }

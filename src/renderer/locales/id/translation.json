@@ -78,7 +78,9 @@
     "diagnostics": "Diagnostik",
     "stats": "Statistik",
     "sniffer": "Sniffer",
-    "repeaters": "Repeater"
+    "repeaters": "Repeater",
+    "rf": "RF",
+    "graph": "Grafik"
   },
   "sidebar": {
     "disabledTabTooltip": "Tidak tersedia dalam mode ini"
@@ -904,7 +906,9 @@
     "statusStale": "Basi",
     "statusOffline": "Luring",
     "removeFromFavorites": "Hapus dari favorit",
-    "addToFavorites": "Tambahkan ke favorit"
+    "addToFavorites": "Tambahkan ke favorit",
+    "healthTooltip": "Skor kesehatan: {{total}}/100 (signal {{signal}}, recency {{recency}}, load {{load}}, battery {{battery}})",
+    "healthAriaLabel": "Skor kesehatan node {{total}} dari 100"
   },
   "mapPanel": {
     "locationUnavailable": "Lokasi tidak tersedia.",
@@ -1927,5 +1931,36 @@
       "gladYouAreHere": "Senang Anda ada di sini",
       "keepTheMeshAlive": "Jaga agar jaring tetap hidup"
     }
+  },
+  "channelUtilization": {
+    "title": "Pemanfaatan Saluran",
+    "noData": "Data pemanfaatan saluran belum tersedia",
+    "meshcoreNote": "MeshCore: hanya menampilkan node yang terhubung",
+    "tooltipLabel": "Pemanfaatan saluran"
+  },
+  "peerGraph": {
+    "title": "Grafik Komunikasi Rekan",
+    "noNodes": "Belum ada node yang diamati",
+    "nodeCount": "{{count}} node",
+    "edgeCount": "{{count}} tautan",
+    "ariaLabel": "Grafik jaringan komunikasi sejawat",
+    "good": "Sinyal bagus",
+    "warn": "Sinyal marjinal",
+    "poor": "Sinyal buruk",
+    "me": "Node ini",
+    "directLink": "Langsung (0 hop)",
+    "relayLink": "Melalui relai (1 hop)",
+    "hiddenCount": "Menampilkan {{shown}} dari {{total}} node (node yang tidak terhubung disembunyikan)"
+  },
+  "rfHistograms": {
+    "title": "Distribusi Sinyal RF",
+    "subtitle": "{{count}} node diamati",
+    "noNodes": "Belum ada node yang diamati",
+    "snrTitle": "Distribusi SNR",
+    "snrAxis": "SNR (dB)",
+    "rssiTitle": "Distribusi RSSI",
+    "rssiAxis": "RSSI (dBm)",
+    "hopTitle": "Distribusi Hop Count",
+    "hopAxis": "Hop"
   }
 }

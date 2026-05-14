@@ -78,7 +78,9 @@
     "diagnostics": "진단",
     "stats": "통계",
     "sniffer": "스니퍼",
-    "repeaters": "중계기"
+    "repeaters": "중계기",
+    "rf": "RF",
+    "graph": "그래프"
   },
   "sidebar": {
     "disabledTabTooltip": "이 모드에서는 사용할 수 없습니다."
@@ -904,7 +906,9 @@
     "statusStale": "탁한",
     "statusOffline": "오프라인",
     "removeFromFavorites": "즐겨찾기에서 제거",
-    "addToFavorites": "즐겨찾기에 추가"
+    "addToFavorites": "즐겨찾기에 추가",
+    "healthTooltip": "건강 점수: {{total}}/100 (신호 {{signal}}, 최신성 {{recency}}, 부하 {{load}}, 배터리 {{battery}})",
+    "healthAriaLabel": "100점 만점에 노드 체력 점수 {{total}}"
   },
   "mapPanel": {
     "locationUnavailable": "위치를 확인할 수 없습니다.",
@@ -1927,5 +1931,36 @@
       "gladYouAreHere": "당신이 여기 있어서 다행이에요",
       "keepTheMeshAlive": "메시를 살아있게 유지하세요"
     }
+  },
+  "channelUtilization": {
+    "title": "채널 사용률",
+    "noData": "아직 사용 가능한 채널 사용 데이터 없음",
+    "meshcoreNote": "MeshCore: 연결된 노드만 표시",
+    "tooltipLabel": "채널 사용률"
+  },
+  "peerGraph": {
+    "title": "동료 커뮤니케이션 그래프",
+    "noNodes": "아직 관찰된 노드 없음",
+    "nodeCount": "{{count}} 노드",
+    "edgeCount": "{{count}} 링크",
+    "ariaLabel": "피어 통신 네트워크 그래프",
+    "good": "양호한 신호",
+    "warn": "한계 신호",
+    "poor": "신호 불량",
+    "me": "이 노드",
+    "directLink": "직접 (0홉)",
+    "relayLink": "비아 릴레이 (1 홉)",
+    "hiddenCount": "{{shown}} / {{total}} 개 노드 표시 (연결되지 않은 노드 숨김)"
+  },
+  "rfHistograms": {
+    "title": "RF 신호 분포",
+    "subtitle": "{{count}} 노드 관찰됨",
+    "noNodes": "아직 관찰된 노드 없음",
+    "snrTitle": "SNR 배포",
+    "snrAxis": "SNR (dB)",
+    "rssiTitle": "RSSI 배포",
+    "rssiAxis": "RSSI (dBm)",
+    "hopTitle": "홉 수 분포",
+    "hopAxis": "홉"
   }
 }

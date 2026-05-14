@@ -78,7 +78,9 @@
     "diagnostics": "Diagnostyka",
     "stats": "Statystyki",
     "sniffer": "szperacz",
-    "repeaters": "Repeatery"
+    "repeaters": "Repeatery",
+    "rf": "RF",
+    "graph": "Wykres"
   },
   "sidebar": {
     "disabledTabTooltip": "Niedostępne w tym trybie"
@@ -904,7 +906,9 @@
     "statusStale": "Nieświeży",
     "statusOffline": "Nieaktywny",
     "removeFromFavorites": "Usuń z ulubionych",
-    "addToFavorites": "Dodaj do ulubionych"
+    "addToFavorites": "Dodaj do ulubionych",
+    "healthTooltip": "Wynik zdrowotny: {{total}}/100 (sygnał {{signal}}, aktualny {{recency}}, obciążenie {{load}}, bateria {{battery}})",
+    "healthAriaLabel": "Wynik zdrowotny węzła {{total}} ze 100"
   },
   "mapPanel": {
     "locationUnavailable": "Lokalizacja niedostępna.",
@@ -1927,5 +1931,36 @@
       "gladYouAreHere": "Cieszę się, że tu jesteś",
       "keepTheMeshAlive": "Utrzymuj siatkę przy życiu"
     }
+  },
+  "channelUtilization": {
+    "title": "Wykorzystanie kanału",
+    "noData": "Brak dostępnych danych o wykorzystaniu kanału",
+    "meshcoreNote": "MeshCore: wyświetlanie tylko połączonego węzła",
+    "tooltipLabel": "Wykorzystanie kanału"
+  },
+  "peerGraph": {
+    "title": "Wykres komunikacji koleżeńskiej",
+    "noNodes": "Nie zaobserwowano jeszcze węzłów",
+    "nodeCount": "Węzły {{count}}",
+    "edgeCount": "Linki: {{count}}",
+    "ariaLabel": "Wykres sieci komunikacji rówieśniczej",
+    "good": "Dobry sygnał",
+    "warn": "Sygnał krańcowy",
+    "poor": "Słaby sygnał",
+    "me": "Ten węzeł",
+    "directLink": "Bezpośredni (0 przeskoków)",
+    "relayLink": "Przez przekaźnik (1 przeskok)",
+    "hiddenCount": "Wyświetlanie {{shown}} z węzłów {{total}} (niepołączone węzły ukryte)"
+  },
+  "rfHistograms": {
+    "title": "Dystrybucja sygnału RF",
+    "subtitle": "Obserwowane węzły: {{count}}",
+    "noNodes": "Nie zaobserwowano jeszcze węzłów",
+    "snrTitle": "Dystrybucja SNR",
+    "snrAxis": "SNR (dB)",
+    "rssiTitle": "Dystrybucja RSSI",
+    "rssiAxis": "RSSI (dBm)",
+    "hopTitle": "Dystrybucja liczby przeskoków",
+    "hopAxis": "Przeskoków"
   }
 }

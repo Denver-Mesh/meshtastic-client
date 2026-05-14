@@ -14,6 +14,7 @@ import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
 import { createUpdateMenuNotifyController } from '@/renderer/lib/updateMenuNotifyController';
 import type { UpdateCheckingPayload } from '@/shared/electron-api.types';
 
+import ChannelUtilizationChart from './components/ChannelUtilizationChart';
 import ErrorBoundary from './components/ErrorBoundary';
 import { HelpTooltip } from './components/HelpTooltip';
 import LanguageSelector from './components/LanguageSelector';
@@ -39,9 +40,11 @@ import {
   MapPanel,
   ModulePanel,
   PacketDistributionPanel,
+  PeerGraphPanel,
   RadioPanel,
   RawPacketLogPanel,
   RepeatersPanel,
+  RFHistogramsPanel,
   SecurityPanel,
   TakServerPanel,
   TelemetryPanel,
@@ -99,6 +102,8 @@ const TAB_CAPABILITY_REQUIREMENTS: (keyof ProtocolCapabilities | undefined)[] = 
   undefined, // Diagnostics
   'hasRawPacketLog', // Distribution
   'hasRawPacketLog', // Sniffer (keyboard help: Packet Sniffer)
+  undefined, // RF
+  undefined, // Graph
 ];
 
 const STATUS_COLOR: Record<string, string> = {
@@ -149,6 +154,8 @@ const TAB_SLOT_IDS = [
   'Diagnostics',
   'Stats',
   'Sniffer',
+  'RF',
+  'Graph',
 ] as const;
 
 function tabLabelKey(protocol: MeshProtocol, panelIndex: number): `tabs.${string}` {
@@ -1276,6 +1283,18 @@ export default function App() {
           e.preventDefault();
           setActiveTab(targetIndex);
         }
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'r') {
+        const targetIndex = tabSlotIds.indexOf('RF');
+        if (targetIndex >= 0 && targetIndex <= maxTab) {
+          e.preventDefault();
+          setActiveTab(targetIndex);
+        }
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'g') {
+        const targetIndex = tabSlotIds.indexOf('Graph');
+        if (targetIndex >= 0 && targetIndex <= maxTab) {
+          e.preventDefault();
+          setActiveTab(targetIndex);
+        }
       } else if (e.key === '?' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         const tag = (e.target as HTMLElement).tagName;
         if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
@@ -2295,19 +2314,24 @@ export default function App() {
                       {activePanelIndex === 11 && capabilities.hasRawPacketLog ? (
                         <ErrorBoundary>
                           <Suspense fallback={<PanelSkeleton />}>
-                            {protocol === 'meshcore' ? (
-                              <PacketDistributionPanel
-                                variant="meshcore"
-                                packets={meshcoreDevice.rawPackets}
-                                getNodeLabel={rawPacketGetNodeLabel}
-                              />
-                            ) : (
-                              <PacketDistributionPanel
-                                variant="meshtastic"
-                                packets={meshtasticDevice.rawPackets}
-                                getNodeLabel={rawPacketGetNodeLabel}
-                              />
-                            )}
+                            <div className="p-4">
+                              {protocol === 'meshcore' ? (
+                                <PacketDistributionPanel
+                                  variant="meshcore"
+                                  packets={meshcoreDevice.rawPackets}
+                                  getNodeLabel={rawPacketGetNodeLabel}
+                                />
+                              ) : (
+                                <PacketDistributionPanel
+                                  variant="meshtastic"
+                                  packets={meshtasticDevice.rawPackets}
+                                  getNodeLabel={rawPacketGetNodeLabel}
+                                />
+                              )}
+                              {protocol !== 'meshcore' && (
+                                <ChannelUtilizationChart nodes={nodesForUi} protocol={protocol} />
+                              )}
+                            </div>
                           </Suspense>
                         </ErrorBoundary>
                       ) : null}
@@ -2339,6 +2363,42 @@ export default function App() {
                                 onNodeClick={setSelectedNodeId}
                               />
                             )}
+                          </Suspense>
+                        </ErrorBoundary>
+                      ) : null}
+                    </div>
+                    <div
+                      id="panel-13"
+                      role="tabpanel"
+                      aria-labelledby="tab-13"
+                      hidden={activePanelIndex !== 13}
+                      className="w-full min-w-0"
+                    >
+                      {activePanelIndex === 13 ? (
+                        <ErrorBoundary>
+                          <Suspense fallback={<PanelSkeleton />}>
+                            <RFHistogramsPanel nodes={nodesForUi} />
+                          </Suspense>
+                        </ErrorBoundary>
+                      ) : null}
+                    </div>
+                    <div
+                      id="panel-14"
+                      role="tabpanel"
+                      aria-labelledby="tab-14"
+                      hidden={activePanelIndex !== 14}
+                      className="w-full min-w-0"
+                      style={{ height: 'calc(100vh - 140px)' }}
+                    >
+                      {activePanelIndex === 14 ? (
+                        <ErrorBoundary>
+                          <Suspense fallback={<PanelSkeleton />}>
+                            <PeerGraphPanel
+                              nodes={nodesForUi}
+                              myNodeId={device.selfNodeId}
+                              protocol={protocol}
+                              onNodeClick={setSelectedNodeId}
+                            />
                           </Suspense>
                         </ErrorBoundary>
                       ) : null}
