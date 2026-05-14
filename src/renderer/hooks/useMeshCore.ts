@@ -2173,6 +2173,7 @@ export function useMeshCore() {
           meshcoreSessionPathUpdatedNodeIdsRef.current.add(nodeId);
           setMeshcorePingRouteReadyEpoch((e) => e + 1);
         }
+        useDiagnosticsStore.getState().recordPathUpdated(nodeId);
         const nowSec = Math.floor(Date.now() / 1000);
         const persist129 = {
           kind: 'none' as 'none' | 'insert' | 'update',

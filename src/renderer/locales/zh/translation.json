@@ -1241,7 +1241,8 @@
       "badRoute": "路线不佳",
       "routeFlapping": "路由拍打",
       "impossibleHop": "不可能的跳跃",
-      "noisyNode": "噪声节点"
+      "noisyNode": "噪声节点",
+      "weakLink": "薄弱环节"
     },
     "routingDesc": {
       "hopGoblinKm": "距离仅{{distanceKm}}公里，但需要{{hops}}跳跃—关键跳跃",
@@ -1249,7 +1250,9 @@
       "badRouteSuboptimalMi": "距离仅{{distanceMi}}英里，但需要{{hops}}跳—可能是次优路线",
       "impossibleHopMi": "报告距离0跳，但距离{{miles}}英里— GPS或路由数据可疑",
       "routeFlapping": "在过去10分钟内，跳数已更改{{changes}}次—路线不稳定",
-      "noisyNode": "在{{ports}}发送{{ratePerHour}}/小时—超额流量"
+      "noisyNode": "在{{ports}}发送{{ratePerHour}}/小时—超额流量",
+      "pathInstability": "路线在过去10分钟内更改了{{changes}}次 — 路径不稳定",
+      "weakLink": "跳数{{hop}}处的弱链路（SNR {{snr}} dB）— 追踪路径上的低信号中继"
     },
     "rfCondition": {
       "utilizationVsTx": "利用率与德克萨斯州",
@@ -1265,7 +1268,10 @@
       "meshcoreActivityDetected": "检测到MeshCore活动",
       "meshtasticTrafficDetected": "检测到Meshtastic流量",
       "unknownLoraTraffic": "未知的LoRa流量",
-      "potentialMeshcoreRepeaterConflict": "潜在的MeshCore中继器冲突"
+      "potentialMeshcoreRepeaterConflict": "潜在的MeshCore中继器冲突",
+      "elevatedNoiseFloor": "高架噪音地板",
+      "excessiveFlooding": "洪水泛滥",
+      "distantRepeater": "远程中继器"
     },
     "rfCause": {
       "channelUtilizationSpike": "当前的{{current}} %是近期平均值（ {{average}} % ）的2倍以上—可能是拥堵或干扰浪涌。",
@@ -1277,7 +1283,10 @@
       "loraCollisionCorruption": "检测到前导码，但CRC/解码失败（最常见的是非Meshtastic LoRa流量）。",
       "externalInterference": "附近的发射器主宰着频道—您的节点后退以避免冲突。",
       "widebandNoiseFloor": "宽带干扰（电子设备故障、电源线噪声等）导致噪声底板升高。",
-      "fringeWeakCoverage": "节点距离太远或与网格其余部分的连接不佳。"
+      "fringeWeakCoverage": "节点距离太远或与网格其余部分的连接不佳。",
+      "elevatedNoiseFloor": "无线电噪声底板为{{noiseFloor}} dBm — 干扰升高，有效范围缩短。",
+      "excessiveFlooding": "{{percent}}%的传输是洪泛路由 — 可能未与附近节点建立直接路由。",
+      "distantRepeater": "中继器距离{{hops}}跳太远，无法改善大多数网格的路由。"
     },
     "foreignLoraCause": {
       "meshcoreVeryClose": "MeshCore节点非常接近（ RSSI {{rssi}} dBm ） —可能导致数据包冲突。",
@@ -1303,7 +1312,9 @@
       "mqttRfOverlapTitle": "检查MQTT/RF重叠",
       "mqttRfOverlapDescription": "5英里内的{{percent}} %数据包重复—网关下行链路或桥接路径可能会回波RF ；请尝试忽略受影响节点的MQTT。",
       "duplicateInterferenceTitle": "检查放置位置：远离电子设备/噪音",
-      "duplicateInterferenceDescription": "5英里内有{{percent}} %的数据包重复—怀疑存在本地射频干扰。"
+      "duplicateInterferenceDescription": "5英里内有{{percent}} %的数据包重复—怀疑存在本地射频干扰。",
+      "weakLinkTitle": "在弱跳上添加或重新定位继电器",
+      "weakLinkDescription": "跟踪路径包含信噪比低于-5 dB的跳跃—在中点放置中继可以稳定路由。"
     },
     "remedyRf": {
       "utilizationVsTx": {
@@ -1345,6 +1356,18 @@
       "fringeWeakCoverage": {
         "title": "改善路径或添加继电器",
         "description": "节点处于覆盖范围的边缘—中继放置或天线升级。"
+      },
+      "elevatedNoiseFloor": {
+        "title": "识别并移除干扰源",
+        "description": "噪音地板升高可降低范围和信噪比—检查附近的电子设备、开关电源或电机。"
+      },
+      "excessiveFlooding": {
+        "title": "允许建立直接路由",
+        "description": "洪水比非常高—等待节点积累直接路径触点，或检查中继器接近度。"
+      },
+      "distantRepeater": {
+        "title": "将中继器移动到更靠近网格核心的位置",
+        "description": "距离您的节点超过3跳的重复器对网格覆盖率几乎没有贡献—将其重新定位到更中心的位置。"
       }
     }
   },

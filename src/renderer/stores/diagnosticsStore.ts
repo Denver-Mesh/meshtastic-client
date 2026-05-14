@@ -322,6 +322,8 @@ interface DiagnosticsState {
       tag: number | null;
     }[]
   >;
+  /** Rolling timestamps of PathUpdated (0x81) events per contact (10-min window). MeshCore only. */
+  pathUpdatedTimestamps: Map<number, number[]>;
   processNodeUpdate(
     node: MeshNode,
     homeNode: MeshNode | null,
@@ -329,6 +331,8 @@ interface DiagnosticsState {
     capabilities?: ProtocolCapabilities,
   ): void;
   recordDuplicate(fromNodeId: number): void;
+  /** Record a MeshCore PathUpdated (0x81) event; used for path-instability detection. */
+  recordPathUpdated(nodeId: number): void;
   recordForeignLora(
     nodeId: number,
     packetClass: PacketClass,
@@ -493,6 +497,7 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
   meshcoreHopHistory: new Map(),
   meshcoreTraceHistory: new Map(),
   localStatsBaselines: new Map(),
+  pathUpdatedTimestamps: new Map(),
 
   getForeignLoraDetectionsList(nodeId: number) {
     const bySender = get().foreignLoraDetections.get(nodeId);
@@ -695,6 +700,9 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
           const stats = s.packetStats.get(nodeId);
           const ignoreMqtt = s.ignoreMqttEnabled || s.mqttIgnoredNodes.has(nodeId);
           const noiseData = getNoiseStatsForNode(s.noiseRateStats, nodeId);
+          const traceHistory = s.meshcoreTraceHistory.get(nodeId);
+          const tracePathSnrs = traceHistory?.at(-1)?.pathSnrs;
+          const pathUpdatedTs = s.pathUpdatedTimestamps.get(nodeId);
           const anomaly = analyzeNode(
             n,
             stats,
@@ -706,6 +714,8 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
             hopsThreshold,
             capabilities,
             noiseData,
+            tracePathSnrs,
+            pathUpdatedTs,
           );
           if (anomaly) newAnomalies.set(nodeId, anomaly);
           else newAnomalies.delete(nodeId);
@@ -794,6 +804,19 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
       const newPacketStats = new Map(state.packetStats);
       newPacketStats.set(fromNodeId, { ...stats, duplicates: stats.duplicates + 1 });
       return { packetStats: newPacketStats };
+    });
+  },
+
+  recordPathUpdated(nodeId: number) {
+    const now = Date.now();
+    const cutoff = now - 10 * 60 * 1000;
+    set((state) => {
+      const existing = state.pathUpdatedTimestamps.get(nodeId) ?? [];
+      const pruned = existing.filter((t) => t >= cutoff);
+      pruned.push(now);
+      const next = new Map(state.pathUpdatedTimestamps);
+      next.set(nodeId, pruned);
+      return { pathUpdatedTimestamps: next };
     });
   },
 
@@ -1034,6 +1057,9 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
         const stats = state.packetStats.get(nodeId);
         const ignoreMqtt = state.ignoreMqttEnabled || state.mqttIgnoredNodes.has(nodeId);
         const noiseData = getNoiseStatsForNode(state.noiseRateStats, nodeId);
+        const traceHistory = state.meshcoreTraceHistory.get(nodeId);
+        const tracePathSnrs = traceHistory?.at(-1)?.pathSnrs;
+        const pathUpdatedTs = state.pathUpdatedTimestamps.get(nodeId);
         const anomaly = analyzeNode(
           node,
           stats,
@@ -1045,6 +1071,8 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
           hopsThreshold,
           capabilities,
           noiseData,
+          tracePathSnrs,
+          pathUpdatedTs,
         );
         if (anomaly) newAnomalies.set(nodeId, anomaly);
       }
@@ -1235,6 +1263,7 @@ export const useDiagnosticsStore = create<DiagnosticsState>((set, get) => ({
       foreignLoraDetections: new Map(),
       meshcoreHopHistory: new Map(),
       meshcoreTraceHistory: new Map(),
+      pathUpdatedTimestamps: new Map(),
     });
   },
 

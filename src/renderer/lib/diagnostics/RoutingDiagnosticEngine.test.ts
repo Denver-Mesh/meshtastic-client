@@ -5,6 +5,8 @@ import {
   detectBadRoute,
   detectHopGoblin,
   detectNoisyNode,
+  detectPathInstability,
+  detectWeakLinkOnPath,
   type NoiseStats,
   NOISY_PORTNUMS,
 } from './RoutingDiagnosticEngine';
@@ -136,5 +138,60 @@ describe('detectNoisyNode', () => {
   it('returns null below warning threshold', () => {
     // 3 position packets in 1 hour is below the 4/hr warn threshold
     expect(detectNoisyNode(makeStats({ [NOISY_PORTNUMS.POSITION_APP]: 3 }))).toBeNull();
+  });
+});
+
+describe('detectWeakLinkOnPath', () => {
+  it('returns null when fewer than 2 hops', () => {
+    expect(detectWeakLinkOnPath(1, [])).toBeNull();
+    expect(detectWeakLinkOnPath(1, [-10])).toBeNull();
+  });
+
+  it('returns null when all SNRs are above threshold', () => {
+    expect(detectWeakLinkOnPath(1, [2, 5, 8])).toBeNull();
+  });
+
+  it('flags weak_link when min SNR is below -5 dB', () => {
+    const result = detectWeakLinkOnPath(1, [5, -8, 3]);
+    expect(result).not.toBeNull();
+    expect(result!.type).toBe('weak_link');
+    expect(result!.severity).toBe('warning');
+    expect(result!.confidence).toBe('proven');
+  });
+
+  it('identifies the correct hop index in the description', () => {
+    // Hop 2 (index 1) is the weak one at -10 dB
+    const result = detectWeakLinkOnPath(1, [5, -10, 3]);
+    expect(result!.description).toContain('hop 2');
+    expect(result!.description).toContain('-10.0 dB');
+  });
+
+  it('flags the first hop when it is the weakest', () => {
+    const result = detectWeakLinkOnPath(1, [-15, -2, 0]);
+    expect(result!.description).toContain('hop 1');
+  });
+});
+
+describe('detectPathInstability', () => {
+  const now = Date.now();
+
+  it('returns null when 3 or fewer recent events', () => {
+    const timestamps = [now - 1000, now - 2000, now - 3000];
+    expect(detectPathInstability(1, timestamps)).toBeNull();
+  });
+
+  it('returns route_flapping when more than 3 events in 10 min', () => {
+    const timestamps = [now - 1000, now - 2000, now - 3000, now - 4000];
+    const result = detectPathInstability(1, timestamps);
+    expect(result).not.toBeNull();
+    expect(result!.type).toBe('route_flapping');
+    expect(result!.severity).toBe('warning');
+  });
+
+  it('ignores events older than 10 minutes', () => {
+    const tenMinAgo = now - 10 * 60 * 1000;
+    const timestamps = [tenMinAgo - 5000, tenMinAgo - 4000, tenMinAgo - 3000, now - 1000];
+    // Only 1 event in the window — should not flag
+    expect(detectPathInstability(1, timestamps)).toBeNull();
   });
 });

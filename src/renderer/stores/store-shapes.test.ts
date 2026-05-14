@@ -65,6 +65,7 @@ describe('store shape contracts', () => {
           "ourPositionSource",
           "packetCache",
           "packetStats",
+          "pathUpdatedTimestamps",
         ]
       `);
     });
@@ -85,6 +86,7 @@ describe('store shape contracts', () => {
           "recordForeignLora",
           "recordNoisePort",
           "recordPacketPath",
+          "recordPathUpdated",
           "runReanalysis",
           "saveMeshcoreHopHistory",
           "saveMeshcoreTraceHistory",

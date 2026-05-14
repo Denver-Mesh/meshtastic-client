@@ -1241,7 +1241,8 @@
       "badRoute": "Slecht traject",
       "routeFlapping": "Route wappert",
       "impossibleHop": "Onmogelijke hop",
-      "noisyNode": "Lawaaierig knooppunt"
+      "noisyNode": "Lawaaierig knooppunt",
+      "weakLink": "breukpunt"
     },
     "routingDesc": {
       "hopGoblinKm": "Slechts {{distanceKm}} km verwijderd, maar met {{hops}} hops – kritische over-hopping",
@@ -1249,7 +1250,9 @@
       "badRouteSuboptimalMi": "Slechts {{distanceMi}} mijl verwijderd, maar {{hops}} hoppen - mogelijke suboptimale route",
       "impossibleHopMi": "Gerapporteerd als 0 hops verwijderd, maar {{miles}} mijl ver verwijderd - GPS- of routegegevens verdacht",
       "routeFlapping": "Het aantal hoppen is in de afgelopen 10 minuten {{changes}} keer gewijzigd: onstabiele route",
-      "noisyNode": "Verzenden van {{ratePerHour}}/uur op {{ports}}: overmatig verkeer"
+      "noisyNode": "Verzenden van {{ratePerHour}}/uur op {{ports}}: overmatig verkeer",
+      "pathInstability": "Route in de afgelopen 10 minuten {{changes}} keer gewijzigd — pad is onstabiel",
+      "weakLink": "Zwakke link bij hop {{hop}} (SNR {{snr}} dB) — laag signaalrelais op getraceerd pad"
     },
     "rfCondition": {
       "utilizationVsTx": "Gebruik versus TX",
@@ -1265,7 +1268,10 @@
       "meshcoreActivityDetected": "MeshCore-activiteit gedetecteerd",
       "meshtasticTrafficDetected": "Meshtastic verkeer gedetecteerd",
       "unknownLoraTraffic": "Onbekend LoRa-verkeer",
-      "potentialMeshcoreRepeaterConflict": "Potentieel MeshCore Repeater-conflict"
+      "potentialMeshcoreRepeaterConflict": "Potentieel MeshCore Repeater-conflict",
+      "elevatedNoiseFloor": "Verhoogde geluidsvloer",
+      "excessiveFlooding": "Overmatige overstromingen",
+      "distantRepeater": "Verre Repeater"
     },
     "rfCause": {
       "channelUtilizationSpike": "De huidige {{current}}% is meer dan 2x het recente gemiddelde ({{average}}%) – mogelijke congestie of interferentiepiek.",
@@ -1277,7 +1283,10 @@
       "loraCollisionCorruption": "Preambule gedetecteerd, maar CRC/decodering mislukt (meestal niet-Meshtastic LoRa-verkeer).",
       "externalInterference": "Een zender in de buurt die het kanaal domineert: uw knooppunt trekt zich terug om botsingen te voorkomen.",
       "widebandNoiseFloor": "Breedbandinterferentie (defecte elektronica, ruis op het elektriciteitsnet, enz.) waardoor de ruisvloer hoger wordt.",
-      "fringeWeakCoverage": "Het knooppunt is te ver weg of slecht verbonden met de rest van de mesh."
+      "fringeWeakCoverage": "Het knooppunt is te ver weg of slecht verbonden met de rest van de mesh.",
+      "elevatedNoiseFloor": "Radiogeluidsvloer is {{noiseFloor}} dBm — verhoogde interferentie die het effectieve bereik vermindert.",
+      "excessiveFlooding": "{{percent}}% van de transmissies wordt via een overstromingsrouter geleid. Het is mogelijk dat er geen directe routering is met knooppunten in de buurt.",
+      "distantRepeater": "Repeater is {{hops}} springt weg — te ver om de routering voor het grootste deel van het gaas te verbeteren."
     },
     "foreignLoraCause": {
       "meshcoreVeryClose": "MeshCore-knooppunt zeer dichtbij (RSSI {{rssi}} dBm) - veroorzaakt waarschijnlijk pakketbotsingen.",
@@ -1303,7 +1312,9 @@
       "mqttRfOverlapTitle": "Controleer MQTT / RF-overlap",
       "mqttRfOverlapDescription": "{{percent}}% pakketduplicatie binnen 8 km — gateway-downlink of overbrugde paden kunnen RF-echo's bevatten; probeer MQTT te negeren voor getroffen knooppunten.",
       "duplicateInterferenceTitle": "Controleer plaatsing: Ga uit de buurt van elektronica/ruis",
-      "duplicateInterferenceDescription": "{{percent}}% pakketduplicatie binnen 8 km – lokale RF-interferentie vermoed."
+      "duplicateInterferenceDescription": "{{percent}}% pakketduplicatie binnen 8 km – lokale RF-interferentie vermoed.",
+      "weakLinkTitle": "Voeg een relais toe of verplaats het op de zwakke hop",
+      "weakLinkDescription": "Getraceerd pad bevat een hop met SNR onder -5 dB — het plaatsen van een relais in het midden kan de route stabiliseren."
     },
     "remedyRf": {
       "utilizationVsTx": {
@@ -1345,6 +1356,18 @@
       "fringeWeakCoverage": {
         "title": "Verbeter het pad of voeg een relais toe",
         "description": "Het knooppunt bevindt zich aan de rand van de dekking: relaisplaatsing of antenne-upgrade."
+      },
+      "elevatedNoiseFloor": {
+        "title": "Interferentiebron identificeren en verwijderen",
+        "description": "Verhoogde ruisvloer vermindert bereik en SNR — controleer op elektronica in de buurt, schakelende voedingen of motoren."
+      },
+      "excessiveFlooding": {
+        "title": "Laat directe routes tot stand komen",
+        "description": "Overstromingsverhouding is zeer hoog — wacht tot het knooppunt directe padcontacten verzamelt of controleer de nabijheid van de repeater."
+      },
+      "distantRepeater": {
+        "title": "Verplaats de repeater dichter naar de kern van het gaas",
+        "description": "Repeater meer dan 3 hops van je knooppunt draagt weinig bij aan de maasdekking — verplaats het naar een meer centrale positie."
       }
     }
   },

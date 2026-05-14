@@ -94,4 +94,117 @@ describe('diagnoseOtherNode', () => {
     expect(findings).not.toBeNull();
     expect(findings!.some((f) => f.condition === 'Channel Utilization Spike')).toBe(true);
   });
+
+  it('flags Distant Repeater when hw_model is Repeater and hops > 3', () => {
+    const node = baseNode({ hw_model: 'Repeater', hops_away: 4 });
+    const findings = diagnoseOtherNode(node);
+    expect(findings).not.toBeNull();
+    expect(findings!.some((f) => f.condition === 'Distant Repeater')).toBe(true);
+  });
+
+  it('does not flag Distant Repeater when hops <= 3', () => {
+    const node = baseNode({ hw_model: 'Repeater', hops_away: 3 });
+    const findings = diagnoseOtherNode(node);
+    expect(findings?.some((f) => f.condition === 'Distant Repeater') ?? false).toBe(false);
+  });
+
+  it('does not flag Distant Repeater for non-Repeater nodes far away', () => {
+    const node = baseNode({ hw_model: '', hops_away: 5 });
+    const findings = diagnoseOtherNode(node);
+    expect(findings?.some((f) => f.condition === 'Distant Repeater') ?? false).toBe(false);
+  });
+});
+
+describe('diagnoseConnectedNode — MeshCore stats', () => {
+  it('flags Elevated Noise Floor when noiseFloor > -95 dBm', () => {
+    const node = baseNode({
+      meshcore_local_stats: {
+        batteryMilliVolts: 0,
+        uptimeSecs: 0,
+        queueLen: 0,
+        noiseFloor: -90,
+        lastRssi: 0,
+        lastSnr: 0,
+        txAirSecs: 0,
+        rxAirSecs: 0,
+        recv: 0,
+        sent: 0,
+        nSentFlood: 0,
+        nSentDirect: 0,
+        nRecvFlood: 0,
+        nRecvDirect: 0,
+      },
+    });
+    const findings = diagnoseConnectedNode(node);
+    expect(findings.some((f) => f.condition === 'Elevated Noise Floor')).toBe(true);
+  });
+
+  it('does not flag Elevated Noise Floor when noiseFloor <= -95 dBm', () => {
+    const node = baseNode({
+      meshcore_local_stats: {
+        batteryMilliVolts: 0,
+        uptimeSecs: 0,
+        queueLen: 0,
+        noiseFloor: -100,
+        lastRssi: 0,
+        lastSnr: 0,
+        txAirSecs: 0,
+        rxAirSecs: 0,
+        recv: 0,
+        sent: 0,
+        nSentFlood: 0,
+        nSentDirect: 0,
+        nRecvFlood: 0,
+        nRecvDirect: 0,
+      },
+    });
+    const findings = diagnoseConnectedNode(node);
+    expect(findings.some((f) => f.condition === 'Elevated Noise Floor')).toBe(false);
+  });
+
+  it('flags Excessive Flooding when >90% flood and totalSent >= 20', () => {
+    const node = baseNode({
+      meshcore_local_stats: {
+        batteryMilliVolts: 0,
+        uptimeSecs: 0,
+        queueLen: 0,
+        noiseFloor: -110,
+        lastRssi: 0,
+        lastSnr: 0,
+        txAirSecs: 0,
+        rxAirSecs: 0,
+        recv: 0,
+        sent: 0,
+        nSentFlood: 19,
+        nSentDirect: 1,
+        nRecvFlood: 0,
+        nRecvDirect: 0,
+      },
+    });
+    const findings = diagnoseConnectedNode(node);
+    expect(findings.some((f) => f.condition === 'Excessive Flooding')).toBe(true);
+  });
+
+  it('does not flag Excessive Flooding when totalSent < 20', () => {
+    const node = baseNode({
+      meshcore_local_stats: {
+        batteryMilliVolts: 0,
+        uptimeSecs: 0,
+        queueLen: 0,
+        noiseFloor: -110,
+        lastRssi: 0,
+        lastSnr: 0,
+        txAirSecs: 0,
+        rxAirSecs: 0,
+        recv: 0,
+        sent: 0,
+        nSentFlood: 10,
+        nSentDirect: 0,
+        nRecvFlood: 0,
+        nRecvDirect: 0,
+      },
+    });
+    const findings = diagnoseConnectedNode(node);
+    expect(findings.some((f) => f.condition === 'Excessive Flooding')).toBe(false);
+  });
 });

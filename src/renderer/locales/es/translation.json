@@ -1241,7 +1241,8 @@
       "badRoute": "Ruta incorrecta",
       "routeFlapping": "Aleteo de ruta",
       "impossibleHop": "Salto imposible",
-      "noisyNode": "Nodo ruidoso"
+      "noisyNode": "Nodo ruidoso",
+      "weakLink": "punto de ruptura"
     },
     "routingDesc": {
       "hopGoblinKm": "A solo {{distanceKm}} km de distancia, pero tomando {{hops}} saltos: salto excesivo crítico",
@@ -1249,7 +1250,9 @@
       "badRouteSuboptimalMi": "A solo {{distanceMi}} mi de distancia, pero tomando {{hops}} saltos — posible ruta subóptima",
       "impossibleHopMi": "Informado como a 0 saltos de distancia, pero a {{miles}} millas de distancia: GPS o datos de enrutamiento sospechosos",
       "routeFlapping": "El recuento de saltos ha cambiado {{changes}} veces en los últimos 10 minutos: ruta inestable",
-      "noisyNode": "Enviando {{ratePerHour}}/hr el {{ports}} — tráfico excesivo"
+      "noisyNode": "Enviando {{ratePerHour}}/hr el {{ports}} — tráfico excesivo",
+      "pathInstability": "Ruta cambiada {{changes}} veces en los últimos 10 minutos: la ruta es inestable",
+      "weakLink": "Enlace débil en hop {{hop}} (SNR {{snr}} dB) — retransmisión de señal baja en la ruta trazada"
     },
     "rfCondition": {
       "utilizationVsTx": "Utilización vs. TX",
@@ -1265,7 +1268,10 @@
       "meshcoreActivityDetected": "Actividad MeshCore detectada",
       "meshtasticTrafficDetected": "Tráfico Meshtastic detectado",
       "unknownLoraTraffic": "Tráfico LoRa desconocido",
-      "potentialMeshcoreRepeaterConflict": "Conflicto potencial del repetidor MeshCore"
+      "potentialMeshcoreRepeaterConflict": "Conflicto potencial del repetidor MeshCore",
+      "elevatedNoiseFloor": "Piso de ruido elevado",
+      "excessiveFlooding": "Inundaciones excesivas",
+      "distantRepeater": "Repetidor distante"
     },
     "rfCause": {
       "channelUtilizationSpike": "El {{current}}% actual supera en más de 2veces la media reciente ({{average}}%) — posible congestión o aumento de interferencias.",
@@ -1277,7 +1283,10 @@
       "loraCollisionCorruption": "Se detectó el preámbulo pero falló la CRC/decodificación (la mayoría de las veces tráfico LoRa no Meshtastic).",
       "externalInterference": "Transmisor cercano que domina el canal: su nodo retrocede para evitar colisiones.",
       "widebandNoiseFloor": "Interferencia de banda ancha (electrónica defectuosa, ruido de la línea eléctrica, etc.) que eleva el nivel de ruido.",
-      "fringeWeakCoverage": "El nodo está demasiado lejos o mal conectado con el resto de la malla."
+      "fringeWeakCoverage": "El nodo está demasiado lejos o mal conectado con el resto de la malla.",
+      "elevatedNoiseFloor": "El nivel mínimo de ruido de radio es {{noiseFloor}} dBm — interferencia elevada que reduce el alcance efectivo.",
+      "excessiveFlooding": "{{percent}}% de las transmisiones están enrutadas por inundación: es posible que no se establezca un enrutamiento directo con los nodos cercanos.",
+      "distantRepeater": "El repetidor está a {{hops}} saltos de distancia, demasiado lejos para mejorar el enrutamiento de la mayor parte de la malla."
     },
     "foreignLoraCause": {
       "meshcoreVeryClose": "Nodo MeshCore muy cerca (RSSI {{rssi}} dBm) — probablemente causando colisiones de paquetes.",
@@ -1303,7 +1312,9 @@
       "mqttRfOverlapTitle": "Comprobar superposición MQTT / RF",
       "mqttRfOverlapDescription": "{{percent}}% duplicación de paquetes dentro de 5 millas: las rutas de enlace descendente o puente de la puerta de enlace pueden hacer eco de RF; intente ignorar MQTT para los nodos afectados.",
       "duplicateInterferenceTitle": "Comprobar colocación: Aléjese de la electrónica/ruido",
-      "duplicateInterferenceDescription": "{{percent}}% duplicación de paquetes dentro de 5 millas — sospecha de interferencia de RF local."
+      "duplicateInterferenceDescription": "{{percent}}% duplicación de paquetes dentro de 5 millas — sospecha de interferencia de RF local.",
+      "weakLinkTitle": "Añadir o reposicionar un relé en el salto débil",
+      "weakLinkDescription": "La ruta trazada contiene un salto con una SNR inferior a -5 dB; colocar un relé en el punto medio podría estabilizar la ruta."
     },
     "remedyRf": {
       "utilizationVsTx": {
@@ -1345,6 +1356,18 @@
       "fringeWeakCoverage": {
         "title": "Mejorar la ruta o añadir relé",
         "description": "El nodo está en el borde de la cobertura: colocación del relé o actualización de la antena."
+      },
+      "elevatedNoiseFloor": {
+        "title": "Identificar y eliminar la fuente de interferencia",
+        "description": "El ruido de fondo elevado reduce el rango y la SNR: compruebe si hay componentes electrónicos, fuentes de alimentación de conmutación o motores cercanos."
+      },
+      "excessiveFlooding": {
+        "title": "Permita que se establezcan rutas directas",
+        "description": "La relación de inundación es muy alta: espere a que el nodo acumule contactos de trayectoria directa o compruebe la proximidad del repetidor."
+      },
+      "distantRepeater": {
+        "title": "Acerque el repetidor al núcleo de malla",
+        "description": "Repetir más de 3 saltos desde su nodo contribuye poco a la cobertura de la malla: reubíquelo en una posición más central."
       }
     }
   },

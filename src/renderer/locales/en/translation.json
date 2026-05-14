@@ -1244,7 +1244,8 @@
       "badRoute": "Bad route",
       "routeFlapping": "Route flapping",
       "impossibleHop": "Impossible hop",
-      "noisyNode": "Noisy node"
+      "noisyNode": "Noisy node",
+      "weakLink": "Weak link"
     },
     "routingDesc": {
       "hopGoblinKm": "Only {{distanceKm}} km away but taking {{hops}} hops — critical over-hopping",
@@ -1252,6 +1253,8 @@
       "badRouteSuboptimalMi": "Only {{distanceMi}} mi away but taking {{hops}} hops — possible suboptimal route",
       "impossibleHopMi": "Reported as 0 hops away but {{miles}} miles distant — GPS or routing data suspect",
       "routeFlapping": "Hop count changed {{changes}} times in the last 10 minutes — unstable route",
+      "pathInstability": "Route changed {{changes}} times in the last 10 minutes — path is unstable",
+      "weakLink": "Weak link at hop {{hop}} (SNR {{snr}} dB) — low-signal relay on traced path",
       "noisyNode": "Sending {{ratePerHour}}/hr on {{ports}} — excessive traffic"
     },
     "rfCondition": {
@@ -1268,7 +1271,10 @@
       "meshcoreActivityDetected": "MeshCore Activity Detected",
       "meshtasticTrafficDetected": "Meshtastic Traffic Detected",
       "unknownLoraTraffic": "Unknown LoRa Traffic",
-      "potentialMeshcoreRepeaterConflict": "Potential MeshCore Repeater Conflict"
+      "potentialMeshcoreRepeaterConflict": "Potential MeshCore Repeater Conflict",
+      "elevatedNoiseFloor": "Elevated Noise Floor",
+      "excessiveFlooding": "Excessive Flooding",
+      "distantRepeater": "Distant Repeater"
     },
     "rfCause": {
       "channelUtilizationSpike": "Current {{current}}% is over 2× the recent average ({{average}}%) — possible congestion or interference surge.",
@@ -1280,7 +1286,10 @@
       "loraCollisionCorruption": "Preamble detected but CRC/decode failed (most often non-Meshtastic LoRa traffic).",
       "externalInterference": "Nearby transmitter dominating the channel — your node backs off to avoid collisions.",
       "widebandNoiseFloor": "Broadband interference (faulty electronics, power-line noise, etc.) elevating the noise floor.",
-      "fringeWeakCoverage": "Node is too far away or poorly connected to the rest of the mesh."
+      "fringeWeakCoverage": "Node is too far away or poorly connected to the rest of the mesh.",
+      "elevatedNoiseFloor": "Radio noise floor is {{noiseFloor}} dBm — elevated interference reducing effective range.",
+      "excessiveFlooding": "{{percent}}% of transmissions are flood-routed — direct routing may not be established with nearby nodes.",
+      "distantRepeater": "Repeater is {{hops}} hops away — too far to improve routing for most of the mesh."
     },
     "foreignLoraCause": {
       "meshcoreVeryClose": "MeshCore node very close (RSSI {{rssi}} dBm) — likely causing packet collisions.",
@@ -1306,7 +1315,9 @@
       "mqttRfOverlapTitle": "Check MQTT / RF overlap",
       "mqttRfOverlapDescription": "{{percent}}% packet duplication within 5 mi — gateway downlink or bridged paths may echo RF; try Ignore MQTT for affected nodes.",
       "duplicateInterferenceTitle": "Check Placement: Move away from electronics/noise",
-      "duplicateInterferenceDescription": "{{percent}}% packet duplication within 5 mi — local RF interference suspected."
+      "duplicateInterferenceDescription": "{{percent}}% packet duplication within 5 mi — local RF interference suspected.",
+      "weakLinkTitle": "Add or reposition a relay on the weak hop",
+      "weakLinkDescription": "Traced path contains a hop with SNR below -5 dB — placing a relay at the midpoint could stabilize the route."
     },
     "remedyRf": {
       "utilizationVsTx": {
@@ -1348,6 +1359,18 @@
       "fringeWeakCoverage": {
         "title": "Improve path or add relay",
         "description": "Node is at edge of coverage — relay placement or antenna upgrade."
+      },
+      "elevatedNoiseFloor": {
+        "title": "Identify and remove interference source",
+        "description": "Elevated noise floor reduces range and SNR — check for nearby electronics, switching power supplies, or motors."
+      },
+      "excessiveFlooding": {
+        "title": "Allow direct routes to establish",
+        "description": "Flood ratio is very high — wait for the node to accumulate direct-path contacts, or check repeater proximity."
+      },
+      "distantRepeater": {
+        "title": "Move repeater closer to mesh core",
+        "description": "Repeater more than 3 hops from your node contributes little to mesh coverage — relocate it to a more central position."
       }
     },
     "noDiagnosticsHealthy": "No diagnostics detected. The mesh looks healthy!",

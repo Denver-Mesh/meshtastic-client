@@ -1241,7 +1241,8 @@
       "badRoute": "Rute yang buruk",
       "routeFlapping": "Rute mengepak",
       "impossibleHop": "Lompatan yang mustahil",
-      "noisyNode": "Node berisik"
+      "noisyNode": "Node berisik",
+      "weakLink": "Tautan lemah"
     },
     "routingDesc": {
       "hopGoblinKm": "Hanya berjarak {{distanceKm}} km tetapi menempuh {{hops}} lompatan — lompatan yang sangat berlebihan",
@@ -1249,7 +1250,9 @@
       "badRouteSuboptimalMi": "Hanya berjarak {{distanceMi}} mil tetapi menempuh {{hops}} lompatan — kemungkinan rute kurang optimal",
       "impossibleHopMi": "Dilaporkan berjarak 0 lompatan tetapi jaraknya {{miles}} mil — GPS atau data perutean dicurigai",
       "routeFlapping": "Hitungan hop berubah {{changes}} kali dalam 10 menit terakhir — rute tidak stabil",
-      "noisyNode": "Mengirim {{ratePerHour}}/jam pada {{ports}} — lalu lintas berlebihan"
+      "noisyNode": "Mengirim {{ratePerHour}}/jam pada {{ports}} — lalu lintas berlebihan",
+      "pathInstability": "Rute diubah {{changes}} kali dalam 10 menit terakhir — jalur tidak stabil",
+      "weakLink": "Tautan lemah di hop {{hop}} (SNR {{snr}} dB) — relai sinyal rendah di jalur yang dilacak"
     },
     "rfCondition": {
       "utilizationVsTx": "Pemanfaatan vs. TX",
@@ -1265,7 +1268,10 @@
       "meshcoreActivityDetected": "Aktivitas MeshCore Terdeteksi",
       "meshtasticTrafficDetected": "Lalu Lintas Meshtastic Terdeteksi",
       "unknownLoraTraffic": "Lalu Lintas LoRa Tidak Diketahui",
-      "potentialMeshcoreRepeaterConflict": "Potensi Konflik Pengulang MeshCore"
+      "potentialMeshcoreRepeaterConflict": "Potensi Konflik Pengulang MeshCore",
+      "elevatedNoiseFloor": "Lantai Kebisingan Tinggi",
+      "excessiveFlooding": "Banjir Berlebihan",
+      "distantRepeater": "Repeater Jauh"
     },
     "rfCause": {
       "channelUtilizationSpike": "{{current}}% saat ini lebih dari 2× rata-rata terkini ({{average}}%) — kemungkinan kemacetan atau lonjakan gangguan.",
@@ -1277,7 +1283,10 @@
       "loraCollisionCorruption": "Pembukaan terdeteksi tetapi CRC/dekode gagal (paling sering lalu lintas LoRa non-Meshtastic).",
       "externalInterference": "Pemancar terdekat mendominasi saluran — node Anda mundur untuk menghindari tabrakan.",
       "widebandNoiseFloor": "Interferensi broadband (kerusakan elektronik, gangguan saluran listrik, dll.) meningkatkan tingkat kebisingan.",
-      "fringeWeakCoverage": "Node terlalu jauh atau tidak terhubung dengan baik ke seluruh mesh."
+      "fringeWeakCoverage": "Node terlalu jauh atau tidak terhubung dengan baik ke seluruh mesh.",
+      "elevatedNoiseFloor": "Lantai kebisingan radio adalah {{noiseFloor}} dBm — gangguan tinggi yang mengurangi rentang efektif.",
+      "excessiveFlooding": "{{percent}}% transmisi dialiri banjir — perutean langsung mungkin tidak dilakukan dengan node terdekat.",
+      "distantRepeater": "Repeater berjarak {{hops}} hop — terlalu jauh untuk meningkatkan routing untuk sebagian besar mesh."
     },
     "foreignLoraCause": {
       "meshcoreVeryClose": "Node MeshCore sangat dekat (RSSI {{rssi}} dBm) — kemungkinan menyebabkan tabrakan paket.",
@@ -1303,7 +1312,9 @@
       "mqttRfOverlapTitle": "Periksa tumpang tindih MQTT / RF",
       "mqttRfOverlapDescription": "{{percent}}% duplikasi paket dalam jarak 5 mil — downlink gateway atau jalur yang dijembatani mungkin menggemakan RF; coba Abaikan MQTT untuk node yang terpengaruh.",
       "duplicateInterferenceTitle": "Periksa Penempatan: Jauhi elektronik/kebisingan",
-      "duplicateInterferenceDescription": "{{percent}}% duplikasi paket dalam jarak 5 mil — diduga ada interferensi RF lokal."
+      "duplicateInterferenceDescription": "{{percent}}% duplikasi paket dalam jarak 5 mil — diduga ada interferensi RF lokal.",
+      "weakLinkTitle": "Menambahkan atau memposisikan ulang relai pada hop yang lemah",
+      "weakLinkDescription": "Jalur yang dilacak berisi hop dengan SNR di bawah -5 dB — menempatkan relai di titik tengah dapat menstabilkan rute."
     },
     "remedyRf": {
       "utilizationVsTx": {
@@ -1345,6 +1356,18 @@
       "fringeWeakCoverage": {
         "title": "Perbaiki jalur atau tambahkan relai",
         "description": "Node berada di tepi jangkauan — penempatan relai atau peningkatan antena."
+      },
+      "elevatedNoiseFloor": {
+        "title": "Identifikasi dan hapus sumber interferensi",
+        "description": "Lantai kebisingan yang ditinggikan mengurangi jangkauan dan SNR — periksa elektronik di dekatnya, mengganti catu daya, atau motor."
+      },
+      "excessiveFlooding": {
+        "title": "Izinkan rute langsung untuk ditetapkan",
+        "description": "Rasio banjir sangat tinggi — tunggu hingga simpul menumpuk kontak jalur langsung, atau periksa kedekatan repeater."
+      },
+      "distantRepeater": {
+        "title": "Pindahkan repeater lebih dekat ke inti jala",
+        "description": "Pengulang lebih dari 3 hop dari simpul Anda berkontribusi sedikit pada cakupan mesh — pindahkan ke posisi yang lebih sentral."
       }
     }
   },
