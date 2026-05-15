@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
 
+import { draftsStorageKey, saveDraft } from '../lib/chatPanelProtocolStorage';
 import type { ChatMessage, MeshNode } from '../lib/types';
 import ChatPanel, { getDistFromChatBottom } from './ChatPanel';
 import { ToastProvider } from './Toast';
@@ -1546,5 +1547,53 @@ describe('ChatPanel — export chat', () => {
     expect(exportFn).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ payload: 'exported message' })]),
     );
+  });
+});
+
+describe('ChatPanel — draft restored on initial mount', () => {
+  it('loads a previously saved draft for the initial view on mount', async () => {
+    localStorage.clear();
+    saveDraft('meshtastic', 'ch:0', 'persisted draft');
+
+    render(
+      <ToastProvider>
+        <ChatPanel {...baseProps} protocol="meshtastic" />
+      </ToastProvider>,
+    );
+
+    const textarea = await screen.findByRole('textbox');
+    expect(textarea).toHaveValue('persisted draft');
+
+    localStorage.setItem(draftsStorageKey('meshtastic'), '{}');
+  });
+});
+
+describe('ChatPanel — notification mute toggle', () => {
+  it('toggles aria-pressed and persists preference to localStorage', async () => {
+    const user = userEvent.setup();
+    localStorage.removeItem('mesh-client:notifMuted');
+
+    render(
+      <ToastProvider>
+        <ChatPanel {...baseProps} />
+      </ToastProvider>,
+    );
+
+    const muteBtn = screen.getByRole('button', { name: /mute notifications/i });
+    expect(muteBtn).toHaveAttribute('aria-pressed', 'false');
+
+    await user.click(muteBtn);
+    expect(screen.getByRole('button', { name: /unmute notifications/i })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(localStorage.getItem('mesh-client:notifMuted')).toBe('1');
+
+    await user.click(screen.getByRole('button', { name: /unmute notifications/i }));
+    expect(screen.getByRole('button', { name: /mute notifications/i })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+    expect(localStorage.getItem('mesh-client:notifMuted')).toBe('0');
   });
 });

@@ -1,4 +1,4 @@
-import type { UpdateCheckingPayload } from '@/shared/electron-api.types';
+import type { ChatExportMessage, UpdateCheckingPayload } from '@/shared/electron-api.types';
 import type { TAKClientInfo, TAKServerStatus, TAKSettings } from '@/shared/tak-types';
 
 export type { TAKClientInfo, TAKServerStatus, TAKSettings };
@@ -833,15 +833,7 @@ declare global {
         onClientDisconnected: (cb: (clientId: string) => void) => () => void;
       };
       chat: {
-        export: (
-          messages: {
-            timestamp: number;
-            sender_name: string;
-            payload: string;
-            channel: number;
-            to?: number;
-          }[],
-        ) => Promise<{ success: boolean; path?: string }>;
+        export: (messages: ChatExportMessage[]) => Promise<{ success: boolean; path?: string }>;
       };
     };
   }

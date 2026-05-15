@@ -3849,13 +3849,18 @@ ipcMain.handle('chat:export', async (event, messages: unknown) => {
       filters: [{ name: 'Text file', extensions: ['txt'] }],
     });
     if (result.canceled || !result.filePath) return { success: false };
-    const lines = (messages as Record<string, unknown>[]).map((m) => {
-      const time = new Date(Number(m.timestamp ?? 0)).toISOString().replace('T', ' ').slice(0, 19);
-      const sender = typeof m.sender_name === 'string' ? m.sender_name : '';
-      const ch = typeof m.channel === 'number' ? m.channel : 0;
-      const dest = m.to != null ? ' (DM)' : ` (ch${ch})`;
-      const body = typeof m.payload === 'string' ? m.payload : '';
-      return `[${time}] ${sender}${dest}: ${body}`;
+    const lines = (messages as unknown[]).flatMap((m) => {
+      if (typeof m !== 'object' || m === null) return [];
+      const item = m as Record<string, unknown>;
+      const time = new Date(Number(item.timestamp ?? 0))
+        .toISOString()
+        .replace('T', ' ')
+        .slice(0, 19);
+      const sender = typeof item.sender_name === 'string' ? item.sender_name : '';
+      const ch = typeof item.channel === 'number' ? item.channel : 0;
+      const dest = item.to != null ? ' (DM)' : ` (ch${ch})`;
+      const body = typeof item.payload === 'string' ? item.payload : '';
+      return [`[${time}] ${sender}${dest}: ${body}`];
     });
     await fs.promises.writeFile(result.filePath, lines.join('\n') + '\n', 'utf8');
     return { success: true, path: result.filePath };

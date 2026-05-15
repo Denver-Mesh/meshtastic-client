@@ -599,16 +599,17 @@ function ChatPanel({
     markCurrentViewRead();
   }, [isActive, markCurrentViewRead]);
 
-  // Draft persistence: save/restore unsent input when view changes
-  const prevViewKeyRef = useRef(viewKey);
+  // Draft persistence: save/restore unsent input when view changes (also loads on initial mount)
+  const prevViewKeyRef = useRef<string | null>(null);
   useEffect(() => {
     const prevKey = prevViewKeyRef.current;
-    if (prevKey === viewKey) return;
-    const currentInput = inputValueRef.current;
-    if (currentInput.trim()) {
-      saveDraft(protocol, prevKey, currentInput);
-    } else {
-      clearDraft(protocol, prevKey);
+    if (prevKey !== null && prevKey !== viewKey) {
+      const currentInput = inputValueRef.current;
+      if (currentInput.trim()) {
+        saveDraft(protocol, prevKey, currentInput);
+      } else {
+        clearDraft(protocol, prevKey);
+      }
     }
     prevViewKeyRef.current = viewKey;
     const drafts = loadDraftsInitial(protocol);
