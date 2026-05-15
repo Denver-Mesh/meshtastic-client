@@ -623,18 +623,18 @@ function ChatPanel({
     localStorage.setItem('mesh-client:notifMuted', notifMuted ? '1' : '0');
   }, [notifMuted]);
 
-  // Sound notification for messages in non-active channel/DM
+  // Sound notification: plays when a new message arrives and the user isn't actively reading it.
   useEffect(() => {
     const prevLen = prevMessagesLengthRef.current;
     prevMessagesLengthRef.current = messages.length;
-    if (!isActive || notifMuted || messages.length <= prevLen) return;
+    if (notifMuted || messages.length <= prevLen) return;
     const newMsgs = messages.slice(prevLen);
     for (const msg of newMsgs) {
       if (isOwnNode(msg.sender_id)) continue;
       if (msg.isHistory) continue;
       const peer = msg.to != null ? (isOwnNode(msg.to) ? msg.sender_id : msg.to) : null;
       const msgViewKey = peer != null ? `dm:${peer}` : `ch:${msg.channel}`;
-      if (msgViewKey !== viewKey) {
+      if (!isActive || msgViewKey !== viewKey || document.hidden) {
         playMessageNotification();
         break;
       }

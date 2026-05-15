@@ -1602,10 +1602,13 @@ describe('ChatPanel — notification mute toggle', () => {
 });
 
 describe('ChatPanel — notification sound on new messages', () => {
-  it('does not play sound for messages already present at mount (e.g. after protocol switch)', async () => {
-    const playMock = vi.mocked(chatNotifications.playMessageNotification);
-    playMock.mockClear();
+  const playMock = vi.mocked(chatNotifications.playMessageNotification);
 
+  beforeEach(() => {
+    playMock.mockClear();
+  });
+
+  it('does not play sound for messages already present at mount (e.g. after protocol switch)', async () => {
     // Message is in channel 1, but the default view starts on channel 0 — this is
     // exactly the case that would trigger the erroneous sound before the fix.
     const existingMsg = makeMsg({ sender_id: 2, channel: 1, isHistory: undefined });
@@ -1618,5 +1621,26 @@ describe('ChatPanel — notification sound on new messages', () => {
 
     await screen.findByRole('textbox');
     expect(playMock).not.toHaveBeenCalled();
+  });
+
+  it('plays sound for a new message when not on the chat panel (isActive=false)', async () => {
+    const { rerender } = render(
+      <ToastProvider>
+        <ChatPanel {...baseProps} messages={[]} isActive={false} />
+      </ToastProvider>,
+    );
+
+    await screen.findByRole('textbox');
+    playMock.mockClear();
+
+    const newMsg = makeMsg({ sender_id: 2, channel: 0, isHistory: undefined });
+    rerender(
+      <ToastProvider>
+        <ChatPanel {...baseProps} messages={[newMsg]} isActive={false} />
+      </ToastProvider>,
+    );
+
+    await screen.findByRole('textbox');
+    expect(playMock).toHaveBeenCalledOnce();
   });
 });
