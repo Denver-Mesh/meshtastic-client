@@ -3838,6 +3838,36 @@ ipcMain.handle('log:export', async (event) => {
   }
 });
 
+ipcMain.handle('chat:export', async (event, messages: unknown) => {
+  if (!validateIpcSender(event)) throw new Error('IPC sender validation failed');
+  if (!Array.isArray(messages)) throw new Error('messages must be an array');
+  if (!mainWindow) return { success: false };
+  try {
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: 'Export chat',
+      defaultPath: `mesh-chat-${new Date().toISOString().slice(0, 10)}.txt`,
+      filters: [{ name: 'Text file', extensions: ['txt'] }],
+    });
+    if (result.canceled || !result.filePath) return { success: false };
+    const lines = (messages as Record<string, unknown>[]).map((m) => {
+      const time = new Date(Number(m.timestamp ?? 0)).toISOString().replace('T', ' ').slice(0, 19);
+      const sender = typeof m.sender_name === 'string' ? m.sender_name : '';
+      const ch = typeof m.channel === 'number' ? m.channel : 0;
+      const dest = m.to != null ? ' (DM)' : ` (ch${ch})`;
+      const body = typeof m.payload === 'string' ? m.payload : '';
+      return `[${time}] ${sender}${dest}: ${body}`;
+    });
+    await fs.promises.writeFile(result.filePath, lines.join('\n') + '\n', 'utf8');
+    return { success: true, path: result.filePath };
+  } catch (err) {
+    console.error(
+      '[IPC] chat:export failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
 // ─── IPC: MeshCore database operations ──────────────────────────────
 ipcMain.handle('db:getMeshcoreMessages', (_event, channelIdx?: number, limit = 200) => {
   try {

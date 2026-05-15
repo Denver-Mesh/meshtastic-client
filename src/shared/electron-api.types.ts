@@ -95,6 +95,14 @@ export interface LogEntry {
   message: string;
 }
 
+export interface ChatExportMessage {
+  timestamp: number;
+  sender_name: string;
+  payload: string;
+  channel: number;
+  to?: number;
+}
+
 // ─── ElectronAPI interface ────────────────────────────────────────────────────
 
 export interface ElectronAPI {
@@ -588,6 +596,11 @@ export interface ElectronAPI {
     write: (bytes: number[]) => Promise<void>;
     disconnect: () => Promise<void>;
     onData: (cb: (bytes: Uint8Array) => void) => () => void;
+  };
+
+  // ─── Chat export ─────────────────────────────────────────────────────────────
+  chat: {
+    export: (messages: ChatExportMessage[]) => Promise<{ success: boolean; path?: string }>;
   };
 
   // ─── TAK server ──────────────────────────────────────────────────────────────

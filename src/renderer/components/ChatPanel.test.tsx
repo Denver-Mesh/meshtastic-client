@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'vitest-axe';
@@ -1253,5 +1253,298 @@ describe('ChatPanel RF hop label', () => {
       </ToastProvider>,
     );
     expect(await screen.findByText('3 hops')).toBeInTheDocument();
+  });
+});
+
+// ─── New feature tests ──────────────────────────────────────────────────────
+
+const baseProps = {
+  messages: [] as ChatMessage[],
+  channels: [
+    { index: 0, name: 'General' },
+    { index: 1, name: 'Admin' },
+  ],
+  myNodeNum: 1,
+  onSend: vi.fn().mockResolvedValue(undefined),
+  onReact: vi.fn().mockResolvedValue(undefined),
+  onResend: vi.fn(),
+  onNodeClick: vi.fn(),
+  isConnected: true,
+  nodes: new Map<number, MeshNode>(),
+  isActive: true,
+};
+
+function makeMsg(overrides: Partial<ChatMessage>): ChatMessage {
+  return {
+    sender_id: 2,
+    sender_name: 'Alice',
+    payload: 'hello',
+    channel: 0,
+    timestamp: Date.now(),
+    ...overrides,
+  };
+}
+
+describe('ChatPanel — copy button', () => {
+  it('shows a Copy button on each message and writes payload to clipboard', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      writable: true,
+      configurable: true,
+    });
+
+    render(
+      <ToastProvider>
+        <ChatPanel {...baseProps} messages={[makeMsg({ payload: 'copy me' })]} />
+      </ToastProvider>,
+    );
+
+    const btn = await screen.findByTitle('Copy message');
+    await user.click(btn);
+    expect(writeText).toHaveBeenCalledWith('copy me');
+  });
+});
+
+describe('ChatPanel — sender filter', () => {
+  it('shows all messages by default, filter banner absent', () => {
+    render(
+      <ToastProvider>
+        <ChatPanel
+          {...baseProps}
+          messages={[
+            makeMsg({ sender_id: 2, sender_name: 'Alice', payload: 'from alice' }),
+            makeMsg({ sender_id: 3, sender_name: 'Bob', payload: 'from bob' }),
+          ]}
+        />
+      </ToastProvider>,
+    );
+    expect(screen.getByText('from alice')).toBeInTheDocument();
+    expect(screen.getByText('from bob')).toBeInTheDocument();
+    expect(screen.queryByText(/Filtering by/)).not.toBeInTheDocument();
+  });
+
+  it('filters to sender when filter button is clicked, shows banner', async () => {
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <ChatPanel
+          {...baseProps}
+          messages={[
+            makeMsg({ sender_id: 2, sender_name: 'Alice', payload: 'from alice' }),
+            makeMsg({ sender_id: 3, sender_name: 'Bob', payload: 'from bob' }),
+          ]}
+          nodes={
+            new Map([
+              [
+                2,
+                {
+                  node_id: 2,
+                  long_name: 'Alice',
+                  short_name: 'A',
+                  hw_model: '',
+                  snr: 0,
+                  battery: 0,
+                  last_heard: Date.now(),
+                  latitude: null,
+                  longitude: null,
+                },
+              ],
+            ])
+          }
+        />
+      </ToastProvider>,
+    );
+    const filterBtns = screen.getAllByLabelText('Filter by sender');
+    await user.click(filterBtns[0]);
+    expect(screen.queryByText('from bob')).not.toBeInTheDocument();
+    expect(screen.getByText('from alice')).toBeInTheDocument();
+    expect(screen.getByText(/Filtering by/)).toBeInTheDocument();
+  });
+
+  it('clears filter when × is clicked', async () => {
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <ChatPanel
+          {...baseProps}
+          messages={[
+            makeMsg({ sender_id: 2, sender_name: 'Alice', payload: 'from alice' }),
+            makeMsg({ sender_id: 3, sender_name: 'Bob', payload: 'from bob' }),
+          ]}
+          nodes={
+            new Map([
+              [
+                2,
+                {
+                  node_id: 2,
+                  long_name: 'Alice',
+                  short_name: 'A',
+                  hw_model: '',
+                  snr: 0,
+                  battery: 0,
+                  last_heard: Date.now(),
+                  latitude: null,
+                  longitude: null,
+                },
+              ],
+            ])
+          }
+        />
+      </ToastProvider>,
+    );
+    const filterBtns = screen.getAllByLabelText('Filter by sender');
+    await user.click(filterBtns[0]);
+    await user.click(screen.getByLabelText('Clear filter'));
+    expect(screen.getByText('from alice')).toBeInTheDocument();
+    expect(screen.getByText('from bob')).toBeInTheDocument();
+  });
+});
+
+describe('ChatPanel — draft persistence', () => {
+  it('preserves unsent input when switching channels', async () => {
+    const user = userEvent.setup();
+    localStorage.clear();
+    render(
+      <ToastProvider>
+        <ChatPanel
+          {...baseProps}
+          protocol="meshtastic"
+          channels={[
+            { index: 0, name: 'General' },
+            { index: 1, name: 'Admin' },
+          ]}
+        />
+      </ToastProvider>,
+    );
+    const textarea = screen.getByRole('textbox');
+    await user.type(textarea, 'unsent draft');
+    expect(textarea).toHaveValue('unsent draft');
+
+    // Switch to channel 1 (second channel button)
+    const channelButtons = screen.getAllByRole('button', { name: /General|Admin|ch0|ch1/i });
+    const adminBtn = channelButtons.find((b) => /Admin|ch1|1/i.test(b.textContent ?? ''));
+    if (adminBtn) {
+      await user.click(adminBtn);
+      expect(textarea).toHaveValue('');
+      // Switch back
+      const generalBtn = screen
+        .getAllByRole('button')
+        .find((b) => /General|ch0/i.test(b.textContent ?? ''));
+      if (generalBtn) {
+        await user.click(generalBtn);
+        expect(textarea).toHaveValue('unsent draft');
+      }
+    }
+  });
+});
+
+describe('ChatPanel — DM node info header', () => {
+  it('shows battery and signal info when DM tab is active', async () => {
+    const dmNode: MeshNode = {
+      node_id: 2,
+      long_name: 'Alice',
+      short_name: 'A',
+      hw_model: '',
+      snr: 5,
+      battery: 72,
+      last_heard: Date.now() - 120_000,
+      latitude: null,
+      longitude: null,
+    };
+    render(
+      <ToastProvider>
+        <ChatPanel
+          {...baseProps}
+          protocol="meshtastic"
+          nodes={new Map([[2, dmNode]])}
+          messages={[makeMsg({ sender_id: 2, sender_name: 'Alice', payload: 'hi', to: 1 })]}
+          initialDmTarget={2}
+        />
+      </ToastProvider>,
+    );
+    // The DM info bar should be visible once the DM tab auto-opens
+    const infoBar = await screen.findByRole('status', { name: 'DM peer info' });
+    expect(infoBar).toBeInTheDocument();
+    expect(infoBar.textContent).toContain('72%');
+    expect(infoBar.textContent).toContain('5');
+  });
+});
+
+describe('ChatPanel — @mention autocomplete', () => {
+  const aliceNode: MeshNode = {
+    node_id: 2,
+    long_name: 'Alice',
+    short_name: 'Al',
+    hw_model: '',
+    snr: 0,
+    battery: 0,
+    last_heard: Date.now(),
+    latitude: null,
+    longitude: null,
+  };
+
+  it('shows autocomplete dropdown when @ is typed', async () => {
+    render(
+      <ToastProvider>
+        <ChatPanel {...baseProps} protocol="meshtastic" nodes={new Map([[2, aliceNode]])} />
+      </ToastProvider>,
+    );
+    const textarea = screen.getByRole('textbox');
+    // fireEvent.change gives us reliable selectionStart control
+    fireEvent.change(textarea, { target: { value: '@' } });
+    // After @ alone, candidates = all nodes; dropdown should appear
+    const listbox = await screen.findByRole('listbox', { name: 'Mention suggestions' });
+    expect(listbox).toBeInTheDocument();
+  });
+
+  it('inserts @[Name] token when dropdown option is clicked', async () => {
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <ChatPanel {...baseProps} protocol="meshtastic" nodes={new Map([[2, aliceNode]])} />
+      </ToastProvider>,
+    );
+    const textarea = screen.getByRole('textbox');
+    fireEvent.change(textarea, { target: { value: '@Al' } });
+    const option = await screen.findByRole('option');
+    await user.click(option);
+    // Value should contain @[ ... ] mention token (name is short_name for meshtastic)
+    expect((textarea as HTMLTextAreaElement).value).toContain('@[');
+  });
+});
+
+describe('ChatPanel — jump to date', () => {
+  it('shows date input when calendar button is clicked', async () => {
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <ChatPanel {...baseProps} />
+      </ToastProvider>,
+    );
+    const calBtn = screen.getByLabelText('Jump to date');
+    expect(screen.queryByLabelText('Jump to date', { selector: 'input' })).not.toBeInTheDocument();
+    await user.click(calBtn);
+    expect(screen.getByLabelText('Jump to date', { selector: 'input' })).toBeInTheDocument();
+  });
+});
+
+describe('ChatPanel — export chat', () => {
+  it('calls window.electronAPI.chat.export with current messages', async () => {
+    const user = userEvent.setup();
+    const exportFn = vi.fn().mockResolvedValue({ success: true, path: '/tmp/chat.txt' });
+    (window.electronAPI as any).chat = { export: exportFn };
+
+    render(
+      <ToastProvider>
+        <ChatPanel {...baseProps} messages={[makeMsg({ payload: 'exported message' })]} />
+      </ToastProvider>,
+    );
+    const exportBtn = screen.getByTitle('Export chat');
+    await user.click(exportBtn);
+    expect(exportFn).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ payload: 'exported message' })]),
+    );
   });
 });

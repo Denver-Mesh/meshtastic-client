@@ -14,13 +14,18 @@ import {
 import { useTranslation } from 'react-i18next';
 
 import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
+import type { ChatExportMessage } from '@/shared/electron-api.types';
 
+import { playMessageNotification } from '../lib/chatNotifications';
 import {
+  clearDraft,
   dismissedDmTabsStorageKey,
   lastReadStorageKey,
+  loadDraftsInitial,
   loadOpenDmTabsInitial,
   loadPersistedLastReadInitial,
   openDmTabsStorageKey,
+  saveDraft,
 } from '../lib/chatPanelProtocolStorage';
 import { nodeDisplayName } from '../lib/nodeLongNameOrHex';
 import { parseStoredJson } from '../lib/parseStoredJson';
@@ -30,6 +35,7 @@ import { CHAT_COMPACT_CONTINUATION_TIME_GAP_MS } from '../lib/timeConstants';
 import type { ChatMessage, MeshNode, MeshProtocol } from '../lib/types';
 import { ChatPayloadText } from './ChatPayloadText';
 import { HelpTooltip } from './HelpTooltip';
+import MentionAutocomplete, { buildMentionCandidates } from './MentionAutocomplete';
 
 declare module 'react' {
   // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -328,6 +334,28 @@ function ChatPanel({
   const handleReactRef = useRef<any>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // Feature: draft persistence — always reflect latest input/viewKey in refs used by effects
+  const inputValueRef = useRef(input);
+  inputValueRef.current = input;
+
+  // Feature: sender filter
+  const [filterSender, setFilterSender] = useState<number | null>(null);
+
+  // Feature: jump to date
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [jumpDate, setJumpDate] = useState('');
+
+  // Feature: sound notifications
+  const [notifMuted, setNotifMuted] = useState(
+    () => localStorage.getItem('mesh-client:notifMuted') === '1',
+  );
+  const prevMessagesLengthRef = useRef(0);
+
+  // Feature: @mention autocomplete
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionTriggerPos, setMentionTriggerPos] = useState(0);
+  const [mentionSelectedIdx, setMentionSelectedIdx] = useState(0);
+
   // Two-section UI state — load DM tabs from localStorage for restart persistence
   const [viewMode, setViewMode] = useState<'channels' | 'dm'>('channels');
   const [openDmTabs, setOpenDmTabs] = useState<number[]>(() => loadOpenDmTabsInitial(protocol));
@@ -540,8 +568,11 @@ function ChatPanel({
         (m) => m.payload.toLowerCase().includes(q) || m.sender_name.toLowerCase().includes(q),
       );
     }
+    if (filterSender != null) {
+      msgs = msgs.filter((m) => m.sender_id === filterSender);
+    }
     return msgs;
-  }, [searchQuery, viewMessages]);
+  }, [searchQuery, viewMessages, filterSender]);
 
   const viewKey = useMemo(() => {
     if (viewMode === 'dm' && activeDmNode != null) return `dm:${activeDmNode}`;
@@ -567,6 +598,47 @@ function ChatPanel({
     if (!isActive) return;
     markCurrentViewRead();
   }, [isActive, markCurrentViewRead]);
+
+  // Draft persistence: save/restore unsent input when view changes
+  const prevViewKeyRef = useRef(viewKey);
+  useEffect(() => {
+    const prevKey = prevViewKeyRef.current;
+    if (prevKey === viewKey) return;
+    const currentInput = inputValueRef.current;
+    if (currentInput.trim()) {
+      saveDraft(protocol, prevKey, currentInput);
+    } else {
+      clearDraft(protocol, prevKey);
+    }
+    prevViewKeyRef.current = viewKey;
+    const drafts = loadDraftsInitial(protocol);
+    setInput(drafts[viewKey] ?? '');
+    setMentionQuery(null);
+    setFilterSender(null);
+  }, [viewKey, protocol]);
+
+  // Persist notification mute preference
+  useEffect(() => {
+    localStorage.setItem('mesh-client:notifMuted', notifMuted ? '1' : '0');
+  }, [notifMuted]);
+
+  // Sound notification for messages in non-active channel/DM
+  useEffect(() => {
+    const prevLen = prevMessagesLengthRef.current;
+    prevMessagesLengthRef.current = messages.length;
+    if (!isActive || notifMuted || messages.length <= prevLen) return;
+    const newMsgs = messages.slice(prevLen);
+    for (const msg of newMsgs) {
+      if (isOwnNode(msg.sender_id)) continue;
+      if (msg.isHistory) continue;
+      const peer = msg.to != null ? (isOwnNode(msg.to) ? msg.sender_id : msg.to) : null;
+      const msgViewKey = peer != null ? `dm:${peer}` : `ch:${msg.channel}`;
+      if (msgViewKey !== viewKey) {
+        playMessageNotification();
+        break;
+      }
+    }
+  }, [messages, isActive, notifMuted, viewKey, isOwnNode]);
 
   const updateScrollButtonVisibility = useCallback(() => {
     const distFromBottom = getDistFromChatBottom(
@@ -693,8 +765,14 @@ function ChatPanel({
       if (e.key === 'Escape') {
         setPickerOpenFor(null);
         setShowComposePicker(false);
-        if (replyTo) {
+        if (mentionQuery != null) {
+          setMentionQuery(null);
+        } else if (replyTo) {
           setReplyTo(null);
+        } else if (filterSender != null) {
+          setFilterSender(null);
+        } else if (showDatePicker) {
+          setShowDatePicker(false);
         } else if (showSearch) {
           setShowSearch(false);
         } else if (viewMode === 'dm') {
@@ -706,7 +784,7 @@ function ChatPanel({
     return () => {
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [showSearch, viewMode, replyTo]);
+  }, [showSearch, viewMode, replyTo, mentionQuery, filterSender, showDatePicker]);
 
   // Toggle search with Cmd+F / Ctrl+F
   useEffect(() => {
@@ -740,6 +818,8 @@ function ChatPanel({
       const sendOutcome = onSend(input.trim(), sendChannel, destination, replyKey);
       await Promise.resolve(sendOutcome);
       setInput('');
+      clearDraft(protocol, viewKey);
+      setMentionQuery(null);
       setReplyTo(null);
       const now = Date.now();
       setPersistedLastRead((prev) => ({ ...prev, [viewKey]: now }));
@@ -774,6 +854,24 @@ function ChatPanel({
   handleReactRef.current = handleReact;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (mentionQuery != null && mentionCandidates.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionSelectedIdx((i) => Math.min(i + 1, mentionCandidates.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionSelectedIdx((i) => Math.max(0, i - 1));
+        return;
+      }
+      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
+        e.preventDefault();
+        const candidate = mentionCandidates[mentionSelectedIdx];
+        if (candidate) insertMention(candidate.name);
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       void handleSend();
@@ -917,6 +1015,49 @@ function ChatPanel({
 
   const isDmMode = viewMode === 'dm' && activeDmNode != null;
   const dmNodeName = activeDmNode != null ? getDmLabel(activeDmNode) : '';
+  // @mention autocomplete candidates
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
+  const mentionCandidates = useMemo(
+    () =>
+      mentionQuery != null
+        ? buildMentionCandidates(nodes, protocol ?? 'meshtastic', mentionQuery)
+        : [],
+    [mentionQuery, nodes, protocol],
+  );
+
+  const insertMention = useCallback(
+    (name: string) => {
+      const textarea = inputRef.current;
+      const currentInput = inputValueRef.current;
+      const insert = `@[${name}] `;
+      const before = currentInput.slice(0, mentionTriggerPos);
+      const after = currentInput.slice(mentionTriggerPos + (mentionQuery?.length ?? 0) + 1);
+      const newVal = before + insert + after;
+      if (newVal.length > 228) return;
+      setInput(newVal);
+      setMentionQuery(null);
+      requestAnimationFrame(() => {
+        const newCursor = mentionTriggerPos + insert.length;
+        textarea?.focus();
+        textarea?.setSelectionRange(newCursor, newCursor);
+      });
+    },
+    [mentionTriggerPos, mentionQuery],
+  );
+
+  // Jump to date — scroll to first message with matching day key
+  const handleJumpToDate = useCallback((dateStr: string) => {
+    if (!dateStr) return;
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const targetKey = `${y}-${m - 1}-${d}`;
+    const root = scrollContainerRef.current;
+    if (!root) return;
+    const el = root.querySelector(`[data-chat-day-key="${targetKey}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
+
   const composePlaceholder = useMemo(
     () =>
       isDmMode
@@ -969,6 +1110,108 @@ function ChatPanel({
             );
           })}
         </div>
+
+        {/* Notification mute toggle */}
+        <button
+          onClick={() => {
+            setNotifMuted((m) => !m);
+          }}
+          aria-pressed={notifMuted}
+          aria-label={
+            notifMuted ? t('chatPanel.unmuteNotifications') : t('chatPanel.muteNotifications')
+          }
+          className={`shrink-0 rounded-lg p-1.5 transition-colors ${
+            notifMuted ? 'text-gray-600 hover:text-gray-300' : 'text-muted hover:text-gray-300'
+          }`}
+          title={notifMuted ? t('chatPanel.unmuteNotifications') : t('chatPanel.muteNotifications')}
+        >
+          <svg
+            className="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+            aria-hidden="true"
+          >
+            {notifMuted ? (
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"
+              />
+            ) : (
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M15.536 8.464a5 5 0 010 7.072M12 6v12m-3.536-9.536a5 5 0 000 7.072M4 12H2"
+              />
+            )}
+          </svg>
+        </button>
+
+        {/* Jump-to-date toggle */}
+        <button
+          onClick={() => {
+            setShowDatePicker((v) => !v);
+          }}
+          aria-pressed={showDatePicker}
+          aria-label={t('chatPanel.jumpToDate')}
+          className={`shrink-0 rounded-lg p-1.5 transition-colors ${
+            showDatePicker
+              ? 'bg-brand-green/20 text-bright-green'
+              : 'text-muted hover:text-gray-300'
+          }`}
+          title={t('chatPanel.jumpToDate')}
+        >
+          <svg
+            className="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+            />
+          </svg>
+        </button>
+
+        {/* Export chat */}
+        <button
+          onClick={async () => {
+            const msgs: ChatExportMessage[] = filteredMessages.map((m) => ({
+              timestamp: m.timestamp,
+              sender_name: m.sender_name,
+              payload: m.payload,
+              channel: m.channel,
+              to: m.to,
+            }));
+            const result = await window.electronAPI.chat.export(msgs);
+            if (!result.success)
+              setChatActionError({ message: t('chatPanel.exportChatFailed'), viewKey });
+          }}
+          aria-label={t('chatPanel.exportChat')}
+          className="text-muted shrink-0 rounded-lg p-1.5 transition-colors hover:text-gray-300"
+          title={t('chatPanel.exportChat')}
+        >
+          <svg
+            className="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+            />
+          </svg>
+        </button>
 
         {/* Search toggle */}
         <button
@@ -1082,12 +1325,103 @@ function ChatPanel({
         </div>
       )}
 
+      {showDatePicker && (
+        <div className="mb-2 flex items-center gap-2">
+          <input
+            type="date"
+            value={jumpDate}
+            max={new Date().toISOString().slice(0, 10)}
+            aria-label={t('chatPanel.jumpToDate')}
+            onChange={(e) => {
+              setJumpDate(e.target.value);
+              handleJumpToDate(e.target.value);
+            }}
+            className="bg-secondary-dark/80 focus:border-brand-green/50 rounded-lg border border-gray-600/50 px-3 py-1.5 text-sm text-gray-200 focus:outline-none"
+          />
+          {jumpDate && (
+            <button
+              type="button"
+              onClick={() => {
+                setJumpDate('');
+              }}
+              className="text-muted text-xs hover:text-gray-300"
+              aria-label="Clear date"
+            >
+              ×
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Sender filter banner */}
+      {filterSender != null && (
+        <div className="mb-2 flex items-center justify-between rounded-lg border border-blue-600/40 bg-blue-900/20 px-3 py-1.5 text-xs text-blue-300">
+          <span>
+            {t('chatPanel.filteringBySender', {
+              name: nodes.get(filterSender)
+                ? nodeDisplayName(nodes.get(filterSender), protocol ?? 'meshtastic')
+                : `#${filterSender}`,
+            })}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setFilterSender(null);
+            }}
+            aria-label={t('chatPanel.clearSenderFilter')}
+            className="ml-2 hover:text-white"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {/* Disconnected overlay */}
       {!isConnected && (
         <div className="bg-deep-black/60 mb-2 rounded-xl border border-gray-700 p-4 text-center">
           <p className="text-muted text-sm">Not connected — messages are read-only</p>
         </div>
       )}
+
+      {/* DM node info header */}
+      {isDmMode &&
+        activeDmNode != null &&
+        (() => {
+          const dmNode = nodes.get(activeDmNode);
+          if (!dmNode) return null;
+          const parts: string[] = [];
+          if (dmNode.battery > 0) parts.push(t('chatPanel.dmNodeBattery', { pct: dmNode.battery }));
+          if (dmNode.last_heard) {
+            const diff = Date.now() - dmNode.last_heard;
+            const rel =
+              diff < 60_000
+                ? 'just now'
+                : diff < 3_600_000
+                  ? `${Math.floor(diff / 60_000)}m ago`
+                  : diff < 86_400_000
+                    ? `${Math.floor(diff / 3_600_000)}h ago`
+                    : `${Math.floor(diff / 86_400_000)}d ago`;
+            parts.push(t('chatPanel.dmNodeLastHeard', { time: rel }));
+          }
+          if (dmNode.snr !== 0) parts.push(t('chatPanel.dmNodeSignal', { snr: dmNode.snr }));
+          if (dmNode.hops_away != null && dmNode.hops_away > 0) {
+            parts.push(
+              dmNode.hops_away === 1
+                ? t('chatPanel.dmNodeHops', { count: dmNode.hops_away })
+                : t('chatPanel.dmNodeHopsPlural', { count: dmNode.hops_away }),
+            );
+          }
+          if (parts.length === 0) return null;
+          return (
+            <div
+              className="mb-2 flex items-center gap-1.5 rounded-lg bg-slate-800/60 px-3 py-1.5 text-xs text-gray-400"
+              role="status"
+              aria-label="DM peer info"
+            >
+              {parts.join(' · ')}
+            </div>
+          );
+        })()}
 
       {/* Messages area */}
       <div className="relative min-h-0 flex-1">
@@ -1169,6 +1503,7 @@ function ChatPanel({
                   <div
                     className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}
                     data-chat-message-key={messageRowKey}
+                    data-chat-day-key={getDayKey(msg.timestamp)}
                   >
                     {/* Bubble row */}
                     <div
@@ -1210,11 +1545,47 @@ function ChatPanel({
                                   ? 'text-purple-400'
                                   : isOwn
                                     ? 'text-blue-400'
-                                    : 'text-bright-green'
+                                    : filterSender === msg.sender_id
+                                      ? 'text-blue-300 underline'
+                                      : 'text-bright-green'
                               }`}
+                              title={t('chatPanel.filterBySender')}
                             >
                               {displaySenderName}
                             </button>
+                            {!isOwn && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFilterSender((prev) =>
+                                    prev === msg.sender_id ? null : msg.sender_id,
+                                  );
+                                }}
+                                aria-label={t('chatPanel.filterBySender')}
+                                aria-pressed={filterSender === msg.sender_id}
+                                className={`shrink-0 rounded px-1 py-0.5 text-[9px] transition-colors ${
+                                  filterSender === msg.sender_id
+                                    ? 'bg-blue-700/40 text-blue-300'
+                                    : 'text-gray-600 hover:text-blue-400'
+                                }`}
+                                title={t('chatPanel.filterBySender')}
+                              >
+                                <svg
+                                  className="h-2.5 w-2.5"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                  strokeWidth={2}
+                                  aria-hidden="true"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"
+                                  />
+                                </svg>
+                              </button>
+                            )}
                             {isDm && (
                               <span className="text-[10px] font-medium text-purple-400/70">DM</span>
                             )}
@@ -1356,72 +1727,42 @@ function ChatPanel({
                       </div>
 
                       {/* Inline reaction trigger — visible on hover or focus-within */}
-                      {isConnected && (
-                        <div className="flex shrink-0 gap-0.5 opacity-0 transition-all group-focus-within/msg:opacity-100 group-hover/msg:opacity-100">
-                          <button
-                            onClick={() => {
-                              setReplyTo(msg);
-                              inputRef.current?.focus();
-                            }}
-                            className="rounded p-1 text-xs text-gray-600 hover:text-blue-400"
-                            aria-label={t('chatPanel.replyToMessage')}
-                            title={t('chatPanel.replyButton')}
+                      <div className="flex shrink-0 gap-0.5 opacity-0 transition-all group-focus-within/msg:opacity-100 group-hover/msg:opacity-100">
+                        {/* Copy — always available */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void navigator.clipboard.writeText(msg.payload);
+                          }}
+                          className="rounded p-1 text-xs text-gray-600 hover:text-green-400"
+                          aria-label={t('chatPanel.copyMessage')}
+                          title={t('chatPanel.copyMessage')}
+                        >
+                          <svg
+                            className="h-3.5 w-3.5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                            aria-hidden="true"
                           >
-                            <svg
-                              className="h-3.5 w-3.5"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                              strokeWidth={2}
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"
-                              />
-                            </svg>
-                          </button>
-                          {/* React */}
-                          <button
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              if (!isLinux) reactionHiddenInputRef.current?.focus();
-                            }}
-                            onClick={() => {
-                              const id = msg.packetId ?? msg.timestamp;
-                              reactionPickerTarget.current = { id, channel: msg.channel };
-                              if (isLinux) {
-                                setPickerOpenFor(showPicker ? null : id);
-                              } else {
-                                void window.electronAPI.showEmojiPanel();
-                              }
-                            }}
-                            className="rounded p-1 text-xs text-gray-600 hover:text-gray-300"
-                            aria-label={t('chatPanel.addReaction')}
-                            title={t('chatPanel.reactButton')}
-                          >
-                            <svg
-                              className="h-3.5 w-3.5"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                              strokeWidth={2}
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                              />
-                            </svg>
-                          </button>
-                          {/* Quick DM */}
-                          {!isOwn && (
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                            />
+                          </svg>
+                        </button>
+                        {isConnected && (
+                          <>
                             <button
                               onClick={() => {
-                                openDmTo(msg.sender_id);
+                                setReplyTo(msg);
+                                inputRef.current?.focus();
                               }}
-                              className="rounded p-1 text-xs text-gray-600 hover:text-purple-400"
-                              title={t('chatPanel.directMessage', { name: msg.sender_name })}
+                              className="rounded p-1 text-xs text-gray-600 hover:text-blue-400"
+                              aria-label={t('chatPanel.replyToMessage')}
+                              title={t('chatPanel.replyButton')}
                             >
                               <svg
                                 className="h-3.5 w-3.5"
@@ -1433,13 +1774,70 @@ function ChatPanel({
                                 <path
                                   strokeLinecap="round"
                                   strokeLinejoin="round"
-                                  d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                                  d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3"
                                 />
                               </svg>
                             </button>
-                          )}
-                        </div>
-                      )}
+                            {/* React */}
+                            <button
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                if (!isLinux) reactionHiddenInputRef.current?.focus();
+                              }}
+                              onClick={() => {
+                                const id = msg.packetId ?? msg.timestamp;
+                                reactionPickerTarget.current = { id, channel: msg.channel };
+                                if (isLinux) {
+                                  setPickerOpenFor(showPicker ? null : id);
+                                } else {
+                                  void window.electronAPI.showEmojiPanel();
+                                }
+                              }}
+                              className="rounded p-1 text-xs text-gray-600 hover:text-gray-300"
+                              aria-label={t('chatPanel.addReaction')}
+                              title={t('chatPanel.reactButton')}
+                            >
+                              <svg
+                                className="h-3.5 w-3.5"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={2}
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                                />
+                              </svg>
+                            </button>
+                            {/* Quick DM */}
+                            {!isOwn && (
+                              <button
+                                onClick={() => {
+                                  openDmTo(msg.sender_id);
+                                }}
+                                className="rounded p-1 text-xs text-gray-600 hover:text-purple-400"
+                                title={t('chatPanel.directMessage', { name: msg.sender_name })}
+                              >
+                                <svg
+                                  className="h-3.5 w-3.5"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                  strokeWidth={2}
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                                  />
+                                </svg>
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </div>
 
                     {/* Reaction picker — Linux: emoji-picker-element; macOS/Windows: showEmojiPanel() */}
@@ -1587,31 +1985,54 @@ function ChatPanel({
 
       {/* Input area — textarea so Chromium applies spellcheck (single-line inputs often skip it) */}
       <div className="mt-1 flex min-w-0 gap-2">
-        <textarea
-          ref={inputRef}
-          rows={1}
-          value={input}
-          onChange={(e) => {
-            setInput(e.target.value);
-            setChatActionError(null);
-          }}
-          onKeyDown={handleKeyDown}
-          spellCheck
-          lang={
-            typeof navigator !== 'undefined' && navigator.language ? navigator.language : undefined
-          }
-          enterKeyHint="send"
-          placeholder={composePlaceholder}
-          aria-label={composePlaceholder}
-          className={`max-h-32 min-h-[42px] flex-1 resize-none overflow-y-auto rounded-xl border px-4 py-2.5 text-gray-200 transition-colors focus:outline-none ${
-            !isConnected || sending ? 'opacity-60' : ''
-          } ${
-            isDmMode
-              ? 'border-purple-600/50 bg-purple-900/20 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30'
-              : 'bg-secondary-dark/80 focus:border-brand-green/50 focus:ring-brand-green/30 border-gray-600/50 focus:ring-1'
-          }`}
-          maxLength={228}
-        />
+        <div className="relative min-w-0 flex-1">
+          {mentionQuery != null && mentionCandidates.length > 0 && (
+            <MentionAutocomplete
+              candidates={mentionCandidates}
+              selectedIdx={mentionSelectedIdx}
+              onSelect={insertMention}
+              onSetSelectedIdx={setMentionSelectedIdx}
+            />
+          )}
+          <textarea
+            ref={inputRef}
+            rows={1}
+            value={input}
+            onChange={(e) => {
+              const val = e.target.value;
+              setInput(val);
+              setChatActionError(null);
+              // Detect @ trigger from end of current value (works reliably in all environments)
+              const match = /@(\w*)$/.exec(val);
+              if (match) {
+                setMentionQuery(match[1]);
+                setMentionTriggerPos(val.length - match[0].length);
+                setMentionSelectedIdx(0);
+              } else {
+                setMentionQuery(null);
+              }
+            }}
+            onKeyDown={handleKeyDown}
+            spellCheck
+            lang={
+              typeof navigator !== 'undefined' && navigator.language
+                ? navigator.language
+                : undefined
+            }
+            enterKeyHint="send"
+            placeholder={composePlaceholder}
+            aria-label={composePlaceholder}
+            className={`max-h-32 min-h-[42px] w-full resize-none overflow-y-auto rounded-xl border px-4 py-2.5 text-gray-200 transition-colors focus:outline-none ${
+              !isConnected || sending ? 'opacity-60' : ''
+            } ${
+              isDmMode
+                ? 'border-purple-600/50 bg-purple-900/20 focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30'
+                : 'bg-secondary-dark/80 focus:border-brand-green/50 focus:ring-brand-green/30 border-gray-600/50 focus:ring-1'
+            }`}
+            maxLength={228}
+          />
+        </div>
+        {/* end relative wrapper */}
         {/* Compose emoji picker toggle */}
         <button
           onMouseDown={(e) => {

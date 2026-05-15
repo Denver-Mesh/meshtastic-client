@@ -832,6 +832,17 @@ declare global {
         onClientConnected: (cb: (client: TAKClientInfo) => void) => () => void;
         onClientDisconnected: (cb: (clientId: string) => void) => () => void;
       };
+      chat: {
+        export: (
+          messages: {
+            timestamp: number;
+            sender_name: string;
+            payload: string;
+            channel: number;
+            to?: number;
+          }[],
+        ) => Promise<{ success: boolean; path?: string }>;
+      };
     };
   }
 }
