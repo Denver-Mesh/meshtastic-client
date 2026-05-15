@@ -32,8 +32,7 @@ describe('mqttReconnectSchedule', () => {
       attempt: 1,
       meshcoreNonJwtFirstReconnectImmediate: true,
     });
-    expect(d).toBeGreaterThanOrEqual(500);
-    expect(d).toBeLessThanOrEqual(500 + 2000);
+    expect(d).toBe(MQTT_RECONNECT_MESHCORE_IMMEDIATE_BASE_MS);
   });
 
   it.each([0, 0.1, 0.25, 0.5, 0.75, 0.9, 0.999999])(
