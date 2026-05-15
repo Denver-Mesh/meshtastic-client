@@ -9,7 +9,7 @@ import type { NodeSqliteDB } from './db-compat';
 import { sanitizeLogMessage } from './log-service';
 
 /** Bumped when ensureSchema behavior changes in a non-idempotent way (rare). */
-export const CURRENT_SCHEMA_VERSION = 30;
+export const CURRENT_SCHEMA_VERSION = 31;
 
 /**
  * Tables only — used during upgrades so we do not CREATE UNIQUE indexes before
@@ -163,6 +163,12 @@ export const CANONICAL_TABLES_DDL = `
       CREATE TABLE IF NOT EXISTS app_settings (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS node_notes (
+        node_id INTEGER PRIMARY KEY,
+        notes TEXT NOT NULL DEFAULT '',
+        updated_at INTEGER
       );
     `;
 
@@ -323,6 +329,10 @@ export const DESIRED_COLUMNS: Readonly<Record<string, Readonly<Record<string, st
     last_success_ts: 'INTEGER',
     created_at: 'INTEGER NOT NULL',
     updated_at: 'INTEGER NOT NULL',
+  },
+  node_notes: {
+    notes: "TEXT NOT NULL DEFAULT ''",
+    updated_at: 'INTEGER',
   },
 };
 

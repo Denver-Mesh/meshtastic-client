@@ -908,7 +908,8 @@
     "removeFromFavorites": "Odebrat z oblíbených",
     "addToFavorites": "Přidat k oblíbeným",
     "healthTooltip": "Zdravotní skóre: {{total}}/100 (signál {{signal}}, aktuálnost {{recency}}, zatížení {{load}}, baterie {{battery}})",
-    "healthAriaLabel": "Zdravotní skóre uzlu {{total}} ze 100"
+    "healthAriaLabel": "Zdravotní skóre uzlu {{total}} ze 100",
+    "buttonExportJson": "Exportovat JSON"
   },
   "mapPanel": {
     "locationUnavailable": "Poloha není k dispozici.",
@@ -1367,7 +1368,9 @@
         "title": "Povolit vytvoření přímých tras",
         "description": "Poměr zaplavení je velmi vysoký — počkejte, až se v uzlu nahromadí kontakty s přímou cestou, nebo zkontrolujte blízkost opakovače."
       }
-    }
+    },
+    "cuHistoryHeading": "Využití kanálu (posledních 24 hodin)",
+    "cuHistoryTooltipLabel": "Využití kanálu"
   },
   "rawPacketLog": {
     "filterPackets": "Filtrační balíčky",
@@ -1585,7 +1588,11 @@
     "positionHistoryFirstPosition": "První pozice",
     "positionHistoryLastPosition": "Poslední pozice",
     "positionHistoryMostRecent": "Nejnovější: {{lat}}, {{lon}}",
-    "positionHistoryTruncated": "Zobrazeno nejnovějších {{shown}} z {{total}} bodů"
+    "positionHistoryTruncated": "Zobrazeno nejnovějších {{shown}} z {{total}} bodů",
+    "notesLabel": "Poznámky",
+    "notesPlaceholder": "Soukromé poznámky k tomuto uzlu (nejsou přenášeny)…",
+    "watchNode": "Sledovat",
+    "unwatchNode": "Sleduje"
   },
   "firmwareStatus": {
     "checking": "Kontrola verze firmwaru",

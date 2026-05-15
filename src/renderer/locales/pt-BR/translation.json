@@ -908,7 +908,8 @@
     "removeFromFavorites": "Remove from favorites",
     "addToFavorites": "Add to favorites",
     "healthTooltip": "Pontuação de saúde: {{total}}/100 (sinal {{signal}}, recência {{recency}}, carga {{load}}, bateria {{battery}})",
-    "healthAriaLabel": "Pontuação de integridade do nó {{total}} de 100"
+    "healthAriaLabel": "Pontuação de integridade do nó {{total}} de 100",
+    "buttonExportJson": "Exportar como JSON"
   },
   "mapPanel": {
     "locationUnavailable": "Localização não disponível.",
@@ -1367,7 +1368,9 @@
         "title": "Permitir que rotas diretas sejam estabelecidas",
         "description": "A taxa de inundação é muito alta — aguarde o nó acumular contatos de caminho direto ou verifique a proximidade do repetidor."
       }
-    }
+    },
+    "cuHistoryHeading": "Utilização do Canal (últimas 24h)",
+    "cuHistoryTooltipLabel": "Canal Util"
   },
   "rawPacketLog": {
     "filterPackets": "Filtrar pacotes",
@@ -1585,7 +1588,11 @@
     "positionHistoryFirstPosition": "Primeira posição",
     "positionHistoryLastPosition": "Última posição",
     "positionHistoryMostRecent": "Mais recentes: {{lat}}, {{lon}}",
-    "positionHistoryTruncated": "Mostrando o {{shown}} mais recente de {{total}} pontos"
+    "positionHistoryTruncated": "Mostrando o {{shown}} mais recente de {{total}} pontos",
+    "notesLabel": "Notas",
+    "notesPlaceholder": "Notas privadas sobre este nó (não transmitidas)...",
+    "watchNode": "Acompanhar",
+    "unwatchNode": "Acompanhando"
   },
   "firmwareStatus": {
     "checking": "Verificando a versão do firmware",

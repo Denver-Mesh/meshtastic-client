@@ -1,6 +1,15 @@
 /* eslint-disable react-hooks/set-state-in-effect, react-hooks/refs, react-hooks/purity */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
 import { errLikeToLogString } from '@/renderer/lib/errLikeToLogString';
 
@@ -147,6 +156,7 @@ export default function DiagnosticsPanel({
   );
   const packetStats = useDiagnosticsStore((s) => s.packetStats);
   const packetCache = useDiagnosticsStore((s) => s.packetCache);
+  const cuHistory = useDiagnosticsStore((s) => s.cuHistory);
   const homeNode = nodes.get(myNodeNum) ?? null;
   const congestionHalosEnabled = useDiagnosticsStore((s) => s.congestionHalosEnabled);
   const setCongestionHalosEnabled = useDiagnosticsStore((s) => s.setCongestionHalosEnabled);
@@ -808,6 +818,64 @@ export default function DiagnosticsPanel({
             )}
         </div>
       </div>
+
+      {/* Channel utilization 24h timeline — connected node only */}
+      {isConnected &&
+        (() => {
+          const samples = cuHistory.get(myNodeNum) ?? [];
+          if (samples.length < 2) return null;
+          const now = Date.now();
+          const cutoff = now - 24 * 60 * 60 * 1000;
+          const chartData = samples
+            .filter((s) => s.t >= cutoff)
+            .map((s) => ({
+              time: new Date(s.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              cu: Math.round(s.cu * 10) / 10,
+            }));
+          if (chartData.length < 2) return null;
+          return (
+            <div className="mb-4 rounded-lg border border-gray-700/60 bg-gray-800/40 p-4">
+              <h3 className="mb-3 text-sm font-semibold text-gray-200">
+                {t('diagnosticsPanel.cuHistoryHeading')}
+              </h3>
+              <ResponsiveContainer height={140} width="100%">
+                <LineChart data={chartData} margin={{ top: 2, right: 8, left: -20, bottom: 0 }}>
+                  <CartesianGrid stroke="#374151" strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="time"
+                    interval="preserveStartEnd"
+                    tick={{ fill: '#9ca3af', fontSize: 10 }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    domain={[0, 100]}
+                    tick={{ fill: '#9ca3af', fontSize: 10 }}
+                    tickLine={false}
+                    unit="%"
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#1f2937',
+                      border: '1px solid #374151',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                    }}
+                    formatter={(v) => [`${v}%`, t('diagnosticsPanel.cuHistoryTooltipLabel')]}
+                    labelStyle={{ color: '#9ca3af' }}
+                  />
+                  <Line
+                    dataKey="cu"
+                    dot={false}
+                    isAnimationActive={false}
+                    stroke="#34d399"
+                    strokeWidth={1.5}
+                    type="monotone"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          );
+        })()}
 
       {/* Foreign LoRa activity (last 90 min) — connected node only */}
       {isConnected &&

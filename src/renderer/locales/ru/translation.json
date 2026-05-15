@@ -908,7 +908,8 @@
     "removeFromFavorites": "Удалить из избранного",
     "addToFavorites": "Добавить в избранное",
     "healthTooltip": "Показатель здоровья: {{total}}/100 (сигнал {{signal}}, актуальность {{recency}}, нагрузка {{load}}, батарея {{battery}})",
-    "healthAriaLabel": "Оценка здоровья узла {{total}} из 100"
+    "healthAriaLabel": "Оценка здоровья узла {{total}} из 100",
+    "buttonExportJson": "Экспортировать в JSON"
   },
   "mapPanel": {
     "locationUnavailable": "Местоположение недоступно.",
@@ -1366,7 +1367,9 @@
         "title": "Разрешить установку прямых маршрутов",
         "description": "Коэффициент затопления очень высок — подождите, пока узел накапливает прямые контакты, или проверьте близость ретранслятора."
       }
-    }
+    },
+    "cuHistoryHeading": "Использование канала (последние 24 часа)",
+    "cuHistoryTooltipLabel": "Утилизация канала"
   },
   "rawPacketLog": {
     "filterPackets": "Фильтровать пакеты",
@@ -1584,7 +1587,11 @@
     "positionHistoryFirstPosition": "Первая позиция",
     "positionHistoryLastPosition": "Последняя позиция",
     "positionHistoryMostRecent": "Самые последние: {{lat}}, {{lon}}.",
-    "positionHistoryTruncated": "Показаны новейшие {{shown}} из {{total}} точек."
+    "positionHistoryTruncated": "Показаны новейшие {{shown}} из {{total}} точек.",
+    "notesLabel": "Комментарий",
+    "notesPlaceholder": "Частные заметки об этом узле (не передаются)...",
+    "watchNode": "Часы",
+    "unwatchNode": "Просмотр"
   },
   "firmwareStatus": {
     "checking": "Проверяем версию прошивки",

@@ -547,6 +547,46 @@ export default function NodeListPanel({
           ) : (
             <div className="hidden min-w-0 min-[480px]:block" aria-hidden />
           )}
+          <button
+            aria-label={t('nodeListPanel.buttonExportJson')}
+            className="flex w-full items-center justify-center gap-2 rounded border border-gray-600/50 px-3 py-1.5 text-sm font-medium text-gray-400 transition-colors hover:border-gray-500 hover:text-gray-200 min-[480px]:w-auto"
+            onClick={() => {
+              const payload = nodeList.map((n) => ({
+                node_id: n.node_id,
+                hex_id: `!${n.node_id.toString(16)}`,
+                long_name: n.long_name,
+                short_name: n.short_name,
+                hw_model: n.hw_model,
+                snr: n.snr,
+                rssi: n.rssi,
+                battery: n.battery,
+                voltage: n.voltage,
+                last_heard: n.last_heard,
+                latitude: n.latitude,
+                longitude: n.longitude,
+                altitude: n.altitude,
+                hops_away: n.hops_away,
+                via_mqtt: n.via_mqtt,
+                favorited: n.favorited,
+              }));
+              const blob = new Blob(
+                [JSON.stringify({ exportedAt: new Date().toISOString(), nodes: payload }, null, 2)],
+                {
+                  type: 'application/json',
+                },
+              );
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `mesh-topology-${new Date().toISOString().slice(0, 10)}.json`;
+              a.click();
+              setTimeout(() => {
+                URL.revokeObjectURL(url);
+              }, 0);
+            }}
+          >
+            {t('nodeListPanel.buttonExportJson')}
+          </button>
         </div>
       </div>
       {mode === 'meshcore' && (

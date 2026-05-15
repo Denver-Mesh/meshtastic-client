@@ -908,7 +908,8 @@
     "removeFromFavorites": "Usuń z ulubionych",
     "addToFavorites": "Dodaj do ulubionych",
     "healthTooltip": "Wynik zdrowotny: {{total}}/100 (sygnał {{signal}}, aktualny {{recency}}, obciążenie {{load}}, bateria {{battery}})",
-    "healthAriaLabel": "Wynik zdrowotny węzła {{total}} ze 100"
+    "healthAriaLabel": "Wynik zdrowotny węzła {{total}} ze 100",
+    "buttonExportJson": "Eksportowanie jako JSON"
   },
   "mapPanel": {
     "locationUnavailable": "Lokalizacja niedostępna.",
@@ -1367,7 +1368,9 @@
         "title": "Zezwalaj na bezpośrednie wyznaczanie tras",
         "description": "Wskaźnik powodzi jest bardzo wysoki — poczekaj, aż węzeł zgromadzi styki ścieżki bezpośredniej lub sprawdź bliskość przemiennika."
       }
-    }
+    },
+    "cuHistoryHeading": "Wykorzystanie kanału (ostatnie 24 godziny)",
+    "cuHistoryTooltipLabel": "Channel Util"
   },
   "rawPacketLog": {
     "filterPackets": "Filtruj pakiety",
@@ -1585,7 +1588,11 @@
     "positionHistoryFirstPosition": "Pierwsza pozycja",
     "positionHistoryLastPosition": "Ostatnia pozycja",
     "positionHistoryMostRecent": "Najnowsze: {{lat}}, {{lon}}",
-    "positionHistoryTruncated": "Wyświetlam najnowsze {{shown}} z {{total}} punktów"
+    "positionHistoryTruncated": "Wyświetlam najnowsze {{shown}} z {{total}} punktów",
+    "notesLabel": "Uwagi",
+    "notesPlaceholder": "Prywatne notatki o tym węźle (nie przesyłane)…",
+    "watchNode": "Watch",
+    "unwatchNode": "Patrzy."
   },
   "firmwareStatus": {
     "checking": "Sprawdzanie wersji oprogramowania sprzętowego",

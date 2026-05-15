@@ -908,7 +908,8 @@
     "removeFromFavorites": "Supprimer des favoris",
     "addToFavorites": "Ajouter aux favoris",
     "healthTooltip": "Score de santé : {{total}}/100 (signal {{signal}}, récence {{recency}}, charge {{load}}, batterie {{battery}})",
-    "healthAriaLabel": "Score de santé des nœuds {{total}} sur 100"
+    "healthAriaLabel": "Score de santé des nœuds {{total}} sur 100",
+    "buttonExportJson": "Exporter JSON"
   },
   "mapPanel": {
     "locationUnavailable": "Localisation indisponible.",
@@ -1367,7 +1368,9 @@
         "title": "Autoriser les itinéraires directs à établir",
         "description": "Le taux d'inondation est très élevé — attendez que le nœud accumule des contacts directs ou vérifiez la proximité du répéteur."
       }
-    }
+    },
+    "cuHistoryHeading": "Utilisation des canaux (dernières 24 heures)",
+    "cuHistoryTooltipLabel": "Channel Util"
   },
   "rawPacketLog": {
     "filterPackets": "Filtrer les paquets",
@@ -1585,7 +1588,11 @@
     "positionHistoryFirstPosition": "Première position",
     "positionHistoryLastPosition": "Dernière position",
     "positionHistoryMostRecent": "Le plus récent : {{lat}}, {{lon}}",
-    "positionHistoryTruncated": "Affichage des {{shown}} points les plus récents sur {{total}}"
+    "positionHistoryTruncated": "Affichage des {{shown}} points les plus récents sur {{total}}",
+    "notesLabel": "Notes",
+    "notesPlaceholder": "Notes privées sur ce nœud (non transmises)…",
+    "watchNode": "Regarder",
+    "unwatchNode": "Marseille"
   },
   "firmwareStatus": {
     "checking": "Vérification de la version du firmware...",

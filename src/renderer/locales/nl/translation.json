@@ -908,7 +908,8 @@
     "removeFromFavorites": "Verwijderen uit favorieten",
     "addToFavorites": "Toevoegen aan favorieten",
     "healthTooltip": "Gezondheidsscore: {{total}}/100 (signaal {{signal}}, recent {{recency}}, belasting {{load}}, batterij {{battery}})",
-    "healthAriaLabel": "Knooppuntgezondheidsscore {{total}} van de 100"
+    "healthAriaLabel": "Knooppuntgezondheidsscore {{total}} van de 100",
+    "buttonExportJson": "Exporteer als JSON"
   },
   "mapPanel": {
     "locationUnavailable": "Locatie niet beschikbaar.",
@@ -1367,7 +1368,9 @@
         "title": "Laat directe routes tot stand komen",
         "description": "Overstromingsverhouding is zeer hoog — wacht tot het knooppunt directe padcontacten verzamelt of controleer de nabijheid van de repeater."
       }
-    }
+    },
+    "cuHistoryHeading": "Kanaalgebruik (laatste 24 uur)",
+    "cuHistoryTooltipLabel": "Kanaalgebruik"
   },
   "rawPacketLog": {
     "filterPackets": "Pakketten filteren",
@@ -1585,7 +1588,11 @@
     "positionHistoryFirstPosition": "Eerste positie",
     "positionHistoryLastPosition": "Laatste positie",
     "positionHistoryMostRecent": "Meest recent: {{lat}}, {{lon}}",
-    "positionHistoryTruncated": "Toont de nieuwste {{shown}} van {{total}} punten"
+    "positionHistoryTruncated": "Toont de nieuwste {{shown}} van {{total}} punten",
+    "notesLabel": "Opmerkingen",
+    "notesPlaceholder": "Privénotities over dit knooppunt (niet verzonden)...",
+    "watchNode": "Bekijken",
+    "unwatchNode": "Bekijken"
   },
   "firmwareStatus": {
     "checking": "Firmwareversie controleren",

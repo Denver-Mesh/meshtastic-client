@@ -908,7 +908,8 @@
     "removeFromFavorites": "Видалити з обраного",
     "addToFavorites": "Додати до обраних",
     "healthTooltip": "Оцінка здоров 'я: {{total}}/100 (сигнал {{signal}}, давність {{recency}}, навантаження {{load}}, батарея {{battery}})",
-    "healthAriaLabel": "Шкала здоров 'я вузла {{total}} зі 100"
+    "healthAriaLabel": "Шкала здоров 'я вузла {{total}} зі 100",
+    "buttonExportJson": "Експортувати JSON"
   },
   "mapPanel": {
     "locationUnavailable": "Місцерозташування недоступне",
@@ -1367,7 +1368,9 @@
         "title": "Дозволити встановлювати прямі маршрути",
         "description": "Коефіцієнт затоплення дуже високий — зачекайте, поки вузол накопичить контакти прямого шляху, або перевірте близькість повторювача."
       }
-    }
+    },
+    "cuHistoryHeading": "Використання каналу (останні 24 години)",
+    "cuHistoryTooltipLabel": "Використання каналу"
   },
   "rawPacketLog": {
     "filterPackets": "Фільтрувати пакети",
@@ -1585,7 +1588,11 @@
     "positionHistoryFirstPosition": "Перша позиція",
     "positionHistoryLastPosition": "Остання позиція",
     "positionHistoryMostRecent": "Останні: {{lat}}, {{lon}}",
-    "positionHistoryTruncated": "Показано найновіші {{shown}} з {{total}} точок"
+    "positionHistoryTruncated": "Показано найновіші {{shown}} з {{total}} точок",
+    "notesLabel": "Примітки!",
+    "notesPlaceholder": "Приватні нотатки про цей вузол (не передаються)…",
+    "watchNode": "Дивитись",
+    "unwatchNode": "Спостереження"
   },
   "firmwareStatus": {
     "checking": "Перевірка версії прошивки",

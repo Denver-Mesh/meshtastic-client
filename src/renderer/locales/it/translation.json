@@ -908,7 +908,8 @@
     "removeFromFavorites": "Rimuovi dai preferiti",
     "addToFavorites": "Aggiungi ai preferiti",
     "healthTooltip": "Punteggio di salute: {{total}}/100 (segnale {{signal}}, recency {{recency}}, carico {{load}}, batteria {{battery}})",
-    "healthAriaLabel": "Punteggio di salute del nodo {{total}} su 100"
+    "healthAriaLabel": "Punteggio di salute del nodo {{total}} su 100",
+    "buttonExportJson": "Esporta in JSON"
   },
   "mapPanel": {
     "locationUnavailable": "Posizione non disponibile.",
@@ -1367,7 +1368,9 @@
         "title": "Consenti l'istituzione di percorsi diretti",
         "description": "Il rapporto di inondazione è molto alto: attendere che il nodo accumuli contatti a percorso diretto o controllare la prossimità del ripetitore."
       }
-    }
+    },
+    "cuHistoryHeading": "Utilizzo del canale (ultime 24 ore)",
+    "cuHistoryTooltipLabel": "Utilità canale"
   },
   "rawPacketLog": {
     "filterPackets": "Filtra i pacchetti",
@@ -1585,7 +1588,11 @@
     "positionHistoryFirstPosition": "Prima posizione",
     "positionHistoryLastPosition": "Ultima posizione",
     "positionHistoryMostRecent": "Più recente: {{lat}}, {{lon}}",
-    "positionHistoryTruncated": "Vengono visualizzati i {{shown}} più recenti di {{total}} punti"
+    "positionHistoryTruncated": "Vengono visualizzati i {{shown}} più recenti di {{total}} punti",
+    "notesLabel": "Note",
+    "notesPlaceholder": "Note private su questo nodo (non trasmesse)...",
+    "watchNode": "Osserva",
+    "unwatchNode": "Guardando"
   },
   "firmwareStatus": {
     "checking": "Controllo della versione del firmware",

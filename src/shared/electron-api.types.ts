@@ -161,6 +161,8 @@ export interface ElectronAPI {
     clearMessagesByChannel: (channel: number) => Promise<unknown>;
     getMessageChannels: () => Promise<{ channel: number }[]>;
     setNodeFavorited: (nodeId: number, favorited: boolean) => Promise<unknown>;
+    getNodeNote: (nodeId: number) => Promise<string | null>;
+    setNodeNote: (nodeId: number, note: string) => Promise<void>;
     deleteNodesBySource: (source: string) => Promise<number>;
     migrateRfStubNodes: () => Promise<number>;
     deleteNodesWithoutLongname: () => Promise<number>;
