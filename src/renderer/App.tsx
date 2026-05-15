@@ -26,6 +26,7 @@ import UpdateStatusIndicator from './components/UpdateStatusIndicator';
 import { useContactGroups } from './hooks/useContactGroups';
 import { useDevice } from './hooks/useDevice';
 import { useMeshCore } from './hooks/useMeshCore';
+import { useNodeStatusNotifier } from './hooks/useNodeStatusNotifier';
 import { useTakServer } from './hooks/useTakServer';
 import { ChatPanel, ConnectionPanel, LogPanel, NodeListPanel } from './lazyAppPanels';
 import {
@@ -656,6 +657,8 @@ export default function App() {
   const capabilities = useRadioProvider(protocol);
   const meshtasticCapabilities = useRadioProvider('meshtastic');
   const meshcoreCapabilities = useRadioProvider('meshcore');
+
+  useNodeStatusNotifier(nodesForUi, capabilities);
 
   const meshtasticTabs = useMemo(
     () => computeTabMappings(t, 'meshtastic', meshtasticCapabilities),

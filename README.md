@@ -95,7 +95,8 @@ From real-time diagnostics to permanent message archives, Mesh-Client delivers t
 - **Network health**: status band **Healthy / Attention / Degraded** plus error and warning counts. **Degraded** applies only when routing error count ≥ 3; fewer errors use **Attention** so small issues don't paint the whole panel red
 - **Single table** from `diagnosticRows` (routing trace rows + RF rows), searchable; rows persist across sessions with an optional restore banner; **max age** (1–168 hours) trims stale routing (24 h default) and RF (1 h default) rows
 - **Mesh congestion attribution**: orange banner when mesh-wide routing stress is present; duplicate-traffic block in node detail when relevant
-- Routing anomaly detection: **hop_goblin** (distance-proven over-hopping), **bad_route** (high duplication), **route_flapping**, **impossible_hop**; with remediation suggestions and severity levels
+- Routing anomaly detection: **hop_goblin** (distance-proven over-hopping), **bad_route** (high duplication), **route_flapping** / **path_instability** (MeshCore PathUpdated events), **impossible_hop**, **weak_link** (MeshCore per-hop SNR from trace); with remediation suggestions and severity levels
+- **Channel Utilization History**: 24h CU timeline chart for the connected node in DiagnosticsPanel
 - Anomaly badges inline in node list; status aura circles on the map; congestion halos toggle; global and per-node MQTT ignore
 - **Environment Profile** segmented control; Standard (3 km), City (1.6× threshold), Canyon (2.6× threshold)
 
@@ -143,7 +144,9 @@ From real-time diagnostics to permanent message archives, Mesh-Client delivers t
 - Node list with SNR, battery, GPS, last heard; **signal bars** appear only for direct (0-hop) RF neighbors; multi-hop and MQTT-only paths omit bars; SNR in traces and neighbor views uses **color-coded quality** (good / marginal / poor)
 - **Cross-Protocol Signal Analyzer**: foreign LoRa traffic detection (non-mesh packets); shown in Node Detail when present
 - Distance filter, favorite/pin nodes, device role icons
-- Node Detail Modal: DM, trace route with per-hop display, delete node, neighbor info, **Map Report** (Meshtastic), PaxCounter, Detection Sensor, **channel utilization** (Meshtastic), **export/share contact** (MeshCore)
+- Node Detail Modal: DM, trace route with per-hop display, delete node, neighbor info, **Map Report** (Meshtastic), PaxCounter, Detection Sensor, **channel utilization** (Meshtastic), **export/share contact** (MeshCore), **node notes** (free-text, SQLite-persisted), **watch / notify** (OS desktop notification on online/offline transition)
+- **Node Health Score**: composite 0–100 badge on each node row (signal 40 pts, recency 30 pts, load 20 pts, battery 10 pts); color-coded green / yellow / red with tooltip breakdown
+- **JSON export**: export the full node list as JSON from NodeListPanel
 
 **Map & Position**
 
@@ -158,7 +161,7 @@ From real-time diagnostics to permanent message archives, Mesh-Client delivers t
 **Productivity**
 
 - **Log panel** (right rail): live app log stream, optional debug toggle, **Analyze** (scans the buffered log for connection, BLE, MQTT, and related patterns and suggests fixes), export or delete the log file
-- Full keyboard navigation; press `?` for shortcut reference; `Cmd/Ctrl+1–9` select the **first nine visible** tabs (slot order); `Cmd/Ctrl+0`, `Cmd/Ctrl+A`, `Cmd/Ctrl+M`, and `Cmd/Ctrl+S` jump to **App**, **Diagnostics**, **Stats**, and **Packet Sniffer** by tab name (see overlay; stays correct when **Security** / **TAK** are hidden in MeshCore); `Cmd/Ctrl+[` switches to Meshtastic; `Cmd/Ctrl+]` switches to MeshCore; `Cmd/Ctrl+Shift+F` opens **chat search** across all channels (optional `user:name` and `channel:name` filters)
+- Full keyboard navigation; press `?` for shortcut reference; `Cmd/Ctrl+1–9` select the **first nine visible** tabs (slot order); `Cmd/Ctrl+0`, `Cmd/Ctrl+A`, `Cmd/Ctrl+M`, and `Cmd/Ctrl+S` jump to **App**, **Diagnostics**, **Stats**, and **Packet Sniffer** by tab name (see overlay; stays correct when **Security** / **TAK** are hidden in MeshCore); `Cmd/Ctrl+R` opens **RF Histograms** (SNR, RSSI, hop-count bar charts); `Cmd/Ctrl+G` opens **Peer Graph** (SVG force-directed graph of hops 0–1 neighbors); `Cmd/Ctrl+[` switches to Meshtastic; `Cmd/Ctrl+]` switches to MeshCore; `Cmd/Ctrl+Shift+F` opens **chat search** across all channels (optional `user:name` and `channel:name` filters)
 - **Updates**: permanent status in the footer (up to date, update available, errors, download progress, etc.); automatic check runs a few seconds after every launch; **Check for Updates…** in the app menu (macOS) or **Help** (Windows/Linux), or tap **Up to date** in the footer to re-check; Windows/Linux packaged builds can download in-app, macOS and dev builds open the GitHub release page
 - System tray with live unread badge; app stays accessible when window is closed
 - Persistent SQLite storage; DB export/import/clear in the App tab; Clear GPS Data and Reset Diagnostics without a full DB wipe
@@ -251,7 +254,7 @@ MeshCore runs simultaneously alongside Meshtastic. Use the protocol switcher pil
 
 - **MQTT → RF**: Messages received via MQTT are shown in chat but are not rebroadcast over the radio. Previous relay behavior caused duplicate or misattributed messages.
 - **MeshCore - MQTT (JSON v1)**: The Connection tab can connect to an MQTT broker in MeshCore mode using a small JSON chat envelope (see [docs/meshcore-meshtastic-parity.md](docs/meshcore-meshtastic-parity.md)). This is separate from Meshtastic's protobuf MQTT pipeline.
-- **MeshCore - no routing anomaly diagnostics**: Hop anomaly detection (hop_goblin, bad_route, etc.) and RF diagnostics require Meshtastic-specific packets (`hops_away`, LocalStats, NeighborInfo). The Network Diagnostics tab is available in MeshCore for foreign LoRa detection and other shared features.
+- **MeshCore - partial routing diagnostics**: MeshCore now supports `route_flapping` / `path_instability` (PathUpdated events), `hop_goblin` / `bad_route` (when `hasHopCount`), and `weak_link` (when `hasPerHopSnr` and a trace is completed). Full hop-anomaly detection and Meshtastic-style LocalStats RF findings require Meshtastic packets; MeshCore provides its own RF findings (Elevated Noise Floor, Excessive Flooding) from Repeater Status packet stats.
 - **MeshCore - channel editing**: Can add/edit/delete channels (name + PSK) via the Radio tab, but does not expose Meshtastic-style full protobuf config. Radio parameters (frequency, bandwidth, spreading factor, coding rate, TX power) can be set via the Radio tab.
 - **MeshCore - remote telemetry availability**: `getTelemetry` requires the remote node to have environment sensors. A timeout is returned if the node has no sensor data.
 - **MeshCore - neighbor info availability**: `getNeighbours` is supported only by Repeater-type nodes running firmware v1.9.0+. The button is hidden for Chat and Room contacts.

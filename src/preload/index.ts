@@ -82,6 +82,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getMessageChannels: () => ipcRenderer.invoke('db:getMessageChannels'),
     setNodeFavorited: (nodeId: number, favorited: boolean) =>
       ipcRenderer.invoke('db:setNodeFavorited', nodeId, favorited),
+    getNodeNote: (nodeId: number) => ipcRenderer.invoke('db:getNodeNote', nodeId),
+    setNodeNote: (nodeId: number, note: string) =>
+      ipcRenderer.invoke('db:setNodeNote', nodeId, note),
     deleteNodesBySource: (source: string) => ipcRenderer.invoke('db:deleteNodesBySource', source),
     migrateRfStubNodes: () => ipcRenderer.invoke('db:migrateRfStubNodes'),
     deleteNodesWithoutLongname: () => ipcRenderer.invoke('db:deleteNodesWithoutLongname'),

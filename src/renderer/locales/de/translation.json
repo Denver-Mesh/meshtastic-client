@@ -908,7 +908,8 @@
     "removeFromFavorites": "Aus Favoriten-Liste entfernen",
     "addToFavorites": "Zu Favoriten hinzufügen",
     "healthTooltip": "Gesundheitsbewertung: {{total}}/100 (Signal {{signal}}, Aktualität {{recency}}, Last {{load}}, Batterie {{battery}})",
-    "healthAriaLabel": "Node Health Score {{total}} von 100"
+    "healthAriaLabel": "Node Health Score {{total}} von 100",
+    "buttonExportJson": "Exportieren JSON"
   },
   "mapPanel": {
     "locationUnavailable": "Standort nicht verfügbar.",
@@ -1367,7 +1368,9 @@
         "title": "Ermöglichen Sie die Einrichtung direkter Routen",
         "description": "Das Überschwemmungsverhältnis ist sehr hoch — warten Sie, bis der Knoten Direktpfadkontakte akkumuliert hat, oder überprüfen Sie die Nähe des Repeaters."
       }
-    }
+    },
+    "cuHistoryHeading": "Kanalauslastung (letzte 24h)",
+    "cuHistoryTooltipLabel": "Kanal-Util"
   },
   "rawPacketLog": {
     "filterPackets": "Filterpakete",
@@ -1585,7 +1588,11 @@
     "positionHistoryFirstPosition": "Erste Position",
     "positionHistoryLastPosition": "Letzte Position",
     "positionHistoryMostRecent": "Neueste: {{lat}}, {{lon}}",
-    "positionHistoryTruncated": "Zeigt die neuesten {{shown}} von {{total}} Punkten"
+    "positionHistoryTruncated": "Zeigt die neuesten {{shown}} von {{total}} Punkten",
+    "notesLabel": "Vermerke",
+    "notesPlaceholder": "Private Notizen zu diesem Knoten (nicht übertragen)...",
+    "watchNode": "Ansehen",
+    "unwatchNode": "schaue gerade"
   },
   "firmwareStatus": {
     "checking": "Überprüfung der Firmwareversion",

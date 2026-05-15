@@ -908,7 +908,8 @@
     "removeFromFavorites": "从收藏夹中移除",
     "addToFavorites": "添加到收藏夹",
     "healthTooltip": "健康评分: {{total}}/100 (信号 {{signal}}, 最新 {{recency}}, 负载 {{load}}, 电池 {{battery}})",
-    "healthAriaLabel": "节点健康评分{{total}}/100"
+    "healthAriaLabel": "节点健康评分{{total}}/100",
+    "buttonExportJson": "导出JSON"
   },
   "mapPanel": {
     "locationUnavailable": "無法取得位置。",
@@ -1367,7 +1368,9 @@
         "title": "允许建立直接路由",
         "description": "洪水比非常高—等待节点积累直接路径触点，或检查中继器接近度。"
       }
-    }
+    },
+    "cuHistoryHeading": "渠道利用率（过去24小时）",
+    "cuHistoryTooltipLabel": "频道利用率"
   },
   "rawPacketLog": {
     "filterPackets": "过滤数据包",
@@ -1585,7 +1588,11 @@
     "positionHistoryFirstPosition": "第一名",
     "positionHistoryLastPosition": "最后的位置",
     "positionHistoryMostRecent": "最近：{{lat}}、{{lon}}",
-    "positionHistoryTruncated": "显示最新的 {{shown}} 点（共 {{total}} 点）"
+    "positionHistoryTruncated": "显示最新的 {{shown}} 点（共 {{total}} 点）",
+    "notesLabel": "注意事项",
+    "notesPlaceholder": "关于此节点的私人备注（未传输） ……",
+    "watchNode": "观看",
+    "unwatchNode": "正在查看"
   },
   "firmwareStatus": {
     "checking": "正在检查固件版本",

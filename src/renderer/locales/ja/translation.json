@@ -908,7 +908,8 @@
     "removeFromFavorites": "お気に入りから削除",
     "addToFavorites": "お気に入りに追加",
     "healthTooltip": "健康スコア: {{total}}/100 (信号 {{signal}}, 最近 {{recency}}, 負荷 {{load}}, バッテリー {{battery}})",
-    "healthAriaLabel": "ノードヘルススコア{{total}} / 100"
+    "healthAriaLabel": "ノードヘルススコア{{total}} / 100",
+    "buttonExportJson": "JSON のエクスポート"
   },
   "mapPanel": {
     "locationUnavailable": "場所が利用できません。",
@@ -1367,7 +1368,9 @@
         "title": "直接ルートを確立できるようにする",
         "description": "フラッド比率は非常に高く、ノードが直接経路の接触を蓄積するのを待つか、リピーターの近接性を確認します。"
       }
-    }
+    },
+    "cuHistoryHeading": "チャネル使用率（過去24時間）",
+    "cuHistoryTooltipLabel": "Channel Util"
   },
   "rawPacketLog": {
     "filterPackets": "パケットをフィルタリングする",
@@ -1585,7 +1588,11 @@
     "positionHistoryFirstPosition": "最初の位置",
     "positionHistoryLastPosition": "最後のポジション",
     "positionHistoryMostRecent": "最新: {{lat}}、{{lon}}",
-    "positionHistoryTruncated": "最新の {{shown}}/{{total}} ポイントを表示しています"
+    "positionHistoryTruncated": "最新の {{shown}}/{{total}} ポイントを表示しています",
+    "notesLabel": "注",
+    "notesPlaceholder": "このノードに関する非公開メモ（送信されていません） …",
+    "watchNode": "Watch",
+    "unwatchNode": "見張っているんだ"
   },
   "firmwareStatus": {
     "checking": "ファームウェアのバージョンを確認する",

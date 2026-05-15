@@ -25,6 +25,7 @@ import { MESHCORE_TRACE_PING_TOTAL_TIMEOUT_MS } from '../lib/timeConstants';
 import type { MeshCoreLocalStats, MeshNode, MeshProtocol, NeighborInfoRecord } from '../lib/types';
 import { useCoordFormatStore } from '../stores/coordFormatStore';
 import { useDiagnosticsStore } from '../stores/diagnosticsStore';
+import { useWatchedNodesStore } from '../stores/watchedNodesStore';
 import { HelpTooltip } from './HelpTooltip';
 import NodeInfoBody, { formatSecondsAgo } from './NodeInfoBody';
 import SnrIndicator from './SnrIndicator';
@@ -73,6 +74,24 @@ interface NodeDetailModalProps {
   meshcoreManufacturerModel?: string;
   /** GPS position history (tracking path) for mobile nodes */
   positionHistory?: Map<number, { t: number; lat: number; lon: number }[]>;
+}
+
+function WatchToggleButton({ nodeId }: { nodeId: number }) {
+  const { t } = useTranslation();
+  const isWatched = useWatchedNodesStore((s) => s.watchedNodeIds.has(nodeId));
+  const toggleWatch = useWatchedNodesStore((s) => s.toggleWatch);
+  return (
+    <button
+      aria-label={isWatched ? t('nodeDetailModal.unwatchNode') : t('nodeDetailModal.watchNode')}
+      aria-pressed={isWatched}
+      className={`hover:bg-secondary-dark shrink-0 rounded-lg px-2 py-1 text-xs font-medium transition-colors ${isWatched ? 'text-blue-400' : 'text-gray-500 hover:text-blue-400'}`}
+      onClick={() => {
+        toggleWatch(nodeId);
+      }}
+    >
+      {isWatched ? t('nodeDetailModal.unwatchNode') : t('nodeDetailModal.watchNode')}
+    </button>
+  );
 }
 
 export default function NodeDetailModal({
@@ -126,6 +145,9 @@ export default function NodeDetailModal({
   const [radioContactCount, setRadioContactCount] = useState<number | null>(null);
   const [contactOnRadio, setContactOnRadio] = useState<boolean | null>(null);
   const [addRemoveLoading, setAddRemoveLoading] = useState(false);
+  const [nodeNote, setNodeNote] = useState('');
+  const noteSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingNoteRef = useRef<string | null>(null);
   const mqttIgnoredNodes = useDiagnosticsStore((s) => s.mqttIgnoredNodes);
   const setNodeMqttIgnored = useDiagnosticsStore((s) => s.setNodeMqttIgnored);
   const getForeignLoraDetectionsList = useDiagnosticsStore((s) => s.getForeignLoraDetectionsList);
@@ -145,6 +167,26 @@ export default function NodeDetailModal({
       previousFocusRef.current?.focus();
     };
   }, [node?.node_id]);
+
+  useEffect(() => {
+    if (!node) return;
+    const nodeId = node.node_id;
+    let cancelled = false;
+    void window.electronAPI.db.getNodeNote(nodeId).then((note: string | null) => {
+      if (!cancelled) setNodeNote(note ?? '');
+    });
+    return () => {
+      cancelled = true;
+      if (noteSaveTimerRef.current) {
+        clearTimeout(noteSaveTimerRef.current);
+        noteSaveTimerRef.current = null;
+        if (pendingNoteRef.current !== null) {
+          void window.electronAPI.db.setNodeNote(nodeId, pendingNoteRef.current);
+          pendingNoteRef.current = null;
+        }
+      }
+    };
+  }, [node?.node_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close on Escape
   useEffect(() => {
@@ -460,6 +502,7 @@ export default function NodeDetailModal({
             </div>
             <div className="ml-3 flex shrink-0 flex-col items-end gap-1">
               <div className="flex items-center gap-1">
+                <WatchToggleButton nodeId={node.node_id} />
                 <button
                   onClick={() => {
                     onToggleFavorite(node.node_id, !node.favorited);
@@ -1158,7 +1201,6 @@ export default function NodeDetailModal({
                       disabled
                       className="bg-secondary-dark min-w-[8rem] flex-1 cursor-not-allowed rounded-lg px-3 py-2 text-sm font-medium text-gray-200 opacity-40"
                     >
-                      🛤{' '}
                       {traceRoutePending
                         ? t('nodeDetailModal.tracingEllipsis')
                         : t('nodeDetailModal.traceRoute')}
@@ -1172,7 +1214,6 @@ export default function NodeDetailModal({
                   disabled={false}
                   className="bg-secondary-dark min-w-[8rem] flex-1 rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-600"
                 >
-                  🛤{' '}
                   {traceRoutePending
                     ? t('nodeDetailModal.tracingEllipsis')
                     : t('nodeDetailModal.traceRoute')}
@@ -1201,7 +1242,6 @@ export default function NodeDetailModal({
                   disabled={!isConnected || repeaterStatusPending}
                   className="bg-secondary-dark min-w-[8rem] flex-1 rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  📊{' '}
                   {repeaterStatusPending
                     ? t('nodeDetailModal.requestingEllipsis')
                     : t('nodeDetailModal.requestStatus')}
@@ -1235,7 +1275,6 @@ export default function NodeDetailModal({
                   disabled={!isConnected || telemetryPending}
                   className="bg-secondary-dark min-w-[8rem] flex-1 rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  🌡{' '}
                   {telemetryPending
                     ? t('nodeDetailModal.requestingEllipsis')
                     : t('nodeDetailModal.sensorTelemetryButton')}
@@ -1266,7 +1305,6 @@ export default function NodeDetailModal({
                   disabled={!isConnected || neighborsPending}
                   className="bg-secondary-dark min-w-[8rem] flex-1 rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  🔗{' '}
                   {neighborsPending
                     ? t('nodeDetailModal.requestingEllipsis')
                     : t('nodeDetailModal.getNeighbors')}
@@ -1325,7 +1363,6 @@ export default function NodeDetailModal({
                   disabled={!isConnected || exportContactPending}
                   className="bg-secondary-dark min-w-[8rem] flex-1 rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  📤{' '}
                   {exportContactPending
                     ? t('nodeDetailModal.exportingEllipsis')
                     : t('nodeDetailModal.exportContact')}
@@ -1354,7 +1391,6 @@ export default function NodeDetailModal({
                   disabled={!isConnected || shareContactPending}
                   className="bg-secondary-dark min-w-[8rem] flex-1 rounded-lg px-3 py-2 text-sm font-medium text-gray-200 transition-colors hover:bg-gray-600 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  📨{' '}
                   {shareContactPending
                     ? t('nodeDetailModal.sharingEllipsis')
                     : t('nodeDetailModal.shareContact')}
@@ -1389,7 +1425,6 @@ export default function NodeDetailModal({
                   disabled={!isConnected || addRemoveLoading}
                   className="min-w-[8rem] flex-1 rounded-lg bg-green-900/50 px-3 py-2 text-sm font-medium text-green-300 transition-colors hover:bg-green-800/50 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  ➕{' '}
                   {addRemoveLoading
                     ? t('nodeDetailModal.addingEllipsis')
                     : t('nodeDetailModal.addToRadio')}
@@ -1425,7 +1460,6 @@ export default function NodeDetailModal({
                   disabled={!isConnected || addRemoveLoading}
                   className="min-w-[8rem] flex-1 rounded-lg bg-orange-900/50 px-3 py-2 text-sm font-medium text-orange-300 transition-colors hover:bg-orange-800/50 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  ➖{' '}
                   {addRemoveLoading
                     ? t('nodeDetailModal.removingEllipsis')
                     : t('nodeDetailModal.removeFromRadio')}
@@ -1479,6 +1513,31 @@ export default function NodeDetailModal({
               </div>
             </div>
           )}
+
+          {/* Node notes */}
+          <div className="shrink-0 px-5 pb-2">
+            <label className="mb-1 block text-xs font-medium text-gray-400">
+              {t('nodeDetailModal.notesLabel')}
+            </label>
+            <textarea
+              aria-label={t('nodeDetailModal.notesLabel')}
+              className="w-full resize-y rounded border border-gray-700 bg-gray-800/60 px-2 py-1.5 text-xs text-gray-200 placeholder-gray-600 focus:border-gray-500 focus:outline-none"
+              maxLength={4000}
+              placeholder={t('nodeDetailModal.notesPlaceholder')}
+              rows={3}
+              value={nodeNote}
+              onChange={(e) => {
+                const val = e.target.value;
+                setNodeNote(val);
+                pendingNoteRef.current = val;
+                if (noteSaveTimerRef.current) clearTimeout(noteSaveTimerRef.current);
+                noteSaveTimerRef.current = setTimeout(() => {
+                  pendingNoteRef.current = null;
+                  void window.electronAPI.db.setNodeNote(node.node_id, val);
+                }, 600);
+              }}
+            />
+          </div>
 
           {/* Delete node */}
           <div className="shrink-0 px-5 pb-4">

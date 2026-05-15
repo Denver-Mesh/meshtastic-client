@@ -4,10 +4,12 @@ This document is the authoritative reference for every diagnostic output in Mesh
 
 **Where diagnostics appear:**
 
-- **DiagnosticsPanel**: network health status, anomaly table, halos toggles, environment profile, max-age settings
-- **NodeDetailModal**: per-node routing health section, redundancy path history, RF findings, MQTT ignore toggle
-- **NodeListPanel**: inline anomaly badges, redundancy `+N` echo count, MQTT-only node dimming
+- **DiagnosticsPanel**: network health status, anomaly table, halos toggles, environment profile, max-age settings, 24h CU timeline chart
+- **NodeDetailModal**: per-node routing health section, redundancy path history, RF findings, MQTT ignore toggle, node notes, watch toggle
+- **NodeListPanel**: inline anomaly badges, redundancy `+N` echo count, MQTT-only node dimming, Node Health Score badge, JSON export
 - **MapPanel**: channel utilization halos, routing anomaly aura circles
+- **RF Histograms panel** (`Cmd/Ctrl+R`): SNR, RSSI, and hop-count bar charts across all nodes
+- **Peer Graph panel** (`Cmd/Ctrl+G`): SVG force-directed graph of directly connected nodes (hops 0–1)
 
 ---
 
@@ -33,9 +35,10 @@ Detection is run in priority order; first match wins:
 
 1. `impossible_hop`
 2. `bad_route` (error variant)
-3. `route_flapping`
+3. `route_flapping` / `path_instability` (MeshCore: prefers PathUpdated event timestamps when available)
 4. `hop_goblin`
-5. `bad_route` (warning variant)
+5. `weak_link` (MeshCore only, requires `hasPerHopSnr` capability and a completed trace)
+6. `bad_route` (warning variant)
 
 Routing rows persist for up to **24 hours** by default (configurable 1–168 h in DiagnosticsPanel → Display Settings).
 
@@ -91,6 +94,18 @@ If your GPS source is IP-geolocation (low accuracy), the distance threshold is d
 
 **Meaning:** The node's path through the mesh is unstable. Common causes include competing routes of similar quality, marginal RF links where the best next-hop changes frequently, or a node that is on the edge of coverage.
 
+**MeshCore variant (path_instability):** When PathUpdated (0x81) events are available, the engine counts actual path-change events in the last 10 minutes instead of hop-count transitions. Same trigger threshold (> 3 changes) and same `route_flapping` anomaly type.
+
+---
+
+### weak_link: Warning (MeshCore only)
+
+**Trigger:** A completed MeshCore trace (`tracePath`) with per-hop SNR data (`hasPerHopSnr`) shows at least one hop with SNR below −5 dB.
+
+**Meaning:** There is a weak relay in the traced path. The hop number and SNR are reported. The link may degrade further under noise or when the node moves.
+
+**Confidence:** `proven` (requires observed trace data, not a heuristic).
+
 ---
 
 ## 3. RF Diagnostics
@@ -127,6 +142,15 @@ These findings use telemetry observed from other nodes' radio stats.
 | Channel Utilization Spike | Same gates as connected node (rolling average, min samples, cooldown) | Warning  | Sudden congestion at a remote node's location                      |
 | Wideband Noise Floor      | CU > 25%, SNR < 0 dB                                                  | Warning  | Last-hop SNR only; elevated noise floor at the remote node         |
 | Fringe / Weak Coverage    | CU ≤ 10%, SNR < 0 dB                                                  | Info     | Node is at the edge of mesh coverage; low activity and poor signal |
+
+### MeshCore-Only RF Findings (Connected Node)
+
+These findings use packet-stats data from a MeshCore device's Repeater Status response (`meshcore_local_stats`).
+
+| Finding              | Trigger                                                                        | Severity | Meaning                                                                                       |
+| -------------------- | ------------------------------------------------------------------------------ | -------- | --------------------------------------------------------------------------------------------- |
+| Elevated Noise Floor | Radio noise floor > −95 dBm                                                    | Warning  | Elevated interference from nearby RF sources reducing effective range                         |
+| Excessive Flooding   | ≥ 20 total transmissions and > 90% are flood-routed (`nSentFlood / totalSent`) | Warning  | Direct routing has not been established with nearby nodes; all traffic falls back to flooding |
 
 ---
 
@@ -280,7 +304,91 @@ Selected in DiagnosticsPanel settings via a segmented control.
 
 ---
 
-## 10. Key Source Files
+## 10. Node Health Score
+
+A composite 0–100 score shown as a color-coded badge on each node row in NodeListPanel.
+
+**Sub-scores:**
+
+| Sub-score | Max pts | Source                                            |
+| --------- | ------- | ------------------------------------------------- |
+| Signal    | 40      | SNR normalized over −20 to +20 dB range           |
+| Recency   | 30      | 30 if heard < 1 h, 15 if < 6 h, 0 otherwise       |
+| Load      | 20      | Channel utilization inverted (`20 − CU/100 × 20`) |
+| Battery   | 10      | Battery % / 10; omitted (0) when unavailable      |
+
+**Tiers:**
+
+| Score | Tier | Badge color |
+| ----- | ---- | ----------- |
+| ≥ 70  | Good | Green       |
+| 40–69 | Warn | Yellow      |
+| < 40  | Poor | Red         |
+
+The tooltip breakdown shows each sub-score and the total. Works for both Meshtastic and MeshCore.
+
+---
+
+## 11. Node Notes
+
+Free-text notes attached to a node, editable in NodeDetailModal.
+
+- Persisted in the `node_notes` SQLite table (schema v31) keyed by `node_id`
+- Saves are debounced 500 ms during typing; a final flush fires on modal close
+- IPC handlers: `db:getNodeNote` (read on modal open), `db:setNodeNote` (write)
+
+---
+
+## 12. Watch / Notify
+
+Watch a node to receive OS desktop notifications when its online status changes.
+
+- Toggle the watch state from NodeDetailModal (bell icon button)
+- Watched node IDs are persisted in `localStorage['mesh-client:watchedNodes']` as a JSON array
+- **Online notification**: fires when a watched node transitions from non-online → online
+- **Offline notification**: fires when a watched node transitions from online → non-online; includes last-heard time
+- The first render after a node is added to the watch list establishes the baseline; no notification fires until the next actual transition
+
+---
+
+## 13. Channel Utilization History Chart
+
+A 24-hour CU timeline chart in DiagnosticsPanel showing the connected node's channel utilization over time.
+
+- Only rendered for the connected node (LocalStats data required)
+- At least 2 time-stamped samples are needed before the chart appears
+- Line chart (Recharts `LineChart`) with time on the X-axis and CU% on the Y-axis
+
+---
+
+## 14. RF Histograms Panel
+
+Accessible via `Cmd/Ctrl+R` or the RF icon in the sidebar.
+
+Three bar charts built from live node data across both protocols:
+
+- **SNR histogram**: distribution of last-heard SNR values in 5 dB buckets
+- **RSSI histogram**: distribution of last-heard RSSI values in 10 dBm buckets
+- **Hop count histogram**: distribution of `hops_away` values (0–5+)
+
+Data is read directly from the node store; no additional telemetry required.
+
+---
+
+## 15. Peer Graph Panel
+
+Accessible via `Cmd/Ctrl+G` or the graph icon in the sidebar.
+
+SVG force-directed graph of nodes within direct reach (hops 0–1 from the connected device).
+
+- Only nodes with `hops_away` 0 or 1 are included; avoids O(n²) edge explosion on large meshes
+- Both Meshtastic and MeshCore use the `hops_away` field for edge inference
+- Nodes are clickable; clicking opens NodeDetailModal for that node
+- Layout uses D3-style force simulation; positions stabilize after initial render
+
+---
+
+## 16. Key Source Files
 
 For contributors who want to modify or extend the diagnostics system:
 
@@ -297,13 +405,13 @@ For contributors who want to modify or extend the diagnostics system:
 
 ---
 
-## 11. Technical Reference
+## 17. Technical Reference
 
 This section documents the exact protocol and hardware mechanisms behind each diagnostic finding. Thresholds are quoted directly from the source code.
 
 ---
 
-### 11.1 RF Findings: Connected Node
+### 17.1 RF Findings: Connected Node
 
 #### Utilization vs. TX
 
@@ -403,7 +511,7 @@ This section documents the exact protocol and hardware mechanisms behind each di
 
 ---
 
-### 11.2 RF Findings: Remote Nodes
+### 17.2 RF Findings: Remote Nodes
 
 SNR-based findings (`Wideband Noise Floor`, `Fringe`) are only emitted when `snrMeaningfulForNodeDiagnostics` returns `true`; which requires that the remote node is a 0-hop direct RF neighbor, ensuring the SNR value reflects the actual link to your node rather than a multi-hop path.
 
@@ -441,7 +549,7 @@ SNR-based findings (`Wideband Noise Floor`, `Fringe`) are only emitted when `snr
 
 ---
 
-### 11.3 Routing Anomalies
+### 17.3 Routing Anomalies
 
 #### hop_goblin (`RoutingDiagnosticEngine.detectHopGoblin()`)
 
@@ -485,7 +593,7 @@ SNR-based findings (`Wideband Noise Floor`, `Fringe`) are only emitted when `snr
 
 ---
 
-### 11.4 Foreign LoRa Detection
+### 17.4 Foreign LoRa Detection
 
 #### Packet classification (`foreignLoraDetection.classifyPayload()`)
 
@@ -523,7 +631,7 @@ A module-level `RollingRateCounter(60_000)` counts MeshCore-class packets in the
 
 ---
 
-### 11.5 Packet Redundancy
+### 17.5 Packet Redundancy
 
 #### Data model
 

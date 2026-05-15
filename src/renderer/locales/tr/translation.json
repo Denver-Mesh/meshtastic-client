@@ -908,7 +908,8 @@
     "removeFromFavorites": "Favorilerden kaldır",
     "addToFavorites": "Favorilere ekle",
     "healthTooltip": "Sağlık skoru: {{total}}/100 (sinyal {{signal}}, son kullanım {{recency}}, yük {{load}}, pil {{battery}})",
-    "healthAriaLabel": "Düğüm sağlık puanı {{total}} 100 üzerinden"
+    "healthAriaLabel": "Düğüm sağlık puanı {{total}} 100 üzerinden",
+    "buttonExportJson": "JSON olarak dışa aktar"
   },
   "mapPanel": {
     "locationUnavailable": "Konum kullanılamıyor.",
@@ -1367,7 +1368,9 @@
         "title": "Doğrudan rotaların oluşturulmasına izin ver",
         "description": "Taşkın oranı çok yüksektir — düğümün doğrudan yol temasları biriktirmesini bekleyin veya tekrarlayıcı yakınlığını kontrol edin."
       }
-    }
+    },
+    "cuHistoryHeading": "Kanal Kullanımı (son 24 saat)",
+    "cuHistoryTooltipLabel": "Channel Util"
   },
   "rawPacketLog": {
     "filterPackets": "Paketleri filtrele",
@@ -1585,7 +1588,11 @@
     "positionHistoryFirstPosition": "İlk Pozisyon",
     "positionHistoryLastPosition": "Son Pozisyon",
     "positionHistoryMostRecent": "En yeni: {{lat}}, {{lon}}",
-    "positionHistoryTruncated": "{{total}} noktalarının en yeni {{shown}} tanesi gösteriliyor"
+    "positionHistoryTruncated": "{{total}} noktalarının en yeni {{shown}} tanesi gösteriliyor",
+    "notesLabel": "Notlar",
+    "notesPlaceholder": "Bu düğüm hakkında özel notlar (iletilmedi )…",
+    "watchNode": "İzle",
+    "unwatchNode": "İzliyorum"
   },
   "firmwareStatus": {
     "checking": "Ürün yazılımı sürümünün kontrol edilmesi",

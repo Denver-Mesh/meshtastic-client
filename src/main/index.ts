@@ -3196,6 +3196,41 @@ ipcMain.handle('db:setNodeFavorited', (_event, nodeId: number, favorited: boolea
   }
 });
 
+ipcMain.handle('db:getNodeNote', (_event, nodeId: number) => {
+  try {
+    const id = safeNonNegativeInt(nodeId);
+    const db = getDatabase();
+    const row = db.prepareOnce('SELECT notes FROM node_notes WHERE node_id = ?').get(id) as
+      | { notes: string }
+      | undefined;
+    return row?.notes ?? null;
+  } catch (err) {
+    console.error(
+      '[IPC] db:getNodeNote failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
+ipcMain.handle('db:setNodeNote', (_event, nodeId: number, note: string) => {
+  try {
+    const id = safeNonNegativeInt(nodeId);
+    if (typeof note !== 'string') throw new Error('db:setNodeNote: note must be a string');
+    if (note.length > 4000) throw new Error('db:setNodeNote: note too long (max 4000 chars)');
+    const db = getDatabase();
+    db.prepareOnce(
+      'INSERT INTO node_notes (node_id, notes, updated_at) VALUES (?, ?, ?) ON CONFLICT(node_id) DO UPDATE SET notes = excluded.notes, updated_at = excluded.updated_at',
+    ).run(id, note, Date.now());
+  } catch (err) {
+    console.error(
+      '[IPC] db:setNodeNote failed:',
+      sanitizeLogMessage(err instanceof Error ? err.message : String(err)),
+    );
+    throw err;
+  }
+});
+
 ipcMain.handle('db:getNodes', () => {
   try {
     const db = getDatabase();
