@@ -48,6 +48,49 @@ export function loadOpenDmTabsInitial(protocol: MeshProtocol): number[] {
   return [];
 }
 
+export function draftsStorageKey(protocol: MeshProtocol): string {
+  return `mesh-client:drafts:${protocol}`;
+}
+
+/** Load persisted drafts (viewKey → text) for this protocol. */
+export function loadDraftsInitial(protocol: MeshProtocol): Record<string, string> {
+  const raw = localStorage.getItem(draftsStorageKey(protocol));
+  if (raw == null) return {};
+  const parsed = parseStoredJson<unknown>(raw, 'ChatPanel drafts');
+  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    const result: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof v === 'string') result[k] = v;
+    }
+    return result;
+  }
+  return {};
+}
+
+/** Save a draft for a specific view key. */
+export function saveDraft(protocol: MeshProtocol, viewKey: string, text: string): void {
+  try {
+    const key = draftsStorageKey(protocol);
+    const current = loadDraftsInitial(protocol);
+    current[viewKey] = text;
+    localStorage.setItem(key, JSON.stringify(current));
+  } catch (e) {
+    console.debug('[chatPanelProtocolStorage] saveDraft failed ' + errLikeToLogString(e));
+  }
+}
+
+/** Remove the draft for a specific view key. */
+export function clearDraft(protocol: MeshProtocol, viewKey: string): void {
+  try {
+    const key = draftsStorageKey(protocol);
+    const current = loadDraftsInitial(protocol);
+    const rest = Object.fromEntries(Object.entries(current).filter(([k]) => k !== viewKey));
+    localStorage.setItem(key, JSON.stringify(rest));
+  } catch (e) {
+    console.debug('[chatPanelProtocolStorage] clearDraft failed ' + errLikeToLogString(e));
+  }
+}
+
 /** Load persisted last-read map for this protocol; migrates legacy key into Meshtastic only. */
 export function loadPersistedLastReadInitial(protocol: MeshProtocol): Record<string, number> {
   const key = lastReadStorageKey(protocol);
