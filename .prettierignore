@@ -12,6 +12,7 @@ node_modules
 tmp/
 
 # Files unsupported by prettier parser
+.npmrc
 *.plist
 resources/win/*.xml
 
