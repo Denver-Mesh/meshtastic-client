@@ -1606,6 +1606,11 @@ describe('ChatPanel — notification sound on new messages', () => {
 
   beforeEach(() => {
     playMock.mockClear();
+    localStorage.removeItem('mesh-client:notifMuted');
+  });
+
+  afterEach(() => {
+    localStorage.removeItem('mesh-client:notifMuted');
   });
 
   it('does not play sound for messages already present at mount (e.g. after protocol switch)', async () => {
@@ -1665,7 +1670,5 @@ describe('ChatPanel — notification sound on new messages', () => {
 
     await screen.findByRole('textbox');
     expect(playMock).not.toHaveBeenCalled();
-
-    localStorage.removeItem('mesh-client:notifMuted');
   });
 });

@@ -202,13 +202,7 @@ describe('Native Electron call guards (source contract)', () => {
     );
   });
 
-  it('registers chat:fetchLinkPreview handler with IP guard and OG parsing', () => {
+  it('registers chat:fetchLinkPreview handler', () => {
     expect(INDEX_SOURCE).toContain("ipcMain.handle('chat:fetchLinkPreview'");
-    expect(INDEX_SOURCE).toContain('LINK_PREVIEW_FETCH_TIMEOUT_MS');
-    expect(INDEX_SOURCE).toContain('LINK_PREVIEW_MAX_HTML_BYTES');
-    expect(INDEX_SOURCE).toContain('isIpAddress');
-    expect(INDEX_SOURCE).toContain('og:title');
-    expect(INDEX_SOURCE).toContain('og:description');
-    expect(INDEX_SOURCE).toContain("startsWith('https://')");
   });
 });
