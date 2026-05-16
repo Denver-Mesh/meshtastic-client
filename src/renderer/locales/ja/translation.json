@@ -1016,7 +1016,14 @@
     "dmNodeSignal": "SNR {{snr}} dB",
     "dmNodeHops": "{{count}}ホップ",
     "dmNodeHopsPlural": "{{count}}ホップ",
-    "quickDm": "ダイレクトメッセージ{{name}}"
+    "quickDm": "ダイレクトメッセージ{{name}}",
+    "muteConversation": "この会話をミュートする",
+    "unmuteConversation": "この会話のミュートを解除する",
+    "starMessage": "スターメッセージ",
+    "unstarMessage": "メッセージのスターマークを外す",
+    "starredMessages": "スター付きメッセージ",
+    "noStarredMessages": "お気に入りのメッセージはまだありません。メッセージにスターを付けてここに保存します。",
+    "goToMessage": "メッセージに移動"
   },
   "connectionPanel": {
     "maxReconnectAttempts": "MQTT 再接続の最大試行回数",

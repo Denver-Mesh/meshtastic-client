@@ -22,10 +22,15 @@ import {
   dismissedDmTabsStorageKey,
   lastReadStorageKey,
   loadDraftsInitial,
+  loadMutedViews,
   loadOpenDmTabsInitial,
   loadPersistedLastReadInitial,
+  loadStarred,
   openDmTabsStorageKey,
   saveDraft,
+  saveMutedViews,
+  saveStarred,
+  type StarredMessage,
 } from '../lib/chatPanelProtocolStorage';
 import { nodeDisplayName } from '../lib/nodeLongNameOrHex';
 import { parseStoredJson } from '../lib/parseStoredJson';
@@ -356,8 +361,15 @@ function ChatPanel({
   const [mentionTriggerPos, setMentionTriggerPos] = useState(0);
   const [mentionSelectedIdx, setMentionSelectedIdx] = useState(0);
 
+  // Feature: per-conversation mute
+  const [mutedViews, setMutedViews] = useState<Set<string>>(() => loadMutedViews(protocol));
+
+  // Feature: message starring
+  const [starred, setStarred] = useState<StarredMessage[]>(() => loadStarred(protocol));
+  const starredIdSet = useMemo(() => new Set(starred.map((s) => s.starId)), [starred]);
+
   // Two-section UI state — load DM tabs from localStorage for restart persistence
-  const [viewMode, setViewMode] = useState<'channels' | 'dm'>('channels');
+  const [viewMode, setViewMode] = useState<'channels' | 'dm' | 'starred'>('channels');
   const [openDmTabs, setOpenDmTabs] = useState<number[]>(() => loadOpenDmTabsInitial(protocol));
   const openDmTabsRef = useRef(openDmTabs);
   openDmTabsRef.current = openDmTabs;
@@ -433,6 +445,8 @@ function ChatPanel({
 
   useEffect(() => {
     setReplyTo(null);
+    setMutedViews(loadMutedViews(protocol));
+    setStarred(loadStarred(protocol));
   }, [protocol]);
 
   // Handle initialDmTarget from Nodes tab
@@ -623,6 +637,16 @@ function ChatPanel({
     localStorage.setItem('mesh-client:notifMuted', notifMuted ? '1' : '0');
   }, [notifMuted]);
 
+  // Persist per-conversation mute
+  useEffect(() => {
+    saveMutedViews(protocol, mutedViews);
+  }, [protocol, mutedViews]);
+
+  // Persist starred messages
+  useEffect(() => {
+    saveStarred(protocol, starred);
+  }, [protocol, starred]);
+
   // Sound notification: plays when a new message arrives and the user isn't actively reading it.
   useEffect(() => {
     const prevLen = prevMessagesLengthRef.current;
@@ -634,12 +658,13 @@ function ChatPanel({
       if (msg.isHistory) continue;
       const peer = msg.to != null ? (isOwnNode(msg.to) ? msg.sender_id : msg.to) : null;
       const msgViewKey = peer != null ? `dm:${peer}` : `ch:${msg.channel}`;
+      if (mutedViews.has(msgViewKey)) continue;
       if (!isActive || msgViewKey !== viewKey || document.hidden) {
         playMessageNotification();
         break;
       }
     }
-  }, [messages, isActive, notifMuted, viewKey, isOwnNode]);
+  }, [messages, isActive, notifMuted, mutedViews, viewKey, isOwnNode]);
 
   const updateScrollButtonVisibility = useCallback(() => {
     const distFromBottom = getDistFromChatBottom(
@@ -912,11 +937,49 @@ function ChatPanel({
     [activeDmNode, inferredDmTabSet, inferredDmTabs, visibleDmTabs],
   );
 
+  const toggleMuteView = useCallback((vk: string) => {
+    setMutedViews((prev) => {
+      const next = new Set(prev);
+      if (next.has(vk)) {
+        next.delete(vk);
+      } else {
+        next.add(vk);
+      }
+      return next;
+    });
+  }, []);
+
+  const toggleStar = useCallback(
+    (msg: ChatMessage) => {
+      const starId = msg.id != null ? String(msg.id) : `${msg.timestamp}-${msg.packetId ?? 'x'}`;
+      setStarred((prev) => {
+        if (prev.some((s) => s.starId === starId)) return prev.filter((s) => s.starId !== starId);
+        const entry: StarredMessage = {
+          starId,
+          timestamp: msg.timestamp,
+          payload: msg.payload,
+          sender_name: msg.sender_name ?? '',
+          sender_id: msg.sender_id,
+          viewKey,
+          channel: msg.channel,
+          to: msg.to ?? null,
+          starredAt: Date.now(),
+        };
+        return [...prev, entry];
+      });
+    },
+    [viewKey],
+  );
+
   function formatTime(ts: number): string {
     return new Date(ts).toLocaleTimeString([], {
       hour: '2-digit',
       minute: '2-digit',
     });
+  }
+
+  function formatFullTimestamp(ts: number): string {
+    return new Date(ts).toLocaleString([], { dateStyle: 'medium', timeStyle: 'medium' });
   }
 
   /** Flat reaction rows for a message key (chronological as stored). */
@@ -1241,6 +1304,84 @@ function ChatPanel({
             />
           </svg>
         </button>
+
+        {/* Per-conversation mute toggle — mutes the currently viewed channel or DM */}
+        {viewMode !== 'starred' && (
+          <button
+            onClick={() => {
+              toggleMuteView(viewKey);
+            }}
+            aria-pressed={mutedViews.has(viewKey)}
+            aria-label={
+              mutedViews.has(viewKey)
+                ? t('chatPanel.unmuteConversation')
+                : t('chatPanel.muteConversation')
+            }
+            className={`shrink-0 rounded-lg p-1.5 transition-colors ${
+              mutedViews.has(viewKey)
+                ? 'text-amber-500 hover:text-amber-300'
+                : 'text-muted hover:text-gray-300'
+            }`}
+            title={
+              mutedViews.has(viewKey)
+                ? t('chatPanel.unmuteConversation')
+                : t('chatPanel.muteConversation')
+            }
+          >
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+              aria-hidden="true"
+            >
+              {mutedViews.has(viewKey) ? (
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M13.73 21a2 2 0 01-3.46 0M18.63 13A17.89 17.89 0 0118 8M6.26 6.26A5.86 5.86 0 006 8c0 7-3 9-3 9h10.5m3.5-9a6 6 0 00-9.33-5M3 3l18 18"
+                />
+              ) : (
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                />
+              )}
+            </svg>
+          </button>
+        )}
+
+        {/* Starred messages toggle */}
+        <button
+          onClick={() => {
+            setViewMode((v) => (v === 'starred' ? 'channels' : 'starred'));
+          }}
+          aria-pressed={viewMode === 'starred'}
+          aria-label={t('chatPanel.starredMessages')}
+          className={`shrink-0 rounded-lg p-1.5 transition-colors ${
+            viewMode === 'starred'
+              ? 'bg-brand-green/20 text-amber-400'
+              : 'text-muted hover:text-gray-300'
+          }`}
+          title={t('chatPanel.starredMessages')}
+        >
+          <svg
+            className="h-4 w-4"
+            fill={viewMode === 'starred' ? 'currentColor' : 'none'}
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+            />
+          </svg>
+        </button>
       </div>
 
       {/* Row 2 — DM tabs */}
@@ -1280,6 +1421,29 @@ function ChatPanel({
                   }}
                 >
                   {getDmLabel(nodeNum)}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    toggleMuteView(`dm:${nodeNum}`);
+                  }}
+                  aria-label={
+                    mutedViews.has(`dm:${nodeNum}`)
+                      ? t('chatPanel.unmuteConversation')
+                      : t('chatPanel.muteConversation')
+                  }
+                  className={`ml-0.5 text-[10px] leading-none transition-colors ${
+                    mutedViews.has(`dm:${nodeNum}`)
+                      ? 'text-amber-500 hover:text-amber-300'
+                      : 'text-muted hover:text-white'
+                  }`}
+                  title={
+                    mutedViews.has(`dm:${nodeNum}`)
+                      ? t('chatPanel.unmuteConversation')
+                      : t('chatPanel.muteConversation')
+                  }
+                >
+                  {mutedViews.has(`dm:${nodeNum}`) ? '🔕' : '🔔'}
                 </button>
                 <button
                   type="button"
@@ -1427,8 +1591,100 @@ function ChatPanel({
           );
         })()}
 
+      {/* Starred messages view */}
+      {viewMode === 'starred' && (
+        <div className="bg-deep-black/50 min-h-0 flex-1 overflow-y-auto rounded-xl p-3">
+          {starred.length === 0 ? (
+            <div className="text-muted py-12 text-center text-sm">
+              {t('chatPanel.noStarredMessages')}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {[...starred]
+                .sort((a, b) => b.starredAt - a.starredAt)
+                .map((s) => {
+                  const sourceLabel =
+                    s.to != null ? `DM: ${s.sender_name || String(s.sender_id)}` : `ch${s.channel}`;
+                  return (
+                    <div
+                      key={s.starId}
+                      className="border-border/30 flex items-start gap-2 rounded-lg border bg-slate-800/40 p-2.5"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-0.5 flex items-center gap-2">
+                          <span className="text-xs font-medium text-gray-300">
+                            {s.sender_name || String(s.sender_id)}
+                          </span>
+                          <span className="text-muted text-[10px]">
+                            {formatFullTimestamp(s.timestamp)}
+                          </span>
+                          <span className="rounded bg-slate-700 px-1 py-0 text-[9px] text-gray-400">
+                            {sourceLabel}
+                          </span>
+                        </div>
+                        <p className="text-sm break-words text-gray-200">{s.payload}</p>
+                      </div>
+                      <div className="flex shrink-0 flex-col gap-1">
+                        <button
+                          onClick={() => {
+                            const [type, raw] = s.viewKey.split(':');
+                            if (type === 'dm' && raw) {
+                              openDmTo(Number(raw));
+                            } else {
+                              setViewMode('channels');
+                            }
+                          }}
+                          className="rounded p-1 text-[10px] text-gray-500 hover:text-blue-400"
+                          title={t('chatPanel.goToMessage')}
+                          aria-label={t('chatPanel.goToMessage')}
+                        >
+                          <svg
+                            className="h-3 w-3"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                            />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setStarred((prev) => prev.filter((x) => x.starId !== s.starId));
+                          }}
+                          className="rounded p-1 text-[10px] text-amber-500 hover:text-amber-300"
+                          title={t('chatPanel.unstarMessage')}
+                          aria-label={t('chatPanel.unstarMessage')}
+                        >
+                          <svg
+                            className="h-3 w-3"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Messages area */}
-      <div className="relative min-h-0 flex-1">
+      <div className={`relative min-h-0 flex-1 ${viewMode === 'starred' ? 'hidden' : ''}`}>
         <div
           ref={scrollContainerRef}
           onScroll={handleScroll}
@@ -1593,7 +1849,10 @@ function ChatPanel({
                             {isDm && (
                               <span className="text-[10px] font-medium text-purple-400/70">DM</span>
                             )}
-                            <span className="text-muted/70 text-[10px]">
+                            <span
+                              className="text-muted/70 text-[10px]"
+                              title={formatFullTimestamp(msg.timestamp)}
+                            >
                               {formatTime(msg.timestamp)}
                             </span>
                             {channels.length > 1 && !isDm && (
@@ -1604,7 +1863,10 @@ function ChatPanel({
 
                         {showContinuationTime && (
                           <div className={`mb-0.5 ${isOwn ? 'flex justify-end' : ''}`}>
-                            <span className="text-muted/70 text-[10px]">
+                            <span
+                              className="text-muted/70 text-[10px]"
+                              title={formatFullTimestamp(msg.timestamp)}
+                            >
                               {formatTime(msg.timestamp)}
                             </span>
                           </div>
@@ -1839,6 +2101,50 @@ function ChatPanel({
                                 </svg>
                               </button>
                             )}
+                            {/* Star message */}
+                            {(() => {
+                              const starId =
+                                msg.id != null
+                                  ? String(msg.id)
+                                  : `${msg.timestamp}-${msg.packetId ?? 'x'}`;
+                              const isStarred = starredIdSet.has(starId);
+                              return (
+                                <button
+                                  onClick={() => {
+                                    toggleStar(msg);
+                                  }}
+                                  className={`rounded p-1 text-xs transition-colors ${
+                                    isStarred
+                                      ? 'text-amber-400 hover:text-amber-200'
+                                      : 'text-gray-600 hover:text-amber-400'
+                                  }`}
+                                  aria-label={
+                                    isStarred
+                                      ? t('chatPanel.unstarMessage')
+                                      : t('chatPanel.starMessage')
+                                  }
+                                  title={
+                                    isStarred
+                                      ? t('chatPanel.unstarMessage')
+                                      : t('chatPanel.starMessage')
+                                  }
+                                >
+                                  <svg
+                                    className="h-3.5 w-3.5"
+                                    fill={isStarred ? 'currentColor' : 'none'}
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={2}
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                                    />
+                                  </svg>
+                                </button>
+                              );
+                            })()}
                           </>
                         )}
                       </div>

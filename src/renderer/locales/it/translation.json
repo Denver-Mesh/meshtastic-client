@@ -1016,7 +1016,14 @@
     "dmNodeSignal": "SNR {{snr}} dB",
     "dmNodeHops": "{{count}} hop",
     "dmNodeHopsPlural": "{{count}} hops",
-    "quickDm": "Messaggio diretto {{name}}"
+    "quickDm": "Messaggio diretto {{name}}",
+    "muteConversation": "Disattiva questa conversazione",
+    "unmuteConversation": "Riattiva questa conversazione",
+    "starMessage": "Marca Messaggio",
+    "unstarMessage": "Smarca messaggio",
+    "starredMessages": "Messaggi marcati",
+    "noStarredMessages": "Ancora nessun messaggio in evidenza. Metti in primo piano qualsiasi messaggio per salvarlo qui.",
+    "goToMessage": "Vai al messaggio"
   },
   "connectionPanel": {
     "maxReconnectAttempts": "Numero massimo di tentativi di riconnessione MQTT",

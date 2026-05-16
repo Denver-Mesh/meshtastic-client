@@ -1021,7 +1021,14 @@
     "dmNodeSignal": "SNR {{snr}} dB",
     "dmNodeHops": "{{count}} hop",
     "dmNodeHopsPlural": "{{count}} hops",
-    "quickDm": "Direct message {{name}}"
+    "quickDm": "Direct message {{name}}",
+    "muteConversation": "Mute this conversation",
+    "unmuteConversation": "Unmute this conversation",
+    "starMessage": "Star message",
+    "unstarMessage": "Unstar message",
+    "starredMessages": "Starred messages",
+    "noStarredMessages": "No starred messages yet. Star any message to save it here.",
+    "goToMessage": "Go to message"
   },
   "connectionPanel": {
     "maxReconnectAttempts": "Max MQTT reconnect attempts",

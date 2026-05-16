@@ -91,6 +91,70 @@ export function clearDraft(protocol: MeshProtocol, viewKey: string): void {
   }
 }
 
+/** Load muted view keys for this protocol (e.g. 'ch:0', 'dm:12345'). */
+export function loadMutedViews(protocol: MeshProtocol): Set<string> {
+  try {
+    const raw = localStorage.getItem(`mesh-client:mutedViews:${protocol}`);
+    if (!raw) return new Set();
+    const parsed = parseStoredJson<unknown>(raw, 'ChatPanel mutedViews');
+    if (Array.isArray(parsed) && parsed.every((v): v is string => typeof v === 'string')) {
+      return new Set(parsed);
+    }
+  } catch (e) {
+    console.debug('[chatPanelProtocolStorage] loadMutedViews failed ' + errLikeToLogString(e));
+  }
+  return new Set();
+}
+
+/** Persist muted view keys for this protocol. */
+export function saveMutedViews(protocol: MeshProtocol, views: Set<string>): void {
+  try {
+    localStorage.setItem(`mesh-client:mutedViews:${protocol}`, JSON.stringify([...views]));
+  } catch (e) {
+    console.debug('[chatPanelProtocolStorage] saveMutedViews failed ' + errLikeToLogString(e));
+  }
+}
+
+export interface StarredMessage {
+  starId: string;
+  timestamp: number;
+  payload: string;
+  sender_name: string;
+  sender_id: number;
+  viewKey: string;
+  channel: number;
+  to: number | null;
+  starredAt: number;
+}
+
+const STARRED_LIMIT = 200;
+
+/** Load starred messages for this protocol. */
+export function loadStarred(protocol: MeshProtocol): StarredMessage[] {
+  try {
+    const raw = localStorage.getItem(`mesh-client:starred:${protocol}`);
+    if (!raw) return [];
+    const parsed = parseStoredJson<unknown>(raw, 'ChatPanel starred');
+    if (Array.isArray(parsed)) return parsed as StarredMessage[];
+  } catch (e) {
+    console.debug('[chatPanelProtocolStorage] loadStarred failed ' + errLikeToLogString(e));
+  }
+  return [];
+}
+
+/** Persist starred messages for this protocol. Enforces STARRED_LIMIT by dropping oldest. */
+export function saveStarred(protocol: MeshProtocol, items: StarredMessage[]): void {
+  try {
+    const capped =
+      items.length > STARRED_LIMIT
+        ? [...items].sort((a, b) => b.starredAt - a.starredAt).slice(0, STARRED_LIMIT)
+        : items;
+    localStorage.setItem(`mesh-client:starred:${protocol}`, JSON.stringify(capped));
+  } catch (e) {
+    console.debug('[chatPanelProtocolStorage] saveStarred failed ' + errLikeToLogString(e));
+  }
+}
+
 /** Load persisted last-read map for this protocol; migrates legacy key into Meshtastic only. */
 export function loadPersistedLastReadInitial(protocol: MeshProtocol): Record<string, number> {
   const key = lastReadStorageKey(protocol);

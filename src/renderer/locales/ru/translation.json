@@ -1015,7 +1015,14 @@
     "dmNodeSignal": "SNR {{snr}} дБ",
     "dmNodeHops": "{{count}} Hop",
     "dmNodeHopsPlural": "{{count}} хопов",
-    "quickDm": "Прямое сообщение {{name}}"
+    "quickDm": "Прямое сообщение {{name}}",
+    "muteConversation": "Отключить этот разговор",
+    "unmuteConversation": "Включить звук этой беседы",
+    "starMessage": "Избранное сообщение",
+    "unstarMessage": "Неизбранное сообщение",
+    "starredMessages": "Помеченные сообщения",
+    "noStarredMessages": "Сообщений с пометками пока нет. Отметьте любое сообщение, чтобы сохранить его здесь.",
+    "goToMessage": "1. Выберите в меню Письмо"
   },
   "connectionPanel": {
     "maxReconnectAttempts": "Максимальное количество попыток переподключения MQTT",

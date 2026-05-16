@@ -1016,7 +1016,14 @@
     "dmNodeSignal": "SNR {{snr}} dB",
     "dmNodeHops": "{{count}} hop",
     "dmNodeHopsPlural": "{{count}} hop",
-    "quickDm": "Rechtstreeks bericht {{name}}"
+    "quickDm": "Rechtstreeks bericht {{name}}",
+    "muteConversation": "Dit gesprek dempen",
+    "unmuteConversation": "Dempen van dit gesprek opheffen",
+    "starMessage": "Bericht favoriet maken",
+    "unstarMessage": "Het bericht uit de favorieten verwijderen",
+    "starredMessages": "Favoriete berichten",
+    "noStarredMessages": "Nog geen berichten met een ster. Geef elk bericht een ster om het hier op te slaan.",
+    "goToMessage": "Ga naar bericht"
   },
   "connectionPanel": {
     "maxReconnectAttempts": "Max. MQTT-pogingen om opnieuw verbinding te maken",

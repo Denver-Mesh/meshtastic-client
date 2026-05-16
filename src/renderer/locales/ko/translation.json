@@ -1016,7 +1016,14 @@
     "dmNodeSignal": "SNR {{snr}} dB",
     "dmNodeHops": "{{count}} 홉",
     "dmNodeHopsPlural": "{{count}} 홉",
-    "quickDm": "{{name}}에게 다이렉트 메시지"
+    "quickDm": "{{name}}에게 다이렉트 메시지",
+    "muteConversation": "이 대화 음소거",
+    "unmuteConversation": "이 대화 음소거 해제",
+    "starMessage": "메시지 별표처리",
+    "unstarMessage": "언스타 메시",
+    "starredMessages": "별표 표시된 메세지",
+    "noStarredMessages": "아직 별표 표시된 메시지가 없습니다. 여기에 저장하려면 메시지에 별표를 표시하세요.",
+    "goToMessage": "메시지"
   },
   "connectionPanel": {
     "maxReconnectAttempts": "최대 MQTT 재연결 시도",

@@ -1016,7 +1016,14 @@
     "dmNodeSignal": "SNR {{snr}} дБ",
     "dmNodeHops": "{{count}} Hop",
     "dmNodeHopsPlural": "{{count}} хопів",
-    "quickDm": "Пряме повідомлення {{name}}"
+    "quickDm": "Пряме повідомлення {{name}}",
+    "muteConversation": "Вимкнути цю розмову",
+    "unmuteConversation": "Увімкнути звук цієї розмови",
+    "starMessage": "Зоряне повідомлення",
+    "unstarMessage": "Скасувати старт повідомлення",
+    "starredMessages": "Позначені зірочкою повідомлення",
+    "noStarredMessages": "Повідомлень із зірочками ще немає. Поставте позначку на будь-якому повідомленні, щоб зберегти його тут.",
+    "goToMessage": "Перейти до повідомлення"
   },
   "connectionPanel": {
     "maxReconnectAttempts": "Максимальна кількість спроб повторного підключення MQTT",

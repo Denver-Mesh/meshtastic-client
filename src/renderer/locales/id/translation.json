@@ -1016,7 +1016,14 @@
     "dmNodeSignal": "SNR {{snr}} dB",
     "dmNodeHops": "{{count}} hop",
     "dmNodeHopsPlural": "{{count}} hop",
-    "quickDm": "Pesan langsung {{name}}"
+    "quickDm": "Pesan langsung {{name}}",
+    "muteConversation": "Bisukan percakapan ini",
+    "unmuteConversation": "Batalkan percakapan ini",
+    "starMessage": "Bintang untuk Pesan",
+    "unstarMessage": "Batalkan bintang pesan",
+    "starredMessages": "Pesan berbintang",
+    "noStarredMessages": "Belum ada pesan berbintang. Bintangi pesan apa pun untuk menyimpannya di sini.",
+    "goToMessage": "“Pergi ke pesan”"
   },
   "connectionPanel": {
     "maxReconnectAttempts": "Upaya penyambungan kembali MQTT maks",

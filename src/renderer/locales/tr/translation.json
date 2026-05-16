@@ -1016,7 +1016,14 @@
     "dmNodeSignal": "SNR {{snr}} dB",
     "dmNodeHops": "{{count}} hop",
     "dmNodeHopsPlural": "{{count}} şerbetçiotu",
-    "quickDm": "Doğrudan mesaj {{name}}"
+    "quickDm": "Doğrudan mesaj {{name}}",
+    "muteConversation": "Bu konuşmayı sessize al",
+    "unmuteConversation": "Bu konuşmanın sesini aç",
+    "starMessage": "Mesajı Yıldızla",
+    "unstarMessage": "Mesajın Yıldızını Kaldır",
+    "starredMessages": "Yıldızlı iletileri",
+    "noStarredMessages": "Henüz yıldızlı mesaj yok. Buraya kaydetmek için herhangi bir mesajı yıldızla.",
+    "goToMessage": "Mesaja git"
   },
   "connectionPanel": {
     "maxReconnectAttempts": "Maksimum MQTT yeniden bağlanma denemesi",
