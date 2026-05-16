@@ -916,7 +916,7 @@ export function useDevice() {
               ? normalizedPacketId
               : normalizeMeshtasticPacketId(crossDup.packetId);
           if (pid !== undefined && pid !== 0) {
-            isDuplicate(pid);
+            isDuplicate(pid); // registers as seen to suppress future duplicates
             void window.electronAPI.db.updateMessageReceivedVia(pid);
           }
           return;
@@ -1282,7 +1282,7 @@ export function useDevice() {
                 ? rfMsg.packetId
                 : normalizeMeshtasticPacketId(crossDup.packetId);
             if (pid !== undefined && pid !== 0) {
-              isDuplicate(pid);
+              isDuplicate(pid); // registers as seen to suppress future duplicates
               void window.electronAPI.db.updateMessageReceivedVia(pid, rfDedupHops);
             }
             return;

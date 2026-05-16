@@ -12,7 +12,7 @@ export function normalizeMeshtasticPacketId(v: unknown): number | undefined {
 }
 
 /** Normalize payload for dedup (matches ingest placeholder stripping). */
-export function normalizeMeshtasticDedupPayload(payload: string): string {
+export function normalizeMeshtasticDedupPayload(payload: unknown): string {
   if (typeof payload !== 'string') return '';
   const trimmed = payload.trim();
   return trimmed === '0' ? '' : payload;
@@ -93,11 +93,14 @@ export function mapMeshtasticCrossTransportUpgrade(
   incoming: ChatMessage,
   windowMs: number = MESHTASTIC_CROSS_TRANSPORT_DEDUP_WINDOW_MS,
 ): MeshtasticCrossTransportUpgradeResult {
-  if (!findMeshtasticCrossTransportDuplicate(messages, incoming, windowMs)) {
+  const hit = findMeshtasticCrossTransportDuplicate(messages, incoming, windowMs);
+  if (!hit) {
     return { messages: [...messages], matched: false };
   }
   const incomingPid = normalizeMeshtasticPacketId(incoming.packetId);
   const bestPid = incomingPid !== undefined && incomingPid !== 0 ? incomingPid : undefined;
+  const hitPid = normalizeMeshtasticPacketId(hit.packetId);
+  const packetIdForDb = bestPid ?? (hitPid !== undefined && hitPid !== 0 ? hitPid : undefined);
   let matched = false;
   const next = messages.map((m) => {
     if (!meshtasticCrossTransportMatch(m, incoming, windowMs)) return m;
@@ -115,12 +118,6 @@ export function mapMeshtasticCrossTransportUpgrade(
   return {
     messages: matched ? next : [...messages],
     matched,
-    packetIdForDb:
-      bestPid ??
-      (() => {
-        const hit = messages.find((m) => meshtasticCrossTransportMatch(m, incoming, windowMs));
-        const pid = hit ? normalizeMeshtasticPacketId(hit.packetId) : undefined;
-        return pid !== undefined && pid !== 0 ? pid : undefined;
-      })(),
+    packetIdForDb,
   };
 }

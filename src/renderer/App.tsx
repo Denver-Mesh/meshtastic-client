@@ -1330,7 +1330,17 @@ export default function App() {
       );
       if (realNew.length > 0) {
         if (localStorage.getItem('mesh-client:notifMuted') !== '1') {
-          playMessageNotification();
+          const mutedRaw = localStorage.getItem('mesh-client:mutedViews:meshtastic');
+          const mutedViews: Set<string> = mutedRaw
+            ? new Set(JSON.parse(mutedRaw) as string[])
+            : new Set();
+          const myNum = meshtasticMyNodeNumRef.current;
+          const audible = realNew.some((m) => {
+            const peer = m.to != null ? (m.to === myNum ? m.sender_id : m.to) : null;
+            const vk = peer != null ? `dm:${peer}` : `ch:${m.channel}`;
+            return !mutedViews.has(vk);
+          });
+          if (audible) playMessageNotification();
         }
         queueMicrotask(() => {
           setMeshtasticUnread((prev) => prev + realNew.length);

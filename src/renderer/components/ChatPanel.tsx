@@ -937,6 +937,10 @@ function ChatPanel({
     [activeDmNode, inferredDmTabSet, inferredDmTabs, visibleDmTabs],
   );
 
+  function msgStarId(msg: ChatMessage): string {
+    return msg.id != null ? String(msg.id) : `${msg.timestamp}-${msg.packetId ?? 'x'}`;
+  }
+
   const toggleMuteView = useCallback((vk: string) => {
     setMutedViews((prev) => {
       const next = new Set(prev);
@@ -951,7 +955,7 @@ function ChatPanel({
 
   const toggleStar = useCallback(
     (msg: ChatMessage) => {
-      const starId = msg.id != null ? String(msg.id) : `${msg.timestamp}-${msg.packetId ?? 'x'}`;
+      const starId = msgStarId(msg);
       setStarred((prev) => {
         if (prev.some((s) => s.starId === starId)) return prev.filter((s) => s.starId !== starId);
         const entry: StarredMessage = {
@@ -1443,7 +1447,28 @@ function ChatPanel({
                       : t('chatPanel.muteConversation')
                   }
                 >
-                  {mutedViews.has(`dm:${nodeNum}`) ? '🔕' : '🔔'}
+                  <svg
+                    className="h-2.5 w-2.5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    aria-hidden="true"
+                  >
+                    {mutedViews.has(`dm:${nodeNum}`) ? (
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M13.73 21a2 2 0 01-3.46 0M18.63 13A17.89 17.89 0 0118 8M6.26 6.26A5.86 5.86 0 006 8c0 7-3 9-3 9h10.5m3.5-9a6 6 0 00-9.33-5M3 3l18 18"
+                      />
+                    ) : (
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                      />
+                    )}
+                  </svg>
                 </button>
                 <button
                   type="button"
@@ -1631,6 +1656,7 @@ function ChatPanel({
                             if (type === 'dm' && raw) {
                               openDmTo(Number(raw));
                             } else {
+                              if (raw !== undefined) setChannel(Number(raw));
                               setViewMode('channels');
                             }
                           }}
@@ -2103,10 +2129,7 @@ function ChatPanel({
                             )}
                             {/* Star message */}
                             {(() => {
-                              const starId =
-                                msg.id != null
-                                  ? String(msg.id)
-                                  : `${msg.timestamp}-${msg.packetId ?? 'x'}`;
+                              const starId = msgStarId(msg);
                               const isStarred = starredIdSet.has(starId);
                               return (
                                 <button

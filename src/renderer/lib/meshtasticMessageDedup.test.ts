@@ -102,4 +102,116 @@ describe('mapMeshtasticCrossTransportUpgrade', () => {
     expect(messages[0].packetId).toBe(0xbbbbbbbb);
     expect(packetIdForDb).toBe(0xbbbbbbbb);
   });
+
+  it('returns matched=false and leaves messages unchanged when no duplicate found', () => {
+    const msg = baseMsg({ packetId: 0xaaaaaaaa, receivedVia: 'mqtt' });
+    const unrelated = baseMsg({ payload: 'different', packetId: 0xcccccccc, receivedVia: 'rf' });
+    const { messages, matched, packetIdForDb } = mapMeshtasticCrossTransportUpgrade(
+      [msg],
+      unrelated,
+    );
+    expect(matched).toBe(false);
+    expect(messages[0]).toBe(msg);
+    expect(packetIdForDb).toBeUndefined();
+  });
+
+  it('falls back to existing row packetId when incoming packetId is 0', () => {
+    const mqtt = baseMsg({ packetId: 0xdeadbeef, receivedVia: 'mqtt' });
+    const rf = baseMsg({ packetId: 0, receivedVia: 'rf', timestamp: mqtt.timestamp + 1_000 });
+    const { messages, packetIdForDb } = mapMeshtasticCrossTransportUpgrade([mqtt], rf);
+    expect(messages[0].packetId).toBe(0xdeadbeef);
+    expect(packetIdForDb).toBe(0xdeadbeef);
+  });
+
+  it('preserves existing rxHops when incoming has none', () => {
+    const mqtt = baseMsg({ packetId: 0x11111111, receivedVia: 'mqtt', rxHops: 2 });
+    const rf = baseMsg({
+      packetId: 0x22222222,
+      receivedVia: 'rf',
+      rxHops: undefined,
+      timestamp: mqtt.timestamp + 5_000,
+    });
+    const { messages } = mapMeshtasticCrossTransportUpgrade([mqtt], rf);
+    expect(messages[0].rxHops).toBe(2);
+  });
+
+  it('upgrades the correct row when multiple messages exist', () => {
+    const other = baseMsg({ payload: 'other msg', sender_id: 0x99999999, receivedVia: 'rf' });
+    const mqttTarget = baseMsg({ packetId: 0xaaaaaaaa, receivedVia: 'mqtt' });
+    const rf = baseMsg({
+      packetId: 0xbbbbbbbb,
+      receivedVia: 'rf',
+      timestamp: mqttTarget.timestamp + 10_000,
+    });
+    const { messages, matched } = mapMeshtasticCrossTransportUpgrade([other, mqttTarget], rf);
+    expect(matched).toBe(true);
+    expect(messages[0]).toBe(other);
+    expect(messages[1].receivedVia).toBe('both');
+  });
+});
+
+describe('useDevice cross-transport integration — logic layer', () => {
+  it('MQTT path: upgrade-then-return skips saving duplicate when cross-dup found', () => {
+    // Simulates the MQTT handler in useDevice: find duplicate → upgrade state → return early
+    const rfMsg = baseMsg({ packetId: 0xaaaaaaaa, receivedVia: 'rf' });
+    const mqttMsg = baseMsg({
+      packetId: 0xbbbbbbbb,
+      receivedVia: 'mqtt',
+      timestamp: rfMsg.timestamp + 30_000,
+    });
+
+    const crossDup = findMeshtasticCrossTransportDuplicate([rfMsg], mqttMsg);
+    expect(crossDup).toBe(rfMsg);
+
+    const { messages: next, matched } = mapMeshtasticCrossTransportUpgrade([rfMsg], mqttMsg);
+    expect(matched).toBe(true);
+    expect(next[0].receivedVia).toBe('both');
+    // Incoming MQTT packetId is preferred (non-zero)
+    expect(next[0].packetId).toBe(0xbbbbbbbb);
+  });
+
+  it('RF path: upgrade-then-return skips saving duplicate when cross-dup found', () => {
+    // Simulates the RF handler in useDevice: MQTT message arrived first, RF arrives later
+    const mqttMsg = baseMsg({ packetId: 0xaaaaaaaa, receivedVia: 'mqtt' });
+    const rfMsg = baseMsg({
+      packetId: 0xcccccccc,
+      receivedVia: 'rf',
+      rxHops: 3,
+      timestamp: mqttMsg.timestamp + 45_000,
+    });
+
+    const crossDup = findMeshtasticCrossTransportDuplicate([mqttMsg], rfMsg);
+    expect(crossDup).toBe(mqttMsg);
+
+    const {
+      messages: next,
+      matched,
+      packetIdForDb,
+    } = mapMeshtasticCrossTransportUpgrade([mqttMsg], { ...rfMsg, rxHops: rfMsg.rxHops ?? 3 });
+    expect(matched).toBe(true);
+    expect(next[0].receivedVia).toBe('both');
+    expect(next[0].rxHops).toBe(3);
+    expect(packetIdForDb).toBe(0xcccccccc);
+  });
+
+  it('no cross-dup when message is a reaction (emoji set)', () => {
+    const mqttReaction = baseMsg({ receivedVia: 'mqtt', emoji: 0x1f44d, replyId: 42 });
+    const rfReaction = baseMsg({
+      receivedVia: 'rf',
+      emoji: 0x1f44d,
+      replyId: 42,
+      timestamp: mqttReaction.timestamp + 5_000,
+    });
+    expect(findMeshtasticCrossTransportDuplicate([mqttReaction], rfReaction)).toBeUndefined();
+  });
+
+  it('no cross-dup when payloads differ', () => {
+    const mqttMsg = baseMsg({ receivedVia: 'mqtt', payload: 'hello' });
+    const rfMsg = baseMsg({
+      receivedVia: 'rf',
+      payload: 'world',
+      timestamp: mqttMsg.timestamp + 1_000,
+    });
+    expect(findMeshtasticCrossTransportDuplicate([mqttMsg], rfMsg)).toBeUndefined();
+  });
 });
