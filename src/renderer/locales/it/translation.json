@@ -826,7 +826,9 @@
     "meshcoreRemoveNeverAdvertisedHint": "Rimuove i contatti segnaposto obsoleti senza cronologia annunci; i contatti preferiti vengono mantenuti.",
     "messagesLoadLimitIntro": "Limita il numero di messaggi caricati in memoria per l'interfaccia utente e limita il numero di righe che rimangono in SQLite. Il caricamento di meno mantiene la RAM giù sulle reti occupate; il tappo del database elimina i messaggi più vecchi all'avvio dell'app (memorizzati per protocollo).",
     "logPanelHelp": "Se abilitato, sulla destra viene visualizzato un flusso di registro in tempo reale. Le righe di debug richiedono la casella di controllo all'interno del pannello di registro.",
-    "compactMessages": "Visualizzazione compatta dei messaggi"
+    "compactMessages": "Visualizzazione compatta dei messaggi",
+    "notificationsSection": "Notifiche",
+    "soundNotifications": "Notifiche sonore"
   },
   "nodeListPanel": {
     "contactsRefreshed": "Contatti aggiornati.",

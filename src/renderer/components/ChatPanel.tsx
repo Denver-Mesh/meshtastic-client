@@ -350,10 +350,6 @@ function ChatPanel({
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [jumpDate, setJumpDate] = useState('');
 
-  // Feature: sound notifications
-  const [notifMuted, setNotifMuted] = useState(
-    () => localStorage.getItem('mesh-client:notifMuted') === '1',
-  );
   const prevMessagesLengthRef = useRef(messages.length);
 
   // Feature: @mention autocomplete
@@ -632,11 +628,6 @@ function ChatPanel({
     setFilterSender(null);
   }, [viewKey, protocol]);
 
-  // Persist notification mute preference
-  useEffect(() => {
-    localStorage.setItem('mesh-client:notifMuted', notifMuted ? '1' : '0');
-  }, [notifMuted]);
-
   // Persist per-conversation mute
   useEffect(() => {
     saveMutedViews(protocol, mutedViews);
@@ -651,7 +642,8 @@ function ChatPanel({
   useEffect(() => {
     const prevLen = prevMessagesLengthRef.current;
     prevMessagesLengthRef.current = messages.length;
-    if (notifMuted || messages.length <= prevLen) return;
+    if (localStorage.getItem('mesh-client:notifMuted') === '1' || messages.length <= prevLen)
+      return;
     const newMsgs = messages.slice(prevLen);
     for (const msg of newMsgs) {
       if (isOwnNode(msg.sender_id)) continue;
@@ -664,7 +656,7 @@ function ChatPanel({
         break;
       }
     }
-  }, [messages, isActive, notifMuted, mutedViews, viewKey, isOwnNode]);
+  }, [messages, isActive, mutedViews, viewKey, isOwnNode]);
 
   const updateScrollButtonVisibility = useCallback(() => {
     const distFromBottom = getDistFromChatBottom(
@@ -1178,44 +1170,6 @@ function ChatPanel({
             );
           })}
         </div>
-
-        {/* Notification mute toggle */}
-        <button
-          onClick={() => {
-            setNotifMuted((m) => !m);
-          }}
-          aria-pressed={notifMuted}
-          aria-label={
-            notifMuted ? t('chatPanel.unmuteNotifications') : t('chatPanel.muteNotifications')
-          }
-          className={`shrink-0 rounded-lg p-1.5 transition-colors ${
-            notifMuted ? 'text-gray-600 hover:text-gray-300' : 'text-muted hover:text-gray-300'
-          }`}
-          title={notifMuted ? t('chatPanel.unmuteNotifications') : t('chatPanel.muteNotifications')}
-        >
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-            aria-hidden="true"
-          >
-            {notifMuted ? (
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"
-              />
-            ) : (
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15.536 8.464a5 5 0 010 7.072M12 6v12m-3.536-9.536a5 5 0 000 7.072M4 12H2"
-              />
-            )}
-          </svg>
-        </button>
 
         {/* Jump-to-date toggle */}
         <button

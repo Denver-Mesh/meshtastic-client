@@ -826,7 +826,9 @@
     "meshcoreRemoveNeverAdvertisedHint": "Entfernt veraltete Platzhalterkontakte ohne Anzeigenverlauf; bevorzugte Kontakte werden beibehalten.",
     "messagesLoadLimitIntro": "Begrenzen Sie, wie viele Nachrichten in den Speicher für die Benutzeroberfläche geladen werden, und begrenzen Sie, wie viele Zeilen in SQLite verbleiben. Weniger Laden hält den Arbeitsspeicher in ausgelasteten Netzwerken niedrig; die Datenbankobergrenze beschneidet ältere Nachrichten beim App-Start (per Protokoll gespeichert).",
     "logPanelHelp": "Wenn diese Option aktiviert ist, wird rechts ein Live-Protokollstream angezeigt. Für Debugzeilen ist das Kontrollkästchen im Protokollbereich erforderlich.",
-    "compactMessages": "Kompakte Nachrichtenansicht"
+    "compactMessages": "Kompakte Nachrichtenansicht",
+    "notificationsSection": "Benachrichtigungen",
+    "soundNotifications": "Sound-Benachrichtigungen"
   },
   "nodeListPanel": {
     "contactsRefreshed": "Kontakte aktualisiert.",
