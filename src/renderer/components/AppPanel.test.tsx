@@ -132,3 +132,68 @@ describe('AppPanel: DB-backed message retention card (issue #387)', () => {
     expect(input.id).toBe('apppanel-message-retention-meshcore-count');
   });
 });
+
+describe('AppPanel: sound notification toggle', () => {
+  const defaultProps = {
+    protocol: 'meshtastic' as const,
+    nodes: new Map(),
+    messageCount: 0,
+    channels: [] as { index: number; name: string }[],
+    myNodeNum: null as number | null,
+    onLocationFilterChange: vi.fn(),
+  };
+
+  beforeEach(() => {
+    localStorage.removeItem('mesh-client:notifMuted');
+  });
+
+  it('renders checked by default when localStorage has no mute value', async () => {
+    render(
+      <ToastProvider>
+        <AppPanel {...defaultProps} />
+      </ToastProvider>,
+    );
+    const checkbox = await screen.findByRole('checkbox', { name: /sound notifications/i });
+    expect(checkbox).toBeChecked();
+  });
+
+  it('renders unchecked when localStorage notifMuted is 1', async () => {
+    localStorage.setItem('mesh-client:notifMuted', '1');
+    render(
+      <ToastProvider>
+        <AppPanel {...defaultProps} />
+      </ToastProvider>,
+    );
+    const checkbox = await screen.findByRole('checkbox', { name: /sound notifications/i });
+    expect(checkbox).not.toBeChecked();
+  });
+
+  it('unchecking writes notifMuted=1 to localStorage', async () => {
+    render(
+      <ToastProvider>
+        <AppPanel {...defaultProps} />
+      </ToastProvider>,
+    );
+    const checkbox = await screen.findByRole('checkbox', { name: /sound notifications/i });
+    act(() => {
+      fireEvent.click(checkbox);
+    });
+    expect(checkbox).not.toBeChecked();
+    expect(localStorage.getItem('mesh-client:notifMuted')).toBe('1');
+  });
+
+  it('checking restores notifMuted=0 in localStorage', async () => {
+    localStorage.setItem('mesh-client:notifMuted', '1');
+    render(
+      <ToastProvider>
+        <AppPanel {...defaultProps} />
+      </ToastProvider>,
+    );
+    const checkbox = await screen.findByRole('checkbox', { name: /sound notifications/i });
+    act(() => {
+      fireEvent.click(checkbox);
+    });
+    expect(checkbox).toBeChecked();
+    expect(localStorage.getItem('mesh-client:notifMuted')).toBe('0');
+  });
+});

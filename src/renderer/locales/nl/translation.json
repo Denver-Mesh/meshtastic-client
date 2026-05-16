@@ -826,7 +826,9 @@
     "meshcoreRemoveNeverAdvertisedHint": "Verwijdert verouderde tijdelijke contacten zonder advertentiegeschiedenis; favoriete contacten blijven behouden.",
     "messagesLoadLimitIntro": "Beperk het aantal berichten dat in het geheugen van de gebruikersinterface wordt geladen en beperk het aantal rijen dat in SQLite blijft. Door minder te laden, blijft het RAM-geheugen laag op drukke netwerken; de database cap verwijdert oudere berichten bij het opstarten van de app (opgeslagen per protocol).",
     "logPanelHelp": "Indien ingeschakeld, verschijnt er aan de rechterkant een live logstream. Voor foutopsporingsregels is het selectievakje in het logpaneel vereist.",
-    "compactMessages": "Compacte berichtweergave"
+    "compactMessages": "Compacte berichtweergave",
+    "notificationsSection": "Meldingen",
+    "soundNotifications": "Geluidsmeldingen"
   },
   "nodeListPanel": {
     "contactsRefreshed": "Contacten vernieuwd.",
@@ -1016,7 +1018,14 @@
     "dmNodeSignal": "SNR {{snr}} dB",
     "dmNodeHops": "{{count}} hop",
     "dmNodeHopsPlural": "{{count}} hop",
-    "quickDm": "Rechtstreeks bericht {{name}}"
+    "quickDm": "Rechtstreeks bericht {{name}}",
+    "muteConversation": "Dit gesprek dempen",
+    "unmuteConversation": "Dempen van dit gesprek opheffen",
+    "starMessage": "Bericht favoriet maken",
+    "unstarMessage": "Het bericht uit de favorieten verwijderen",
+    "starredMessages": "Favoriete berichten",
+    "noStarredMessages": "Nog geen berichten met een ster. Geef elk bericht een ster om het hier op te slaan.",
+    "goToMessage": "Ga naar bericht"
   },
   "connectionPanel": {
     "maxReconnectAttempts": "Max. MQTT-pogingen om opnieuw verbinding te maken",

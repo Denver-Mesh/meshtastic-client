@@ -62,6 +62,7 @@ import {
   upsertMeshcorePathHistory,
   upsertNodePath,
 } from './database';
+import { fetchLinkPreview } from './fetchLinkPreview';
 import { getGpsFix } from './gps';
 import {
   clearLogFile,
@@ -3871,6 +3872,12 @@ ipcMain.handle('chat:export', async (event, messages: unknown) => {
     );
     throw err;
   }
+});
+
+// ─── IPC: Chat link preview ──────────────────────────────────────────
+ipcMain.handle('chat:fetchLinkPreview', async (_event, url: unknown) => {
+  if (typeof url !== 'string' || url.length === 0 || url.length > 2048) return null;
+  return await fetchLinkPreview(url);
 });
 
 // ─── IPC: MeshCore database operations ──────────────────────────────

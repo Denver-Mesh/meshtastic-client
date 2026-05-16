@@ -826,7 +826,9 @@
     "meshcoreRemoveNeverAdvertisedHint": "광고 기록이 없는 오래된 자리 표시자 연락처를 제거합니다. 즐겨찾는 연락처가 유지됩니다.",
     "messagesLoadLimitIntro": "UI용 메모리에 로드되는 메시지 수를 제한하고 SQLite에 유지되는 행 수를 제한합니다. 더 적은 수의 로드를 사용하면 사용량이 많은 네트워크에서 RAM을 적게 사용할 수 있습니다. 데이터베이스 캡은 앱 시작 시 오래된 메시지를 정리합니다(프로토콜별로 저장됨).",
     "logPanelHelp": "활성화되면 실시간 로그 스트림이 오른쪽에 나타납니다. 디버그 라인에는 로그 패널 내부의 확인란이 필요합니다.",
-    "compactMessages": "간결한 메시지 보기"
+    "compactMessages": "간결한 메시지 보기",
+    "notificationsSection": "토",
+    "soundNotifications": "소리 알림"
   },
   "nodeListPanel": {
     "contactsRefreshed": "연락처가 새로 고쳐졌습니다.",
@@ -1016,7 +1018,14 @@
     "dmNodeSignal": "SNR {{snr}} dB",
     "dmNodeHops": "{{count}} 홉",
     "dmNodeHopsPlural": "{{count}} 홉",
-    "quickDm": "{{name}}에게 다이렉트 메시지"
+    "quickDm": "{{name}}에게 다이렉트 메시지",
+    "muteConversation": "이 대화 음소거",
+    "unmuteConversation": "이 대화 음소거 해제",
+    "starMessage": "메시지 별표처리",
+    "unstarMessage": "언스타 메시",
+    "starredMessages": "별표 표시된 메세지",
+    "noStarredMessages": "아직 별표 표시된 메시지가 없습니다. 여기에 저장하려면 메시지에 별표를 표시하세요.",
+    "goToMessage": "메시지"
   },
   "connectionPanel": {
     "maxReconnectAttempts": "최대 MQTT 재연결 시도",

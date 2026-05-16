@@ -121,7 +121,7 @@
     "electron": "^41.6.1",
     "electron-builder": "^26.10.0",
     "esbuild": "^0.28.0",
-    "eslint": "^10.3.0",
+    "eslint": "^10.4.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-electron": "^7.0.0",
     "eslint-plugin-import": "^2.32.0",

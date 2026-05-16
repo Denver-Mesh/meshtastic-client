@@ -188,6 +188,12 @@ export default function AppPanel({
   onAutoFloodAdvertIntervalChange,
   onChatCompactModeChange,
 }: Props) {
+  const [soundNotifEnabled, setSoundNotifEnabled] = useState(
+    () => localStorage.getItem('mesh-client:notifMuted') !== '1',
+  );
+  useEffect(() => {
+    localStorage.setItem('mesh-client:notifMuted', soundNotifEnabled ? '0' : '1');
+  }, [soundNotifEnabled]);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const { addToast } = useToast();
   const { t } = useTranslation();
@@ -1380,6 +1386,26 @@ export default function AppPanel({
             </button>
           </div>
         </details>
+      </div>
+
+      {/* Notifications */}
+      <div className="space-y-2">
+        <h3 className="text-muted text-sm font-medium">{t('appPanel.notificationsSection')}</h3>
+        <div className="flex items-center gap-3">
+          <input
+            type="checkbox"
+            id="soundNotifications"
+            checked={soundNotifEnabled}
+            onChange={(e) => {
+              setSoundNotifEnabled(e.target.checked);
+            }}
+            aria-label={t('appPanel.soundNotifications')}
+            className="accent-brand-green h-4 w-4 rounded"
+          />
+          <label htmlFor="soundNotifications" className="cursor-pointer text-sm text-gray-300">
+            {t('appPanel.soundNotifications')}
+          </label>
+        </div>
       </div>
 
       {/* Danger Zone — collapsible; same pattern as Appearance → Color scheme */}

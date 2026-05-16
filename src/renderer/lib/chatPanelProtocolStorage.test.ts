@@ -5,10 +5,15 @@ import {
   draftsStorageKey,
   lastReadStorageKey,
   loadDraftsInitial,
+  loadMutedViews,
   loadOpenDmTabsInitial,
   loadPersistedLastReadInitial,
+  loadStarred,
   openDmTabsStorageKey,
   saveDraft,
+  saveMutedViews,
+  saveStarred,
+  type StarredMessage,
 } from './chatPanelProtocolStorage';
 
 describe('chatPanelProtocolStorage', () => {
@@ -95,5 +100,101 @@ describe('chatPanelProtocolStorage — drafts', () => {
 
     localStorage.setItem(draftsStorageKey('meshtastic'), 'not json{');
     expect(loadDraftsInitial('meshtastic')).toEqual({});
+  });
+});
+
+describe('loadMutedViews / saveMutedViews', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('returns empty Set when nothing stored', () => {
+    expect(loadMutedViews('meshtastic').size).toBe(0);
+  });
+
+  it('round-trips a set of view keys', () => {
+    saveMutedViews('meshtastic', new Set(['ch:0', 'dm:12345']));
+    const result = loadMutedViews('meshtastic');
+    expect(result.has('ch:0')).toBe(true);
+    expect(result.has('dm:12345')).toBe(true);
+    expect(result.size).toBe(2);
+  });
+
+  it('is scoped per protocol', () => {
+    saveMutedViews('meshtastic', new Set(['ch:1']));
+    expect(loadMutedViews('meshcore').size).toBe(0);
+  });
+
+  it('returns empty Set for corrupt JSON', () => {
+    localStorage.setItem('mesh-client:mutedViews:meshtastic', 'not json{');
+    expect(loadMutedViews('meshtastic').size).toBe(0);
+  });
+
+  it('returns empty Set when stored value is not an array of strings', () => {
+    localStorage.setItem('mesh-client:mutedViews:meshtastic', JSON.stringify([1, 2, 3]));
+    expect(loadMutedViews('meshtastic').size).toBe(0);
+  });
+});
+
+function makeStarred(overrides: Partial<StarredMessage> = {}): StarredMessage {
+  return {
+    starId: 'id1',
+    timestamp: 1_700_000_000_000,
+    payload: 'hello',
+    sender_name: 'Alice',
+    sender_id: 0x12345678,
+    viewKey: 'ch:0',
+    channel: 0,
+    to: null,
+    starredAt: Date.now(),
+    ...overrides,
+  };
+}
+
+describe('loadStarred / saveStarred', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('returns empty array when nothing stored', () => {
+    expect(loadStarred('meshtastic')).toEqual([]);
+  });
+
+  it('round-trips starred messages', () => {
+    const items = [makeStarred({ starId: 'a' }), makeStarred({ starId: 'b' })];
+    saveStarred('meshtastic', items);
+    const loaded = loadStarred('meshtastic');
+    expect(loaded).toHaveLength(2);
+    expect(loaded.map((s) => s.starId)).toEqual(['a', 'b']);
+  });
+
+  it('is scoped per protocol', () => {
+    saveStarred('meshtastic', [makeStarred()]);
+    expect(loadStarred('meshcore')).toEqual([]);
+  });
+
+  it('returns empty array for corrupt JSON', () => {
+    localStorage.setItem('mesh-client:starred:meshtastic', 'not json{');
+    expect(loadStarred('meshtastic')).toEqual([]);
+  });
+
+  it('caps at STARRED_LIMIT (200) by dropping oldest starredAt', () => {
+    const now = Date.now();
+    const items: StarredMessage[] = Array.from({ length: 205 }, (_, i) =>
+      makeStarred({ starId: String(i), starredAt: now + i }),
+    );
+    saveStarred('meshtastic', items);
+    const loaded = loadStarred('meshtastic');
+    expect(loaded).toHaveLength(200);
+    // oldest entries (starredAt = now+0..now+4) should be dropped
+    const ids = new Set(loaded.map((s) => s.starId));
+    for (let i = 0; i < 5; i++) expect(ids.has(String(i))).toBe(false);
+    for (let i = 5; i < 205; i++) expect(ids.has(String(i))).toBe(true);
+  });
+
+  it('does not cap when at exactly STARRED_LIMIT', () => {
+    const items = Array.from({ length: 200 }, (_, i) => makeStarred({ starId: String(i) }));
+    saveStarred('meshtastic', items);
+    expect(loadStarred('meshtastic')).toHaveLength(200);
   });
 });

@@ -1757,3 +1757,84 @@ describe('MQTTManager reconnect backoff + connect watchdog', () => {
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('timed out before MQTT session'));
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// handleJsonText — packetId coercion and dedup
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('handleJsonText — packetId coercion and dedup', () => {
+  const nodeHex = '12345678';
+  const topic = `msh/US/2/json/LongFast/!${nodeHex}`;
+
+  function jsonPayload(json: Record<string, unknown>): Buffer {
+    return Buffer.from(JSON.stringify(json));
+  }
+
+  it('emits message with coerced uint32 packetId when json.id is a number', () => {
+    const manager = new MQTTManager();
+    const messages: unknown[] = [];
+    manager.on('message', (m) => messages.push(m));
+
+    (manager as any).onMessage(
+      topic,
+      jsonPayload({ type: 'text', from: `!${nodeHex}`, text: 'hi', id: 0x80000001 }),
+    );
+
+    expect(messages).toHaveLength(1);
+    expect((messages[0] as Record<string, unknown>).packetId).toBe(0x80000001 >>> 0);
+  });
+
+  it('emits packetId 0 and does not dedup when json.id is not a number', () => {
+    const manager = new MQTTManager();
+    const messages: unknown[] = [];
+    manager.on('message', (m) => messages.push(m));
+
+    // Send the same text twice with a string id — neither should be dropped
+    (manager as any).onMessage(
+      topic,
+      jsonPayload({ type: 'text', from: `!${nodeHex}`, text: 'hello', id: '99999' }),
+    );
+    (manager as any).onMessage(
+      topic,
+      jsonPayload({ type: 'text', from: `!${nodeHex}`, text: 'hello', id: '99999' }),
+    );
+
+    expect(messages).toHaveLength(2);
+    expect((messages[0] as Record<string, unknown>).packetId).toBe(0);
+  });
+
+  it('drops the second message with the same numeric packetId (dedup)', () => {
+    const manager = new MQTTManager();
+    const messages: unknown[] = [];
+    manager.on('message', (m) => messages.push(m));
+
+    const id = 0x00abcdef;
+    (manager as any).onMessage(
+      topic,
+      jsonPayload({ type: 'text', from: `!${nodeHex}`, text: 'dup', id }),
+    );
+    (manager as any).onMessage(
+      topic,
+      jsonPayload({ type: 'text', from: `!${nodeHex}`, text: 'dup', id }),
+    );
+
+    expect(messages).toHaveLength(1);
+  });
+
+  it('does not dedup when packetId is 0 (even if sent twice)', () => {
+    const manager = new MQTTManager();
+    const messages: unknown[] = [];
+    manager.on('message', (m) => messages.push(m));
+
+    (manager as any).onMessage(
+      topic,
+      jsonPayload({ type: 'text', from: `!${nodeHex}`, text: 'zero-id', id: 0 }),
+    );
+    (manager as any).onMessage(
+      topic,
+      jsonPayload({ type: 'text', from: `!${nodeHex}`, text: 'zero-id', id: 0 }),
+    );
+
+    expect(messages).toHaveLength(2);
+  });
+});

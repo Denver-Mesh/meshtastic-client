@@ -51,6 +51,7 @@ import {
   TelemetryPanel,
 } from './lazyTabPanels';
 import { getAppSettingsRaw } from './lib/appSettingsStorage';
+import { playMessageNotification } from './lib/chatNotifications';
 import { DEFAULT_APP_SETTINGS_SHARED } from './lib/defaultAppSettings';
 import {
   fetchLatestMeshCoreRelease,
@@ -1320,13 +1321,27 @@ export default function App() {
       if (count > 0) isMeshtasticInitialRef.current = false;
       return;
     }
-    const isActiveAndChatOpen = protocolRef.current === 'meshtastic' && activeTabRef.current === 1;
+    const isActiveAndChatOpen =
+      protocolRef.current === 'meshtastic' && activeTabRef.current === 1 && !document.hidden;
     if (count > prevMeshtasticMsgCountRef.current && !isActiveAndChatOpen) {
       const newMsgs = meshtasticMsgsRef.current.slice(prevMeshtasticMsgCountRef.current);
       const realNew = newMsgs.filter(
         (m) => m.sender_id !== meshtasticMyNodeNumRef.current && !m.emoji && !m.isHistory,
       );
       if (realNew.length > 0) {
+        if (localStorage.getItem('mesh-client:notifMuted') !== '1') {
+          const mutedRaw = localStorage.getItem('mesh-client:mutedViews:meshtastic');
+          const mutedViews: Set<string> = mutedRaw
+            ? new Set(JSON.parse(mutedRaw) as string[])
+            : new Set();
+          const myNum = meshtasticMyNodeNumRef.current;
+          const audible = realNew.some((m) => {
+            const peer = m.to != null ? (m.to === myNum ? m.sender_id : m.to) : null;
+            const vk = peer != null ? `dm:${peer}` : `ch:${m.channel}`;
+            return !mutedViews.has(vk);
+          });
+          if (audible) playMessageNotification();
+        }
         queueMicrotask(() => {
           setMeshtasticUnread((prev) => prev + realNew.length);
         });
@@ -1343,7 +1358,8 @@ export default function App() {
       if (count > 0) isMeshcoreInitialRef.current = false;
       return;
     }
-    const isActiveAndChatOpen = protocolRef.current === 'meshcore' && activeTabRef.current === 1;
+    const isActiveAndChatOpen =
+      protocolRef.current === 'meshcore' && activeTabRef.current === 1 && !document.hidden;
     if (count > prevMeshcoreMsgCountRef.current && !isActiveAndChatOpen) {
       const newMsgs = meshcoreMsgsRef.current.slice(prevMeshcoreMsgCountRef.current);
       const realNew = newMsgs.filter(

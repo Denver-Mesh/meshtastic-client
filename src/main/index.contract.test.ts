@@ -201,4 +201,8 @@ describe('Native Electron call guards (source contract)', () => {
       'catch-no-log-ok dialog unavailable during fatal startup handling; error already logged above',
     );
   });
+
+  it('registers chat:fetchLinkPreview handler', () => {
+    expect(INDEX_SOURCE).toContain("ipcMain.handle('chat:fetchLinkPreview'");
+  });
 });

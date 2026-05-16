@@ -1601,41 +1601,16 @@ describe('ChatPanel — draft restored on initial mount', () => {
   });
 });
 
-describe('ChatPanel — notification mute toggle', () => {
-  it('toggles aria-pressed and persists preference to localStorage', async () => {
-    const user = userEvent.setup();
-    localStorage.removeItem('mesh-client:notifMuted');
-
-    render(
-      <ToastProvider>
-        <ChatPanel {...baseProps} />
-      </ToastProvider>,
-    );
-
-    const muteBtn = screen.getByRole('button', { name: /mute notifications/i });
-    expect(muteBtn).toHaveAttribute('aria-pressed', 'false');
-
-    await user.click(muteBtn);
-    expect(screen.getByRole('button', { name: /unmute notifications/i })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
-    expect(localStorage.getItem('mesh-client:notifMuted')).toBe('1');
-
-    await user.click(screen.getByRole('button', { name: /unmute notifications/i }));
-    expect(screen.getByRole('button', { name: /mute notifications/i })).toHaveAttribute(
-      'aria-pressed',
-      'false',
-    );
-    expect(localStorage.getItem('mesh-client:notifMuted')).toBe('0');
-  });
-});
-
 describe('ChatPanel — notification sound on new messages', () => {
   const playMock = vi.mocked(chatNotifications.playMessageNotification);
 
   beforeEach(() => {
     playMock.mockClear();
+    localStorage.removeItem('mesh-client:notifMuted');
+  });
+
+  afterEach(() => {
+    localStorage.removeItem('mesh-client:notifMuted');
   });
 
   it('does not play sound for messages already present at mount (e.g. after protocol switch)', async () => {
@@ -1672,5 +1647,28 @@ describe('ChatPanel — notification sound on new messages', () => {
 
     await screen.findByRole('textbox');
     expect(playMock).toHaveBeenCalledOnce();
+  });
+
+  it('does not play sound when notifMuted=1 in localStorage (global setting from AppPanel)', async () => {
+    localStorage.setItem('mesh-client:notifMuted', '1');
+
+    const { rerender } = render(
+      <ToastProvider>
+        <ChatPanel {...baseProps} messages={[]} isActive={false} />
+      </ToastProvider>,
+    );
+
+    await screen.findByRole('textbox');
+    playMock.mockClear();
+
+    const newMsg = makeMsg({ sender_id: 2, channel: 0, isHistory: undefined });
+    rerender(
+      <ToastProvider>
+        <ChatPanel {...baseProps} messages={[newMsg]} isActive={false} />
+      </ToastProvider>,
+    );
+
+    await screen.findByRole('textbox');
+    expect(playMock).not.toHaveBeenCalled();
   });
 });

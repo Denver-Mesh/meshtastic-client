@@ -826,7 +826,9 @@
     "meshcoreRemoveNeverAdvertisedHint": "Elimina los contactos de marcador de posición obsoletos sin historial de anuncios; los contactos favoritos se mantienen.",
     "messagesLoadLimitIntro": "Limite la cantidad de mensajes que se cargan en la memoria para la interfaz de usuario y limite la cantidad de filas que permanecen en SQLite. Cargar menos mantiene la RAM baja en redes ocupadas; el límite de la base de datos elimina los mensajes más antiguos al iniciar la aplicación (almacenados por protocolo).",
     "logPanelHelp": "Cuando está habilitado, aparece una transmisión de registro en vivo a la derecha. Las líneas de depuración requieren la casilla de verificación dentro del panel de registro.",
-    "compactMessages": "Vista compacta de mensajes"
+    "compactMessages": "Vista compacta de mensajes",
+    "notificationsSection": "Notificaciones",
+    "soundNotifications": "Notificaciones con Sonido"
   },
   "nodeListPanel": {
     "contactsRefreshed": "Contactos actualizados.",
@@ -1016,7 +1018,14 @@
     "dmNodeSignal": "SNR {{snr}} dB",
     "dmNodeHops": "{{count}} hop",
     "dmNodeHopsPlural": "{{count}} saltos",
-    "quickDm": "Mensaje directo {{name}}"
+    "quickDm": "Mensaje directo {{name}}",
+    "muteConversation": "Silenciar esta conversación",
+    "unmuteConversation": "Activar esta conversación",
+    "starMessage": "Marcar mensaje",
+    "unstarMessage": "Marcar Mensaje como no favorito",
+    "starredMessages": "Mensajes con estrellas",
+    "noStarredMessages": "Aún no hay mensajes destacados. Marca cualquier mensaje para guardarlo aquí.",
+    "goToMessage": "Ir al mensaje"
   },
   "connectionPanel": {
     "maxReconnectAttempts": "Intentos de reconexión MQTT máximos",

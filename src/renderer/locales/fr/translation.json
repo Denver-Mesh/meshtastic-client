@@ -826,7 +826,9 @@
     "meshcoreRemoveNeverAdvertisedHint": "Supprime les contacts d'espace réservé périmés sans historique publicitaire ; les contacts favoris sont conservés.",
     "messagesLoadLimitIntro": "Limitez le nombre de messages chargés en mémoire pour l'interface utilisateur et limitez le nombre de lignes restant dans SQLite. Charger moins réduit la RAM sur les réseaux occupés ; la base de données élague les messages plus anciens au démarrage de l'application (stockée par protocole).",
     "logPanelHelp": "Lorsqu'il est activé, un flux de journaux en direct apparaît sur la droite. Les lignes de débogage nécessitent la case à cocher dans le panneau de journal.",
-    "compactMessages": "Affichage compact des messages"
+    "compactMessages": "Affichage compact des messages",
+    "notificationsSection": "Notifications",
+    "soundNotifications": "Notifications sonores"
   },
   "nodeListPanel": {
     "contactsRefreshed": "Contacts actualisés.",
@@ -1016,7 +1018,14 @@
     "dmNodeSignal": "SNR {{snr}} dB",
     "dmNodeHops": "{{count}} hop",
     "dmNodeHopsPlural": "{{count}} sauts",
-    "quickDm": "Message direct {{name}}"
+    "quickDm": "Message direct {{name}}",
+    "muteConversation": "Mettre cette conversation en sourdine",
+    "unmuteConversation": "Annuler la mise en sourdine de cette conversation",
+    "starMessage": "Message étoilé",
+    "unstarMessage": "Message non étoilé",
+    "starredMessages": "Messages favoris",
+    "noStarredMessages": "Pas encore de messages marqués d'une étoile. Cochez n'importe quel message pour l'enregistrer ici.",
+    "goToMessage": "Aller au message"
   },
   "connectionPanel": {
     "maxReconnectAttempts": "Nombre maximal de tentatives de reconnexion MQTT",

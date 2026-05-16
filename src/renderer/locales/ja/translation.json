@@ -826,7 +826,9 @@
     "meshcoreRemoveNeverAdvertisedHint": "広告履歴のない古いプレースホルダー連絡先を削除します。お気に入りの連絡先は保持されます。",
     "messagesLoadLimitIntro": "UI のメモリに読み込まれるメッセージの数を制限し、SQLite に保持される行の数を制限します。読み込みを少なくすると、混雑したネットワークで RAM の使用量が減ります。データベースの上限により、アプリの起動時に古いメッセージが削除されます (プロトコルごとに保存されます)。",
     "logPanelHelp": "有効にすると、右側にライブ ログ ストリームが表示されます。デバッグ行では、ログ パネル内のチェックボックスが必要です。",
-    "compactMessages": "コンパクトなメッセージビュー"
+    "compactMessages": "コンパクトなメッセージビュー",
+    "notificationsSection": "通知",
+    "soundNotifications": "サウンド通知"
   },
   "nodeListPanel": {
     "contactsRefreshed": "連絡先が更新されました。",
@@ -1016,7 +1018,14 @@
     "dmNodeSignal": "SNR {{snr}} dB",
     "dmNodeHops": "{{count}}ホップ",
     "dmNodeHopsPlural": "{{count}}ホップ",
-    "quickDm": "ダイレクトメッセージ{{name}}"
+    "quickDm": "ダイレクトメッセージ{{name}}",
+    "muteConversation": "この会話をミュートする",
+    "unmuteConversation": "この会話のミュートを解除する",
+    "starMessage": "スターメッセージ",
+    "unstarMessage": "メッセージのスターマークを外す",
+    "starredMessages": "スター付きメッセージ",
+    "noStarredMessages": "お気に入りのメッセージはまだありません。メッセージにスターを付けてここに保存します。",
+    "goToMessage": "メッセージに移動"
   },
   "connectionPanel": {
     "maxReconnectAttempts": "MQTT 再接続の最大試行回数",

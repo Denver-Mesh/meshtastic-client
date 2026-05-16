@@ -826,7 +826,9 @@
     "meshcoreRemoveNeverAdvertisedHint": "Odstraní zastaralé zástupné kontakty bez historie reklam; oblíbené kontakty jsou zachovány.",
     "messagesLoadLimitIntro": "Omezte počet zpráv, které se načítají do paměti pro uživatelské rozhraní, a omezte počet řádků, které zůstanou v SQLite. Menší zatížení udržuje RAM v rušných sítích; omezení databáze ořezává starší zprávy při spuštění aplikace (uložené podle protokolu).",
     "logPanelHelp": "Je-li povoleno, na pravé straně se zobrazí živý záznam protokolu. Řádky ladění vyžadují zaškrtávací políčko na panelu protokolu.",
-    "compactMessages": "Kompaktní zobrazení zpráv"
+    "compactMessages": "Kompaktní zobrazení zpráv",
+    "notificationsSection": "Oznámení",
+    "soundNotifications": "Zvuková upozornění"
   },
   "nodeListPanel": {
     "contactsRefreshed": "Kontakty byly obnoveny.",
@@ -1016,7 +1018,14 @@
     "dmNodeSignal": "SNR {{snr}} dB",
     "dmNodeHops": "{{count}} hop",
     "dmNodeHopsPlural": "{{count}} chmel",
-    "quickDm": "Přímá zpráva {{name}}"
+    "quickDm": "Přímá zpráva {{name}}",
+    "muteConversation": "Ztlumit tuto konverzaci",
+    "unmuteConversation": "Zrušit ztlumení této konverzace",
+    "starMessage": "Označit zprávu",
+    "unstarMessage": "Zpráva bez hvězdičky",
+    "starredMessages": "Označené zprávy",
+    "noStarredMessages": "Zatím žádné zprávy označené hvězdičkou. Označte jakoukoli zprávu hvězdičkou a uložte ji zde.",
+    "goToMessage": "Přejít na zprávu"
   },
   "connectionPanel": {
     "maxReconnectAttempts": "Maximální počet pokusů o opětovné připojení MQTT",
