@@ -18,6 +18,7 @@ import ChannelUtilizationChart from './components/ChannelUtilizationChart';
 import ErrorBoundary from './components/ErrorBoundary';
 import { HelpTooltip } from './components/HelpTooltip';
 import LanguageSelector from './components/LanguageSelector';
+import NotificationToggle from './components/NotificationToggle';
 import Sidebar from './components/Sidebar';
 import { LinkIcon } from './components/SignalBars';
 import SignalPropagation from './components/SignalPropagation';
@@ -501,6 +502,12 @@ export default function App() {
       parseStoredJson<Record<string, unknown>>(getAppSettingsRaw(), 'App chatCompactMode') ?? {};
     return Boolean(s.chatCompactMode);
   });
+  const [notifMuted, setNotifMuted] = useState(
+    () => localStorage.getItem('mesh-client:notifMuted') === '1',
+  );
+  useEffect(() => {
+    localStorage.setItem('mesh-client:notifMuted', notifMuted ? '1' : '0');
+  }, [notifMuted]);
   const [pendingDmTarget, setPendingDmTarget] = useState<number | null>(null);
   const [meshtasticUnread, setMeshtasticUnread] = useState(() => readPersistedUnread('meshtastic'));
   const [meshcoreUnread, setMeshcoreUnread] = useState(() => readPersistedUnread('meshcore'));
@@ -1329,7 +1336,7 @@ export default function App() {
         (m) => m.sender_id !== meshtasticMyNodeNumRef.current && !m.emoji && !m.isHistory,
       );
       if (realNew.length > 0) {
-        if (localStorage.getItem('mesh-client:notifMuted') !== '1') {
+        if (!notifMuted) {
           const mutedRaw = localStorage.getItem('mesh-client:mutedViews:meshtastic');
           const mutedViews: Set<string> = mutedRaw
             ? new Set(JSON.parse(mutedRaw) as string[])
@@ -1348,7 +1355,7 @@ export default function App() {
       }
     }
     prevMeshtasticMsgCountRef.current = count;
-  }, [meshtasticDevice.messages.length]);
+  }, [meshtasticDevice.messages.length, notifMuted]);
 
   // ─── Track MeshCore messages arriving while inactive ─────────────
   useEffect(() => {
@@ -1708,6 +1715,7 @@ export default function App() {
                 </div>
               </HelpTooltip>
             )}
+            <NotificationToggle notifMuted={notifMuted} onToggle={setNotifMuted} />
             <LanguageSelector />
           </div>
         </div>
@@ -1890,6 +1898,8 @@ export default function App() {
                             scrollToTopRef={scrollToTopChatRef}
                             outerScrollMetricsRootRef={mainViewportRef}
                             compactMode={chatCompactMode}
+                            notifMuted={notifMuted}
+                            onNotifMutedChange={setNotifMuted}
                           />
                         </Suspense>
                       </div>

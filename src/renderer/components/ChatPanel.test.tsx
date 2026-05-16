@@ -27,6 +27,8 @@ describe('ChatPanel accessibility', () => {
     isConnected: false,
     nodes: new Map(),
     isActive: true,
+    notifMuted: false,
+    onNotifMutedChange: vi.fn(),
   };
 
   it('has no axe violations with empty messages', async () => {
@@ -606,6 +608,8 @@ describe('ChatPanel compact mode', () => {
     nodes: new Map(),
     isActive: true,
     compactMode: true,
+    notifMuted: false,
+    onNotifMutedChange: vi.fn(),
   };
 
   it('merges consecutive same-sender channel bubbles when timestamps are more than 5 minutes apart', () => {
@@ -765,6 +769,8 @@ describe('ChatPanel StatusBadge', () => {
     isConnected: true,
     nodes: new Map(),
     isActive: true,
+    notifMuted: false,
+    onNotifMutedChange: vi.fn(),
   };
 
   const failedMsg = {
@@ -962,6 +968,8 @@ describe('ChatPanel unread watermarks', () => {
     isConnected: true,
     nodes: new Map(),
     isActive: true,
+    notifMuted: false,
+    onNotifMutedChange: vi.fn(),
   };
 
   it('clears a non-primary channel badge after that channel is viewed', async () => {
@@ -1110,6 +1118,8 @@ describe('ChatPanel compose emoji picker', () => {
     isConnected: true,
     nodes: new Map(),
     isActive: true,
+    notifMuted: false,
+    onNotifMutedChange: vi.fn(),
   };
 
   beforeEach(() => {
@@ -1181,6 +1191,8 @@ describe('ChatPanel tapback reaction picker', () => {
     isConnected: true,
     nodes: new Map(),
     isActive: true,
+    notifMuted: false,
+    onNotifMutedChange: vi.fn(),
   };
 
   beforeEach(() => {
@@ -1234,6 +1246,8 @@ describe('ChatPanel RF hop label', () => {
     isConnected: true,
     nodes: new Map(),
     isActive: true,
+    notifMuted: false,
+    onNotifMutedChange: vi.fn(),
   };
 
   it('shows rx hops for MeshCore RF incoming messages', async () => {
@@ -1276,6 +1290,8 @@ const baseProps = {
   isConnected: true,
   nodes: new Map<number, MeshNode>(),
   isActive: true,
+  notifMuted: false,
+  onNotifMutedChange: vi.fn(),
 };
 
 function makeMsg(overrides: Partial<ChatMessage>): ChatMessage {
@@ -1602,13 +1618,13 @@ describe('ChatPanel — draft restored on initial mount', () => {
 });
 
 describe('ChatPanel — notification mute toggle', () => {
-  it('toggles aria-pressed and persists preference to localStorage', async () => {
+  it('calls onNotifMutedChange when the mute button is clicked', async () => {
     const user = userEvent.setup();
-    localStorage.removeItem('mesh-client:notifMuted');
+    const onNotifMutedChange = vi.fn();
 
-    render(
+    const { rerender } = render(
       <ToastProvider>
-        <ChatPanel {...baseProps} />
+        <ChatPanel {...baseProps} notifMuted={false} onNotifMutedChange={onNotifMutedChange} />
       </ToastProvider>,
     );
 
@@ -1616,18 +1632,19 @@ describe('ChatPanel — notification mute toggle', () => {
     expect(muteBtn).toHaveAttribute('aria-pressed', 'false');
 
     await user.click(muteBtn);
-    expect(screen.getByRole('button', { name: /unmute notifications/i })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
-    expect(localStorage.getItem('mesh-client:notifMuted')).toBe('1');
+    expect(onNotifMutedChange).toHaveBeenCalledWith(true);
 
-    await user.click(screen.getByRole('button', { name: /unmute notifications/i }));
-    expect(screen.getByRole('button', { name: /mute notifications/i })).toHaveAttribute(
-      'aria-pressed',
-      'false',
+    rerender(
+      <ToastProvider>
+        <ChatPanel {...baseProps} notifMuted={true} onNotifMutedChange={onNotifMutedChange} />
+      </ToastProvider>,
     );
-    expect(localStorage.getItem('mesh-client:notifMuted')).toBe('0');
+
+    const unmuteBtn = screen.getByRole('button', { name: /unmute notifications/i });
+    expect(unmuteBtn).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(unmuteBtn);
+    expect(onNotifMutedChange).toHaveBeenCalledWith(false);
   });
 });
 
