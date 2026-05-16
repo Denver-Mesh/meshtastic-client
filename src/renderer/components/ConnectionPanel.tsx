@@ -91,9 +91,25 @@ function humanizeSerialError(err: unknown, t: TFunction): string {
   return msg;
 }
 
+function hostFromAddressInput(address: string): string {
+  const raw = address.trim();
+  if (!raw) return '';
+  try {
+    return new URL(raw.includes('://') ? raw : `http://${raw}`).hostname.toLowerCase();
+  } catch {
+    // catch-no-log-ok user-typed host/IP without scheme
+    return raw.split('/')[0]?.split(':')[0]?.toLowerCase() ?? '';
+  }
+}
+
+function isMeshtasticLocalAddress(address: string): boolean {
+  const host = hostFromAddressInput(address);
+  return host === 'meshtastic.local' || host.endsWith('.meshtastic.local');
+}
+
 function humanizeHttpError(address: string, err: unknown, t: TFunction): string {
   const msg = err instanceof Error ? err.message : String(err);
-  const isMdns = address.toLowerCase().includes('meshtastic.local');
+  const isMdns = isMeshtasticLocalAddress(address);
   const isWindows = navigator.userAgent.toLowerCase().includes('windows');
   if (/timed out|timeout|aborted/i.test(msg)) {
     const hint = isMdns

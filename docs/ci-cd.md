@@ -153,6 +153,7 @@ The pre-commit hook runs additional checks that CI does not:
 
 - Format (`pnpm run format`)
 - Log injection check (`pnpm run check:log-injection`)
+- URL hostname substring check (`pnpm run check:url-hostname-sanitization`) — mirrors CodeQL `js/incomplete-url-substring-sanitization`
 - DB migration check (`pnpm run check:db-migrations`)
 - IPC contract check (`pnpm run check:ipc-contract`)
 - Security audit (`pnpm audit --audit-level=high`)
