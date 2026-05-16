@@ -1643,4 +1643,29 @@ describe('ChatPanel — notification sound on new messages', () => {
     await screen.findByRole('textbox');
     expect(playMock).toHaveBeenCalledOnce();
   });
+
+  it('does not play sound when notifMuted=1 in localStorage (global setting from AppPanel)', async () => {
+    localStorage.setItem('mesh-client:notifMuted', '1');
+
+    const { rerender } = render(
+      <ToastProvider>
+        <ChatPanel {...baseProps} messages={[]} isActive={false} />
+      </ToastProvider>,
+    );
+
+    await screen.findByRole('textbox');
+    playMock.mockClear();
+
+    const newMsg = makeMsg({ sender_id: 2, channel: 0, isHistory: undefined });
+    rerender(
+      <ToastProvider>
+        <ChatPanel {...baseProps} messages={[newMsg]} isActive={false} />
+      </ToastProvider>,
+    );
+
+    await screen.findByRole('textbox');
+    expect(playMock).not.toHaveBeenCalled();
+
+    localStorage.removeItem('mesh-client:notifMuted');
+  });
 });
