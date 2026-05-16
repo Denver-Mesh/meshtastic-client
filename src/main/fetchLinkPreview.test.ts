@@ -37,6 +37,15 @@ function makeStreamResponse(html: string, contentType = 'text/html; charset=utf-
   } as unknown as Response;
 }
 
+function fetchRequestHostname(input: string | URL | Request): string | null {
+  try {
+    const href = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    return new URL(href).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
 describe('isBlockedHostname', () => {
   it('blocks dotted-decimal IPv4', () => {
     expect(isBlockedHostname('192.168.1.1')).toBe(true);
@@ -219,9 +228,7 @@ describe('fetchLinkPreview', () => {
       },
     });
     mockFetch.mockImplementation((input: string | URL | Request) => {
-      const href =
-        typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-      if (href.includes('opengraph.githubassets.com')) {
+      if (fetchRequestHostname(input) === 'opengraph.githubassets.com') {
         return Promise.resolve({
           ok: true,
           status: 200,
@@ -244,9 +251,7 @@ describe('fetchLinkPreview', () => {
       `<meta property="og:image" content="https://opengraph.githubassets.com/abc/Colorado-Mesh/mesh-client">`,
     ].join('\n');
     mockFetch.mockImplementation((input: string | URL | Request) => {
-      const href =
-        typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-      if (href.includes('opengraph.githubassets.com')) {
+      if (fetchRequestHostname(input) === 'opengraph.githubassets.com') {
         return Promise.resolve({ ok: false, status: 429 } as Response);
       }
       return Promise.resolve(makeStreamResponse(pageHtml));
