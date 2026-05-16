@@ -160,3 +160,19 @@ describe('xss-patterns check (all source)', () => {
     expect(true).toBe(true);
   });
 });
+
+describe('url-hostname-sanitization check (main, preload, renderer)', () => {
+  it('no hostname substring checks on URL-like values', () => {
+    const projectRoot = path.resolve(import.meta.dirname ?? __dirname, '..', '..', '..');
+    execFileSync(
+      'node',
+      [path.join(projectRoot, 'scripts', 'check-url-hostname-sanitization.mjs')],
+      {
+        encoding: 'utf8',
+        stdio: 'pipe',
+        cwd: projectRoot,
+      },
+    );
+    expect(true).toBe(true);
+  });
+});
