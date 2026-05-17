@@ -783,7 +783,10 @@ function ChatPanel({
       messagesEndRef.current?.scrollIntoView();
     }
     requestAnimationFrame(() => {
-      updateScrollButtonVisibility();
+      const dist = updateScrollButtonVisibility();
+      // When unread messages fit without scrolling, handleScroll never fires, so
+      // check here and clear the divider if the user is already at the bottom.
+      if (dist !== undefined && dist < 50) setUnreadDividerTimestamp(0);
     });
   }, [triggerScrollToUnread, isActive, updateScrollButtonVisibility]);
 

@@ -1096,6 +1096,44 @@ describe('ChatPanel unread watermarks', () => {
     );
     expect(screen.queryByRole('button', { name: 'All' })).not.toBeInTheDocument();
   });
+
+  it('clears the unread divider without scrolling when all unread messages are visible', async () => {
+    const ts = Date.now();
+    // Seed a stored watermark so the component treats the last message as unread.
+    localStorage.setItem('mesh-client:lastRead:meshtastic', JSON.stringify({ 'ch:0': ts - 1000 }));
+
+    render(
+      <ToastProvider>
+        <ChatPanel
+          {...baseProps}
+          messages={[
+            {
+              sender_id: 2,
+              sender_name: 'Alice',
+              payload: 'Old message',
+              channel: 0,
+              timestamp: ts - 2000,
+              status: 'acked',
+            },
+            {
+              sender_id: 2,
+              sender_name: 'Alice',
+              payload: 'Unread message',
+              channel: 0,
+              timestamp: ts,
+              status: 'acked',
+            },
+          ]}
+          isActive={true}
+        />
+      </ToastProvider>,
+    );
+
+    // The divider should disappear via the layout-effect rAF without requiring a scroll event.
+    await waitFor(() => {
+      expect(screen.queryByText('New messages')).not.toBeInTheDocument();
+    });
+  });
 });
 
 describe('ChatPanel compose emoji picker', () => {
