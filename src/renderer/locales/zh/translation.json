@@ -1216,7 +1216,6 @@
     "proximityNearby": "身边",
     "proximityDistant": "远",
     "proximityUnknown": "距离未知",
-    "foreignLoraHeading": "外来LoRa活动（最后90分钟）",
     "foreignClassColumn": "纲",
     "foreignProximityColumn": "邻近度",
     "foreignLastSeenColumn": "上一次查看时间",
@@ -1377,7 +1376,17 @@
       }
     },
     "cuHistoryHeading": "渠道利用率（过去24小时）",
-    "cuHistoryTooltipLabel": "频道利用率"
+    "cuHistoryTooltipLabel": "频道利用率",
+    "meshcoreUnknownForeignNode": "未知的MeshCore节点",
+    "meshcoreRepeaterConflictBanner": "高MeshCore数据包速率（ > 5/min ） —附近的中继器可能导致您的Meshtastic通道发生冲突。",
+    "meshcoreHeardByMeshtasticHeading": "MeshCore nodes heard by your Meshtastic radio ({{count}})",
+    "meshcoreHeardByMeshtasticDescription": "MeshCore transmitters overheard on local RF in the last 90 minutes (Meshtastic device logs or MeshCore radio RX). Does not include MeshCore repeater contact sync. These are not your Meshtastic node.",
+    "meshcoreHeardByMeshtasticEmpty": "No MeshCore nodes heard on your Meshtastic frequency in the last 90 minutes.",
+    "meshcoreHeardUnknownNode": "Unidentified MeshCore transmitter",
+    "meshcoreHeardNearbyEncrypted": "Nearby MeshCore RF (encrypted)",
+    "foreignLoraHeading": "Other foreign LoRa on your Meshtastic frequency ({{count}})",
+    "foreignLoraDescription": "Meshtastic transmitters and unrecognized LoRa signals on your frequency in the last 90 minutes. MeshCore nodes are listed in the section above.",
+    "foreignLoraEmpty": "No Meshtastic or unknown LoRa activity on your Meshtastic frequency in the last 90 minutes."
   },
   "rawPacketLog": {
     "filterPackets": "过滤数据包",

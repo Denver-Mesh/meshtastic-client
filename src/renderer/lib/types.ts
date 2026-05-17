@@ -56,6 +56,7 @@ export interface RoutingDiagnosticRow {
 export interface RfDiagnosticRow {
   kind: 'rf';
   id: string;
+  /** Node that owns this diagnostic (usually the connected home radio). */
   nodeId: number;
   condition: string;
   cause: string;
@@ -63,6 +64,8 @@ export interface RfDiagnosticRow {
   detectedAt: number;
   isLastHop?: boolean;
   causeI18n?: DiagnosticTextI18n;
+  /** Foreign transmitter when this row is cross-protocol / Foreign LoRa (not `nodeId`). */
+  foreignSenderId?: number;
 }
 
 export type DiagnosticRow = RoutingDiagnosticRow | RfDiagnosticRow;

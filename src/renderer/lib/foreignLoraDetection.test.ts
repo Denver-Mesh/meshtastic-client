@@ -5,6 +5,8 @@ import {
   classifyPayload,
   classifyProximity,
   containsMeshCorePattern,
+  extractHexPayloadFromMeshtasticLog,
+  extractMeshCoreSenderIdFromMeshtasticLog,
   extractMeshtasticSenderId,
   extractRssiSnr,
   isDecodeFail,
@@ -13,6 +15,7 @@ import {
   meshtasticSenderIdForRawLogFallback,
   RollingRateCounter,
 } from './foreignLoraDetection';
+import { meshcoreRawPacketResolveFromParsed } from './meshcoreRawPacketSender';
 
 describe('containsMeshCorePattern', () => {
   it('returns false when message has no dropped/crc context', () => {
@@ -94,12 +97,42 @@ describe('isForeignLoraLogCandidate', () => {
   });
 });
 
+const FLOOD_ADVERT_HEX =
+  '110649cc80710706ce47b76233ce222c37bdb3bb394a75d08dfdd2d0b30d74ff5003409f10acb5a7c420dc69b3ec2d02fec6c29583702b2c8a482a64c6c8f1d0b16ba19a5ac36261512feda7c10ac08a2248146d9193ab55887227dfae25b2e9f1bfee29726efd2537aefa0692c8046302d2d9b9f944454e2d424c44522d5754562d52452d43453437';
+
+function hexToU8(hex: string): Uint8Array {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) {
+    out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  }
+  return out;
+}
+
+describe('extractMeshCoreSenderIdFromMeshtasticLog', () => {
+  it('resolves sender from a full hex dump in the log line', () => {
+    const raw = hexToU8(FLOOD_ADVERT_HEX);
+    const parsed = parseMeshCoreRfPacket(raw);
+    expect(parsed.ok).toBe(true);
+    const expected = parsed.ok ? meshcoreRawPacketResolveFromParsed(parsed, new Map()) : null;
+    const spaced = FLOOD_ADVERT_HEX.match(/.{1,2}/g)!.join(' ');
+    const line = `decode fail data: ${spaced} snr=3`;
+    expect(extractHexPayloadFromMeshtasticLog(line)).not.toBeNull();
+    expect(extractMeshCoreSenderIdFromMeshtasticLog(line)).toBe(expected);
+    expect(expected).not.toBeNull();
+  });
+
+  it('returns null for short 3c-only stubs', () => {
+    expect(extractMeshCoreSenderIdFromMeshtasticLog('crc err 3c 00 01 snr=2')).toBeNull();
+  });
+});
+
 describe('matchForeignLoraFromMeshtasticLog', () => {
   it('returns meshcore when 0x3c pattern matches', () => {
     expect(matchForeignLoraFromMeshtasticLog('crc err 3c 00 01 snr=2')).toEqual({
       packetClass: 'meshcore',
       rssi: undefined,
       snr: 2,
+      senderId: undefined,
     });
   });
 

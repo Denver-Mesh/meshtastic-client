@@ -619,6 +619,14 @@ export default function App() {
   const meshtasticMyNodeNumRef = useRef(meshtasticDevice.state.myNodeNum);
   const meshcoreSelfIdRef = useRef(meshcoreDevice.selfNodeId);
   const nodesForUi = protocol === 'meshcore' ? meshcoreDevice.nodes : meshtasticDevice.nodes;
+  /** Meshtastic + MeshCore nodes for Diagnostics (foreign MeshCore sender labels/links). */
+  const nodesForDiagnostics = useMemo(() => {
+    const merged = new Map(meshtasticDevice.nodes);
+    for (const [id, node] of meshcoreDevice.nodes) {
+      merged.set(id, node);
+    }
+    return merged;
+  }, [meshtasticDevice.nodes, meshcoreDevice.nodes]);
   const rawPacketGetNodeLabel = useCallback(
     (id: number) => nodeLabelForRawPacket(nodesForUi.get(id), id, protocol),
     [nodesForUi, protocol],
@@ -784,7 +792,7 @@ export default function App() {
         setActiveTab(targetTab);
       }
 
-      useDiagnosticsStore.getState().clearDiagnostics();
+      useDiagnosticsStore.getState().clearDiagnostics({ preserveForeignLora: true });
       localStorage.setItem(MESH_PROTOCOL_STORAGE_KEY, newProtocol);
       setProtocol(newProtocol);
     },
@@ -824,9 +832,23 @@ export default function App() {
   const isConfigured = device.state.status === 'configured';
   const isOperational = isConfigured || device.state.status === 'stale';
   const isConnectedOrOperational = isOperational || device.state.status === 'connected';
+  const detailModalProtocol = useMemo((): MeshProtocol => {
+    if (selectedNodeId == null) return protocol;
+    if (meshcoreDevice.nodes.has(selectedNodeId)) return 'meshcore';
+    return protocol;
+  }, [selectedNodeId, protocol, meshcoreDevice.nodes]);
+
+  const detailModalNodes = detailModalProtocol === 'meshcore' ? meshcoreDevice.nodes : nodesForUi;
+  const detailHomeNode =
+    detailModalProtocol === 'meshcore'
+      ? (meshcoreDevice.nodes.get(meshcoreDevice.selfNodeId) ?? null)
+      : (nodesForUi.get(device.state.myNodeNum) ?? null);
+  const detailMyNodeNum =
+    detailModalProtocol === 'meshcore' ? meshcoreDevice.selfNodeId : device.state.myNodeNum;
+
   const selectedNode = useMemo(() => {
     if (selectedNodeId == null) return null;
-    const liveNode = nodesForUi.get(selectedNodeId);
+    const liveNode = meshcoreDevice.nodes.get(selectedNodeId) ?? nodesForUi.get(selectedNodeId);
     if (liveNode) return liveNode;
 
     const fallback = meshNodeStubForDetailModal(selectedNodeId);
@@ -844,7 +866,7 @@ export default function App() {
       longitude: latest.lon,
       last_heard: Math.max(fallback.last_heard, Math.floor(latest.t / 1000)),
     };
-  }, [selectedNodeId, nodesForUi, selectedNodeHistoryPoints]);
+  }, [selectedNodeId, nodesForUi, meshcoreDevice.nodes, selectedNodeHistoryPoints]);
   const selectedNodeHistory = useMemo(() => {
     if (selectedNodeId == null || !selectedNodeHistoryPoints) return undefined;
     return new Map([[selectedNodeId, selectedNodeHistoryPoints]]);
@@ -2217,8 +2239,14 @@ export default function App() {
                         <ErrorBoundary>
                           <Suspense fallback={<PanelSkeleton />}>
                             <DiagnosticsPanel
-                              nodes={nodesForUi}
+                              nodes={nodesForDiagnostics}
+                              meshcoreNodes={meshcoreDevice.nodes}
                               myNodeNum={device.selfNodeId}
+                              meshtasticListenerNodeId={
+                                meshtasticDevice.state.myNodeNum > 0
+                                  ? meshtasticDevice.state.myNodeNum
+                                  : meshtasticDevice.selfNodeId
+                              }
                               onTraceRoute={device.traceRoute}
                               isConnected={isOperational}
                               traceRouteResults={device.traceRouteResults}
@@ -2475,80 +2503,91 @@ export default function App() {
       {selectedNodeId !== null && (
         <Suspense fallback={<DialogLazyFallback />}>
           <NodeDetailModal
-            nodes={nodesForUi}
+            nodes={detailModalNodes}
             node={selectedNode}
             onClose={() => {
               setSelectedNodeId(null);
             }}
             onRequestPosition={device.requestPosition}
-            onTraceRoute={protocol === 'meshcore' ? meshcoreDevice.traceRoute : device.traceRoute}
+            onTraceRoute={
+              detailModalProtocol === 'meshcore' ? meshcoreDevice.traceRoute : device.traceRoute
+            }
             traceRouteHops={traceRouteHops}
             onDeleteNode={async (nodeNum) => {
               await device.deleteNode(nodeNum);
               setSelectedNodeId(null);
             }}
             onMessageNode={
-              selectedNode?.node_id !== device.state.myNodeNum ? handleMessageNode : undefined
+              selectedNode?.node_id !== detailMyNodeNum ? handleMessageNode : undefined
             }
             onToggleFavorite={device.setNodeFavorited}
             isConnected={isOperational}
-            homeNode={nodesForUi.get(device.state.myNodeNum) ?? null}
+            homeNode={detailHomeNode}
             neighborInfo={device.neighborInfo}
             useFahrenheit={useFahrenheit}
-            protocol={protocol}
+            protocol={detailModalProtocol}
             meshcoreTraceResult={
-              protocol === 'meshcore' && selectedNode
+              detailModalProtocol === 'meshcore' && selectedNode
                 ? meshcoreDevice.meshcoreTraceResults.get(selectedNode.node_id)
                 : undefined
             }
             meshcorePingError={
-              protocol === 'meshcore' && selectedNode
+              detailModalProtocol === 'meshcore' && selectedNode
                 ? meshcoreDevice.meshcorePingErrors.get(selectedNode.node_id)
                 : undefined
             }
             meshcoreRepeaterStatus={
-              protocol === 'meshcore' && selectedNode
+              detailModalProtocol === 'meshcore' && selectedNode
                 ? meshcoreDevice.meshcoreNodeStatus.get(selectedNode.node_id)
                 : undefined
             }
             onRequestRepeaterStatus={
-              protocol === 'meshcore' ? meshcoreDevice.requestRepeaterStatus : undefined
+              detailModalProtocol === 'meshcore' ? meshcoreDevice.requestRepeaterStatus : undefined
             }
             meshcoreNodeTelemetry={
-              protocol === 'meshcore' && selectedNode
+              detailModalProtocol === 'meshcore' && selectedNode
                 ? meshcoreDevice.meshcoreNodeTelemetry.get(selectedNode.node_id)
                 : undefined
             }
             onRequestTelemetry={
-              protocol === 'meshcore' ? meshcoreDevice.requestTelemetry : undefined
+              detailModalProtocol === 'meshcore' ? meshcoreDevice.requestTelemetry : undefined
             }
             meshcoreNeighbors={
-              protocol === 'meshcore' && selectedNode
+              detailModalProtocol === 'meshcore' && selectedNode
                 ? meshcoreDevice.meshcoreNeighbors.get(selectedNode.node_id)
                 : undefined
             }
             onRequestNeighbors={
-              protocol === 'meshcore' ? meshcoreDevice.requestNeighbors : undefined
+              detailModalProtocol === 'meshcore' ? meshcoreDevice.requestNeighbors : undefined
             }
             meshcoreNeighborError={
-              protocol === 'meshcore' && selectedNode
+              detailModalProtocol === 'meshcore' && selectedNode
                 ? meshcoreDevice.meshcoreNeighborErrors.get(selectedNode.node_id)
                 : undefined
             }
-            paxCounterData={protocol === 'meshtastic' ? device.paxCounterData : undefined}
-            detectionSensorEvents={
-              protocol === 'meshtastic' ? device.detectionSensorEvents : undefined
+            paxCounterData={
+              detailModalProtocol === 'meshtastic' ? device.paxCounterData : undefined
             }
-            mapReports={protocol === 'meshtastic' ? device.mapReports : undefined}
-            onExportContact={protocol === 'meshcore' ? meshcoreDevice.exportContact : undefined}
-            onShareContact={protocol === 'meshcore' ? meshcoreDevice.shareContact : undefined}
+            detectionSensorEvents={
+              detailModalProtocol === 'meshtastic' ? device.detectionSensorEvents : undefined
+            }
+            mapReports={detailModalProtocol === 'meshtastic' ? device.mapReports : undefined}
+            onExportContact={
+              detailModalProtocol === 'meshcore' ? meshcoreDevice.exportContact : undefined
+            }
+            onShareContact={
+              detailModalProtocol === 'meshcore' ? meshcoreDevice.shareContact : undefined
+            }
             meshcoreLocalStats={
-              protocol === 'meshcore' && selectedNode?.node_id === meshcoreDevice.state.myNodeNum
+              detailModalProtocol === 'meshcore' &&
+              selectedNode?.node_id === meshcoreDevice.state.myNodeNum
                 ? meshcoreDevice.meshcoreLocalStats
                 : null
             }
             meshcoreManufacturerModel={
-              protocol === 'meshcore' ? meshcoreDevice.state.manufacturerModel : undefined
+              detailModalProtocol === 'meshcore'
+                ? meshcoreDevice.state.manufacturerModel
+                : undefined
             }
             positionHistory={selectedNodeHistory}
           />

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   getMeshtasticConnectedMyNodeNum,
+  resolveForeignLoraDiagnosticsNodeId,
   setMeshtasticConnectedMyNodeNum,
 } from './meshtasticConnectedNodeRef';
 
@@ -22,5 +23,16 @@ describe('meshtasticConnectedNodeRef', () => {
     setMeshtasticConnectedMyNodeNum(2);
     expect(getMeshtasticConnectedMyNodeNum()).toBe(2);
     setMeshtasticConnectedMyNodeNum(0);
+  });
+
+  it('resolveForeignLoraDiagnosticsNodeId prefers Meshtastic id when connected', () => {
+    setMeshtasticConnectedMyNodeNum(649425065);
+    expect(resolveForeignLoraDiagnosticsNodeId(999)).toBe(649425065);
+    setMeshtasticConnectedMyNodeNum(0);
+  });
+
+  it('resolveForeignLoraDiagnosticsNodeId falls back to panel id when Meshtastic disconnected', () => {
+    setMeshtasticConnectedMyNodeNum(0);
+    expect(resolveForeignLoraDiagnosticsNodeId(42)).toBe(42);
   });
 });

@@ -28,6 +28,10 @@ import {
 } from '../lib/connection';
 import { validateCoords } from '../lib/coordUtils';
 import {
+  getMergedNodesForForeignLoraDiagnostics,
+  getMeshcoreDiagnosticsSelfNodeId,
+} from '../lib/diagnosticsNodesRef';
+import {
   isForeignLoraLogCandidate,
   matchForeignLoraFromMeshtasticLog,
 } from '../lib/foreignLoraDetection';
@@ -1006,9 +1010,28 @@ export function useDevice() {
     if (myNodeNumRef.current === 0) return;
     const match = matchForeignLoraFromMeshtasticLog(message);
     if (!match) return;
+    const meshcoreSelfId = getMeshcoreDiagnosticsSelfNodeId();
+    const senderId = match.packetClass === 'meshcore' ? match.senderId : undefined;
+    let displayName: string | undefined;
+    if (match.packetClass === 'meshcore' && meshcoreSelfId > 0 && senderId === meshcoreSelfId) {
+      const selfNode = getMergedNodesForForeignLoraDiagnostics(nodesRef.current).get(
+        meshcoreSelfId,
+      );
+      displayName = selfNode?.long_name ?? selfNode?.short_name;
+    }
     useDiagnosticsStore
       .getState()
-      .recordForeignLora(myNodeNumRef.current, match.packetClass, match.rssi, match.snr);
+      .recordForeignLora(
+        myNodeNumRef.current,
+        match.packetClass,
+        match.rssi,
+        match.snr,
+        senderId,
+        () => getMergedNodesForForeignLoraDiagnostics(nodesRef.current),
+        'meshtastic-rf',
+        undefined,
+        displayName,
+      );
   }, []);
 
   // ─── Wire up all event subscriptions for a device ─────────────

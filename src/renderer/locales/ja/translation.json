@@ -1216,7 +1216,6 @@
     "proximityNearby": "近く",
     "proximityDistant": "遠い",
     "proximityUnknown": "未知の距離",
-    "foreignLoraHeading": "海外 LoRa アクティビティ (最後の 90 分)",
     "foreignClassColumn": "クラス",
     "foreignProximityColumn": "近接性",
     "foreignLastSeenColumn": "最後に見たもの",
@@ -1377,7 +1376,17 @@
       }
     },
     "cuHistoryHeading": "チャネル使用率（過去24時間）",
-    "cuHistoryTooltipLabel": "Channel Util"
+    "cuHistoryTooltipLabel": "Channel Util",
+    "meshcoreUnknownForeignNode": "不明なMeshCoreノード",
+    "meshcoreRepeaterConflictBanner": "高いMeshCoreパケットレート（> 5/分） —近くのリピーターがMeshtasticチャンネルで衝突を引き起こしている可能性があります。",
+    "meshcoreHeardByMeshtasticHeading": "MeshCore nodes heard by your Meshtastic radio ({{count}})",
+    "meshcoreHeardByMeshtasticDescription": "MeshCore transmitters overheard on local RF in the last 90 minutes (Meshtastic device logs or MeshCore radio RX). Does not include MeshCore repeater contact sync. These are not your Meshtastic node.",
+    "meshcoreHeardByMeshtasticEmpty": "No MeshCore nodes heard on your Meshtastic frequency in the last 90 minutes.",
+    "meshcoreHeardUnknownNode": "Unidentified MeshCore transmitter",
+    "meshcoreHeardNearbyEncrypted": "Nearby MeshCore RF (encrypted)",
+    "foreignLoraHeading": "Other foreign LoRa on your Meshtastic frequency ({{count}})",
+    "foreignLoraDescription": "Meshtastic transmitters and unrecognized LoRa signals on your frequency in the last 90 minutes. MeshCore nodes are listed in the section above.",
+    "foreignLoraEmpty": "No Meshtastic or unknown LoRa activity on your Meshtastic frequency in the last 90 minutes."
   },
   "rawPacketLog": {
     "filterPackets": "パケットをフィルタリングする",
