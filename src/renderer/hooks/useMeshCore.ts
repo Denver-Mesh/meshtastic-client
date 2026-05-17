@@ -99,6 +99,7 @@ import {
 import { MeshcoreWebBluetoothConnection } from '../lib/meshcoreWebBluetoothConnection';
 import { lastHeardToUnixSeconds, mergeMeshcoreLastHeardFromAdvert } from '../lib/nodeStatus';
 import { parseStoredJson } from '../lib/parseStoredJson';
+import { parseTcpAddress } from '../lib/parseTcpAddress';
 import { MAX_RAW_PACKET_LOG_ENTRIES } from '../lib/rawPacketLogConstants';
 import { emojiDisplayChar } from '../lib/reactions';
 import {
@@ -3547,17 +3548,7 @@ export function useMeshCore() {
           }
         } else {
           // tcp
-          const rawAddr = tcpHost ?? 'localhost';
-          const colonIdx = rawAddr.lastIndexOf(':');
-          let host = rawAddr;
-          let port = 5000;
-          if (colonIdx > 0) {
-            const maybePort = Number(rawAddr.slice(colonIdx + 1));
-            if (Number.isInteger(maybePort) && maybePort >= 1 && maybePort <= 65535) {
-              host = rawAddr.slice(0, colonIdx);
-              port = maybePort;
-            }
-          }
+          const { host, port } = parseTcpAddress(tcpHost ?? 'localhost');
           const tcpConn = new IpcTcpConnection(host, port);
           ipcTcpRef.current = tcpConn;
           await tcpConn.connect();

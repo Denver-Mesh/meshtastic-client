@@ -926,7 +926,7 @@ function applyAboutPanelOptions(): void {
   const credits = [
     `Version ${version}`,
     '',
-    'Cross-platform Electron desktop client for Meshtastic and MeshCore on macOS, Linux, and Windows with multi-language support, BLE, USB serial, Wi‑Fi/TCP, MQTT, local SQLite history, routing diagnostics, and keyboard-first workflows.',
+    'Cross-platform Electron desktop client for Meshtastic and MeshCore on macOS, Linux, and Windows with multi-language support, BLE, USB serial, Wi‑Fi/TCP, MQTT, local SQLite history, and routing diagnostics.',
     '',
     'License: MIT',
     'Author: Colorado Mesh',

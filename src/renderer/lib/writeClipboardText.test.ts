@@ -19,6 +19,20 @@ describe('writeClipboardText', () => {
     expect(writeText).toHaveBeenCalledWith('hello from electron');
   });
 
+  it('throws when neither electronAPI nor navigator.clipboard is available', async () => {
+    vi.stubGlobal('electronAPI', {
+      ...window.electronAPI,
+      clipboard: {} as { writeText: (text: string) => void },
+    });
+    Object.defineProperty(navigator, 'clipboard', {
+      value: {},
+      writable: true,
+      configurable: true,
+    });
+
+    await expect(writeClipboardText('no api')).rejects.toThrow('Clipboard API unavailable');
+  });
+
   it('falls back to navigator.clipboard.writeText', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     vi.stubGlobal('electronAPI', {
