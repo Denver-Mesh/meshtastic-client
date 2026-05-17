@@ -592,13 +592,17 @@ export default function ConnectionPanel({
     }
     return 'localhost';
   });
-  const [tcpPort, setTcpPort] = useState<number>(() => {
+  const [tcpPortStr, setTcpPortStr] = useState<string>(() => {
     const last = loadLastConnection(protocol);
     if (last?.type === 'http' && last.httpAddress && protocol === 'meshcore') {
-      return parseTcpAddress(last.httpAddress).port;
+      return String(parseTcpAddress(last.httpAddress).port);
     }
-    return 5000;
+    return '5000';
   });
+  const tcpPort = (() => {
+    const n = parseInt(tcpPortStr, 10);
+    return Number.isInteger(n) && n >= 1 && n <= 65535 ? n : 5000;
+  })();
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [connectionStage, setConnectionStage] = useState('');
@@ -1555,7 +1559,7 @@ export default function ConnectionPanel({
       if (protocol === 'meshcore') {
         const { host, port } = parseTcpAddress(addr);
         setTcpHost(host);
-        setTcpPort(port);
+        setTcpPortStr(String(port));
       } else {
         setHttpAddress(addr);
       }
@@ -2903,10 +2907,9 @@ export default function ConnectionPanel({
                     type="number"
                     min={1}
                     max={65535}
-                    value={tcpPort}
+                    value={tcpPortStr}
                     onChange={(e) => {
-                      const val = parseInt(e.target.value, 10);
-                      if (!isNaN(val) && val >= 1 && val <= 65535) setTcpPort(val);
+                      setTcpPortStr(e.target.value);
                     }}
                     className="bg-secondary-dark w-full rounded border border-gray-600 px-2 py-1.5 text-sm text-gray-200 focus:border-purple-500 focus:outline-none"
                     aria-label={t('connectionPanel.meshcorePort')}
