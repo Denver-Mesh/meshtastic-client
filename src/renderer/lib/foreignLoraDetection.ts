@@ -50,7 +50,13 @@ export function classifyPayload(raw: Uint8Array): PacketClass {
  * device logs the failure and includes the first byte or '<' (0x3c).
  */
 /** Log messages indicating receive/decode failure (packet dropped, CRC, preamble, etc.). */
-const FAILURE_CONTEXT_REGEX = /packet.?dropped|crc.?err|crc.?fail|decode.?fail|preamble/i;
+const FAILURE_CONTEXT_REGEX =
+  /packet.?dropped|crc.?err|crc.?fail|crc.?bad|bad.?crc|decode.?fail|decode.?error|corrupt.?packet|bad.?packet|invalid.?packet|preamble|rx.?error|lora.?err/i;
+
+/** True when a device log message indicates a packet decode failure. */
+export function isDecodeFail(message: string): boolean {
+  return FAILURE_CONTEXT_REGEX.test(message);
+}
 
 export function containsMeshCorePattern(message: string): boolean {
   if (!FAILURE_CONTEXT_REGEX.test(message)) return false;
@@ -61,6 +67,30 @@ export function containsMeshCorePattern(message: string): boolean {
     /0x3c\s*0x[0-9a-f]{2}\s*0x[0-9a-f]{2}/i.test(message) ||
     (message.includes('<') && FAILURE_CONTEXT_REGEX.test(message))
   );
+}
+
+export type ForeignLoraLogMatch =
+  | { packetClass: 'meshcore'; rssi?: number; snr?: number }
+  | { packetClass: 'unknown-lora'; rssi?: number; snr?: number };
+
+/**
+ * Classify a Meshtastic device log line for Foreign LoRa (LogRecord payload or
+ * iMeshDevice console line forwarded via log.onLine).
+ */
+export function matchForeignLoraFromMeshtasticLog(message: string): ForeignLoraLogMatch | null {
+  const { rssi, snr } = extractRssiSnr(message);
+  if (containsMeshCorePattern(message)) {
+    return { packetClass: 'meshcore', rssi, snr };
+  }
+  if (isDecodeFail(message) && (rssi !== undefined || snr !== undefined)) {
+    return { packetClass: 'unknown-lora', rssi, snr };
+  }
+  return null;
+}
+
+/** Quick filter before parsing full log lines (console stream is high volume). */
+export function isForeignLoraLogCandidate(message: string): boolean {
+  return isDecodeFail(message) || containsMeshCorePattern(message);
 }
 
 /** Extract RSSI and SNR from a Meshtastic device log message. */

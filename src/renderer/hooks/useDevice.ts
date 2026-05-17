@@ -27,10 +27,14 @@ import {
   safeDisconnect,
 } from '../lib/connection';
 import { validateCoords } from '../lib/coordUtils';
-import { containsMeshCorePattern, extractRssiSnr } from '../lib/foreignLoraDetection';
+import {
+  isForeignLoraLogCandidate,
+  matchForeignLoraFromMeshtasticLog,
+} from '../lib/foreignLoraDetection';
 import type { OurPosition } from '../lib/gpsSource';
 import { resolveOurPosition } from '../lib/gpsSource';
 import { meshtasticHwModelName } from '../lib/hardwareModels';
+import { setMeshtasticConnectedMyNodeNum } from '../lib/meshtasticConnectedNodeRef';
 import {
   findMeshtasticCrossTransportDuplicate,
   mapMeshtasticCrossTransportUpgrade,
@@ -685,6 +689,7 @@ export function useDevice() {
       } else if (s !== 'connected') {
         if (!deviceRef.current) {
           myNodeNumRef.current = 0;
+          setMeshtasticConnectedMyNodeNum(0);
           setState((prev) => ({ ...prev, myNodeNum: 0 }));
         }
         if (mqttPresenceIntervalRef.current) {
@@ -997,6 +1002,15 @@ export function useDevice() {
     };
   }, [cleanupSubscriptions, clearConfigureTimeout, stopWatchdog, stopGpsInterval]);
 
+  const applyMeshtasticForeignLoraFromLog = useCallback((message: string) => {
+    if (myNodeNumRef.current === 0) return;
+    const match = matchForeignLoraFromMeshtasticLog(message);
+    if (!match) return;
+    useDiagnosticsStore
+      .getState()
+      .recordForeignLora(myNodeNumRef.current, match.packetClass, match.rssi, match.snr);
+  }, []);
+
   // ─── Wire up all event subscriptions for a device ─────────────
   const wireSubscriptions = useCallback(
     (device: MeshDevice, type: ConnectionType) => {
@@ -1097,6 +1111,7 @@ export function useDevice() {
           });
         }
         myNodeNumRef.current = info.myNodeNum;
+        setMeshtasticConnectedMyNodeNum(info.myNodeNum);
         lastRfSelfNodeIdRef.current = info.myNodeNum;
         if (getStoredMeshProtocol() === 'meshtastic') {
           useDiagnosticsStore.getState().migrateForeignLoraFromZero(info.myNodeNum);
@@ -2143,18 +2158,15 @@ export function useDevice() {
             },
           ];
         });
-        if (
-          getStoredMeshProtocol() === 'meshtastic' &&
-          containsMeshCorePattern(record.message) &&
-          myNodeNumRef.current !== 0
-        ) {
-          const { rssi, snr } = extractRssiSnr(record.message);
-          useDiagnosticsStore
-            .getState()
-            .recordForeignLora(myNodeNumRef.current, 'meshcore', rssi, snr);
-        }
+        applyMeshtasticForeignLoraFromLog(record.message);
       });
       unsubscribesRef.current.push(unsubLog);
+
+      const unsubForeignLoraLogLine = window.electronAPI.log.onLine((entry) => {
+        if (!isForeignLoraLogCandidate(entry.message)) return;
+        applyMeshtasticForeignLoraFromLog(entry.message);
+      });
+      unsubscribesRef.current.push(unsubForeignLoraLogLine);
 
       // ─── Neighbor info ─────────────────────────────────────────
       const unsubNeighbor = device.events.onNeighborInfoPacket.subscribe((packet) => {
@@ -2539,6 +2551,7 @@ export function useDevice() {
       isDuplicate,
       ensureNodeExists,
       clearConfigureTimeout,
+      applyMeshtasticForeignLoraFromLog,
     ],
   );
 

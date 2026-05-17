@@ -97,6 +97,7 @@ import {
   pubkeyToNodeId,
 } from '../lib/meshcoreUtils';
 import { MeshcoreWebBluetoothConnection } from '../lib/meshcoreWebBluetoothConnection';
+import { getMeshtasticConnectedMyNodeNum } from '../lib/meshtasticConnectedNodeRef';
 import { lastHeardToUnixSeconds, mergeMeshcoreLastHeardFromAdvert } from '../lib/nodeStatus';
 import { parseStoredJson } from '../lib/parseStoredJson';
 import { parseTcpAddress } from '../lib/parseTcpAddress';
@@ -3000,6 +3001,19 @@ export function useMeshCore() {
               useDiagnosticsStore.getState().recordNoisePort(fromNodeId, 1002);
             } else {
               useDiagnosticsStore.getState().recordNoisePort(fromNodeId, 1001);
+            }
+          }
+
+          // MeshCore radio hears other MeshCore devices: surface on Meshtastic Diagnostics Foreign LoRa.
+          if (
+            loraPacketClass === 'meshcore' &&
+            (fromNodeId == null || fromNodeId !== myNodeNumRef.current)
+          ) {
+            const mtNode = getMeshtasticConnectedMyNodeNum();
+            if (mtNode > 0) {
+              useDiagnosticsStore
+                .getState()
+                .recordForeignLora(mtNode, 'meshcore', rssi || undefined, snr || undefined);
             }
           }
         }

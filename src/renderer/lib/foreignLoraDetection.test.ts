@@ -7,6 +7,9 @@ import {
   containsMeshCorePattern,
   extractMeshtasticSenderId,
   extractRssiSnr,
+  isDecodeFail,
+  isForeignLoraLogCandidate,
+  matchForeignLoraFromMeshtasticLog,
   meshtasticSenderIdForRawLogFallback,
   RollingRateCounter,
 } from './foreignLoraDetection';
@@ -52,6 +55,64 @@ describe('containsMeshCorePattern', () => {
     expect(
       containsMeshCorePattern('Preamble detected but CRC/decode failed (non-Meshtastic LoRa)'),
     ).toBe(false);
+  });
+
+  it('returns true for expanded failure keywords with 0x3c or <', () => {
+    expect(containsMeshCorePattern('CRC bad 0x3c')).toBe(true);
+    expect(containsMeshCorePattern('corrupt packet <payload')).toBe(true);
+  });
+});
+
+describe('isDecodeFail', () => {
+  it('returns true for expanded and existing failure keywords', () => {
+    expect(isDecodeFail('CRC bad snr=2')).toBe(true);
+    expect(isDecodeFail('corrupt packet rssi=-90')).toBe(true);
+    expect(isDecodeFail('bad packet rssi=-80')).toBe(true);
+    expect(isDecodeFail('rx error snr=1.5')).toBe(true);
+    expect(isDecodeFail('invalid packet')).toBe(true);
+    expect(isDecodeFail('lora err snr=3')).toBe(true);
+    expect(isDecodeFail('packet dropped rssi=-90')).toBe(true);
+    expect(isDecodeFail('CRC err snr=2')).toBe(true);
+    expect(isDecodeFail('decode fail rssi=-85')).toBe(true);
+  });
+
+  it('returns false without failure context', () => {
+    expect(isDecodeFail('normal log line')).toBe(false);
+    expect(isDecodeFail('packet received rssi=-90')).toBe(false);
+  });
+});
+
+describe('isForeignLoraLogCandidate', () => {
+  it('returns false for benign console lines that mention lora or rx', () => {
+    expect(isForeignLoraLogCandidate('variant: lora')).toBe(false);
+    expect(isForeignLoraLogCandidate('rxCandidates=1')).toBe(false);
+  });
+
+  it('returns true for decode-fail and meshcore patterns', () => {
+    expect(isForeignLoraLogCandidate('CRC err snr=2')).toBe(true);
+    expect(isForeignLoraLogCandidate('crc err 3c 00 01')).toBe(true);
+  });
+});
+
+describe('matchForeignLoraFromMeshtasticLog', () => {
+  it('returns meshcore when 0x3c pattern matches', () => {
+    expect(matchForeignLoraFromMeshtasticLog('crc err 3c 00 01 snr=2')).toEqual({
+      packetClass: 'meshcore',
+      rssi: undefined,
+      snr: 2,
+    });
+  });
+
+  it('returns unknown-lora for decode fail with SNR only', () => {
+    expect(matchForeignLoraFromMeshtasticLog('CRC err snr=2')).toEqual({
+      packetClass: 'unknown-lora',
+      rssi: undefined,
+      snr: 2,
+    });
+  });
+
+  it('returns null without signal metrics on decode fail', () => {
+    expect(matchForeignLoraFromMeshtasticLog('invalid packet')).toBeNull();
   });
 });
 
