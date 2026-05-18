@@ -3022,7 +3022,6 @@ export function useMeshCore() {
               ? (pubKeyMapRef.current.get(myNodeNumRef.current) ?? selfInfoRef.current?.publicKey)
               : undefined;
           const isSelfRf =
-            rawU8 != null &&
             myNodeNumRef.current !== 0 &&
             meshcoreRfIsSelfOriginated(rawU8, selfPubKey, myNodeNumRef.current);
           if (loraPacketClass === 'meshcore') {

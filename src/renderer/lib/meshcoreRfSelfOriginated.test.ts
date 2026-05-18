@@ -25,6 +25,14 @@ describe('meshcoreRfIsSelfOriginated', () => {
     expect(meshcoreRfIsSelfOriginated(raw, parsed.advert.publicKey, myNodeId)).toBe(true);
   });
 
+  it('returns false when myNodeNum is 0 (caller must guard before invoking)', () => {
+    const raw = hexToU8(FLOOD_ADVERT_HEX);
+    const parsed = parseMeshCoreRfPacket(raw);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok || !parsed.advert) return;
+    expect(meshcoreRfIsSelfOriginated(raw, parsed.advert.publicKey, 0)).toBe(false);
+  });
+
   it('returns false for a frame with a different pubkey', () => {
     const raw = hexToU8(FLOOD_ADVERT_HEX);
     const parsed = parseMeshCoreRfPacket(raw);
