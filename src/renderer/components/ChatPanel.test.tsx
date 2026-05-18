@@ -153,7 +153,7 @@ describe('ChatPanel accessibility', () => {
     expect(screen.getByTitle('Received via RF')).toBeInTheDocument();
   });
 
-  it('hides RF-only transport badge in MeshCore mode (RF is the default path)', () => {
+  it('shows RF transport badge in MeshCore mode', () => {
     render(
       <ToastProvider>
         <ChatPanel
@@ -174,7 +174,7 @@ describe('ChatPanel accessibility', () => {
         />
       </ToastProvider>,
     );
-    expect(screen.queryByTitle('Received via RF')).not.toBeInTheDocument();
+    expect(screen.queryByTitle('Received via RF')).toBeInTheDocument();
   });
 
   it('still shows MQTT transport badge in MeshCore mode when receivedVia is mqtt', () => {

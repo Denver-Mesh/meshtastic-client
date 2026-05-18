@@ -1903,10 +1903,7 @@ function ChatPanel({
 
                         {/* Transport + RF hop count (incoming) */}
                         {!isOwn &&
-                          ((msg.receivedVia &&
-                            (protocol !== 'meshcore' ||
-                              msg.receivedVia === 'mqtt' ||
-                              msg.receivedVia === 'both')) ||
+                          (msg.receivedVia ||
                             (msg.rxHops != null &&
                               (msg.receivedVia === 'rf' || msg.receivedVia === 'both'))) && (
                             <div className="mt-0.5 flex items-center justify-end gap-2">
@@ -1919,12 +1916,7 @@ function ChatPanel({
                                     {t('nodeDetailModal.hopLabel', { count: msg.rxHops })}
                                   </span>
                                 )}
-                              {msg.receivedVia &&
-                                (protocol !== 'meshcore' ||
-                                  msg.receivedVia === 'mqtt' ||
-                                  msg.receivedVia === 'both') && (
-                                  <TransportBadge via={msg.receivedVia} />
-                                )}
+                              {msg.receivedVia && <TransportBadge via={msg.receivedVia} />}
                             </div>
                           )}
 
