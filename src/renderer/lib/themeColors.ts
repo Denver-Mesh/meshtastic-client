@@ -10,31 +10,43 @@ export const THEME_COLORS_STORAGE_KEY = 'mesh-client:themeColors';
 
 /** Keys persisted in localStorage (camelCase). */
 export type ThemeColorKey =
+  | 'appBg'
+  | 'sidebarActiveBg'
   | 'brandGreen'
   | 'brightGreen'
   | 'readableGreen'
   | 'deepBlack'
   | 'secondaryDark'
-  | 'muted';
+  | 'muted'
+  | 'chatIncomingBg'
+  | 'chatIncomingBorder';
 
 /** CSS custom property name (no leading --). */
 export const THEME_CSS_VARS: Record<ThemeColorKey, string> = {
+  appBg: '--color-app-bg',
+  sidebarActiveBg: '--color-sidebar-active-bg',
   brandGreen: '--color-brand-green',
   brightGreen: '--color-bright-green',
   readableGreen: '--color-readable-green',
   deepBlack: '--color-deep-black',
   secondaryDark: '--color-secondary-dark',
   muted: '--color-muted',
+  chatIncomingBg: '--color-chat-incoming-bg',
+  chatIncomingBorder: '--color-chat-incoming-border',
 };
 
 /** Default hex values — must match src/renderer/styles.css @theme block. */
 export const DEFAULT_THEME_COLORS: Record<ThemeColorKey, string> = {
+  appBg: '#020617',
+  sidebarActiveBg: '#1e293b',
   brandGreen: '#86efac',
   brightGreen: '#86efac',
   readableGreen: '#16a34a',
   deepBlack: '#0f172a',
   secondaryDark: '#334155',
   muted: '#94a3b8',
+  chatIncomingBg: '#1e293b',
+  chatIncomingBorder: '#1e293b',
 };
 
 export interface ThemeTokenMeta {
@@ -46,7 +58,9 @@ export interface ThemeTokenMeta {
 /** Preset hex values — Tailwind palette only. */
 export const THEME_COLOR_PRESETS: { label: string; hex: string }[] = [
   { label: 'Green 300', hex: '#86efac' },
+  { label: 'Slate 950', hex: '#020617' },
   { label: 'Slate 900', hex: '#0f172a' },
+  { label: 'Slate 800', hex: '#1e293b' },
   { label: 'Slate 700', hex: '#334155' },
   { label: 'Slate 400', hex: '#94a3b8' },
   { label: 'White', hex: '#ffffff' },
@@ -66,36 +80,57 @@ export const THEME_COLOR_PRESETS: { label: string; hex: string }[] = [
 
 export const THEME_TOKEN_META: ThemeTokenMeta[] = [
   {
+    key: 'appBg',
+    label: 'Main window background',
+    description:
+      'Main content viewport and app window background — the dark canvas behind all panels.',
+  },
+  {
+    key: 'sidebarActiveBg',
+    label: 'Active sidebar tab',
+    description: 'Background of the currently selected tab in the sidebar navigation.',
+  },
+  {
     key: 'brandGreen',
-    label: 'Brand green',
+    label: 'Indicators & border highlights',
     description:
       'Accent for borders when configured, online/MQTT indicators, highlights, and progress fills.',
   },
   {
     key: 'brightGreen',
-    label: 'Bright green',
+    label: 'App title, links & node emphasis',
     description: 'App title, emphasis text, links in footer, and hop/self highlights in node list.',
   },
   {
     key: 'readableGreen',
-    label: 'Readable green',
+    label: 'Action buttons & selected pills',
     description:
       'Solid fills with white text—selected channel pills and primary action buttons for contrast.',
   },
   {
     key: 'deepBlack',
-    label: 'Deep black',
-    description: 'Header, footer, modal shells, and primary dark surfaces.',
+    label: 'Sidebar, header & modal surfaces',
+    description: 'Sidebar navigation, header, footer, modal shells, and primary dark surfaces.',
   },
   {
     key: 'secondaryDark',
-    label: 'Secondary dark',
+    label: 'Panel & input background',
     description: 'Panel backgrounds, inputs, buttons, table row hovers, and progress track.',
   },
   {
     key: 'muted',
-    label: 'Muted',
+    label: 'Secondary labels & captions',
     description: 'Secondary labels, captions, table headers, and de-emphasized text.',
+  },
+  {
+    key: 'chatIncomingBg',
+    label: 'Incoming message fill',
+    description: 'Background fill for incoming channel messages (applied at 38% opacity).',
+  },
+  {
+    key: 'chatIncomingBorder',
+    label: 'Incoming message border',
+    description: 'Border color for incoming channel messages.',
   },
 ];
 
@@ -179,7 +214,15 @@ export function applyThemeColors(colors: Record<ThemeColorKey, string>): void {
   }
   const root = document.documentElement;
   for (const key of Object.keys(THEME_CSS_VARS) as ThemeColorKey[]) {
-    root.style.setProperty(THEME_CSS_VARS[key], resolved[key]);
+    const hex = resolved[key];
+    if (key === 'chatIncomingBg') {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      root.style.setProperty(THEME_CSS_VARS[key], `rgb(${r} ${g} ${b} / 0.38)`);
+    } else {
+      root.style.setProperty(THEME_CSS_VARS[key], hex);
+    }
   }
 }
 

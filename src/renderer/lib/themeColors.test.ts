@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { DEFAULT_THEME_COLORS, isValidHex, normalizeHex, sanitizeHexDraft } from './themeColors';
+import {
+  applyThemeColors,
+  DEFAULT_THEME_COLORS,
+  isValidHex,
+  normalizeHex,
+  sanitizeHexDraft,
+} from './themeColors';
 
 describe('themeColors', () => {
   describe('normalizeHex', () => {
@@ -54,5 +60,27 @@ describe('themeColors', () => {
     for (const hex of Object.values(DEFAULT_THEME_COLORS)) {
       expect(normalizeHex(hex)).toBe(hex.toLowerCase());
     }
+  });
+
+  describe('applyThemeColors', () => {
+    it('sets chatIncomingBg as rgb() with 0.38 opacity, not bare hex', () => {
+      const setProp = vi.fn();
+      vi.spyOn(document.documentElement.style, 'setProperty').mockImplementation(setProp);
+      applyThemeColors({ ...DEFAULT_THEME_COLORS, chatIncomingBg: '#1e293b' });
+      const call = setProp.mock.calls.find(([prop]) => prop === '--color-chat-incoming-bg');
+      expect(call).toBeDefined();
+      expect(call![1]).toBe('rgb(30 41 59 / 0.38)');
+      vi.restoreAllMocks();
+    });
+
+    it('sets appBg as bare hex', () => {
+      const setProp = vi.fn();
+      vi.spyOn(document.documentElement.style, 'setProperty').mockImplementation(setProp);
+      applyThemeColors({ ...DEFAULT_THEME_COLORS, appBg: '#020617' });
+      const call = setProp.mock.calls.find(([prop]) => prop === '--color-app-bg');
+      expect(call).toBeDefined();
+      expect(call![1]).toBe('#020617');
+      vi.restoreAllMocks();
+    });
   });
 });

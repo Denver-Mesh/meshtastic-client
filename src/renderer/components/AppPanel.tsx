@@ -1337,10 +1337,12 @@ export default function AppPanel({
                   />
                   <div
                     id={`theme-color-heading-${meta.key}`}
-                    className="max-w-[9rem] min-w-[6.5rem] shrink-0 text-sm font-medium text-gray-200"
-                    title={meta.description}
+                    className="max-w-[9rem] min-w-[6.5rem] shrink-0"
                   >
-                    {meta.label}
+                    <div className="text-sm font-medium text-gray-200">{meta.label}</div>
+                    <div className="text-muted mt-0.5 text-[10px] leading-tight">
+                      {meta.description}
+                    </div>
                   </div>
                   <div
                     className="flex max-w-full min-w-0 flex-1 [scrollbar-width:thin] flex-nowrap gap-1 py-0.5"

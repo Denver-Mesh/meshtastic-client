@@ -1,6 +1,8 @@
 @import 'tailwindcss';
 
 @theme {
+  --color-app-bg: #020617;
+  --color-sidebar-active-bg: #1e293b;
   --color-brand-green: #86efac;
   --color-bright-green: #86efac;
   --color-readable-green: #16a34a;
