@@ -532,6 +532,10 @@ describe('ChatPanel accessibility', () => {
       configurable: true,
     });
 
+    // The useLayoutEffect RAF already fired during render() before mock properties were
+    // set. Fire a scroll event so handleScroll re-evaluates with the mocked dimensions.
+    fireEvent.scroll(scrollContainer);
+
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Jump to Latest' })).toBeInTheDocument();
     });
