@@ -1463,7 +1463,7 @@ export default function App() {
           onComplete={handleSignalPulseComplete}
         />
       )}
-      <div className="flex h-screen w-screen min-w-0 flex-col overflow-hidden bg-slate-950">
+      <div className="bg-app-bg flex h-screen w-screen min-w-0 flex-col overflow-hidden">
         {/* Header - full width; sidebar + main start below */}
         <div
           role="banner"
@@ -1709,7 +1709,7 @@ export default function App() {
           {/* Sidebar - collapsible width on left */}
           <nav
             aria-label={t('aria.applicationPanels')}
-            className={`flex h-full min-h-0 shrink-0 flex-col border-r border-slate-800 transition-[width] duration-300 ${
+            className={`bg-deep-black flex h-full min-h-0 shrink-0 flex-col border-r border-slate-800 transition-[width] duration-300 ${
               sidebarCollapsed ? 'w-16' : 'w-48'
             }`}
           >
@@ -1725,11 +1725,11 @@ export default function App() {
           </nav>
 
           {/* Main column: viewport + footer */}
-          <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <main className="bg-app-bg flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             {/* Main Viewport - scrollable panel area */}
             <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
               {/* Scroll container - no padding so scrollbars pin to viewport edges */}
-              <div ref={mainViewportRef} className="h-full w-full overflow-auto bg-slate-950">
+              <div ref={mainViewportRef} className="bg-app-bg h-full w-full overflow-auto">
                 {/* Content wrapper - padding lives here, not on the scroll container */}
                 <div className="h-full min-h-full min-w-0 px-8 pt-8 pb-8">
                   <ErrorBoundary>
@@ -2407,7 +2407,7 @@ export default function App() {
             )}
 
             {/* Footer - fixed height at bottom of Content Wrapper */}
-            <footer className="text-muted flex h-8 shrink-0 items-center justify-between border-t border-slate-800 bg-slate-900 px-4 text-[10px]">
+            <footer className="text-muted bg-deep-black flex h-8 shrink-0 items-center justify-between border-t border-slate-800 px-4 text-[10px]">
               <span className="min-w-0">
                 {t('app.footerSlogan')}{' '}
                 <a

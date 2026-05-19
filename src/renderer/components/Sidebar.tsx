@@ -351,7 +351,7 @@ export default function Sidebar({
                 isDisabled
                   ? 'cursor-not-allowed border-transparent text-gray-600 opacity-40'
                   : isActive
-                    ? 'border-bright-green text-bright-green bg-gray-800'
+                    ? 'border-bright-green text-bright-green bg-sidebar-active-bg'
                     : 'text-muted hover:bg-secondary-dark border-transparent hover:text-gray-200'
               }`}
             >
