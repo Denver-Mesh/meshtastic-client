@@ -15,7 +15,9 @@ interface ManagerTestHarness {
   meshtasticFromRadioReadPump: boolean;
   gattKeepaliveTimer: ReturnType<typeof setInterval> | null;
   fromNumNotifyHandler: (() => void) | null;
+  backgroundPollTimer: ReturnType<typeof setInterval> | null;
   trySubscribeFromNum(service: BluetoothRemoteGATTService): Promise<void>;
+  startBackgroundPoll(): void;
   writeToRadio(data: Uint8Array): Promise<void>;
   setLinkHealthyCallback(callback: (() => void) | null): void;
   startGattKeepalive(): void;
@@ -189,6 +191,30 @@ describe('WebBluetoothManager writeToRadio', () => {
 
     await vi.advanceTimersByTimeAsync(45_000);
     expect(fromRadio.readValue).toHaveBeenCalled();
+  });
+
+  describe('background poll', () => {
+    it('polls fromRadio at 3-second intervals to catch slow responses', async () => {
+      const { harness } = makeManager();
+      const fromRadio = mockFromRadioChar();
+      harness.fromRadioCharacteristic = fromRadio;
+      harness.device = { gatt: { connected: true } } as unknown as BluetoothDevice;
+
+      harness.startBackgroundPoll();
+      expect(harness.backgroundPollTimer).not.toBeNull();
+
+      await vi.advanceTimersByTimeAsync(3_000);
+      expect(fromRadio.readValue).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(3_000);
+      expect(fromRadio.readValue).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not start background poll for non-meshtastic sessions', () => {
+      const { harness } = makeManager('meshcore');
+      harness.startBackgroundPoll();
+      expect(harness.backgroundPollTimer).toBeNull();
+    });
   });
 
   describe('fromNum notify', () => {
