@@ -33,6 +33,12 @@ const GATT_READ_VALUE_TIMEOUT_MS = 10_000;
 /** Periodic GATT read on quiet notify links — below useDevice BLE_STALE_THRESHOLD_MS (90s). */
 const GATT_KEEPALIVE_INTERVAL_MS = 45_000;
 /**
+ * Background fromRadio poll interval — catches responses that arrive after the post-write
+ * safety-read window (8 s) when fromNum / fromRadio notify don't fire (BlueZ on Linux).
+ * Runs continuously on Meshtastic sessions regardless of notify state.
+ */
+const FROMRADIO_POLL_INTERVAL_MS = 3_000;
+/**
  * Meshtastic fromNum characteristic — value increments when a new packet is queued in fromRadio.
  * Subscribing to its NOTIFY fires a drain without waiting for the next client write.
  * Mirrors FROMNUM_UUID in `noble-ble-manager.ts`.
@@ -123,6 +129,7 @@ export class WebBluetoothManager {
   private postWriteSafetyReadTimers: ReturnType<typeof setTimeout>[] = [];
   private isReadPumpActive = false;
   private gattKeepaliveTimer: ReturnType<typeof setInterval> | null = null;
+  private backgroundPollTimer: ReturnType<typeof setInterval> | null = null;
   /** Invoked when a GATT read/write succeeds — refreshes connection watchdog on quiet meshes. */
   private onGattLinkHealthy: (() => void) | null = null;
 
@@ -420,6 +427,21 @@ export class WebBluetoothManager {
     }
   }
 
+  private startBackgroundPoll(): void {
+    if (this.sessionId !== 'meshtastic' || this.backgroundPollTimer !== null) return;
+    this.backgroundPollTimer = setInterval(() => {
+      if (!this.device?.gatt?.connected) return;
+      void this.drainFromRadioUnchecked();
+    }, FROMRADIO_POLL_INTERVAL_MS);
+  }
+
+  private stopBackgroundPoll(): void {
+    if (this.backgroundPollTimer !== null) {
+      clearInterval(this.backgroundPollTimer);
+      this.backgroundPollTimer = null;
+    }
+  }
+
   async connect(): Promise<void> {
     if (!this.device) {
       throw new Error('No device selected. Call requestDevice() first.');
@@ -555,6 +577,7 @@ export class WebBluetoothManager {
       console.debug(`[WebBluetooth:${this.sessionId}] notifications started`);
       this.startGattKeepalive();
       await this.trySubscribeFromNum(service);
+      this.startBackgroundPoll();
     } catch (err) {
       const domErr = err as DOMException;
       const isPairing = isWebBluetoothPairingError(err);
@@ -576,6 +599,7 @@ export class WebBluetoothManager {
           );
           void this.drainMeshtasticFromRadioReads();
           await this.trySubscribeFromNum(service);
+          this.startBackgroundPoll();
           return;
         }
       }
@@ -636,6 +660,7 @@ export class WebBluetoothManager {
     this.clearPostWriteSafetyReads();
     this.isReadPumpActive = false;
     this.stopGattKeepalive();
+    this.stopBackgroundPoll();
     this.onGattLinkHealthy = null;
     this._fromDeviceController = null;
     this.device = null;
