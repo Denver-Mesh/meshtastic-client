@@ -23,8 +23,13 @@ const GATT_DISCOVERY_TIMEOUT_MS = 30_000;
 const GATT_NOTIFICATION_TIMEOUT_MS = 20_000;
 /** Align with `noble-ble-manager.ts` — drain burst cap for Meshtastic fromRadio read pump. */
 const BLE_READ_PUMP_MAX_ITERATIONS = 512;
-/** Mirrors `noble-ble-manager.ts` POST_WRITE_READ_PUMP_DELAY_MS — recover dropped first notify after write. */
-const POST_WRITE_SAFETY_READ_DELAY_MS = 100;
+/**
+ * Post-write safety read schedule — multiple probes cover LoRa round-trip latency (can reach
+ * several seconds). First probe matches `noble-ble-manager.ts POST_WRITE_READ_PUMP_DELAY_MS`.
+ */
+const POST_WRITE_SAFETY_READ_DELAYS_MS = [100, 500, 1500, 4000, 8000];
+/** Timeout for individual GATT readValue calls in the drain loop (shorter than discovery). */
+const GATT_READ_VALUE_TIMEOUT_MS = 10_000;
 /** Periodic GATT read on quiet notify links — below useDevice BLE_STALE_THRESHOLD_MS (90s). */
 const GATT_KEEPALIVE_INTERVAL_MS = 45_000;
 
@@ -107,7 +112,8 @@ export class WebBluetoothManager {
   private _pendingDevicePromise?: Promise<BluetoothDevice>;
   private _resolvePendingDevice?: (device: BluetoothDevice) => void;
   private _rejectPendingDevice?: (reason?: unknown) => void;
-  private postWriteSafetyReadTimer: ReturnType<typeof setTimeout> | null = null;
+  private postWriteSafetyReadTimers: ReturnType<typeof setTimeout>[] = [];
+  private isReadPumpActive = false;
   private gattKeepaliveTimer: ReturnType<typeof setInterval> | null = null;
   /** Invoked when a GATT read/write succeeds — refreshes connection watchdog on quiet meshes. */
   private onGattLinkHealthy: (() => void) | null = null;
@@ -294,39 +300,54 @@ export class WebBluetoothManager {
     await this.drainFromRadioUnchecked();
   }
 
-  /** GATT read drain without read-pump guard — post-write safety net and keepalive for notify mode. */
+  /** GATT read drain — concurrent-read guard prevents overlapping GATT reads. */
   private async drainFromRadioUnchecked(): Promise<void> {
-    if (!this.fromRadioCharacteristic) return;
+    if (!this.fromRadioCharacteristic || this.isReadPumpActive) return;
+    this.isReadPumpActive = true;
     const ch = this.fromRadioCharacteristic;
-    for (let i = 0; i < BLE_READ_PUMP_MAX_ITERATIONS; i++) {
-      if (!this.device?.gatt?.connected) return;
-      let dataView: DataView;
-      try {
-        dataView = await withGattTimeout(
-          ch.readValue(),
-          GATT_DISCOVERY_TIMEOUT_MS,
-          'GATT fromRadio readValue',
-        );
-      } catch {
-        // catch-no-log-ok read pump end — expected when characteristic is drained or stack errors
-        break;
+    try {
+      for (let i = 0; i < BLE_READ_PUMP_MAX_ITERATIONS; i++) {
+        if (!this.device?.gatt?.connected) return;
+        let dataView: DataView;
+        try {
+          dataView = await withGattTimeout(
+            ch.readValue(),
+            GATT_READ_VALUE_TIMEOUT_MS,
+            'GATT fromRadio readValue',
+          );
+        } catch {
+          // catch-no-log-ok read pump end — expected when characteristic is drained or stack errors
+          break;
+        }
+        this.notifyGattLinkHealthy();
+        if (!dataView.byteLength) break;
+        const bytes = new Uint8Array(dataView.buffer, dataView.byteOffset, dataView.byteLength);
+        this.enqueueFromRadioBytes(bytes);
+        await Promise.resolve();
       }
-      this.notifyGattLinkHealthy();
-      if (!dataView.byteLength) break;
-      const bytes = new Uint8Array(dataView.buffer, dataView.byteOffset, dataView.byteLength);
-      this.enqueueFromRadioBytes(bytes);
-      await Promise.resolve();
+    } finally {
+      this.isReadPumpActive = false;
     }
   }
 
-  private schedulePostWriteSafetyRead(): void {
-    if (this.postWriteSafetyReadTimer !== null) {
-      clearTimeout(this.postWriteSafetyReadTimer);
+  private clearPostWriteSafetyReads(): void {
+    for (const t of this.postWriteSafetyReadTimers) clearTimeout(t);
+    this.postWriteSafetyReadTimers = [];
+  }
+
+  /**
+   * Schedule multiple fromRadio reads after a write to catch responses that arrive after LoRa
+   * round-trips (can take several seconds). Cancels any pending reads from the previous write.
+   */
+  private schedulePostWriteSafetyReads(): void {
+    this.clearPostWriteSafetyReads();
+    for (const delay of POST_WRITE_SAFETY_READ_DELAYS_MS) {
+      this.postWriteSafetyReadTimers.push(
+        setTimeout(() => {
+          void this.drainFromRadioUnchecked();
+        }, delay),
+      );
     }
-    this.postWriteSafetyReadTimer = setTimeout(() => {
-      this.postWriteSafetyReadTimer = null;
-      void this.drainFromRadioUnchecked();
-    }, POST_WRITE_SAFETY_READ_DELAY_MS);
   }
 
   private startGattKeepalive(): void {
@@ -555,10 +576,8 @@ export class WebBluetoothManager {
   }
 
   private cleanup(): void {
-    if (this.postWriteSafetyReadTimer !== null) {
-      clearTimeout(this.postWriteSafetyReadTimer);
-      this.postWriteSafetyReadTimer = null;
-    }
+    this.clearPostWriteSafetyReads();
+    this.isReadPumpActive = false;
     this.stopGattKeepalive();
     this.onGattLinkHealthy = null;
     this._fromDeviceController = null;
@@ -597,8 +616,9 @@ export class WebBluetoothManager {
     if (this.sessionId === 'meshtastic') {
       if (this.meshtasticFromRadioReadPump) {
         await this.drainMeshtasticFromRadioReads();
-      } else if (this.fromRadioCharacteristic?.properties.read) {
-        this.schedulePostWriteSafetyRead();
+      }
+      if (this.fromRadioCharacteristic?.properties.read) {
+        this.schedulePostWriteSafetyReads();
       }
     }
   }

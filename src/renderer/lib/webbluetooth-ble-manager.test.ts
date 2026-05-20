@@ -144,24 +144,24 @@ describe('WebBluetoothManager writeToRadio', () => {
     expect(fromRadio.readValue).toHaveBeenCalled();
   });
 
-  it('does not schedule safety read when meshtasticFromRadioReadPump is true', async () => {
+  it('drains immediately and schedules follow-up reads in meshtasticFromRadioReadPump mode', async () => {
     const { mgr, harness } = makeManager();
     const fromRadio = mockFromRadioChar();
     harness.toRadioCharacteristic = mockToRadioChar(true);
     harness.fromRadioCharacteristic = fromRadio;
     harness.meshtasticFromRadioReadPump = true;
 
-    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
-
     await mgr.writeToRadio(new Uint8Array([1]));
 
-    expect(fromRadio.readValue).toHaveBeenCalled();
-    const safetyReadCalls = setTimeoutSpy.mock.calls.filter(
-      (args) => typeof args[1] === 'number' && args[1] === 100,
-    );
-    expect(safetyReadCalls).toHaveLength(0);
+    // Immediate drain runs synchronously with the write
+    expect(fromRadio.readValue).toHaveBeenCalledTimes(1);
 
-    setTimeoutSpy.mockRestore();
+    // Follow-up reads fire at scheduled delays to catch slow LoRa responses
+    await vi.advanceTimersByTimeAsync(100);
+    expect(fromRadio.readValue).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(400); // 500ms total
+    expect(fromRadio.readValue).toHaveBeenCalledTimes(3);
   });
 
   it('invokes link-healthy callback after writeToRadio', async () => {
