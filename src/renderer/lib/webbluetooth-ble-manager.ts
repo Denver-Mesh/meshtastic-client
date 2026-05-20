@@ -554,7 +554,7 @@ export class WebBluetoothManager {
       );
       console.debug(`[WebBluetooth:${this.sessionId}] notifications started`);
       this.startGattKeepalive();
-      if (service) await this.trySubscribeFromNum(service);
+      await this.trySubscribeFromNum(service);
     } catch (err) {
       const domErr = err as DOMException;
       const isPairing = isWebBluetoothPairingError(err);
@@ -575,7 +575,7 @@ export class WebBluetoothManager {
             `[WebBluetooth:${this.sessionId}] fromRadio: notify unavailable (no CCCD); using read pump`,
           );
           void this.drainMeshtasticFromRadioReads();
-          if (service) await this.trySubscribeFromNum(service);
+          await this.trySubscribeFromNum(service);
           return;
         }
       }
