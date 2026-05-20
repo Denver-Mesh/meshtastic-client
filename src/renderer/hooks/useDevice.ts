@@ -2584,20 +2584,23 @@ export function useDevice() {
     console.warn('[useDevice] Connection lost — initiating reconnect');
     isReconnectingRef.current = true;
 
-    // Clean up existing connection
-    clearConfigureTimeout();
-    cleanupSubscriptions();
-    stopWatchdog();
-    stopGpsInterval();
-    const oldDevice = deviceRef.current;
-    deviceRef.current = null;
-    if (oldDevice)
-      safeDisconnect(oldDevice).catch((e: unknown) => {
-        console.debug('[useDevice] handleConnectionLost safeDisconnect ' + errLikeToLogString(e));
-      });
-
-    // Begin reconnection
-    void attemptReconnectRef.current();
+    void (async () => {
+      // Clean up existing connection before reconnect (BlueZ needs GATT fully torn down).
+      clearConfigureTimeout();
+      cleanupSubscriptions();
+      stopWatchdog();
+      stopGpsInterval();
+      const oldDevice = deviceRef.current;
+      deviceRef.current = null;
+      if (oldDevice) {
+        try {
+          await safeDisconnect(oldDevice);
+        } catch (e: unknown) {
+          console.debug('[useDevice] handleConnectionLost safeDisconnect ' + errLikeToLogString(e));
+        }
+      }
+      void attemptReconnectRef.current();
+    })();
   }, [clearConfigureTimeout, cleanupSubscriptions, stopWatchdog, stopGpsInterval]);
 
   // Keep the ref in sync

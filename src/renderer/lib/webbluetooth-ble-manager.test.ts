@@ -13,7 +13,10 @@ interface ManagerTestHarness {
   toRadioCharacteristic: BluetoothRemoteGATTCharacteristic | null;
   fromRadioCharacteristic: BluetoothRemoteGATTCharacteristic | null;
   meshtasticFromRadioReadPump: boolean;
+  gattKeepaliveTimer: ReturnType<typeof setInterval> | null;
   writeToRadio(data: Uint8Array): Promise<void>;
+  setLinkHealthyCallback(callback: (() => void) | null): void;
+  startGattKeepalive(): void;
 }
 
 describe('probeWebBluetoothToRadioChunkLimitBytes', () => {
@@ -159,5 +162,64 @@ describe('WebBluetoothManager writeToRadio', () => {
     expect(safetyReadCalls).toHaveLength(0);
 
     setTimeoutSpy.mockRestore();
+  });
+
+  it('invokes link-healthy callback after writeToRadio', async () => {
+    const { mgr, harness } = makeManager();
+    const onHealthy = vi.fn();
+    mgr.setLinkHealthyCallback(onHealthy);
+    harness.toRadioCharacteristic = mockToRadioChar(true);
+    harness.fromRadioCharacteristic = mockFromRadioChar();
+
+    await mgr.writeToRadio(new Uint8Array([1]));
+
+    expect(onHealthy).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs GATT keepalive reads on notify path when fromRadio is readable', async () => {
+    const { harness } = makeManager();
+    const fromRadio = mockFromRadioChar();
+    harness.fromRadioCharacteristic = fromRadio;
+    harness.meshtasticFromRadioReadPump = false;
+
+    harness.startGattKeepalive();
+    expect(harness.gattKeepaliveTimer).not.toBeNull();
+
+    await vi.advanceTimersByTimeAsync(45_000);
+    expect(fromRadio.readValue).toHaveBeenCalled();
+  });
+});
+
+describe('WebBluetoothManager acquireGrantedDeviceById', () => {
+  it('reuses device from navigator.bluetooth.getDevices()', async () => {
+    const mockDevice = {
+      id: 'granted-radio',
+      name: 'T-Beam',
+      addEventListener: vi.fn(),
+    } as unknown as BluetoothDevice;
+    const getDevices = vi.fn().mockResolvedValue([mockDevice]);
+    Object.defineProperty(navigator, 'bluetooth', {
+      configurable: true,
+      value: { getDevices },
+    });
+
+    const mgr = new WebBluetoothManager('meshtastic');
+    const device = await mgr.acquireGrantedDeviceById('granted-radio');
+
+    expect(getDevices).toHaveBeenCalled();
+    expect(device).toBe(mockDevice);
+    expect((mgr as unknown as ManagerTestHarness).device).toBe(mockDevice);
+  });
+
+  it('throws when granted device id is not in getDevices()', async () => {
+    Object.defineProperty(navigator, 'bluetooth', {
+      configurable: true,
+      value: { getDevices: vi.fn().mockResolvedValue([]) },
+    });
+
+    const mgr = new WebBluetoothManager('meshtastic');
+    await expect(mgr.acquireGrantedDeviceById('missing-id')).rejects.toThrow(
+      /no longer available/i,
+    );
   });
 });

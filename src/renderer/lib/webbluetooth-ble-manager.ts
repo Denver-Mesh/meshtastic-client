@@ -467,6 +467,7 @@ export class WebBluetoothManager {
       if (!target) return;
       const value = target.value;
       if (value && value.byteLength > 0) {
+        this.notifyGattLinkHealthy();
         const slicedBytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
         this.enqueueFromRadioBytes(slicedBytes);
       }
